@@ -26,6 +26,22 @@ GRAY       = (100, 100, 100)
 LIGHT_GRAY = (180, 180, 180)
 TEAL       = (0,   200, 150)
 
+# --- Cores da UI (tema escuro fantasia) ---
+UI_BG        = (15,  12,  25)
+UI_PANEL     = (22,  20,  35)
+UI_PANEL_LIT = (35,  30,  50)
+UI_BORDER    = (60,  55,  80)
+UI_BORDER_LIT= (90,  80,  120)
+UI_ACCENT    = (255, 200, 50)
+UI_TEXT      = (220, 220, 230)
+UI_TEXT_DIM  = (140, 135, 160)
+UI_GOLD      = (255, 180, 30)
+FLOOR_A      = (18,  16,  30)
+FLOOR_B      = (22,  20,  35)
+WALL_FILL    = (50,  45,  65)
+WALL_EDGE    = (75,  65,  95)
+WALL_SHADOW  = (30,  25,  40)
+
 # --- Dano ---
 BASE_BULLET_DAMAGE = 10
 MAX_BULLET_DAMAGE  = 30
@@ -60,6 +76,9 @@ TITAN    = CharacterStats("Titã",       200, 2,  7,  40, GOLD,   "Invulnerável
 CHARACTER_TYPES = [WARRIOR, SHOOTER, TANK, NINJA, SPEEDSTER, BOMBER, GHOST, TITAN]
 
 ASSET_DIR   = "assets"
+UI_DIR      = os.path.join(ASSET_DIR, "ui")
+FONT_DIR    = os.path.join(ASSET_DIR, "font")
+TILES_DIR   = os.path.join(ASSET_DIR, "tiles")
 IMAGE_SIZE  = (120, 120)
 
 # ─────────────────────────────────────────────
@@ -630,11 +649,11 @@ class Player:
         bx   = int(self.x - bw / 2)
         by   = int(self.y - self.radius - 10)
         ratio= max(0, self.hp / self.char_stats.max_hp)
-        pygame.draw.rect(screen, RED,   (bx, by, bw, bh))
-        pygame.draw.rect(screen, GREEN, (bx, by, int(bw * ratio), bh))
-        pygame.draw.rect(screen, WHITE, (bx, by, bw, bh), 1)
+        hp_color = GREEN if ratio > 0.5 else (ORANGE if ratio > 0.25 else RED)
+        draw_styled_bar(screen, bx, by, bw, bh, ratio, fg_color=hp_color)
+
         hp_text = f"{self.hp}/{self.char_stats.max_hp}"
-        draw_text(screen, hp_text, 16, WHITE, bx + bw // 2, by - 9)
+        draw_text(screen, hp_text, 14, WHITE, bx + bw // 2, by - 8)
 
         # Explosões visuais
         for exp in self.explosions:
@@ -648,8 +667,12 @@ class Wall:
         self.rect = pygame.Rect(x, y, w, h)
 
     def draw(self, screen):
-        pygame.draw.rect(screen, GRAY,  self.rect)
-        pygame.draw.rect(screen, WHITE, self.rect, 2)
+        r = self.rect
+        pygame.draw.rect(screen, WALL_SHADOW, (r.x - 2, r.y - 1, r.w + 4, r.h + 2), border_radius=4)
+        pygame.draw.rect(screen, WALL_FILL, r, border_radius=3)
+        pygame.draw.rect(screen, WALL_EDGE, r, 2, border_radius=3)
+        top_highlight = (WALL_EDGE[0] + 40, WALL_EDGE[1] + 40, WALL_EDGE[2] + 40)
+        pygame.draw.line(screen, top_highlight, (r.x + 3, r.y + 2), (r.right - 3, r.y + 2), 1)
 
     def collides_with_player(self, player):
         cx, cy = player.x, player.y
@@ -705,8 +728,99 @@ class Barrier:
 # ─────────────────────────────────────────────
 #  HELPERS
 # ─────────────────────────────────────────────
+def load_image(path, fallback=None, scale=None, colorkey=None):
+    try:
+        img = pygame.image.load(path).convert_alpha()
+        if scale:
+            img = pygame.transform.scale(img, scale)
+        if colorkey:
+            img.set_colorkey(colorkey)
+        return img
+    except (FileNotFoundError, pygame.error):
+        return fallback
+
+
+def draw_nine_slice(screen, img, rect, slice_size=4):
+    img_w = img.get_width()
+    img_h = img.get_height()
+    x, y, w, h = rect
+
+    if w < slice_size * 2 or h < slice_size * 2:
+        screen.blit(pygame.transform.scale(img, (w, h)), (x, y))
+        return
+
+    tl = img.subsurface(0, 0, slice_size, slice_size)
+    tc = img.subsurface(slice_size, 0, img_w - 2 * slice_size, slice_size)
+    tr = img.subsurface(img_w - slice_size, 0, slice_size, slice_size)
+
+    ml = img.subsurface(0, slice_size, slice_size, img_h - 2 * slice_size)
+    mr = img.subsurface(img_w - slice_size, slice_size, slice_size, img_h - 2 * slice_size)
+
+    bl = img.subsurface(0, img_h - slice_size, slice_size, slice_size)
+    bc = img.subsurface(slice_size, img_h - slice_size, img_w - 2 * slice_size, slice_size)
+    br = img.subsurface(img_w - slice_size, img_h - slice_size, slice_size, slice_size)
+
+    cx = w - 2 * slice_size
+    cy = h - 2 * slice_size
+
+    screen.blit(tl, (x, y))
+    screen.blit(tr, (x + w - slice_size, y))
+    screen.blit(bl, (x, y + h - slice_size))
+    screen.blit(br, (x + w - slice_size, y + h - slice_size))
+
+    screen.blit(pygame.transform.scale(tc, (cx, slice_size)), (x + slice_size, y))
+    screen.blit(pygame.transform.scale(bc, (cx, slice_size)), (x + slice_size, y + h - slice_size))
+    screen.blit(pygame.transform.scale(ml, (slice_size, cy)), (x, y + slice_size))
+    screen.blit(pygame.transform.scale(mr, (slice_size, cy)), (x + w - slice_size, y + slice_size))
+
+    if cx > 0 and cy > 0:
+        center = img.subsurface(slice_size, slice_size, img_w - 2 * slice_size, img_h - 2 * slice_size)
+        screen.blit(pygame.transform.scale(center, (cx, cy)), (x + slice_size, y + slice_size))
+
+
+def draw_panel(screen, rect, fill=UI_PANEL, border=UI_BORDER, radius=6, bevel=True):
+    x, y, w, h = rect
+    if bevel:
+        pygame.draw.rect(screen, UI_BORDER_LIT, (x - 1, y - 1, w + 2, h + 2), border_radius=radius + 1)
+        pygame.draw.rect(screen, UI_BORDER, (x, y, w, h), border_radius=radius)
+        shadow = (fill[0] // 2, fill[1] // 2, fill[2] // 2)
+        inner = (x + 2, y + 2, w - 4, h - 4)
+        pygame.draw.rect(screen, shadow, inner, border_radius=max(1, radius - 2))
+        pygame.draw.rect(screen, fill, (x + 1, y + 1, w - 2, h - 2), border_radius=max(1, radius - 1))
+    else:
+        pygame.draw.rect(screen, border, (x, y, w, h), border_radius=radius)
+        pygame.draw.rect(screen, fill, (x + 1, y + 1, w - 2, h - 2), border_radius=max(1, radius - 1))
+
+
+def draw_styled_bar(screen, x, y, w, h, ratio, fg_color=GREEN, bg_color=DARK_GRAY, label="", label_side="top"):
+    pygame.draw.rect(screen, bg_color, (x, y, w, h), border_radius=3)
+    if ratio > 0:
+        fw = max(2, int(w * ratio))
+        pygame.draw.rect(screen, fg_color, (x + 1, y + 1, fw - 2, h - 2), border_radius=2)
+    pygame.draw.rect(screen, UI_BORDER, (x, y, w, h), 1, border_radius=3)
+    if label:
+        ly = y - 9 if label_side == "top" else y + h + 4
+        draw_text(screen, label, 16, UI_TEXT, x + w // 2, ly)
+
+
+FONT_CACHE = {}
+PIXEL_FONT_PATH = os.path.join(FONT_DIR, "PressStart2P-Regular.ttf")
+PIXEL_FONT_OK = os.path.isfile(PIXEL_FONT_PATH)
+
+def _get_font(size):
+    key = ("pixel" if PIXEL_FONT_OK else "default", size)
+    if key not in FONT_CACHE:
+        try:
+            if PIXEL_FONT_OK:
+                FONT_CACHE[key] = pygame.font.Font(PIXEL_FONT_PATH, size)
+            else:
+                FONT_CACHE[key] = pygame.font.Font(None, size)
+        except pygame.error:
+            FONT_CACHE[key] = pygame.font.Font(None, size)
+    return FONT_CACHE[key]
+
 def draw_text(screen, text, size, color, x, y, center=True):
-    font = pygame.font.Font(None, size)
+    font = _get_font(size)
     surf = font.render(text, True, color)
     rect = surf.get_rect()
     if center: rect.center   = (x, y)
@@ -715,48 +829,44 @@ def draw_text(screen, text, size, color, x, y, center=True):
 
 def draw_hud(screen, p1, p2):
     dist  = p1.distance_to(p2)
-    color = ORANGE if dist <= MELEE_RANGE else WHITE
-    draw_text(screen, f"{p1.name}",  22, p1.color, 90,                20)
-    draw_text(screen, f"{p2.name}",  22, p2.color, SCREEN_WIDTH - 90, 20)
-    draw_text(screen, f"Dist: {int(dist)}px", 20, color, SCREEN_WIDTH // 2, 20)
-    if dist <= MELEE_RANGE:
-        draw_text(screen, "⚡ MELEE!", 22, YELLOW, SCREEN_WIDTH // 2, 44)
+    melee = dist <= MELEE_RANGE
 
-    # Cooldown de poder (P1 esquerda, P2 direita)
-    def draw_ability_bar(player, bx, label_right=False):
-        total = Player.ABILITY_COOLDOWN
-        ratio = 1.0 - (player.ability_cooldown / total) if total else 1.0
-        bw, bh = 120, 10
-        by = SCREEN_HEIGHT - 30
-        pygame.draw.rect(screen, DARK_GRAY, (bx, by, bw, bh))
-        bar_color = GREEN if ratio >= 1.0 else CYAN
-        pygame.draw.rect(screen, bar_color, (bx, by, int(bw * ratio), bh))
-        pygame.draw.rect(screen, WHITE, (bx, by, bw, bh), 1)
-        label = f"[Q] {player.char_stats.ability_name}" if not label_right else f"{player.char_stats.ability_name} [.]"
-        draw_text(screen, label, 18, WHITE, bx + bw // 2, by - 10)
-        if player.ability_active:
-            t_left = player.ability_timer // FPS + 1
-            draw_text(screen, f"ATIVO {t_left}s", 18, YELLOW, bx + bw // 2, by + bh + 12)
+    # Painel superior com nomes e distância
+    panel_h = 48 + (18 if melee else 0)
+    draw_panel(screen, (SCREEN_WIDTH // 2 - 120, 6, 240, panel_h), fill=(20, 18, 35, 180), bevel=False)
+    draw_text(screen, f"{p1.name}",  20, p1.color, SCREEN_WIDTH // 2 - 80, 14)
+    draw_text(screen, f"{p2.name}",  20, p2.color, SCREEN_WIDTH // 2 + 80, 14)
+    draw_text(screen, f"{int(dist)}px", 16, ORANGE if melee else UI_TEXT_DIM, SCREEN_WIDTH // 2, 35)
+    if melee:
+        draw_text(screen, "CORPO A CORPO!", 16, UI_GOLD, SCREEN_WIDTH // 2, 52)
 
-    # Cooldown de tiro
-    def draw_shoot_cd(player, bx):
-        cd = player.current_cooldown
-        total = player.shoot_cooldown
-        ratio = 1.0 - (cd / total) if total else 1.0
-        bw, bh = 40, 6
-        by = SCREEN_HEIGHT - 48
-        pygame.draw.rect(screen, DARK_GRAY, (bx, by, bw, bh))
-        if cd > 0:
-            pygame.draw.rect(screen, ORANGE, (bx, by, int(bw * (1 - ratio)), bh))
-        else:
-            pygame.draw.rect(screen, GREEN, (bx, by, bw, bh))
-        pygame.draw.rect(screen, WHITE, (bx, by, bw, bh), 1)
+    # Painel inferior esquerdo (P1)
+    draw_panel(screen, (8, SCREEN_HEIGHT - 62, 220, 54), fill=(20, 18, 35, 200), bevel=True)
+    ab_ratio = 1.0 - (p1.ability_cooldown / Player.ABILITY_COOLDOWN) if Player.ABILITY_COOLDOWN else 1.0
+    ab_label = f"[Q] {p1.char_stats.ability_name}"
+    ab_label = ab_label if len(ab_label) <= 12 else ab_label[:11] + "."
+    draw_styled_bar(screen, 14, SCREEN_HEIGHT - 50, 90, 8, ab_ratio,
+                    fg_color=GREEN if ab_ratio >= 1.0 else CYAN, label=ab_label)
+    sc_ratio = 1.0 - (p1.current_cooldown / p1.shoot_cooldown) if p1.shoot_cooldown else 1.0
+    sc_color = GREEN if sc_ratio >= 1.0 else ORANGE
+    draw_styled_bar(screen, 120, SCREEN_HEIGHT - 50, 50, 8, sc_ratio, fg_color=sc_color, label="TIRO", label_side="bottom")
+    if p1.ability_active:
+        t_left = p1.ability_timer // FPS + 1
+        draw_text(screen, f"ATIVO {t_left}s", 14, UI_GOLD, 100, SCREEN_HEIGHT - 28)
 
-    draw_shoot_cd(p1, 20)
-    draw_shoot_cd(p2, SCREEN_WIDTH - 60)
-
-    draw_ability_bar(p1, 20)
-    draw_ability_bar(p2, SCREEN_WIDTH - 140, label_right=True)
+    # Painel inferior direito (P2)
+    draw_panel(screen, (SCREEN_WIDTH - 228, SCREEN_HEIGHT - 62, 220, 54), fill=(20, 18, 35, 200), bevel=True)
+    ab_ratio2 = 1.0 - (p2.ability_cooldown / Player.ABILITY_COOLDOWN) if Player.ABILITY_COOLDOWN else 1.0
+    ab_label2 = f"{p2.char_stats.ability_name} [.]"
+    ab_label2 = ab_label2 if len(ab_label2) <= 12 else ab_label2[:11] + "."
+    draw_styled_bar(screen, SCREEN_WIDTH - 104, SCREEN_HEIGHT - 50, 90, 8, ab_ratio2,
+                    fg_color=GREEN if ab_ratio2 >= 1.0 else CYAN, label=ab_label2)
+    sc_ratio2 = 1.0 - (p2.current_cooldown / p2.shoot_cooldown) if p2.shoot_cooldown else 1.0
+    sc_color2 = GREEN if sc_ratio2 >= 1.0 else ORANGE
+    draw_styled_bar(screen, SCREEN_WIDTH - 170, SCREEN_HEIGHT - 50, 50, 8, sc_ratio2, fg_color=sc_color2, label="TIRO", label_side="bottom")
+    if p2.ability_active:
+        t_left = p2.ability_timer // FPS + 1
+        draw_text(screen, f"ATIVO {t_left}s", 14, UI_GOLD, SCREEN_WIDTH - 100, SCREEN_HEIGHT - 28)
 
 # ─────────────────────────────────────────────
 #  PAREDES DA ARENA
@@ -774,12 +884,12 @@ walls = [
 #  INICIALIZAÇÃO PYGAME
 # ─────────────────────────────────────────────
 pygame.init()
-pygame.display.set_caption("Soul Knight Lite")
+pygame.display.set_caption("Soul Strike")
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN | pygame.SCALED)
 clock  = pygame.time.Clock()
 
-if not os.path.isdir(ASSET_DIR):
-    os.makedirs(ASSET_DIR, exist_ok=True)
+for d in (ASSET_DIR, UI_DIR, FONT_DIR, TILES_DIR):
+    os.makedirs(d, exist_ok=True)
 
 # ── TELA DE CARREGAMENTO ──
 particles = []
@@ -810,34 +920,30 @@ def draw_loading(progress, tip, ticks):
     # Logo com glow pulsante
     glow = int(15 * math.sin(t * 2))
     for dy in (-1, 0, 1):
-        draw_text(screen, "SOUL KNIGHT LITE", 64, (*GOLD[:3], 30 + glow),
-                  SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3 - 30 + dy * 3)
-    draw_text(screen, "SOUL KNIGHT LITE", 64, WHITE,
+        draw_text(screen, "SOUL STRIKE", 66, (*UI_GOLD[:3], 30 + glow),
+                  SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3 - 30 + dy * 3,)
+    draw_text(screen, "SOUL STRIKE", 66, WHITE,
               SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3 - 30)
 
     # Subtítulo
-    draw_text(screen, "Um duelo de heróis!", 24, LIGHT_GRAY,
-              SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3 + 20)
+    draw_text(screen, "Um duelo de heróis!", 22, UI_TEXT_DIM,
+              SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3 + 25)
 
     # Barra de progresso
-    bw, bh = 400, 18
+    bw, bh = 420, 20
     bx = SCREEN_WIDTH // 2 - bw // 2
-    by = SCREEN_HEIGHT // 2 + 30
-    pygame.draw.rect(screen, DARK_GRAY, (bx, by, bw, bh), border_radius=9)
-    if progress > 0:
-        pygame.draw.rect(screen, GOLD, (bx + 2, by + 2,
-                         int((bw - 4) * progress), bh - 4), border_radius=8)
-    pygame.draw.rect(screen, WHITE, (bx, by, bw, bh), 2, border_radius=9)
+    by = SCREEN_HEIGHT // 2 + 35
+    draw_styled_bar(screen, bx, by, bw, bh, progress, fg_color=UI_GOLD, label="")
 
     dots = '.' * (int(t * 3) % 4)
-    draw_text(screen, f"Carregando{dots}", 26, LIGHT_GRAY,
-              SCREEN_WIDTH // 2, by + bh + 28)
-    draw_text(screen, f"{int(progress * 100)}%", 20, GOLD,
-              SCREEN_WIDTH // 2, by + bh + 56)
+    draw_text(screen, f"Carregando{dots}", 24, UI_TEXT_DIM,
+              SCREEN_WIDTH // 2, by + bh + 26)
+    draw_text(screen, f"{int(progress * 100)}%", 18, UI_GOLD,
+              SCREEN_WIDTH // 2, by + bh + 50)
 
     # Dica
-    draw_text(screen, f"💡 {tip}", 18, GRAY,
-              SCREEN_WIDTH // 2, SCREEN_HEIGHT - 40)
+    draw_text(screen, f"Dica: {tip}", 16, UI_TEXT_DIM,
+              SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30)
 
     pygame.display.flip()
     clock.tick(FPS)
@@ -859,12 +965,14 @@ vs_timer = 0
 VS_DURATION = 150  # frames (~2.5s)
 
 loading_tips = [
-    "Aproxime-se para causar dano extra com ataques corpo a corpo!",
-    "Cada personagem tem um poder único. Use com sabedoria!",
-    "Guerreiro causa dano alto de perto, Atirador é melhor à distância.",
+    "Aproxime-se para causar dano extra em combate corpo a corpo!",
+    "Cada lutador tem um poder único. Ative com Q ou .",
+    "Guerreiro causa dano alto de perto, Atirador é devastador à distância.",
     "Tanque é lento mas resistente. Ninja é rápido mas frágil.",
     "Use as paredes da arena para se proteger dos tiros!",
     "A barra de poder mostra quando seu especial está disponível.",
+    "Mire com o movimento e atire na direção oposta para surpreender.",
+    "Cada classe tem um estilo único — encontre o seu!",
 ]
 
 # Gera sprites com progresso visual
@@ -1106,46 +1214,51 @@ while running:
     # ─────────────────────────────────────────
     #  DESENHO
     # ─────────────────────────────────────────
-    screen.fill(BLACK)
+    screen.fill(UI_BG)
 
-    # Fundo da arena (grade sutil)
-    for gx in range(0, SCREEN_WIDTH, 40):
-        pygame.draw.line(screen, (20, 20, 20), (gx, 0), (gx, SCREEN_HEIGHT))
-    for gy in range(0, SCREEN_HEIGHT, 40):
-        pygame.draw.line(screen, (20, 20, 20), (0, gy), (SCREEN_WIDTH, gy))
+    # Fundo da arena (chão texturizado com ladrilhos)
+    for gx in range(0, SCREEN_WIDTH, 32):
+        for gy in range(0, SCREEN_HEIGHT, 32):
+            color = FLOOR_A if ((gx // 32) + (gy // 32)) % 2 == 0 else FLOOR_B
+            pygame.draw.rect(screen, color, (gx, gy, 32, 32))
+            if gx % 64 == 0 and gy % 64 == 0:
+                c = FLOOR_A if color == FLOOR_B else FLOOR_B
+                pygame.draw.rect(screen, c, (gx + 14, gy + 14, 4, 4))
 
     # ── TELA DE NOME ──────────────────────────
     if current_state == STATE_NAME_INPUT:
-        draw_text(screen, "SOUL KNIGHT LITE", 60, WHITE, SCREEN_WIDTH // 2, 80)
-        draw_text(screen, "Digite os nomes dos jogadores", 28, LIGHT_GRAY, SCREEN_WIDTH // 2, 130)
+        draw_text(screen, "SOUL STRIKE", 58, UI_GOLD, SCREEN_WIDTH // 2, 70)
+        draw_text(screen, "Digite o nome dos jogadores", 22, UI_TEXT_DIM, SCREEN_WIDTH // 2, 115)
 
         for i, (label, name, cx, col) in enumerate([
             ("JOGADOR 1", p1_name, SCREEN_WIDTH // 4, BLUE),
             ("JOGADOR 2", p2_name, SCREEN_WIDTH * 3 // 4, RED),
         ]):
-            draw_text(screen, label, 32, col, cx, 220)
+            draw_text(screen, label, 28, col, cx, 210)
             box_x = cx - 150
-            box_y = 250
-            box_w, box_h = 300, 50
-            border_col = WHITE if active_input == i else GRAY
-            pygame.draw.rect(screen, DARK_GRAY, (box_x, box_y, box_w, box_h), border_radius=8)
-            pygame.draw.rect(screen, border_col, (box_x, box_y, box_w, box_h), 2, border_radius=8)
-            display_name = name + ("|" if active_input == i and (pygame.time.get_ticks() // 500) % 2 == 0 else "")
-            draw_text(screen, display_name or ("..." if active_input != i else ""), 34, WHITE, cx, box_y + box_h // 2)
+            box_y = 240
+            box_w, box_h = 300, 48
+            border_col = UI_BORDER_LIT if active_input == i else UI_BORDER
+            draw_panel(screen, (box_x, box_y, box_w, box_h), fill=UI_PANEL, border=border_col, radius=8)
+            cursor = "|" if active_input == i and (pygame.time.get_ticks() // 500) % 2 == 0 else ""
+            display_name = name + cursor
+            draw_text(screen, display_name or "...", 32, WHITE, cx, box_y + box_h // 2)
 
-        draw_text(screen, "TAB = alternar campo   |   ENTER = confirmar campo / avançar",
-                  22, LIGHT_GRAY, SCREEN_WIDTH // 2, 360)
+        draw_text(screen, "TAB = alternar   |   ENTER = confirmar", 18, UI_TEXT_DIM,
+                  SCREEN_WIDTH // 2, 335)
 
+        draw_panel(screen, (SCREEN_WIDTH // 2 - 200, 370, 400, 90), fill=UI_PANEL, border=UI_BORDER, radius=8)
         hints = [
-            ("P1 — Mover: WASD  |  Atirar: G  |  Poder: Q", BLUE),
-            ("P2 — Mover: Setas  |  Atirar: /  |  Poder: .", RED),
+            ("P1: WASD mover | G atirar | Q poder", BLUE),
+            ("P2: Setas mover | / atirar | . poder", RED),
         ]
         for i, (hint, col) in enumerate(hints):
-            draw_text(screen, hint, 20, col, SCREEN_WIDTH // 2, 420 + i * 28)
+            draw_text(screen, hint, 16, col, SCREEN_WIDTH // 2, 395 + i * 25)
 
     # ── SELEÇÃO DE PERSONAGEM ─────────────────
     elif current_state == STATE_CHAR_SELECT:
-        draw_text(screen, "SELEÇÃO DE PERSONAGEM", 48, WHITE, SCREEN_WIDTH // 2, 38)
+        draw_text(screen, "SOUL STRIKE", 50, UI_GOLD, SCREEN_WIDTH // 2, 30)
+        draw_text(screen, "SELECIONE SEU LUTADOR", 20, UI_TEXT_DIM, SCREEN_WIDTH // 2, 60)
 
         for i, (px, col, idx, selected, hint, pname) in enumerate([
             (SCREEN_WIDTH // 4,     BLUE, p1_char_idx, p1_selected,
@@ -1154,79 +1267,67 @@ while running:
              "[←/→] trocar   [M] OK", p2_name or "Jogador 2"),
         ]):
             ch = CHARACTER_TYPES[idx]
-            card_w, card_h = 280, 400
+            card_w, card_h = 290, 420
             card_x = px - card_w // 2
-            card_y = 55
+            card_y = 70
 
-            # Card background
-            pygame.draw.rect(screen, (20, 20, 30), (card_x, card_y, card_w, card_h),
-                             border_radius=12)
-            if selected:
-                pygame.draw.rect(screen, GREEN, (card_x, card_y, card_w, card_h),
-                                 2, border_radius=12)
-            else:
-                pygame.draw.rect(screen, col, (card_x, card_y, card_w, card_h),
-                                 2, border_radius=12)
-            pygame.draw.rect(screen, (40, 40, 50), (card_x + 4, card_y + 4,
-                             card_w - 8, card_h - 8), border_radius=10)
+            border_col = GREEN if selected else UI_BORDER_LIT
+            draw_panel(screen, (card_x, card_y, card_w, card_h), fill=UI_PANEL, border=border_col, radius=10)
 
             # Nome do jogador
-            draw_text(screen, pname, 22, col, px, card_y + 18)
+            draw_text(screen, pname.upper(), 18, col, px, card_y + 18)
 
             # Sprite animado
             frames = character_images.get(ch.image_name)
             if frames:
                 img = frames[(pygame.time.get_ticks() // 400) % 2]
-                rect = img.get_rect(center=(px, card_y + 75))
+                rect = img.get_rect(center=(px, card_y + 80))
                 screen.blit(img, rect)
-                pygame.draw.ellipse(screen, WHITE, rect.inflate(4, 4), 1)
+                pygame.draw.ellipse(screen, UI_BORDER_LIT, rect.inflate(6, 6), 1)
 
             # Nome do personagem
-            draw_text(screen, ch.name, 28, WHITE, px, card_y + 130)
+            draw_text(screen, ch.name, 26, WHITE, px, card_y + 140)
 
             # Stats card
-            stat_y = card_y + 150
-            stats_w = card_w - 20
-            stats_x = card_x + 10
-            pygame.draw.rect(screen, (30, 30, 40), (stats_x, stat_y, stats_w, 120),
-                             border_radius=6)
+            stat_y = card_y + 155
+            stats_w = card_w - 24
+            stats_x = card_x + 12
+            draw_panel(screen, (stats_x, stat_y, stats_w, 115), fill=(18, 16, 30), border=UI_BORDER, radius=5)
 
             stats = [
-                (f"❤ HP: {ch.max_hp}", RED),
-                (f"⚡ Vel: {ch.speed}", CYAN),
-                (f"💥 Dano: {ch.damage}", ORANGE),
-                (f"🔫 Cadência: {ch.shoot_cooldown}ms", LIGHT_GRAY),
-                (f"🚀 Bala: {ch.bullet_speed}", GOLD),
+                (f"HP: {ch.max_hp}", RED),
+                (f"Vel: {ch.speed}", CYAN),
+                (f"Dano: {ch.damage}", ORANGE),
+                (f"Cad.: {ch.shoot_cooldown}ms", UI_TEXT_DIM),
+                (f"Bala: {ch.bullet_speed}", GOLD),
             ]
             for j, (text, c) in enumerate(stats):
-                draw_text(screen, text, 17, c, px, stat_y + 12 + j * 22)
+                draw_text(screen, text, 16, c, px, stat_y + 12 + j * 20)
 
             # Poder card
-            pow_y = stat_y + 130
-            pygame.draw.rect(screen, (40, 30, 20), (stats_x, pow_y, stats_w, 55),
-                             border_radius=6)
-            pygame.draw.rect(screen, GOLD, (stats_x, pow_y, stats_w, 55), 1, border_radius=6)
-            draw_text(screen, f"⚡ {ch.ability_name}", 20, GOLD, px, pow_y + 16)
-            draw_text(screen, ch.ability_desc, 16, LIGHT_GRAY, px, pow_y + 38)
+            pow_y = stat_y + 125
+            draw_panel(screen, (stats_x, pow_y, stats_w, 50), fill=(25, 20, 15), border=UI_GOLD, radius=5)
+            draw_text(screen, f"{ch.ability_name}", 18, UI_GOLD, px, pow_y + 14)
+            draw_text(screen, ch.ability_desc, 13, UI_TEXT_DIM, px, pow_y + 34)
 
             # Hint / Confirmado
-            hint_y = pow_y + 65
+            hint_y = pow_y + 60
             if not selected:
-                draw_text(screen, hint, 16, GRAY, px, hint_y)
+                draw_text(screen, hint, 15, UI_TEXT_DIM, px, hint_y)
             else:
-                draw_text(screen, "✔ CONFIRMADO!", 22, GREEN, px, hint_y)
+                draw_text(screen, "CONFIRMADO", 18, GREEN, px, hint_y)
 
-        # Navegação visual
+        # Navegação visual (nas laterais do card, ao lado do sprite)
         if not p1_selected:
-            draw_text(screen, "◄", 36, GRAY, SCREEN_WIDTH // 4 - 155, 130)
-            draw_text(screen, "►", 36, GRAY, SCREEN_WIDTH // 4 + 155, 130)
+            draw_text(screen, "<", 26, UI_BORDER_LIT, card_x + 10, card_y + 115)
+            draw_text(screen, ">", 26, UI_BORDER_LIT, card_x + card_w - 10, card_y + 115)
         if not p2_selected:
-            draw_text(screen, "◄", 36, GRAY, SCREEN_WIDTH * 3 // 4 - 155, 130)
-            draw_text(screen, "►", 36, GRAY, SCREEN_WIDTH * 3 // 4 + 155, 130)
+            draw_text(screen, "<", 26, UI_BORDER_LIT, card_x + 10, card_y + 115)
+            draw_text(screen, ">", 26, UI_BORDER_LIT, card_x + card_w - 10, card_y + 115)
 
         if p1_selected and p2_selected:
-            draw_text(screen, "PREPARANDO BATALHA...", 26, YELLOW,
-                      SCREEN_WIDTH // 2, SCREEN_HEIGHT - 25)
+            draw_text(screen, "PREPARANDO BATALHA...", 22, UI_GOLD,
+                      SCREEN_WIDTH // 2, SCREEN_HEIGHT - 28)
 
     # ── TELA VS ──────────────────────────────
     elif current_state == STATE_VS_SCREEN:
@@ -1271,15 +1372,15 @@ while running:
         screen.blit(vs_surf, vs_rect)
 
         # Nomes dos personagens
-        draw_text(screen, player1.char_stats.name, 28, player1.color,
+        draw_text(screen, player1.char_stats.name, 26, player1.color,
                   SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2 + 80)
-        draw_text(screen, player2.char_stats.name, 28, player2.color,
+        draw_text(screen, player2.char_stats.name, 26, player2.color,
                   SCREEN_WIDTH * 3 // 4, SCREEN_HEIGHT // 2 + 80)
 
         # Nomes dos jogadores
-        draw_text(screen, player1.name, 22, LIGHT_GRAY,
+        draw_text(screen, player1.name, 20, UI_TEXT_DIM,
                   SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2 + 110)
-        draw_text(screen, player2.name, 22, LIGHT_GRAY,
+        draw_text(screen, player2.name, 20, UI_TEXT_DIM,
                   SCREEN_WIDTH * 3 // 4, SCREEN_HEIGHT // 2 + 110)
 
         # FIGHT!
@@ -1315,9 +1416,15 @@ while running:
 
     # ── GAME OVER ─────────────────────────────
     elif current_state == STATE_GAME_OVER:
-        draw_text(screen, "FIM DE JOGO!",              60, WHITE,  SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 60)
-        draw_text(screen, f"{winner} VENCEU!",          54, YELLOW, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 10)
-        draw_text(screen, "R = Reiniciar",              30, WHITE,  SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 80)
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        screen.blit(overlay, (0, 0))
+        draw_panel(screen, (SCREEN_WIDTH // 2 - 200, SCREEN_HEIGHT // 2 - 90, 400, 180),
+                   fill=UI_PANEL, border=UI_GOLD, radius=12)
+        draw_text(screen, "FIM DE JOGO!", 52, WHITE, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 55)
+        draw_text(screen, f"{winner} VENCEU!", 44, UI_GOLD, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 10)
+        draw_text(screen, "Pressione R para reiniciar", 20, UI_TEXT_DIM,
+                  SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 65)
 
     pygame.display.flip()
     clock.tick(FPS)
