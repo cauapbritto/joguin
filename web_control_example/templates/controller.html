@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Controle Remoto</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div id="container">
+        <div id="dpad">
+            <button id="btn-up"    class="dpad-btn" data-key="up">&#9650;</button>
+            <button id="btn-left"  class="dpad-btn" data-key="left">&#9664;</button>
+            <button id="btn-right" class="dpad-btn" data-key="right">&#9654;</button>
+            <button id="btn-down"  class="dpad-btn" data-key="down">&#9660;</button>
+        </div>
+
+        <div id="actions">
+            <button id="btn-jump"   class="action-btn" data-key="jump">PULAR</button>
+            <button id="btn-attack" class="action-btn" data-key="attack">ATACAR</button>
+        </div>
+    </div>
+
+    <div id="status">Conectando...</div>
+
+    <script src="{{ url_for('static', filename='controller.js') }}"></script>
+</body>
+</html>

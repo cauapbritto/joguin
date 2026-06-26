@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Controle Remoto</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div id="char-select" style="display:none">
+        <div id="cs-header">JOGADOR <span id="cs-player-num">1</span></div>
+        <div id="cs-controls">
+            <button id="cs-prev" class="cs-arrow">&#9664;</button>
+            <div id="cs-character">CARREGANDO...</div>
+            <button id="cs-next" class="cs-arrow">&#9654;</button>
+        </div>
+        <div id="cs-weapon">
+            <span id="cs-weapon-name">-</span>
+            <button id="cs-weapon-toggle" class="cs-btn-small">Trocar</button>
+        </div>
+        <button id="cs-confirm" class="cs-btn-main">CONFIRMAR</button>
+    </div>
+
+    <div id="container">
+        <div id="joystick-zone">
+            <div id="joystick-base">
+                <div id="joystick-knob"></div>
+            </div>
+        </div>
+
+        <div id="actions">
+            <button id="btn-attack"  class="action-btn" data-key="attack">ATACAR</button>
+            <button id="btn-special" class="action-btn special" data-key="special">ESPECIAL</button>
+            <button id="btn-dodge"   class="action-btn dodge" data-key="dodge">ESQUIVA</button>
+            <button id="btn-switch"  class="action-btn switch-weapon" data-key="switch_weapon">ARMAS</button>
+        </div>
+    </div>
+
+    <div id="status">Conectando...</div>
+
+    <script src="{{ url_for('static', filename='controller.js') }}"></script>
+</body>
+</html>

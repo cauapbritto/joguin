@@ -1,0 +1,318 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0d0d1a;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    touch-action: none;
+    -webkit-touch-action: none;
+}
+
+body.player2 {
+    background: #1a0d0d;
+}
+
+#container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    padding: 20px;
+}
+
+/* ── Joystick ── */
+#joystick-zone {
+    width: 160px;
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+}
+
+#joystick-base {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #1a1730, #0f0d1a);
+    border: 2px solid #3366cc;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+}
+
+body.player2 #joystick-base {
+    border-color: #cc3333;
+}
+
+#joystick-knob {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #555, #222);
+    border: 2px solid #666;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    touch-action: none;
+    pointer-events: none;
+    transition: none;
+}
+
+#joystick-knob.active {
+    background: radial-gradient(circle at 35% 35%, #5599ff, #0044aa);
+    border-color: #4488ff;
+    box-shadow: 0 0 20px rgba(68, 136, 255, 0.4);
+}
+
+body.player2 #joystick-knob.active {
+    background: radial-gradient(circle at 35% 35%, #ff5555, #aa0000);
+    border-color: #ff4444;
+    box-shadow: 0 0 20px rgba(255, 68, 68, 0.4);
+}
+
+/* ── Action Buttons ── */
+#actions {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: center;
+}
+
+.action-btn {
+    width: 90px;
+    height: 90px;
+    border: 3px solid #3366cc;
+    border-radius: 50%;
+    background: #1a1730;
+    color: #ddd;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    touch-action: none;
+    -webkit-touch-action: none;
+    transition: background 0.05s, border-color 0.05s, transform 0.05s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.player2 .action-btn {
+    border-color: #cc3333;
+}
+
+#btn-attack:active,
+#btn-attack.active {
+    background: #1a3355;
+    border-color: #4488ff;
+    color: #88bbff;
+    transform: scale(0.92);
+}
+
+body.player2 #btn-attack:active,
+body.player2 #btn-attack.active {
+    background: #551a1a;
+    border-color: #ff4444;
+    color: #ff8888;
+}
+
+#btn-special:active,
+#btn-special.active {
+    background: #4a3520;
+    border-color: #ffb81e;
+    color: #ffb81e;
+    transform: scale(0.92);
+    box-shadow: 0 0 15px rgba(255, 180, 30, 0.3);
+}
+
+#btn-dodge:active,
+#btn-dodge.active {
+    background: #1a1a4a;
+    border-color: #6666ff;
+    color: #6666ff;
+    transform: scale(0.92);
+    box-shadow: 0 0 15px rgba(102, 102, 255, 0.3);
+}
+
+body.player2 #btn-dodge:active,
+body.player2 #btn-dodge.active {
+    background: #4a1a1a;
+    border-color: #ff6666;
+    color: #ff6666;
+    box-shadow: 0 0 15px rgba(255, 102, 102, 0.3);
+}
+
+/* ── Botão Trocar Arma (ARMAS) ── */
+#btn-switch:active,
+#btn-switch.active {
+    background: #1a3a2a;
+    border-color: #44cc88;
+    color: #44cc88;
+    transform: scale(0.92);
+}
+
+body.player2 #btn-switch:active,
+body.player2 #btn-switch.active {
+    background: #2a1a1a;
+    border-color: #cc8844;
+    color: #cc8844;
+}
+
+/* ── Seleção de Personagem ── */
+#char-select {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    padding: 20px;
+    gap: 18px;
+}
+
+#cs-header {
+    font-size: 20px;
+    font-weight: bold;
+    color: #4488ff;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+}
+
+body.player2 #cs-header {
+    color: #ff4444;
+}
+
+#cs-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.cs-arrow {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 3px solid #4488ff;
+    background: #1a1730;
+    color: #4488ff;
+    font-size: 28px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    -webkit-touch-action: none;
+    transition: background 0.1s;
+}
+
+body.player2 .cs-arrow {
+    border-color: #cc3333;
+    color: #cc3333;
+}
+
+.cs-arrow:active {
+    background: #1a3355;
+}
+
+body.player2 .cs-arrow:active {
+    background: #551a1a;
+}
+
+#cs-character {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ddd;
+    min-width: 140px;
+    text-align: center;
+    letter-spacing: 1px;
+}
+
+#cs-weapon {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#cs-weapon-name {
+    font-size: 15px;
+    color: #aaa;
+    font-weight: bold;
+}
+
+.cs-btn-small {
+    padding: 8px 16px;
+    border: 2px solid #4488ff;
+    border-radius: 20px;
+    background: #1a1730;
+    color: #4488ff;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    touch-action: none;
+    -webkit-touch-action: none;
+    letter-spacing: 1px;
+}
+
+body.player2 .cs-btn-small {
+    border-color: #cc3333;
+    color: #cc3333;
+}
+
+.cs-btn-small:active {
+    background: #1a3355;
+}
+
+body.player2 .cs-btn-small:active {
+    background: #551a1a;
+}
+
+.cs-btn-main {
+    width: 200px;
+    padding: 14px 0;
+    border: 3px solid #44cc44;
+    border-radius: 30px;
+    background: #1a331a;
+    color: #44cc44;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    touch-action: none;
+    -webkit-touch-action: none;
+    letter-spacing: 2px;
+    margin-top: 8px;
+    transition: background 0.1s;
+}
+
+.cs-btn-main:active {
+    background: #2a4a2a;
+}
+
+/* ── Status ── */
+#status {
+    position: fixed;
+    bottom: 10px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: #4488ff;
+    font-size: 12px;
+    font-family: monospace;
+}
+
+body.player2 #status {
+    color: #ff4444;
+}
