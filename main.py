@@ -52,6 +52,31 @@ BASE_BULLET_DAMAGE = 10
 MAX_BULLET_DAMAGE  = 30
 MELEE_RANGE        = 80
 
+# --- Futebol ---
+TEAM_BLUE_OVERLAY = (40, 80, 255, 90)
+TEAM_RED_OVERLAY  = (255, 40, 40, 90)
+WIN_SCORE = 3
+GOAL_FREEZE = 120
+BALL_RADIUS = 12
+BALL_FRICTION = 0.985
+BALL_MAX_SPEED = 12
+KICK_POWER = 10
+DRIBBLE_RADIUS = 50
+DRIBBLE_SPRING = 0.22
+DRIBBLE_TARGET_OFFSET = 3
+DRIBBLE_SPEED_LIMIT = 3.0
+ZOOM_MIN = 0.55
+ZOOM_SMOOTH = 0.04
+SUPER_SHOT_COOLDOWN = 1200
+SUPER_SHOT_POWER = 16
+SUPER_HOMING_FORCE = 0.35
+SUPER_HOMING_DURATION = 120
+SOCCER_MAP_NAME = "campo_futebol"
+GOAL_DETECT_LEFT = 20
+GOAL_DETECT_RIGHT = 1580
+GOAL_DETECT_TOP = 370
+GOAL_DETECT_BOTTOM = 530
+
 # ─────────────────────────────────────────────
 #  STATS DOS PERSONAGENS
 # ─────────────────────────────────────────────
@@ -230,10 +255,6 @@ def _generate_frame(stats, frame):
     if name == "Guerreiro":
         pygame.draw.rect(surf, GRAY, (cx - 10, head_y - head_r - 2, 20, 7), border_radius=3)
         pygame.draw.rect(surf, WHITE, (cx - 8, head_y - head_r + 1, 16, 3))
-        sword_x = ra_x + 2
-        _draw_limb(surf, WHITE, sword_x, ra_y - 4, sword_x + 4, ra_y - 26, 3)
-        _draw_limb(surf, GOLD, sword_x - 2, ra_y - 12, sword_x + 6, ra_y - 12, 3)
-        _draw_limb(surf, GRAY, la_x, la_y - 6, la_x, la_y - 22, 10)
 
     elif name == "Atirador":
         pygame.draw.polygon(surf, GRAY, [
@@ -243,7 +264,6 @@ def _generate_frame(stats, frame):
             (cx - 3, head_y - head_r - 14),
         ])
         pygame.draw.rect(surf, GRAY, (cx - 4, head_y - head_r - 14, 8, 3))
-        _draw_limb(surf, DARK_GRAY, ra_x + 2, ra_y - 8, ra_x + 18, ra_y - 12, 4)
 
     elif name == "Tanque":
         pygame.draw.rect(surf, DARK_GRAY, (cx - 9, head_y - head_r - 3, 18, 8), border_radius=4)
@@ -251,16 +271,12 @@ def _generate_frame(stats, frame):
         big_rect = pygame.Rect(cx - 15, body_t - 2, 30, body_b - body_t + 4)
         pygame.draw.ellipse(surf, col, big_rect)
         pygame.draw.ellipse(surf, WHITE, big_rect, 1)
-        _draw_limb(surf, GRAY, la_x - 2, la_y - 4, la_x - 2, la_y - 26, 14)
-        pygame.draw.rect(surf, WHITE, (la_x - 9, la_y - 26, 14, 22), 1)
 
     elif name == "Ninja":
         pygame.draw.rect(surf, RED, (cx - 13, head_y - 5, 26, 4))
         _draw_limb(surf, RED, cx + 13, head_y - 5, cx + 22, head_y + 3, 2)
         _draw_limb(surf, RED, cx - 13, head_y - 5, cx - 22, head_y + 3, 2)
         pygame.draw.rect(surf, DARK_GRAY, (cx - 8, head_y + 1, 16, 7), border_radius=3)
-        _draw_limb(surf, GRAY, ra_x + 1, ra_y - 6, ra_x + 10, ra_y - 20, 2)
-        pygame.draw.circle(surf, GRAY, (ra_x + 10, ra_y - 20), 3)
 
     elif name == "Velocista":
         cap_phase = [0, 4, 0, -4][frame]
@@ -279,10 +295,6 @@ def _generate_frame(stats, frame):
         pygame.draw.rect(surf, DARK_GRAY, (cx - 13, body_t + 2, 26, 16), border_radius=4)
         pygame.draw.rect(surf, RED, (cx - 9, body_t + 5, 5, 5))
         pygame.draw.rect(surf, RED, (cx + 4, body_t + 5, 5, 5))
-        bomb_x = ra_x + 4
-        pygame.draw.circle(surf, DARK_GRAY, (bomb_x, ra_y - 6), 7)
-        _draw_limb(surf, RED, bomb_x, ra_y - 13, bomb_x, ra_y - 20, 2)
-        pygame.draw.circle(surf, ORANGE, (bomb_x, ra_y - 20), 2)
 
     elif name == "Fantasma":
         for i in range(4):
@@ -454,16 +466,265 @@ class Explosion:
         return self.timer <= 0
 
 # ─────────────────────────────────────────────
+#  FUTEBOL — BOLA
+# ─────────────────────────────────────────────
+class Ball:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.vx = 0.0
+        self.vy = 0.0
+        self.radius = BALL_RADIUS
+        self.friction = BALL_FRICTION
+        self.homing_timer = 0
+        self.homing_target = None
+        self.homing_target_player = None
+        self.homing_force = 0.0
+
+    def reset(self, x, y):
+        self.x = x
+        self.y = y
+        self.vx = 0.0
+        self.vy = 0.0
+        self.homing_timer = 0
+        self.homing_target = None
+        self.homing_target_player = None
+        self.homing_force = 0.0
+
+    def update(self):
+        self.vx *= self.friction
+        self.vy *= self.friction
+        if abs(self.vx) < 0.05:
+            self.vx = 0.0
+        if abs(self.vy) < 0.05:
+            self.vy = 0.0
+        spd = math.hypot(self.vx, self.vy)
+        if spd > BALL_MAX_SPEED:
+            self.vx = self.vx / spd * BALL_MAX_SPEED
+            self.vy = self.vy / spd * BALL_MAX_SPEED
+        if self.homing_timer > 0:
+            if self.homing_target_player:
+                self.homing_target = (self.homing_target_player.x, self.homing_target_player.y)
+            if self.homing_target:
+                hdx = self.homing_target[0] - self.x
+                hdy = self.homing_target[1] - self.y
+                hm = math.hypot(hdx, hdy)
+                if hm > 0:
+                    self.vx += (hdx / hm) * self.homing_force
+                    self.vy += (hdy / hm) * self.homing_force
+            self.homing_timer -= 1
+
+        self.x += self.vx
+        self.y += self.vy
+
+    def draw(self):
+        sx = int(self.x - camera_x)
+        sy = int(self.y - camera_y)
+        # sombra
+        pygame.draw.circle(screen, DARK_GRAY, (sx + 2, sy + 3), self.radius)
+        # bola
+        pygame.draw.circle(screen, WHITE, (sx, sy), self.radius)
+        pygame.draw.circle(screen, BLACK, (sx, sy), self.radius, 2)
+        # detalhe
+        pygame.draw.line(screen, BLACK, (sx - 4, sy - 4), (sx + 4, sy + 4), 2)
+        pygame.draw.line(screen, BLACK, (sx + 4, sy - 4), (sx - 4, sy + 4), 2)
+
+# ─────────────────────────────────────────────
+#  FUTEBOL — GOL (DECORATIVO)
+# ─────────────────────────────────────────────
+class Goal:
+    def __init__(self, x, y, w, h, side, color):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.side = side
+        self.color = color
+
+    def draw(self):
+        sx = int(self.rect.x - camera_x)
+        sy = int(self.rect.y - camera_y)
+
+        # ── Rede (mesh) ──
+        net = pygame.Surface((self.rect.w, self.rect.h), pygame.SRCALPHA)
+        net.fill((*self.color[:3], 60))
+        for i in range(0, self.rect.w, 8):
+            pygame.draw.line(net, (*self.color[:3], 100), (i, 0), (i, self.rect.h), 1)
+        for i in range(0, self.rect.h, 8):
+            pygame.draw.line(net, (*self.color[:3], 100), (0, i), (self.rect.w, i), 1)
+        screen.blit(net, (sx, sy))
+
+        # ── Pilares de pedra (laterais) ──
+        stone = (110, 100, 90)
+        stone_dark = (80, 72, 62)
+        stone_light = (140, 128, 115)
+        pw = 8
+        for px in (sx - pw, sx + self.rect.w):
+            # pilar
+            p_rect = pygame.Rect(px, sy, pw, self.rect.h)
+            pygame.draw.rect(screen, stone, p_rect)
+            pygame.draw.rect(screen, stone_dark, p_rect, 1)
+            # linhas de argamassa horizontal a cada 16px
+            for ly in range(sy + 8, sy + self.rect.h, 16):
+                pygame.draw.line(screen, (70, 62, 52), (px + 1, ly), (px + pw - 1, ly), 1)
+            # realce de luz no lado externo
+            hl = px if px < sx else px + pw - 1
+            pygame.draw.line(screen, stone_light, (hl, sy), (hl, sy + self.rect.h - 1), 1)
+
+        # ── Travessão de madeira ──
+        bh = 10
+        wood = (100, 60, 30)
+        wood_dark = (65, 38, 16)
+        wood_light = (135, 85, 45)
+        bar_rect = pygame.Rect(sx - pw, sy - bh, self.rect.w + pw * 2, bh)
+        pygame.draw.rect(screen, wood, bar_rect)
+        pygame.draw.rect(screen, wood_dark, bar_rect, 1)
+        # grãos de madeira (linhas horizontais curtas)
+        for gx in range(sx - pw + 4, sx + self.rect.w + pw, 12):
+            gy = sy - bh + 4
+            pygame.draw.line(screen, wood_dark, (gx, gy), (gx + 6, gy), 1)
+            gy2 = sy - 3
+            pygame.draw.line(screen, (120, 75, 40), (gx, gy2), (gx + 6, gy2), 1)
+
+# ── FUNÇÃO DE CHUTE ──
+def soccer_kick(player, ball):
+    dx = ball.x - player.x
+    dy = ball.y - player.y
+    dist = math.hypot(dx, dy)
+    if dist < player.radius + ball.radius + 15:
+        lx, ly = player.last_direction
+        if lx == 0 and ly == 0:
+            lx, ly = 1, 0
+        ball.vx = lx * KICK_POWER
+        ball.vy = ly * KICK_POWER
+        play_sfx('shoot', vol=0.3)
+        return True
+    return False
+
+PASS_POWER = 6.0
+PASS_HOMING_FORCE = 0.15
+PASS_HOMING_DURATION = 45
+
+def soccer_pass(player, ball, teammates, soccer_players=0):
+    if not ball:
+        return False
+    dx = ball.x - player.x
+    dy = ball.y - player.y
+    dist = math.hypot(dx, dy)
+    if dist < player.radius + ball.radius + 15:
+        best = None
+        best_d = 99999
+        for t in teammates:
+            if t is None or t is player:
+                continue
+            td = math.hypot(t.x - player.x, t.y - player.y)
+            if td < best_d:
+                best_d = td
+                best = t
+        if best:
+            tx = best.x - player.x
+            ty = best.y - player.y
+            m = math.hypot(tx, ty)
+            if m > 0:
+                player.last_direction = (tx / m, ty / m)
+                ball.vx = player.last_direction[0] * PASS_POWER
+                ball.vy = player.last_direction[1] * PASS_POWER
+                if soccer_players > 2 and best is not player:
+                    ball.homing_timer = PASS_HOMING_DURATION
+                    ball.homing_target_player = best
+                    ball.homing_target = (best.x, best.y)
+                    ball.homing_force = PASS_HOMING_FORCE
+                play_sfx('shoot', vol=0.25)
+                return True
+    return False
+
+# ── COLISÃO JOGADOR-JOGADOR ──
+def resolve_player_collision(a, b):
+    dx = b.x - a.x
+    dy = b.y - a.y
+    dist = math.hypot(dx, dy)
+    mindist = a.radius + b.radius
+    if dist < mindist and dist > 0:
+        overlap = (mindist - dist) / 2
+        nx = dx / dist
+        ny = dy / dist
+        a.x -= nx * overlap
+        a.y -= ny * overlap
+        b.x += nx * overlap
+        b.y += ny * overlap
+
+# ── FUTEBOL: DETECÇÃO DE GOL ──
+def check_goal(ball):
+    if ball.x < GOAL_DETECT_LEFT and GOAL_DETECT_TOP < ball.y < GOAL_DETECT_BOTTOM:
+        return 'left'   # Time Azul sofre gol → Time Vermelho marca
+    if ball.x > GOAL_DETECT_RIGHT and GOAL_DETECT_TOP < ball.y < GOAL_DETECT_BOTTOM:
+        return 'right'  # Time Vermelho sofre gol → Time Azul marca
+    return None
+
+# ── FUTEBOL: IA ──
+def update_soccer_ai(player, ball, teammates, opponents, walls):
+    if not ball:
+        return
+    # definir alvo
+    target_x, target_y = ball.x, ball.y
+    dx_gol = player.x - (WORLD_WIDTH - 80 if player.team == 0 else 80)
+    dy_gol = player.y - WORLD_HEIGHT // 2
+    dist_gol = math.hypot(dx_gol, dy_gol)
+    dist_ball = math.hypot(player.x - ball.x, player.y - ball.y)
+
+    # Se meu time tem a bola (alguém do mesmo time está perto)
+    team_has_ball = any(
+        t is not player and math.hypot(t.x - ball.x, t.y - ball.y) < 40
+        for t in teammates
+    )
+    # time adversário tem a bola
+    enemy_has_ball = any(
+        o is not player and math.hypot(o.x - ball.x, o.y - ball.y) < 40
+        for o in opponents
+    )
+
+    if team_has_ball:
+        # Avançar em direção ao gol adversário
+        gol_x = WORLD_WIDTH - 80 if player.team == 0 else 80
+        target_x, target_y = gol_x, WORLD_HEIGHT // 2
+        if dist_ball < 30:
+            # perto da bola, chutar em direção ao gol
+            pass
+    elif enemy_has_ball:
+        # Defender: ficar entre a bola e o próprio gol
+        meu_gol_x = 80 if player.team == 0 else WORLD_WIDTH - 80
+        target_x = (ball.x + meu_gol_x) / 2
+        target_y = (ball.y + WORLD_HEIGHT // 2) / 2
+    else:
+        target_x, target_y = ball.x, ball.y
+
+    # mover em direção ao alvo
+    dx = target_x - player.x
+    dy = target_y - player.y
+    dist = math.hypot(dx, dy)
+    if dist > 5:
+        move_x = dx / dist
+        move_y = dy / dist
+        player.move(move_x, move_y)
+
+    # chutar se perto da bola e na direção do gol
+    if dist_ball < 30:
+        gol_x = WORLD_WIDTH - 80 if player.team == 0 else 80
+        player.last_direction = (gol_x - player.x, WORLD_HEIGHT // 2 - player.y)
+        mag = math.hypot(*player.last_direction)
+        if mag > 0:
+            player.last_direction = (player.last_direction[0] / mag, player.last_direction[1] / mag)
+        soccer_kick(player, ball)
+
+# ─────────────────────────────────────────────
 #  JOGADOR
 # ─────────────────────────────────────────────
 class Player:
     ABILITY_COOLDOWN = 600   # 10 segundos entre usos
 
-    def __init__(self, x, y, controls, char_stats, name="Jogador", weapon=None):
+    def __init__(self, x, y, controls, char_stats, name="Jogador", weapon=None, team=None):
         self.x               = x
         self.y               = y
         self.radius          = 15
         self.color           = char_stats.color
+        self.team            = team
         self.controls        = controls
         self.char_stats      = char_stats
         self.name            = name
@@ -517,6 +778,7 @@ class Player:
         self.dash_cooldown       = 0
         self.dash_dir            = (0, 0)
         self.dash_invulnerable   = False
+        self.super_cooldown      = 0
 
         # Double-tap tracking (para dash)
         self.last_key_time       = {'up': 0, 'down': 0, 'left': 0, 'right': 0}
@@ -538,6 +800,8 @@ class Player:
 
         # Efeitos visuais
         self.teleport_flash      = 0
+        self.shoot_flash         = 0
+        self.shoot_flash_pos     = (0, 0)
         self.explosions          = []  # explosões pertencentes a este jogador
 
         # Cache de rotação (lean)
@@ -620,6 +884,8 @@ class Player:
                         self.bullet_speed, self.color, damage, explosive)
         self.bullets.append(bullet)
         self.current_cooldown = self.shoot_cooldown
+        self.shoot_flash = 4
+        self.shoot_flash_pos = (dir_x, dir_y)
         play_sfx('shoot' if random.random() < 0.7 else 'shoot2', vol=0.3)
         if dist <= MELEE_RANGE:
             self.melee_flash = 8
@@ -709,6 +975,7 @@ class Player:
         if self.ability_cooldown  > 0: self.ability_cooldown  -= 1
         if self.melee_flash       > 0: self.melee_flash        -= 1
         if self.teleport_flash    > 0: self.teleport_flash     -= 1
+        if self.shoot_flash       > 0: self.shoot_flash        -= 1
         if self.skid_timer        > 0: self.skid_timer         -= 1
 
         # Dash
@@ -898,6 +1165,194 @@ class Player:
         if self.ability_cooldown <= 0 and random.random() < ability_r:
             self.use_ability(enemy, walls)
 
+    # ── desenho da arma na mão ──────────────────
+    def draw_weapon(self, screen, sx, sy, dir_key):
+        name = self.weapon_name
+        if not name:
+            return
+
+        dx, dy = self.last_direction
+
+        # ── Posição da mão pelo frame de animação ──
+        if self.moving:
+            leg_off = [0, 8, 0, -8][self.anim_frame]
+            body_bob = [0, -2, 0, -2][self.anim_frame]
+        else:
+            leg_off = 0; body_bob = 0
+        arm_swing = -leg_off // 2
+        hand_x_rel = 13 + abs(arm_swing)
+        hand_y_rel = body_bob + 8
+
+        if dir_key == "direita":
+            hx, hy = sx + hand_x_rel, sy + hand_y_rel
+        elif dir_key == "esquerda":
+            hx, hy = sx - hand_x_rel, sy + hand_y_rel
+        elif dir_key == "costas":
+            hx, hy = sx + hand_x_rel // 3, sy - hand_y_rel + 4
+        else:
+            hx, hy = sx + hand_x_rel // 3, sy + hand_y_rel + 2
+
+        # ── Comprimento por direção ──
+        length = 26 if dir_key in ("frente", "costas") else 32
+
+        if dir_key == "direita":
+            wx, wy = hx + length, hy
+        elif dir_key == "esquerda":
+            wx, wy = hx - length, hy
+        elif dir_key == "costas":
+            wx, wy = hx, hy - length
+        else:
+            wx, wy = hx, hy + length
+
+        mx = (hx + wx) // 2
+        my = (hy + wy) // 2
+        dx_v = wx - hx
+        dy_v = wy - hy
+        d = max(1, int(math.sqrt(dx_v*dx_v + dy_v*dy_v)))
+        px = -dy_v * 5 // d
+        py = dx_v * 5 // d
+
+        # ── Desenho de cada arma ──
+        if name == "Arco":
+            _draw_limb(screen, (160, 120, 70), hx, hy, wx, wy, 3)
+            _draw_limb(screen, (200, 180, 120), mx + px, my + py, mx - px, my - py, 2)
+            _draw_limb(screen, (180, 160, 140), mx - px*2, my - py*2, mx + px*2, my + py*2, 1)
+
+        elif name == "Rifle":
+            _draw_limb(screen, (60, 60, 75), hx, hy, wx, wy, 5)
+            _draw_limb(screen, (40, 40, 55), hx, hy, hx + (wx-hx)//3, hy + (wy-hy)//3, 7)
+            _draw_limb(screen, (100, 100, 120), wx - (wx-hx)//6, wy - (wy-hy)//6, wx, wy, 3)
+
+        elif name == "Lança":
+            _draw_limb(screen, (140, 120, 90), hx, hy, wx, wy, 3)
+            _draw_limb(screen, DARK_GRAY, wx - (wx-hx)//8, wy - (wy-hy)//8, wx, wy, 5)
+            _draw_limb(screen, GRAY, wx - (wx-hx)//4, wy - (wy-hy)//4, wx - (wx-hx)//8, wy - (wy-hy)//8, 7)
+
+        elif name == "Shuriken":
+            _draw_limb(screen, GRAY, hx, hy, wx, wy, 2)
+            rot = 0 if dir_key in ("direita", "esquerda") else 45
+            for a in range(0, 360, 90):
+                rad = math.radians(a + rot)
+                ex = mx + int(math.cos(rad) * 9)
+                ey = my + int(math.sin(rad) * 9)
+                _draw_limb(screen, DARK_GRAY, mx, my, ex, ey, 3)
+                _draw_limb(screen, GRAY, mx - (ex-mx)//3, my - (ey-my)//3, ex, ey, 2)
+            pygame.draw.circle(screen, RED, (mx, my), 3)
+
+        elif name == "Estrela":
+            _draw_limb(screen, GOLD, hx, hy, wx, wy, 2)
+            for a in range(0, 360, 45):
+                rad = math.radians(a)
+                ex = mx + int(math.cos(rad) * 8)
+                ey = my + int(math.sin(rad) * 8)
+                _draw_limb(screen, YELLOW, mx, my, ex, ey, 2)
+            pygame.draw.circle(screen, GOLD, (mx, my), 3)
+
+        elif name == "Granada":
+            pygame.draw.circle(screen, DARK_GRAY, (mx-1, my-1), 6)
+            pygame.draw.circle(screen, (80, 80, 90), (mx, my), 6)
+            fx = mx + (wx-hx)//4; fy = my + (wy-hy)//4
+            _draw_limb(screen, GRAY, mx, my, fx, fy, 2)
+            _draw_limb(screen, RED, fx, fy, fx + (wx-hx)//6, fy + (wy-hy)//6, 2)
+            pygame.draw.circle(screen, ORANGE, (fx + (wx-hx)//6, fy + (wy-hy)//6), 2)
+            _draw_limb(screen, RED, mx - px, my - py, mx + px, my + py, 2)
+
+        elif name == "Orbe":
+            t = pygame.time.get_ticks() * 0.003
+            pulse = 6 + int(2 * math.sin(t))
+            pygame.draw.circle(screen, PURPLE, (mx, my), pulse)
+            pygame.draw.circle(screen, (200, 100, 255), (mx-1, my-1), pulse-2)
+            pygame.draw.circle(screen, WHITE, (mx-2, my-2), 2)
+            glow_r = pulse * 2
+            glow = pygame.Surface((glow_r*2, glow_r*2), pygame.SRCALPHA)
+            pygame.draw.circle(glow, (*PURPLE, 40), (glow_r, glow_r), glow_r)
+            screen.blit(glow, (mx - glow_r, my - glow_r))
+            for i in range(3):
+                a = t + i * 2.094
+                ppx = mx + int(math.cos(a) * (pulse + 4))
+                ppy = my + int(math.sin(a) * (pulse + 4))
+                pygame.draw.circle(screen, (200, 150, 255), (ppx, ppy), 2)
+
+        elif name == "Corrente":
+            _draw_limb(screen, GRAY, hx, hy, wx, wy, 3)
+            plx, ply = hx, hy
+            for i in range(6):
+                t = i / 5
+                lx = int(hx + (wx-hx) * t + math.sin(t * 8) * 3)
+                ly = int(hy + (wy-hy) * t + math.cos(t * 8) * 3)
+                pygame.draw.circle(screen, DARK_GRAY, (lx, ly), 2)
+                _draw_limb(screen, GRAY, plx, ply, lx, ly, 1)
+                plx, ply = lx, ly
+
+        elif name == "Espada":
+            _draw_limb(screen, WHITE, hx, hy, wx, wy, 4)
+            _draw_limb(screen, GOLD, hx, hy, hx + (wx-hx)//4, hy + (wy-hy)//4, 6)
+            _draw_limb(screen, DARK_GRAY, hx, hy, hx - (wx-hx)//8, hy - (wy-hy)//8, 3)
+            _draw_limb(screen, GOLD, mx - px, my - py, mx + px, my + py, 3)
+            _draw_limb(screen, (200, 200, 255), hx+(wx-hx)//2, hy+(wy-hy)//2, wx-(wx-hx)//4, wy-(wy-hy)//4, 1)
+
+        elif name == "Faca":
+            _draw_limb(screen, LIGHT_GRAY, hx, hy, wx, wy, 3)
+            _draw_limb(screen, DARK_GRAY, hx, hy, hx + (wx-hx)//4, hy + (wy-hy)//4, 4)
+            _draw_limb(screen, GRAY, wx, wy, wx - (wx-hx)//6, wy - (wy-hy)//6, 2)
+
+        elif name == "Maça":
+            _draw_limb(screen, (140, 120, 90), hx, hy, wx, wy, 3)
+            head_r = 7
+            pygame.draw.circle(screen, DARK_GRAY, (mx, my), head_r)
+            pygame.draw.circle(screen, GRAY, (mx, my), head_r-1)
+            for a in range(0, 360, 60):
+                rad = math.radians(a)
+                spx = mx + int(math.cos(rad) * head_r)
+                spy = my + int(math.sin(rad) * head_r)
+                _draw_limb(screen, GRAY, mx + int(math.cos(rad)*(head_r-2)), my + int(math.sin(rad)*(head_r-2)), spx, spy, 2)
+
+        elif name == "Katana":
+            _draw_limb(screen, LIGHT_GRAY, hx, hy, wx, wy, 3)
+            _draw_limb(screen, DARK_GRAY, hx, hy, hx + (wx-hx)//3, hy + (wy-hy)//3, 5)
+            _draw_limb(screen, WHITE, hx + (wx-hx)//3, hy + (wy-hy)//3, wx, wy, 2)
+            _draw_limb(screen, GOLD, mx - px*2, my - py*2, mx + px*2, my + py*2, 3)
+            pygame.draw.circle(screen, RED, (mx + px//2, my + py//2), 2)
+
+        elif name == "Garras":
+            for i in range(3):
+                off = (i - 1) * 3
+                gx = hx + (wx-hx)//4 + px * (i-1)
+                gy = hy + (wy-hy)//4 + py * (i-1)
+                _draw_limb(screen, WHITE, gx, gy, wx + px*(i-1), wy + py*(i-1), 2)
+                _draw_limb(screen, DARK_GRAY, gx, gy, gx + (wx-gx)//2, gy + (wy-gy)//2, 3)
+
+        elif name == "Martelo":
+            _draw_limb(screen, (140, 120, 90), hx, hy, wx, wy, 4)
+            hw, hh = 14, 12
+            head_rect = pygame.Rect(mx - hw//2, my - hh//2, hw, hh)
+            pygame.draw.rect(screen, DARK_GRAY, head_rect, border_radius=2)
+            pygame.draw.rect(screen, GRAY, head_rect, 1)
+            _draw_limb(screen, GRAY, mx - hw//2 + 2, my, mx + hw//2 - 2, my, 1)
+
+        elif name == "Foice":
+            _draw_limb(screen, (140, 120, 90), hx, hy, wx, wy, 3)
+            _draw_limb(screen, WHITE, mx - px*2, my - py*2, mx + px, my + py, 4)
+            _draw_limb(screen, WHITE, mx + px, my + py, wx, wy, 3)
+            _draw_limb(screen, WHITE, mx - px*2, my - py*2, wx, wy, 2)
+
+        elif name == "Espadão":
+            _draw_limb(screen, LIGHT_GRAY, hx, hy, wx, wy, 6)
+            _draw_limb(screen, GOLD, hx, hy, hx + (wx-hx)//3, hy + (wy-hy)//3, 8)
+            _draw_limb(screen, GOLD, mx - px*2, my - py*2, mx + px*2, my + py*2, 4)
+            _draw_limb(screen, DARK_GRAY, hx + (wx-hx)//3, hy + (wy-hy)//3, wx - (wx-hx)//6, wy - (wy-hy)//6, 1)
+
+        # ── Flash de tiro ──
+        if self.shoot_flash > 0:
+            flash_len = 8
+            fpx = hx + int(dx_v * 1.2)
+            fpy = hy + int(dy_v * 1.2)
+            alpha = int(200 * self.shoot_flash / 4)
+            flash_surf = pygame.Surface((flash_len*2, flash_len*2), pygame.SRCALPHA)
+            pygame.draw.circle(flash_surf, (255, 255, 200, alpha), (flash_len, flash_len), flash_len)
+            pygame.draw.circle(flash_surf, (255, 255, 255, alpha+55), (flash_len, flash_len), flash_len//2)
+            screen.blit(flash_surf, (fpx - flash_len, fpy - flash_len))
+
     # ── desenho ─────────────────────────────────
     def draw(self, screen, enemy=None):
         sx = int(self.x - camera_x)
@@ -946,14 +1401,19 @@ class Player:
                            (sx + shadow_offset_x, sy + shadow_offset_y), self.radius)
 
         char_img = character_images.get(self.char_stats.image_name)
+        dx, dy = self.last_direction
+        if abs(dx) > abs(dy):
+            dir_key = "direita" if dx > 0 else "esquerda"
+        elif abs(dy) > 0:
+            dir_key = "costas" if dy < 0 else "frente"
+        else:
+            dir_key = "frente"
+
+        # Arma atrás se estiver de costas
+        if dir_key == "costas":
+            self.draw_weapon(screen, sx, sy, dir_key)
+
         if char_img:
-            dx, dy = self.last_direction
-            if abs(dx) > abs(dy):
-                dir_key = "direita" if dx > 0 else "esquerda"
-            elif abs(dy) > 0:
-                dir_key = "costas" if dy < 0 else "frente"
-            else:
-                dir_key = "frente"
             frames = char_img.get(dir_key) or char_img.get("frente")
             if frames:
                 frame_idx = self.anim_frame % len(frames) if self.moving else 0
@@ -965,6 +1425,10 @@ class Player:
                     img = self._lean_cache[key]
                 rect = img.get_rect(center=(sx, sy))
                 screen.blit(img, rect)
+                if soccer_mode and self.team is not None:
+                    overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
+                    overlay.fill(TEAM_BLUE_OVERLAY if self.team == 0 else TEAM_RED_OVERLAY)
+                    screen.blit(overlay, rect)
                 if self.melee_flash > 0:
                     flash = pygame.Surface(rect.size, pygame.SRCALPHA)
                     flash.fill((255, 255, 255, 80))
@@ -973,6 +1437,7 @@ class Player:
                         alpha = int(self.melee_flash / 10 * 200)
                         angle = math.atan2(self.last_direction[1], self.last_direction[0])
                         arc_radius = self.weapon.melee_range
+                        wcol = self.color
                         arc_surf = pygame.Surface((arc_radius * 2, arc_radius * 2), pygame.SRCALPHA)
                         start_a = angle - math.pi / 3
                         end_a   = angle + math.pi / 3
@@ -984,7 +1449,8 @@ class Player:
                             py = arc_radius + math.sin(a) * arc_radius
                             points.append((int(px), int(py)))
                         if len(points) > 2:
-                            pygame.draw.polygon(arc_surf, (255, 255, 255, alpha), points)
+                            # White core + weapon color trail
+                            pygame.draw.polygon(arc_surf, (*wcol, alpha), points)
                             pygame.draw.polygon(arc_surf, (255, 255, 255, min(255, alpha + 55)), points, 2)
                         screen.blit(arc_surf, (sx - arc_radius, sy - arc_radius))
         else:
@@ -994,6 +1460,7 @@ class Player:
                 alpha = int(self.melee_flash / 10 * 200)
                 angle = math.atan2(self.last_direction[1], self.last_direction[0])
                 arc_radius = self.weapon.melee_range
+                wcol = self.color
                 arc_surf = pygame.Surface((arc_radius * 2, arc_radius * 2), pygame.SRCALPHA)
                 start_a = angle - math.pi / 3
                 end_a   = angle + math.pi / 3
@@ -1005,9 +1472,13 @@ class Player:
                     py = arc_radius + math.sin(a) * arc_radius
                     points.append((int(px), int(py)))
                 if len(points) > 2:
-                    pygame.draw.polygon(arc_surf, (255, 255, 255, alpha), points)
+                    pygame.draw.polygon(arc_surf, (*wcol, alpha), points)
                     pygame.draw.polygon(arc_surf, (255, 255, 255, min(255, alpha + 55)), points, 2)
                 screen.blit(arc_surf, (sx - arc_radius, sy - arc_radius))
+
+        # Arma na frente (a menos que já tenha sido desenhada atrás)
+        if dir_key != "costas":
+            self.draw_weapon(screen, sx, sy, dir_key)
 
         bw   = 40
         bh   = 5
@@ -1031,6 +1502,10 @@ class Wall:
         self.rect = pygame.Rect(x, y, w, h)
 
     def draw(self, screen):
+        if current_map == SOCCER_MAP_NAME:
+            self._draw_soccer(screen)
+            return
+
         cfg = MAPS[current_map]
         r = self.rect
         rx = r.x - camera_x
@@ -1051,6 +1526,34 @@ class Wall:
         pygame.draw.rect(screen, edge, (rx, ry, r.w, r.h), 2, border_radius=3)
         top_highlight = (edge[0] + 40, edge[1] + 40, edge[2] + 40)
         pygame.draw.line(screen, top_highlight, (rx + 3, ry + 2), (rx + r.w - 3, ry + 2), 1)
+
+    def _draw_soccer(self, screen):
+        r = self.rect
+        rx = int(r.x - camera_x)
+        ry = int(r.y - camera_y)
+        if rx + r.w < -10 or rx > SCREEN_WIDTH + 10 or ry + r.h < -10 or ry > SCREEN_HEIGHT + 10:
+            return
+        # Mureta de pedra medieval
+        stone = (120, 108, 95)
+        stone_dark = (90, 80, 70)
+        stone_light = (150, 138, 125)
+        mortar = (75, 65, 55)
+        # corpo
+        pygame.draw.rect(screen, stone, (rx, ry, r.w, r.h))
+        pygame.draw.rect(screen, stone_dark, (rx, ry, r.w, r.h), 2)
+        # linhas de argamassa horizontal a cada 18px
+        for ly in range(ry + 9, ry + r.h, 18):
+            pygame.draw.line(screen, mortar, (rx + 2, ly), (rx + r.w - 2, ly), 1)
+        # linhas verticais alternadas para simular tijolos
+        row = 0
+        for ly in range(ry, ry + r.h, 18):
+            offset = 9 if row % 2 else 0
+            for lx in range(rx + offset + 8, rx + r.w, 40):
+                if lx < rx + r.w - 2:
+                    pygame.draw.line(screen, mortar, (lx, ly + 1), (lx, min(ly + 17, ry + r.h - 1)), 1)
+            row += 1
+        # realce de luz no topo
+        pygame.draw.line(screen, stone_light, (rx + 2, ry + 1), (rx + r.w - 2, ry + 1), 1)
 
     def _get_texture(self):
         key = (current_map, self.rect.w, self.rect.h)
@@ -1270,6 +1773,24 @@ def draw_hud(screen, p1, p2):
         draw_text(screen, f"ATIVO {t_left}s", 14, UI_GOLD, SCREEN_WIDTH - 100, SCREEN_HEIGHT - 28)
     draw_text(screen, f"[{p2.weapon_name}]", 11, UI_TEXT_DIM, SCREEN_WIDTH - 120, SCREEN_HEIGHT - 12)
 
+
+def draw_soccer_hud(screen):
+    draw_panel(screen, (SCREEN_WIDTH // 2 - 130, 8, 260, 40), fill=(20, 18, 35), bevel=False)
+    draw_text(screen, f"🔵 AZUL {score_p1}  🆚  {score_p2} VERMELHO 🔴", 18, WHITE, SCREEN_WIDTH // 2, 28)
+    # minipainéis nos cantos com nomes dos times
+    draw_panel(screen, (8, SCREEN_HEIGHT - 44, 150, 36), fill=TEAM_BLUE_OVERLAY, bevel=True)
+    draw_text(screen, "TIME AZUL", 16, WHITE, 83, SCREEN_HEIGHT - 26)
+    draw_panel(screen, (SCREEN_WIDTH - 158, SCREEN_HEIGHT - 44, 150, 36), fill=TEAM_RED_OVERLAY, bevel=True)
+    draw_text(screen, "TIME VERMELHO", 16, WHITE, SCREEN_WIDTH - 83, SCREEN_HEIGHT - 26)
+    # indicador SUPER
+    for i, p in enumerate([player1, player2, player3, player4]):
+        if p is None: continue
+        if p.super_cooldown > 0:
+            sec = p.super_cooldown // 60 + 1
+            draw_text(screen, f"SUPER {sec}s", 12, (255, 150, 50), 60 + i * 200, SCREEN_HEIGHT - 12)
+        else:
+            draw_text(screen, "SUPER ✓", 12, (50, 255, 50), 60 + i * 200, SCREEN_HEIGHT - 12)
+
 # ─────────────────────────────────────────────
 #  MAPAS (ARENAS)
 # ─────────────────────────────────────────────
@@ -1406,6 +1927,23 @@ MAPS = {
             Wall(750, 560, 100, 80),
         ]
     },
+    SOCCER_MAP_NAME: {
+        "name": "Estádio Soul Strike",
+        "world_width": 1600, "world_height": 900,
+        "wall_fill": (60, 55, 70),
+        "wall_edge": (80, 75, 90),
+        "wall_shadow": (35, 30, 45),
+        "floor_a": (30, 130, 50),
+        "floor_b": (35, 145, 55),
+        "walls": lambda: [
+            Wall(0, 0, 1600, 20),
+            Wall(0, 880, 1600, 20),
+            Wall(20, 20, 20, 350),
+            Wall(20, 530, 20, 350),
+            Wall(1560, 20, 20, 350),
+            Wall(1560, 530, 20, 350),
+        ]
+    },
 }
 
 current_map = "arena_classica"
@@ -1414,6 +1952,7 @@ WORLD_WIDTH = SCREEN_WIDTH
 WORLD_HEIGHT = SCREEN_HEIGHT
 camera_x = 0
 camera_y = 0
+camera_zoom = 1.0
 
 walls = MAPS[current_map]["walls"]()
 
@@ -1444,22 +1983,54 @@ def rebuild_map():
     if fundo_img:
         fundo_img = pygame.transform.scale(fundo_img, (WORLD_WIDTH, WORLD_HEIGHT))
         floor_surface.blit(fundo_img, (0, 0))
-        return
+    else:
+        for gx in range(0, WORLD_WIDTH, 32):
+            for gy in range(0, WORLD_HEIGHT, 32):
+                color = cfg["floor_a"] if ((gx // 32) + (gy // 32)) % 2 == 0 else cfg["floor_b"]
+                pygame.draw.rect(floor_surface, color, (gx, gy, 32, 32))
+                if gx % 64 == 0 and gy % 64 == 0:
+                    c = cfg["floor_a"] if color == cfg["floor_b"] else cfg["floor_b"]
+                    pygame.draw.rect(floor_surface, c, (gx + 14, gy + 14, 4, 4))
 
-    for gx in range(0, WORLD_WIDTH, 32):
-        for gy in range(0, WORLD_HEIGHT, 32):
-            color = cfg["floor_a"] if ((gx // 32) + (gy // 32)) % 2 == 0 else cfg["floor_b"]
-            pygame.draw.rect(floor_surface, color, (gx, gy, 32, 32))
-            if gx % 64 == 0 and gy % 64 == 0:
-                c = cfg["floor_a"] if color == cfg["floor_b"] else cfg["floor_b"]
-                pygame.draw.rect(floor_surface, c, (gx + 14, gy + 14, 4, 4))
+    # ── DESENHO DO CAMPO DE FUTEBOL ──
+    if current_map == SOCCER_MAP_NAME:
+        lc = (200, 200, 180)
+        _draw_rect = lambda r: pygame.draw.rect(floor_surface, lc, r, width=3)
+        _draw_circ = lambda c, r: pygame.draw.circle(floor_surface, lc, c, r, width=3)
+        _draw_arc  = lambda r, s, e: pygame.draw.arc(floor_surface, lc, r, s, e, width=3)
+
+        # Linha do meio
+        pygame.draw.line(floor_surface, lc, (800, 20), (800, 880), 3)
+
+        # Círculo central
+        _draw_circ((800, 450), 80)
+
+        # Grande área esquerda
+        _draw_rect((20, 200, 200, 500))
+        # Pequena área esquerda
+        _draw_rect((20, 330, 100, 240))
+        # Grande área direita
+        _draw_rect((1380, 200, 200, 500))
+        # Pequena área direita
+        _draw_rect((1480, 330, 100, 240))
+
+        # Escanteios (4 arcos de ¼ de círculo dentro do campo)
+        cr = 30
+        corners = [
+            (20, 20, 0, math.pi/2),            # top-left
+            (1580, 20, math.pi/2, math.pi),    # top-right
+            (20, 880, 3*math.pi/2, 2*math.pi), # bottom-left
+            (1580, 880, math.pi, 3*math.pi/2), # bottom-right
+        ]
+        for cx, cy, sa, ea in corners:
+            _draw_arc(pygame.Rect(cx - cr, cy - cr, cr*2, cr*2), sa, ea)
 
 # ─────────────────────────────────────────────
 #  INICIALIZAÇÃO PYGAME
 # ─────────────────────────────────────────────
 pygame.init()
 pygame.display.set_caption("Soul Strike")
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN | pygame.SCALED)
 clock  = pygame.time.Clock()
 
 for d in (ASSET_DIR, UI_DIR, FONT_DIR, TILES_DIR,
@@ -1495,16 +2066,35 @@ def play_sfx(name, vol=0.5):
 
 # ── BGM ──
 bgm_path = os.path.join(SOUND_DIR, "bgm.wav")
-if os.path.isfile(bgm_path) and pygame.mixer.get_init():
-    try:
-        pygame.mixer.music.load(bgm_path)
-        pygame.mixer.music.set_volume(0.3)
-    except pygame.error:
-        pass
+battle_bgm_path = os.path.join(SOUND_DIR, "battle_bgm.mp3")
 
-def play_bgm():
-    if pygame.mixer.get_init() and not pygame.mixer.music.get_busy():
-        pygame.mixer.music.play(-1)
+if pygame.mixer.get_init():
+    if os.path.isfile(bgm_path):
+        try:
+            pygame.mixer.music.load(bgm_path)
+            pygame.mixer.music.set_volume(0.3)
+        except pygame.error:
+            pass
+
+def play_menu_bgm():
+    if pygame.mixer.get_init() and os.path.isfile(bgm_path):
+        try:
+            pygame.mixer.music.stop()
+            pygame.mixer.music.load(bgm_path)
+            pygame.mixer.music.set_volume(0.3)
+            pygame.mixer.music.play(-1)
+        except pygame.error:
+            pass
+
+def play_battle_bgm():
+    if pygame.mixer.get_init() and os.path.isfile(battle_bgm_path):
+        try:
+            pygame.mixer.music.stop()
+            pygame.mixer.music.load(battle_bgm_path)
+            pygame.mixer.music.set_volume(0.3)
+            pygame.mixer.music.play(-1)
+        except pygame.error:
+            pass
 
 def stop_bgm(fade_ms=1000):
     if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
@@ -1647,7 +2237,7 @@ for _ in range(30):
     break
 
 current_state = STATE_MAIN_MENU
-play_bgm()
+play_menu_bgm()
 
 # ─────────────────────────────────────────────
 #  VARIÁVEIS GLOBAIS
@@ -1671,6 +2261,25 @@ ai_mode      = False
 death_timer = 0
 death_particles = []
 death_winner_name = ""
+
+# ── Futebol ──
+soccer_mode = False
+soccer_players = 4
+ball = None
+goals = []
+score_p1 = 0
+score_p2 = 0
+goal_timer = 0
+goal_scorer = ""
+goal_team = 0
+player3 = None
+player4 = None
+p3_char_idx = 0
+p4_char_idx = 0
+p3_selected = False
+p4_selected = False
+player_chars = [0, 0, 0, 0]
+
 
 about_scroll = 0
 about_lines = [
@@ -1710,29 +2319,68 @@ CREDIT_BTNS = [
 # ─────────────────────────────────────────────
 def start_game():
     global player1, player2, ai_mode, current_state
-    ch1 = CHARACTER_TYPES[p1_char_idx]
-    ch2 = CHARACTER_TYPES[p2_char_idx]
-    wp1 = CHARACTER_WEAPONS[ch1.name][p1_weapon_idx]
-    wp2 = CHARACTER_WEAPONS[ch2.name][p2_weapon_idx]
-    player1 = Player(
-        SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2,
-        {'up': pygame.K_w, 'down': pygame.K_s, 'left': pygame.K_a,
-         'right': pygame.K_d, 'shoot': pygame.K_g, 'ability': pygame.K_f},
-        ch1,
-        name=p1_name or "Jogador 1",
-        weapon=wp1,
-    )
-    player2 = Player(
-        SCREEN_WIDTH * 3 // 4, SCREEN_HEIGHT // 2,
-        {'up': pygame.K_UP, 'down': pygame.K_DOWN, 'left': pygame.K_LEFT,
-         'right': pygame.K_RIGHT, 'shoot': pygame.K_SEMICOLON, 'ability': pygame.K_SLASH},
-        ch2,
-        name=p2_name or "Jogador 2",
-        weapon=wp2,
-    )
+    global player3, player4, ball, goals, score_p1, score_p2, goal_timer, goal_scorer
+    global soccer_mode, soccer_players
+    if soccer_mode:
+        remote_chars = remote_input.get_all_player_chars()
+        idx1 = remote_chars.get(1, 0)
+        idx2 = remote_chars.get(2, 0)
+        idx3 = remote_chars.get(3, 0)
+        idx4 = remote_chars.get(4, 0)
+        ch1 = CHARACTER_TYPES[idx1]
+        ch2 = CHARACTER_TYPES[idx2]
+        ch3 = CHARACTER_TYPES[idx3]
+        ch4 = CHARACTER_TYPES[idx4]
+        p1 = Player(300, 350, {}, ch1, name="P1", team=0 if soccer_players > 2 else None)
+        p2 = Player(1300, 350, {}, ch2, name="P2", team=1 if soccer_players > 2 else None)
+        if soccer_players > 2:
+            p3 = Player(300, 550, {}, ch3, name="P3", team=0)
+            p4 = Player(1300, 550, {}, ch4, name="P4", team=1)
+            player3, player4 = p3, p4
+        else:
+            player3 = player4 = None
+        player1, player2 = p1, p2
+        ball = Ball(WORLD_WIDTH // 2, WORLD_HEIGHT // 2)
+        goals = [
+            Goal(2, 370, 18, 160, 0, TEAM_BLUE_OVERLAY),
+            Goal(1580, 370, 18, 160, 1, TEAM_RED_OVERLAY),
+        ]
+        score_p1 = 0
+        score_p2 = 0
+        goal_timer = 0
+        goal_scorer = ""
+    else:
+        ch1 = CHARACTER_TYPES[p1_char_idx]
+        ch2 = CHARACTER_TYPES[p2_char_idx]
+        wp1 = CHARACTER_WEAPONS[ch1.name][p1_weapon_idx]
+        wp2 = CHARACTER_WEAPONS[ch2.name][p2_weapon_idx]
+        player1 = Player(
+            SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2,
+            {'up': pygame.K_w, 'down': pygame.K_s, 'left': pygame.K_a,
+             'right': pygame.K_d, 'shoot': pygame.K_g, 'ability': pygame.K_f},
+            ch1,
+            name=p1_name or "Jogador 1",
+            weapon=wp1,
+        )
+        player2 = Player(
+            SCREEN_WIDTH * 3 // 4, SCREEN_HEIGHT // 2,
+            {'up': pygame.K_UP, 'down': pygame.K_DOWN, 'left': pygame.K_LEFT,
+             'right': pygame.K_RIGHT, 'shoot': pygame.K_SEMICOLON, 'ability': pygame.K_SLASH},
+            ch2,
+            name=p2_name or "Jogador 2",
+            weapon=wp2,
+        )
+        player3 = None
+        player4 = None
+        ball = None
+        goals = []
     global vs_timer, camera_x, camera_y
-    camera_x = max(0, min(WORLD_WIDTH - SCREEN_WIDTH, (player1.x + player2.x) / 2 - SCREEN_WIDTH / 2))
-    camera_y = max(0, min(WORLD_HEIGHT - SCREEN_HEIGHT, (player1.y + player2.y) / 2 - SCREEN_HEIGHT / 2))
+    if soccer_mode:
+        camera_x = 0
+        camera_y = 0
+    else:
+        camera_x = max(0, min(WORLD_WIDTH - SCREEN_WIDTH, (player1.x + player2.x) / 2 - SCREEN_WIDTH / 2))
+        camera_y = max(0, min(WORLD_HEIGHT - SCREEN_HEIGHT, (player1.y + player2.y) / 2 - SCREEN_HEIGHT / 2))
     vs_timer = VS_DURATION
     current_state = STATE_VS_SCREEN
     remote_input.release_all()
@@ -1744,6 +2392,8 @@ def reset_game():
     global p1_char_idx, p2_char_idx, p1_selected, p2_selected, ai_mode
     global about_scroll, current_state, p1_weapon_idx, p2_weapon_idx
     global death_timer, death_particles, death_winner_name
+    global soccer_mode, soccer_players, ball, goals, score_p1, score_p2, goal_timer, goal_scorer
+    global player3, player4, player_chars
     player1 = player2 = winner = None
     p1_name = p2_name = ""
     active_input = 0
@@ -1755,9 +2405,20 @@ def reset_game():
     death_timer = 0
     death_particles = []
     death_winner_name = ""
+    soccer_mode = False
+    ball = None
+    goals = []
+    score_p1 = score_p2 = 0
+    goal_timer = 0
+    goal_scorer = ""
+    player3 = player4 = None
+    player_chars = [0, 0, 0, 0]
+    if current_map == SOCCER_MAP_NAME:
+        current_map = "arena_classica"
+        rebuild_map()
     current_state = STATE_MAIN_MENU
     remote_input.set_game_state("menu")
-    stop_bgm(500)
+    play_menu_bgm()
 
 def _cycle_map(direction):
     global current_map
@@ -1864,7 +2525,8 @@ while running:
         elif current_state == STATE_MODE_SELECT:
             def _choose_mode(ai):
                 play_sfx('confirm')
-                global ai_mode, p2_name, p1_selected, p2_selected, current_state
+                global ai_mode, p2_name, p1_selected, p2_selected, current_state, soccer_mode
+                soccer_mode = False
                 ai_mode = ai
                 p2_name = "CPU" if ai else ""
                 p2_selected = ai
@@ -1875,37 +2537,78 @@ while running:
                     current_state = STATE_CHAR_SELECT
                 else:
                     current_state = STATE_QR_CODE
+            def _choose_soccer_1v1():
+                play_sfx('confirm')
+                global soccer_mode, soccer_players, current_state, ai_mode, current_map
+                soccer_mode = True
+                soccer_players = 2
+                current_map = SOCCER_MAP_NAME
+                rebuild_map()
+                remote_input.release_all()
+                remote_input.set_game_state("char_select")
+                remote_input.reset_lobby()
+                current_state = STATE_QR_CODE
+            def _choose_soccer():
+                play_sfx('confirm')
+                global soccer_mode, soccer_players, current_state, ai_mode, current_map
+                soccer_mode = True
+                soccer_players = 4
+                current_map = SOCCER_MAP_NAME
+                rebuild_map()
+                remote_input.release_all()
+                remote_input.set_game_state("char_select")
+                remote_input.reset_lobby()
+                current_state = STATE_QR_CODE
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_1 or event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT:
                     _choose_mode(True)
                 elif event.key == pygame.K_2:
                     _choose_mode(False)
+                elif event.key == pygame.K_3:
+                    _choose_soccer()
+                elif event.key == pygame.K_4:
+                    _choose_soccer_1v1()
                 elif event.key == pygame.K_ESCAPE:
                     play_sfx('cancel')
                     current_state = STATE_MAIN_MENU
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mx, my = event.pos
                 cw, ch = 240, 200
-                lx = SCREEN_WIDTH // 2 - 30 - cw
-                rx = SCREEN_WIDTH // 2 + 30
+                gap = 20
+                total = cw * 4 + gap * 3
+                start_x = SCREEN_WIDTH // 2 - total // 2
                 yy = SCREEN_HEIGHT // 2 - ch // 2
-                left_rect  = pygame.Rect(lx, yy, cw, ch)
-                right_rect = pygame.Rect(rx, yy, cw, ch)
-                if left_rect.collidepoint(mx, my):
+                rects = [
+                    pygame.Rect(start_x, yy, cw, ch),
+                    pygame.Rect(start_x + cw + gap, yy, cw, ch),
+                    pygame.Rect(start_x + (cw + gap) * 2, yy, cw, ch),
+                    pygame.Rect(start_x + (cw + gap) * 3, yy, cw, ch),
+                ]
+                if rects[0].collidepoint(mx, my):
                     _choose_mode(True)
-                elif right_rect.collidepoint(mx, my):
+                elif rects[1].collidepoint(mx, my):
                     _choose_mode(False)
+                elif rects[2].collidepoint(mx, my):
+                    _choose_soccer()
+                elif rects[3].collidepoint(mx, my):
+                    _choose_soccer_1v1()
 
-        # ── QR CODE (2 JOGADORES) ──────────────
+        # ── QR CODE ────────────────────────────
         elif current_state == STATE_QR_CODE:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                     play_sfx('confirm')
                     remote_input.release_all()
                     remote_input.set_game_state("char_select")
-                    current_state = STATE_CHAR_SELECT
+                    if soccer_mode:
+                        remote_input.set_game_state("start_game")
+                    else:
+                        current_state = STATE_CHAR_SELECT
                 elif event.key == pygame.K_ESCAPE:
                     play_sfx('cancel')
+                    if soccer_mode:
+                        soccer_mode = False
+                        soccer_players = 4
                     current_state = STATE_MODE_SELECT
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mx, my = event.pos
@@ -1914,7 +2617,16 @@ while running:
                     play_sfx('confirm')
                     remote_input.release_all()
                     remote_input.set_game_state("char_select")
-                    current_state = STATE_CHAR_SELECT
+                    if soccer_mode:
+                        remote_input.set_game_state("start_game")
+                    else:
+                        current_state = STATE_CHAR_SELECT
+                if soccer_mode:
+                    # Botão INICIAR para futebol
+                    iniciar_rect = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT - 130, 200, 44)
+                    if iniciar_rect.collidepoint(mx, my):
+                        play_sfx('confirm')
+                        remote_input.set_game_state("start_game")
 
         # ── SELEÇÃO DE PERSONAGEM ──────────────
         elif current_state == STATE_CHAR_SELECT:
@@ -2112,6 +2824,11 @@ while running:
             play_sfx('confirm')
             start_game()
 
+    # ── VERIFICAR INÍCIO DO FUTEBOL (via remoto) ──
+    if current_state == STATE_QR_CODE and soccer_mode:
+        if remote_input.get_game_state() == "start_game":
+            start_game()
+
     # ─────────────────────────────────────────
     #  LÓGICA VS SCREEN
     # ─────────────────────────────────────────
@@ -2119,6 +2836,7 @@ while running:
         vs_timer -= 1
         if vs_timer <= 0:
             current_state = STATE_PLAYING
+            play_battle_bgm()
 
     # ─────────────────────────────────────────
     #  LÓGICA DA ANIMAÇÃO DE MORTE
@@ -2159,20 +2877,277 @@ while running:
         keys = pygame.key.get_pressed()
         r = remote_input.get_state()
 
-        p1_dx = keys[player1.controls['right']] - keys[player1.controls['left']]
-        p1_dx += (1 if r.get("p1_right") else 0) - (1 if r.get("p1_left") else 0)
-        p1_dy = keys[player1.controls['down']]  - keys[player1.controls['up']]
-        p1_dy += (1 if r.get("p1_down") else 0) - (1 if r.get("p1_up") else 0)
-        player1.move(p1_dx, p1_dy)
+        if soccer_mode:
+            # ── FUTEBOL: INPUT P1-P4 ──
+            players_soccer = [player1, player2, player3, player4]
+            for i, p in enumerate(players_soccer):
+                if p is None:
+                    continue
+                prefix = f"p{i+1}"
+                dx = (1 if r.get(f"{prefix}_right") else 0) - (1 if r.get(f"{prefix}_left") else 0)
+                dy = (1 if r.get(f"{prefix}_down") else 0) - (1 if r.get(f"{prefix}_up") else 0)
+                if i == 0:
+                    dx += keys[pygame.K_d] - keys[pygame.K_a]
+                    dy += keys[pygame.K_s] - keys[pygame.K_w]
+                elif i == 1:
+                    dx += keys[pygame.K_RIGHT] - keys[pygame.K_LEFT]
+                    dy += keys[pygame.K_DOWN] - keys[pygame.K_UP]
+                if dx != 0 or dy != 0:
+                    p.move(dx, dy)
+            # P3/P4: CPU se não houver controle remoto
+            if player3 and not r.get("p3_up") and not r.get("p3_down") and not r.get("p3_left") and not r.get("p3_right"):
+                update_soccer_ai(player3, ball, [player1], [player2, player4], walls)
+            if player4 and not r.get("p4_up") and not r.get("p4_down") and not r.get("p4_left") and not r.get("p4_right"):
+                update_soccer_ai(player4, ball, [player2], [player1, player3], walls)
 
-        if ai_mode:
-            player2.update_ai(player1, walls, difficulty)
+            # ── FUTEBOL: CHUTE ──
+            for i, p in enumerate(players_soccer):
+                if p is None:
+                    continue
+                prefix = f"p{i+1}"
+                wants_kick = r.get(f"{prefix}_attack", False)
+                if i == 0 and keys[pygame.K_g]:
+                    wants_kick = True
+                if i == 1 and keys[pygame.K_SEMICOLON]:
+                    wants_kick = True
+                if wants_kick:
+                    if ball and goal_timer <= 0:
+                        # apontar para a bola se não estiver andando
+                        if not (r.get(f"{prefix}_up") or r.get(f"{prefix}_down") or r.get(f"{prefix}_left") or r.get(f"{prefix}_right")):
+                            bdx = ball.x - p.x
+                            bdy = ball.y - p.y
+                            bm = math.hypot(bdx, bdy)
+                            if bm > 0:
+                                p.last_direction = (bdx / bm, bdy / bm)
+                        soccer_kick(p, ball)
+
+                # ── FUTEBOL: PASSE ──
+                wants_pass = r.get(f"{prefix}_special", False)
+                if wants_pass and ball and goal_timer <= 0:
+                    teammates = [player1, player3] if p.team == 0 else [player2, player4]
+                    soccer_pass(p, ball, teammates, soccer_players)
+
+                # ── FUTEBOL: CORTE (fingir chute / drible lateral) ──
+                if r.get(f"{prefix}_corte", False) and p.dash_cooldown <= 0:
+                    lx, ly = p.last_direction
+                    if lx == 0 and ly == 0:
+                        lx, ly = 1, 0
+                    # lateral perpendicular
+                    cx, cy = -ly, lx
+                    p.dash_timer = 6
+                    p.dash_cooldown = 30
+                    p.dash_dir = (cx, cy)
+                    p.dash_invulnerable = True
+                    # gruda a bola no pé
+                    if ball and goal_timer <= 0:
+                        bdist = math.hypot(ball.x - p.x, ball.y - p.y)
+                        if bdist < 30:
+                            ball.vx += cx * DRIBBLE_SPRING * 4
+                            ball.vy += cy * DRIBBLE_SPRING * 4
+
+                # ── FUTEBOL: SUPER CHUTE ──
+                if r.get(f"{prefix}_super", False) and p.super_cooldown <= 0 and ball and goal_timer <= 0:
+                    bdist = math.hypot(ball.x - p.x, ball.y - p.y)
+                    if bdist < p.radius + ball.radius + 20:
+                        if p.team == 0:
+                            gx, gy = 1580, 450
+                        else:
+                            gx, gy = 24, 450
+                        dx, dy = gx - p.x, gy - p.y
+                        m = math.hypot(dx, dy)
+                        if m > 0:
+                            p.last_direction = (dx / m, dy / m)
+                        ball.vx = p.last_direction[0] * SUPER_SHOT_POWER
+                        ball.vy = p.last_direction[1] * SUPER_SHOT_POWER
+                        ball.homing_timer = SUPER_HOMING_DURATION
+                        ball.homing_target = (gx, gy)
+                        ball.homing_target_player = None
+                        ball.homing_force = SUPER_HOMING_FORCE
+                        p.super_cooldown = SUPER_SHOT_COOLDOWN
+                        play_sfx('shoot', vol=0.7)
+
+            # ── FUTEBOL: ATUALIZAR DASH ──
+            for dp in [player1, player2, player3, player4]:
+                if dp is None: continue
+                if dp.dash_timer > 0:
+                    dp.dash_timer -= 1
+                    dp.x += dp.dash_dir[0] * dp.speed * 5
+                    dp.y += dp.dash_dir[1] * dp.speed * 5
+                    dp.x = max(dp.radius, min(WORLD_WIDTH - dp.radius, dp.x))
+                    dp.y = max(dp.radius, min(WORLD_HEIGHT - dp.radius, dp.y))
+                    if dp.dash_timer <= 0:
+                        dp.dash_invulnerable = False
+                if dp.dash_cooldown > 0:
+                    dp.dash_cooldown -= 1
+                if dp.super_cooldown > 0:
+                    dp.super_cooldown -= 1
+            # sincronizar cooldowns com o servidor web
+            for pi, dp2 in enumerate([player1, player2, player3, player4]):
+                if dp2:
+                    remote_input.set_super_cooldown(pi + 1, dp2.super_cooldown)
+
+            # ── FUTEBOL: ATUALIZAR BOLA ──
+            if ball and goal_timer <= 0:
+                ball.update()
+                # colisão bola-parede (iterativa, com normal)
+                for _ in range(3):
+                    any_col = False
+                    for wall in walls:
+                        cx = max(wall.rect.left, min(ball.x, wall.rect.right))
+                        cy = max(wall.rect.top, min(ball.y, wall.rect.bottom))
+                        dx = ball.x - cx
+                        dy = ball.y - cy
+                        d2 = dx*dx + dy*dy
+                        # CASO 1: centro dentro da parede
+                        if d2 < 0.0001:
+                            # empurra pela borda mais próxima
+                            to_left   = ball.x + ball.radius - wall.rect.left
+                            to_right  = wall.rect.right  - ball.x + ball.radius
+                            to_top    = ball.y + ball.radius - wall.rect.top
+                            to_bottom = wall.rect.bottom - ball.y + ball.radius
+                            min_p = min(to_left, to_right, to_top, to_bottom)
+                            if min_p == to_left:
+                                ball.x = wall.rect.left - ball.radius
+                                if ball.vx < 0: ball.vx = -ball.vx * 0.75
+                            elif min_p == to_right:
+                                ball.x = wall.rect.right + ball.radius
+                                if ball.vx > 0: ball.vx = -ball.vx * 0.75
+                            elif min_p == to_top:
+                                ball.y = wall.rect.top - ball.radius
+                                if ball.vy < 0: ball.vy = -ball.vy * 0.75
+                            else:
+                                ball.y = wall.rect.bottom + ball.radius
+                                if ball.vy > 0: ball.vy = -ball.vy * 0.75
+                            any_col = True
+                            continue
+                        # CASO 2: centro fora, raio tocando
+                        dist = math.sqrt(d2)
+                        if dist >= ball.radius:
+                            continue
+                        overlap = ball.radius - dist
+                        nx = dx / dist
+                        ny = dy / dist
+                        ball.x += nx * (overlap + 0.1)
+                        ball.y += ny * (overlap + 0.1)
+                        dot = ball.vx * nx + ball.vy * ny
+                        if dot < 0:
+                            ball.vx -= 2 * dot * nx
+                            ball.vy -= 2 * dot * ny
+                            ball.vx *= 0.75
+                            ball.vy *= 0.75
+                        any_col = True
+                    if not any_col:
+                        break
+                # colisão bola-jogador
+                all_players = [p for p in [player1, player2, player3, player4] if p]
+                for idx, p in enumerate(all_players):
+                    bdx = ball.x - p.x
+                    bdy = ball.y - p.y
+                    bdist = math.hypot(bdx, bdy)
+                    mindist = ball.radius + p.radius
+                    if bdist < mindist and bdist > 0:
+                        overlap = mindist - bdist
+                        nx = bdx / bdist
+                        ny = bdy / bdist
+                        ball.x += nx * overlap
+                        ball.y += ny * overlap
+                        ball.vx += nx * 1.5
+                        ball.vy += ny * 1.5
+                    # condução (mola)
+                    if bdist < DRIBBLE_RADIUS:
+                        prefix = f"p{idx+1}"
+                        conducao = r.get(f"{prefix}_conducao", False)
+                        if conducao:
+                            lx, ly = p.last_direction
+                            if lx == 0 and ly == 0:
+                                tx, ty = p.x, p.y
+                            else:
+                                tx = p.x + lx * (p.radius + ball.radius + 2)
+                                ty = p.y + ly * (p.radius + ball.radius + 2)
+                            ball.vx += (tx - ball.x) * DRIBBLE_SPRING * 3
+                            ball.vy += (ty - ball.y) * DRIBBLE_SPRING * 3
+                            ball.vx *= 0.94
+                            ball.vy *= 0.94
+                        else:
+                            away = (ball.vx * (ball.x - p.x) + ball.vy * (ball.y - p.y)) / bdist
+                            if away < 4.0:
+                                lx, ly = p.last_direction
+                                if lx == 0 and ly == 0:
+                                    tx, ty = p.x, p.y
+                                else:
+                                    tx = p.x + lx * (p.radius + ball.radius + DRIBBLE_TARGET_OFFSET)
+                                    ty = p.y + ly * (p.radius + ball.radius + DRIBBLE_TARGET_OFFSET)
+                                ball.vx += (tx - ball.x) * DRIBBLE_SPRING
+                                ball.vy += (ty - ball.y) * DRIBBLE_SPRING
+                # colisão jogador-jogador
+                for i in range(len(all_players)):
+                    for j in range(i + 1, len(all_players)):
+                        resolve_player_collision(all_players[i], all_players[j])
+                # anti-travamento: bola presa entre jogadores
+                ball_spd = math.hypot(ball.vx, ball.vy)
+                if ball_spd < 0.8:
+                    close = [p for p in all_players if math.hypot(p.x - ball.x, p.y - ball.y) < ball.radius + p.radius + 5]
+                    if len(close) >= 2:
+                        cx = sum(p.x for p in close) / len(close)
+                        cy = sum(p.y for p in close) / len(close)
+                        dx = ball.x - cx
+                        dy = ball.y - cy
+                        dm = math.hypot(dx, dy)
+                        if dm > 0:
+                            ball.vx += (dx / dm) * 1.2
+                            ball.vy += (dy / dm) * 1.2
+                # detecção de gol
+                goal_side = check_goal(ball)
+                if goal_side == 'right':
+                    score_p1 += 1
+                    goal_scorer = "TIME AZUL"
+                    goal_timer = GOAL_FREEZE
+                    play_sfx('victory', vol=0.5)
+                elif goal_side == 'left':
+                    score_p2 += 1
+                    goal_scorer = "TIME VERMELHO"
+                    goal_timer = GOAL_FREEZE
+                    play_sfx('victory', vol=0.5)
+                # bola fora do mundo
+                if ball.x < -100 or ball.x > WORLD_WIDTH + 100 or ball.y < -100 or ball.y > WORLD_HEIGHT + 100:
+                    ball.reset(WORLD_WIDTH // 2, WORLD_HEIGHT // 2)
+
+            # ── FUTEBOL: GOAL TIMER ──
+            if goal_timer > 0:
+                goal_timer -= 1
+                if goal_timer <= 0:
+                    # reposicionar todos
+                    ball.reset(WORLD_WIDTH // 2, WORLD_HEIGHT // 2)
+                    if player1: player1.x, player1.y = 300, 350
+                    if player2: player2.x, player2.y = 1300, 350
+                    if player3: player3.x, player3.y = 300, 550
+                    if player4: player4.x, player4.y = 1300, 550
+
+            # ── FUTEBOL: FIM DE JOGO ──
+            if score_p1 >= WIN_SCORE or score_p2 >= WIN_SCORE:
+                death_winner_name = "TIME AZUL" if score_p1 >= WIN_SCORE else "TIME VERMELHO"
+                death_timer = DEATH_ANIM_DURATION
+                death_particles = []
+                current_state = STATE_DEATH_ANIM
+                stop_bgm(2000)
+                play_sfx('victory', vol=0.5)
+
         else:
-            p2_dx = keys[player2.controls['right']] - keys[player2.controls['left']]
-            p2_dx += (1 if r.get("p2_right") else 0) - (1 if r.get("p2_left") else 0)
-            p2_dy = keys[player2.controls['down']]  - keys[player2.controls['up']]
-            p2_dy += (1 if r.get("p2_down") else 0) - (1 if r.get("p2_up") else 0)
-            player2.move(p2_dx, p2_dy)
+            # ── BATALHA NORMAL ──
+            p1_dx = keys[player1.controls['right']] - keys[player1.controls['left']]
+            p1_dx += (1 if r.get("p1_right") else 0) - (1 if r.get("p1_left") else 0)
+            p1_dy = keys[player1.controls['down']]  - keys[player1.controls['up']]
+            p1_dy += (1 if r.get("p1_down") else 0) - (1 if r.get("p1_up") else 0)
+            player1.move(p1_dx, p1_dy)
+
+            if ai_mode:
+                player2.update_ai(player1, walls, difficulty)
+            else:
+                p2_dx = keys[player2.controls['right']] - keys[player2.controls['left']]
+                p2_dx += (1 if r.get("p2_right") else 0) - (1 if r.get("p2_left") else 0)
+                p2_dy = keys[player2.controls['down']]  - keys[player2.controls['up']]
+                p2_dy += (1 if r.get("p2_down") else 0) - (1 if r.get("p2_up") else 0)
+                player2.move(p2_dx, p2_dy)
 
         # ── Dash (duplo toque) P1 ──
         for dir_name, key in [('up', pygame.K_w), ('down', pygame.K_s),
@@ -2242,19 +3217,20 @@ while running:
                     player2._dash_held['web_' + dir_name] = held
 
         # ── Esquiva via web (botão dedicado) P1 ──
-        dodge_now = r.get("p1_dodge", False)
-        if dodge_now and not player1._web_dodge_held and player1.dash_cooldown <= 0:
-            dx, dy = player1.last_direction
-            if dx == 0 and dy == 0:
-                dy = 1
-            player1.dash_timer = 12
-            player1.dash_cooldown = 45
-            player1.dash_dir = (dx, dy)
-            player1.dash_invulnerable = True
-            play_sfx('dash', vol=0.3)
-        player1._web_dodge_held = dodge_now
+        if not soccer_mode:
+            dodge_now = r.get("p1_dodge", False)
+            if dodge_now and not player1._web_dodge_held and player1.dash_cooldown <= 0:
+                dx, dy = player1.last_direction
+                if dx == 0 and dy == 0:
+                    dy = 1
+                player1.dash_timer = 12
+                player1.dash_cooldown = 45
+                player1.dash_dir = (dx, dy)
+                player1.dash_invulnerable = True
+                play_sfx('dash', vol=0.3)
+            player1._web_dodge_held = dodge_now
 
-        if not ai_mode:
+        if not ai_mode and not soccer_mode:
             dodge2_now = r.get("p2_dodge", False)
             if not hasattr(player2, '_web_dodge_held'):
                 player2._web_dodge_held = False
@@ -2269,90 +3245,91 @@ while running:
                 play_sfx('dash', vol=0.3)
             player2._web_dodge_held = dodge2_now
 
-        p1_wants_shoot = keys[player1.controls['shoot']] or r.get("p1_attack")
-        if p1_wants_shoot:
-            dx = player2.x - player1.x
-            dy = player2.y - player1.y
-            mag = math.hypot(dx, dy)
-            if mag > 0:
-                player1.last_direction = (dx / mag, dy / mag)
-            player1.shoot(player2)
+        if not soccer_mode:
+            p1_wants_shoot = keys[player1.controls['shoot']] or r.get("p1_attack")
+            if p1_wants_shoot:
+                dx = player2.x - player1.x
+                dy = player2.y - player1.y
+                mag = math.hypot(dx, dy)
+                if mag > 0:
+                    player1.last_direction = (dx / mag, dy / mag)
+                player1.shoot(player2)
 
-        p2_wants_shoot = not ai_mode and (keys[player2.controls['shoot']] or r.get("p2_attack"))
-        if p2_wants_shoot:
-            dx = player1.x - player2.x
-            dy = player1.y - player2.y
-            mag = math.hypot(dx, dy)
-            if mag > 0:
-                player2.last_direction = (dx / mag, dy / mag)
-            player2.shoot(player1)
-        player1.update(walls, enemy=player2)
-        player2.update(walls, enemy=player1)
+            p2_wants_shoot = not ai_mode and (keys[player2.controls['shoot']] or r.get("p2_attack"))
+            if p2_wants_shoot:
+                dx = player1.x - player2.x
+                dy = player1.y - player2.y
+                mag = math.hypot(dx, dy)
+                if mag > 0:
+                    player2.last_direction = (dx / mag, dy / mag)
+                player2.shoot(player1)
+            player1.update(walls, enemy=player2)
+            player2.update(walls, enemy=player1)
 
-        # Colisão bala → jogador (iteração reversa)
-        i = 0
-        while i < len(player1.bullets):
-            bullet = player1.bullets[i]
-            if (bullet.x - player2.x)**2 + (bullet.y - player2.y)**2 < (bullet.radius + player2.radius)**2:
-                player2.take_damage(bullet.damage, bullet.x, bullet.y)
-                if bullet.explosive:
-                    player1.explosions.append(Explosion(bullet.x, bullet.y, damage=bullet.damage, owner=player1))
-                    play_sfx('explosion', vol=0.5)
+            # Colisão bala → jogador (iteração reversa)
+            i = 0
+            while i < len(player1.bullets):
+                bullet = player1.bullets[i]
+                if (bullet.x - player2.x)**2 + (bullet.y - player2.y)**2 < (bullet.radius + player2.radius)**2:
+                    player2.take_damage(bullet.damage, bullet.x, bullet.y)
+                    if bullet.explosive:
+                        player1.explosions.append(Explosion(bullet.x, bullet.y, damage=bullet.damage, owner=player1))
+                        play_sfx('explosion', vol=0.5)
+                    else:
+                        play_sfx('hit', vol=0.4)
+                    player1.bullets.pop(i)
                 else:
-                    play_sfx('hit', vol=0.4)
-                player1.bullets.pop(i)
-            else:
-                i += 1
+                    i += 1
 
-        i = 0
-        while i < len(player2.bullets):
-            bullet = player2.bullets[i]
-            if (bullet.x - player1.x)**2 + (bullet.y - player1.y)**2 < (bullet.radius + player1.radius)**2:
-                player1.take_damage(bullet.damage, bullet.x, bullet.y)
-                if bullet.explosive:
-                    player2.explosions.append(Explosion(bullet.x, bullet.y, damage=bullet.damage, owner=player2))
-                    play_sfx('explosion', vol=0.5)
+            i = 0
+            while i < len(player2.bullets):
+                bullet = player2.bullets[i]
+                if (bullet.x - player1.x)**2 + (bullet.y - player1.y)**2 < (bullet.radius + player1.radius)**2:
+                    player1.take_damage(bullet.damage, bullet.x, bullet.y)
+                    if bullet.explosive:
+                        player2.explosions.append(Explosion(bullet.x, bullet.y, damage=bullet.damage, owner=player2))
+                        play_sfx('explosion', vol=0.5)
+                    else:
+                        play_sfx('hit', vol=0.4)
+                    player2.bullets.pop(i)
                 else:
-                    play_sfx('hit', vol=0.4)
-                player2.bullets.pop(i)
-            else:
-                i += 1
+                    i += 1
 
-        # Dano de explosão em área (para explosões de parede/gerais)
-        for exp in list(player1.explosions + player2.explosions):
-            if exp.damage_dealt or exp.damage <= 0:
-                continue
-            targets = []
-            if exp.owner != player1:
-                targets.append(player1)
-            if exp.owner != player2:
-                targets.append(player2)
-            for target in targets:
-                edist = math.sqrt((exp.x - target.x)**2 + (exp.y - target.y)**2)
-                if edist < exp.radius:
-                    target.take_damage(exp.damage, exp.x, exp.y)
-            exp.damage_dealt = True
+            # Dano de explosão em área (para explosões de parede/gerais)
+            for exp in list(player1.explosions + player2.explosions):
+                if exp.damage_dealt or exp.damage <= 0:
+                    continue
+                targets = []
+                if exp.owner != player1:
+                    targets.append(player1)
+                if exp.owner != player2:
+                    targets.append(player2)
+                for target in targets:
+                    edist = math.sqrt((exp.x - target.x)**2 + (exp.y - target.y)**2)
+                    if edist < exp.radius:
+                        target.take_damage(exp.damage, exp.x, exp.y)
+                exp.damage_dealt = True
 
-        # Fim de jogo → animação de morte
-        if player1.hp <= 0:
-            death_winner_name = player2.name
-            death_timer = DEATH_ANIM_DURATION
-            death_particles = []
-            current_state = STATE_DEATH_ANIM
-            stop_bgm(2000)
-            play_sfx('victory' if (ai_mode and player2.name == "CPU") else 'gameover', vol=0.5)
-        elif player2.hp <= 0:
-            death_winner_name = player1.name
-            death_timer = DEATH_ANIM_DURATION
-            death_particles = []
-            current_state = STATE_DEATH_ANIM
-            stop_bgm(2000)
-            play_sfx('victory', vol=0.5)
+            # Fim de jogo → animação de morte
+            if player1.hp <= 0:
+                death_winner_name = player2.name
+                death_timer = DEATH_ANIM_DURATION
+                death_particles = []
+                current_state = STATE_DEATH_ANIM
+                stop_bgm(2000)
+                play_sfx('victory' if (ai_mode and player2.name == "CPU") else 'gameover', vol=0.5)
+            elif player2.hp <= 0:
+                death_winner_name = player1.name
+                death_timer = DEATH_ANIM_DURATION
+                death_particles = []
+                current_state = STATE_DEATH_ANIM
+                stop_bgm(2000)
+                play_sfx('victory', vol=0.5)
 
     # ─────────────────────────────────────────
     #  PODER ESPECIAL (tecla única por frame)
     # ─────────────────────────────────────────
-    if current_state == STATE_PLAYING:
+    if current_state == STATE_PLAYING and not soccer_mode:
         keys = pygame.key.get_pressed()
         r = remote_input.get_state()
         if not hasattr(player1, '_f_held'):
@@ -2424,15 +3401,45 @@ while running:
             player2._u_held = u_now
             player2._web_switch_held2 = sw2_now
 
-    if current_state in (STATE_PLAYING, STATE_DEATH_ANIM) and player1 and player2:
-        target_cx = (player1.x + player2.x) / 2 - SCREEN_WIDTH / 2
-        target_cy = (player1.y + player2.y) / 2 - SCREEN_HEIGHT / 2
-        target_cx = max(0, min(WORLD_WIDTH - SCREEN_WIDTH, target_cx))
-        target_cy = max(0, min(WORLD_HEIGHT - SCREEN_HEIGHT, target_cy))
-        camera_x += (target_cx - camera_x) * 0.08
-        camera_y += (target_cy - camera_y) * 0.08
+    if current_state in (STATE_PLAYING, STATE_DEATH_ANIM):
+        all_players = [p for p in [player1, player2, player3, player4] if p]
+        if all_players:
+            cx = sum(p.x for p in all_players) / len(all_players)
+            cy = sum(p.y for p in all_players) / len(all_players)
+            target_cx = cx - SCREEN_WIDTH / 2
+            target_cy = cy - SCREEN_HEIGHT / 2
+            target_cx = max(0, min(WORLD_WIDTH - SCREEN_WIDTH, target_cx))
+            target_cy = max(0, min(WORLD_HEIGHT - SCREEN_HEIGHT, target_cy))
+            camera_x += (target_cx - camera_x) * 0.08
+            camera_y += (target_cy - camera_y) * 0.08
+            # zoom dinâmico para futebol
+            if soccer_mode:
+                min_x = min(p.x for p in all_players)
+                max_x = max(p.x for p in all_players)
+                min_y = min(p.y for p in all_players)
+                max_y = max(p.y for p in all_players)
+                spread_w = max_x - min_x + 120
+                spread_h = max_y - min_y + 120
+                target_zoom = min(1.0, min(SCREEN_WIDTH / spread_w, SCREEN_HEIGHT / spread_h))
+                target_zoom = max(ZOOM_MIN, target_zoom)
+                camera_zoom += (target_zoom - camera_zoom) * ZOOM_SMOOTH
+        else:
+            camera_x, camera_y = 0, 0
     elif current_state not in (STATE_GAME_OVER,):
         camera_x, camera_y = 0, 0
+
+    # ── ZOOM: superfície maior ──
+    _zoom_surf = None
+    if soccer_mode and current_state in (STATE_PLAYING, STATE_DEATH_ANIM) and abs(camera_zoom - 1.0) > 0.01:
+        _vw = max(SCREEN_WIDTH, int(SCREEN_WIDTH / camera_zoom))
+        _vh = max(SCREEN_HEIGHT, int(SCREEN_HEIGHT / camera_zoom))
+        _zoom_surf = pygame.Surface((_vw, _vh))
+        _zoom_surf.fill((20, 120, 40))
+        _real_screen = screen
+        screen = _zoom_surf
+        _old_cam_x, _old_cam_y = camera_x, camera_y
+        camera_x = max(0, min(WORLD_WIDTH - _vw, camera_x - (_vw - SCREEN_WIDTH) / 2))
+        camera_y = max(0, min(WORLD_HEIGHT - _vh, camera_y - (_vh - SCREEN_HEIGHT) / 2))
 
     # ─────────────────────────────────────────
     #  DESENHO
@@ -2546,27 +3553,31 @@ while running:
         draw_text(screen, "SOUL STRIKE", 44, UI_GOLD, SCREEN_WIDTH // 2, 70)
         draw_text(screen, "SELECIONE O MODO DE JOGO", 18, UI_TEXT_DIM, SCREEN_WIDTH // 2, 115)
 
-        cw, ch = 240, 200
+        cw, ch = 200, 180
+        gap = 16
+        total_w = cw * 4 + gap * 3
+        start_x = SCREEN_WIDTH // 2 - total_w // 2
         yy = SCREEN_HEIGHT // 2 - ch // 2 + 10
-        lx = SCREEN_WIDTH // 2 - 30 - cw
-        rx = SCREEN_WIDTH // 2 + 30
         mx, my = pygame.mouse.get_pos()
 
-        for label, x, hover in [("1 JOGADOR", lx, pygame.Rect(lx, yy, cw, ch).collidepoint(mx, my)),
-                                 ("2 JOGADORES", rx, pygame.Rect(rx, yy, cw, ch).collidepoint(mx, my))]:
+        for i, (label, sub, icon) in enumerate([
+            ("1 JOGADOR", "vs CPU", "⚔"),
+            ("2 JOGADORES", "Local", "👥"),
+            ("FUTEBOL 2v2", "Times", "⚽"),
+            ("FUTEBOL 1v1", "Duelo", "⚽"),
+        ]):
+            x = start_x + i * (cw + gap)
+            hover = pygame.Rect(x, yy, cw, ch).collidepoint(mx, my)
             bcol = UI_GOLD if hover else UI_BORDER
-            fcol = UI_BORDER_LIT if hover else UI_BORDER
             draw_panel(screen, (x, yy, cw, ch), fill=UI_PANEL, border=bcol, radius=12)
-            draw_text(screen, label, 22, UI_TEXT if not hover else UI_GOLD, x + cw // 2, yy + 70)
-            sub = "vs CPU" if "1" in label else "Local"
-            draw_text(screen, sub, 16, UI_TEXT_DIM, x + cw // 2, yy + 100)
-            icon = "⚔" if "1" in label else "👥"
-            draw_text(screen, icon, 36, UI_GOLD, x + cw // 2, yy + 30)
+            draw_text(screen, label, 18, UI_TEXT if not hover else UI_GOLD, x + cw // 2, yy + 65)
+            draw_text(screen, sub, 14, UI_TEXT_DIM, x + cw // 2, yy + 92)
+            draw_text(screen, icon, 32, UI_GOLD, x + cw // 2, yy + 25)
 
-        draw_text(screen, "[1] vs CPU     [2] 2 Jogadores     [ESC] Voltar",
+        draw_text(screen, "[1] vs CPU   [2] 2 Jog   [3] Fut 2v2   [4] Fut 1v1   [ESC] Voltar",
                   13, UI_TEXT_DIM, SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30)
 
-    # ── QR CODE (2 JOGADORES) ────────────────
+    # ── QR CODE (2 JOGADORES / 4 FUTEBOL) ─────
     elif current_state == STATE_QR_CODE:
         screen.fill((10, 5, 20))
         t = pygame.time.get_ticks() * 0.001
@@ -2580,7 +3591,11 @@ while running:
             screen.blit(surf, (int(px - p['size']), int(py - p['size'])))
 
         draw_text(screen, "SOUL STRIKE", 44, UI_GOLD, SCREEN_WIDTH // 2, 50)
-        draw_text(screen, "CONTROLE REMOTO", 18, UI_TEXT_DIM, SCREEN_WIDTH // 2, 90)
+
+        if soccer_mode:
+            draw_text(screen, "FUTEBOL 2v2 — CONTROLE REMOTO", 18, UI_TEXT_DIM, SCREEN_WIDTH // 2, 90)
+        else:
+            draw_text(screen, "CONTROLE REMOTO", 18, UI_TEXT_DIM, SCREEN_WIDTH // 2, 90)
 
         # Gerar QR codes (uma vez)
         if not hasattr(draw_text, '_qr_p1'):
@@ -2588,8 +3603,12 @@ while running:
             port = 5000
             url_p1 = f"http://{ip}:{port}/?player=1"
             url_p2 = f"http://{ip}:{port}/?player=2"
+            url_p3 = f"http://{ip}:{port}/?player=3"
+            url_p4 = f"http://{ip}:{port}/?player=4"
             qr_p1_img = qrcode.make(url_p1)
             qr_p2_img = qrcode.make(url_p2)
+            qr_p3_img = qrcode.make(url_p3)
+            qr_p4_img = qrcode.make(url_p4)
             qr_size = 180
             def _qr_to_surf(pil_img):
                 mode = pil_img.mode
@@ -2600,44 +3619,115 @@ while running:
                 return pygame.transform.scale(surf, (qr_size, qr_size))
             draw_text._qr_p1 = _qr_to_surf(qr_p1_img)
             draw_text._qr_p2 = _qr_to_surf(qr_p2_img)
+            draw_text._qr_p3 = _qr_to_surf(qr_p3_img)
+            draw_text._qr_p4 = _qr_to_surf(qr_p4_img)
             draw_text._url_p1 = url_p1
             draw_text._url_p2 = url_p2
+            draw_text._url_p3 = url_p3
+            draw_text._url_p4 = url_p4
 
         qr_size = 180
         panel_w = 260
         panel_h = 320
         gap = 40
-        total_w = panel_w * 2 + gap
-        start_x = (SCREEN_WIDTH - total_w) // 2
-        yy = SCREEN_HEIGHT // 2 - panel_h // 2 + 20
 
-        for i, (qr_surf, label, url, color) in enumerate([
-            (draw_text._qr_p1, "Jogador 1", draw_text._url_p1, BLUE),
-            (draw_text._qr_p2, "Jogador 2", draw_text._url_p2, RED),
-        ]):
-            px = start_x + i * (panel_w + gap)
-            draw_panel(screen, (px, yy, panel_w, panel_h), fill=UI_PANEL, border=UI_GOLD, radius=10)
-            draw_text(screen, label, 20, color, px + panel_w // 2, yy + 20)
-            qr_x = px + (panel_w - qr_size) // 2
-            qr_y = yy + 40
-            screen.blit(qr_surf, (qr_x, qr_y))
-            draw_text(screen, url, 10, UI_TEXT_DIM, px + panel_w // 2, qr_y + qr_size + 12, center=True)
+        if soccer_mode:
+            if soccer_players == 2:
+                # 1v1: 2 QR codes lado a lado
+                total_w = panel_w * 2 + gap
+                start_x = (SCREEN_WIDTH - total_w) // 2
+                yy = SCREEN_HEIGHT // 2 - panel_h // 2 + 20
+                for i, (qr_surf, label, url, color) in enumerate([
+                    (draw_text._qr_p1, "Jogador 1", draw_text._url_p1, BLUE),
+                    (draw_text._qr_p2, "Jogador 2", draw_text._url_p2, RED),
+                ]):
+                    px = start_x + i * (panel_w + gap)
+                    draw_panel(screen, (px, yy, panel_w, panel_h), fill=UI_PANEL, border=color, radius=10)
+                    draw_text(screen, label, 20, color, px + panel_w // 2, yy + 20)
+                    qr_x = px + (panel_w - qr_size) // 2
+                    qr_y = yy + 40
+                    screen.blit(qr_surf, (qr_x, qr_y))
+                    draw_text(screen, url, 10, UI_TEXT_DIM, px + panel_w // 2, qr_y + qr_size + 12, center=True)
+            else:
+                # 2v2: 4 QR codes em 2x2
+                grid_cols = 2
+                grid_gap = 20
+                total_grid_w = panel_w * grid_cols + grid_gap
+                grid_start_x = (SCREEN_WIDTH - total_grid_w) // 2
+                grid_start_y = SCREEN_HEIGHT // 2 - panel_h - grid_gap // 2
+                qr_data = [
+                    (draw_text._qr_p1, "Jogador 1 (Azul)", draw_text._url_p1, BLUE),
+                    (draw_text._qr_p2, "Jogador 2 (Vermelho)", draw_text._url_p2, RED),
+                    (draw_text._qr_p3, "Jogador 3 (Azul)", draw_text._url_p3, CYAN),
+                    (draw_text._qr_p4, "Jogador 4 (Vermelho)", draw_text._url_p4, ORANGE),
+                ]
+                for idx, (qr_surf, label, url, color) in enumerate(qr_data):
+                    col = idx % grid_cols
+                    row = idx // grid_cols
+                    px = grid_start_x + col * (panel_w + grid_gap)
+                    py = grid_start_y + row * (panel_h + grid_gap)
+                    draw_panel(screen, (px, py, panel_w, panel_h), fill=UI_PANEL, border=color, radius=10)
+                    draw_text(screen, label, 18, color, px + panel_w // 2, py + 12)
+                    qr_x = px + (panel_w - qr_size) // 2
+                    qr_y = py + 32
+                    screen.blit(qr_surf, (qr_x, qr_y))
+                    draw_text(screen, url, 9, UI_TEXT_DIM, px + panel_w // 2, qr_y + qr_size + 10, center=True)
+        else:
+            total_w = panel_w * 2 + gap
+            start_x = (SCREEN_WIDTH - total_w) // 2
+            yy = SCREEN_HEIGHT // 2 - panel_h // 2 + 20
 
-        draw_text(screen, "Escaneie o QR Code no celular para controlar o jogador",
-                  14, UI_TEXT, SCREEN_WIDTH // 2, yy + panel_h + 20)
-        draw_text(screen, "(certifique-se de estar na mesma rede Wi-Fi)",
-                  12, UI_TEXT_DIM, SCREEN_WIDTH // 2, yy + panel_h + 40)
+            for i, (qr_surf, label, url, color) in enumerate([
+                (draw_text._qr_p1, "Jogador 1", draw_text._url_p1, BLUE),
+                (draw_text._qr_p2, "Jogador 2", draw_text._url_p2, RED),
+            ]):
+                px = start_x + i * (panel_w + gap)
+                draw_panel(screen, (px, yy, panel_w, panel_h), fill=UI_PANEL, border=UI_GOLD, radius=10)
+                draw_text(screen, label, 20, color, px + panel_w // 2, yy + 20)
+                qr_x = px + (panel_w - qr_size) // 2
+                qr_y = yy + 40
+                screen.blit(qr_surf, (qr_x, qr_y))
+                draw_text(screen, url, 10, UI_TEXT_DIM, px + panel_w // 2, qr_y + qr_size + 12, center=True)
 
-        # Botão continuar
-        btn_rect = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT - 65, 200, 44)
         mx, my = pygame.mouse.get_pos()
-        hover = btn_rect.collidepoint(mx, my)
-        draw_panel(screen, (btn_rect.x, btn_rect.y, btn_rect.w, btn_rect.h),
-                   fill=UI_PANEL, border=UI_GOLD if hover else UI_BORDER, radius=8)
-        draw_text(screen, "CONTINUAR", 18, UI_GOLD if hover else UI_TEXT,
-                  btn_rect.centerx, btn_rect.centery)
-        draw_text(screen, "[Enter] Continuar     [Esc] Voltar",
-                  12, UI_TEXT_DIM, SCREEN_WIDTH // 2, SCREEN_HEIGHT - 15)
+
+        if soccer_mode:
+            # Status dos jogadores + botão INICIAR
+            claimed = remote_input.get_claimed()
+            ready_count = sum(1 for p in claimed if remote_input.is_player_ready(p))
+            status_text = f"Jogadores conectados: {len(claimed)}/4  —  Prontos: {ready_count}/{len(claimed) if claimed else 0}"
+            draw_text(screen, status_text, 16, UI_GOLD if ready_count == len(claimed) and len(claimed) >= 2 else UI_TEXT,
+                      SCREEN_WIDTH // 2, SCREEN_HEIGHT - 175)
+
+            iniciar_rect = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT - 130, 200, 44)
+            i_hover = iniciar_rect.collidepoint(mx, my)
+            can_start = len(claimed) >= 2
+            draw_panel(screen, (iniciar_rect.x, iniciar_rect.y, iniciar_rect.w, iniciar_rect.h),
+                       fill=UI_PANEL, border=GREEN if can_start and i_hover else (UI_GOLD if i_hover else UI_BORDER), radius=8)
+            draw_text(screen, "INICIAR PARTIDA", 16, GREEN if can_start else (UI_GOLD if i_hover else UI_TEXT),
+                      iniciar_rect.centerx, iniciar_rect.centery)
+
+            draw_text(screen, "Escaneie o QR Code no celular e confirme o personagem",
+                      14, UI_TEXT, SCREEN_WIDTH // 2, SCREEN_HEIGHT - 85)
+            draw_text(screen, "(certifique-se de estar na mesma rede Wi-Fi)",
+                      12, UI_TEXT_DIM, SCREEN_WIDTH // 2, SCREEN_HEIGHT - 65)
+            draw_text(screen, "[Enter] Iniciar     [Esc] Voltar",
+                      12, UI_TEXT_DIM, SCREEN_WIDTH // 2, SCREEN_HEIGHT - 15)
+        else:
+            draw_text(screen, "Escaneie o QR Code no celular para controlar o jogador",
+                      14, UI_TEXT, SCREEN_WIDTH // 2, SCREEN_HEIGHT - 125)
+            draw_text(screen, "(certifique-se de estar na mesma rede Wi-Fi)",
+                      12, UI_TEXT_DIM, SCREEN_WIDTH // 2, SCREEN_HEIGHT - 105)
+
+            btn_rect = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT - 65, 200, 44)
+            mx, my = pygame.mouse.get_pos()
+            hover = btn_rect.collidepoint(mx, my)
+            draw_panel(screen, (btn_rect.x, btn_rect.y, btn_rect.w, btn_rect.h),
+                       fill=UI_PANEL, border=UI_GOLD if hover else UI_BORDER, radius=8)
+            draw_text(screen, "CONTINUAR", 18, UI_GOLD if hover else UI_TEXT,
+                      btn_rect.centerx, btn_rect.centery)
+            draw_text(screen, "[Enter] Continuar     [Esc] Voltar",
+                      12, UI_TEXT_DIM, SCREEN_WIDTH // 2, SCREEN_HEIGHT - 15)
 
     # ── SELEÇÃO DE PERSONAGEM ─────────────────
     elif current_state == STATE_CHAR_SELECT:
@@ -2763,6 +3853,20 @@ while running:
         # Fundo escuro
         screen.fill((10, 5, 20))
 
+        if soccer_mode:
+            if not hasattr(draw_text, '_arena_vs'):
+                try:
+                    arena_path = os.path.join(TILES_DIR, "campo_futebol", "arena completa.png")
+                    arena_img = pygame.image.load(arena_path).convert()
+                    draw_text._arena_vs = pygame.transform.scale(arena_img, (SCREEN_WIDTH, SCREEN_HEIGHT))
+                except Exception:
+                    draw_text._arena_vs = None
+            if draw_text._arena_vs:
+                screen.blit(draw_text._arena_vs, (0, 0))
+                overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, 140))
+                screen.blit(overlay, (0, 0))
+
         # Partículas laterais (chamas)
         for i in range(20):
             px = SCREEN_WIDTH // 2 + int(300 * math.sin(i * 1.7 + t * 0.05))
@@ -2773,19 +3877,73 @@ while running:
             pygame.draw.circle(surf, (*ORANGE[:3], alpha), (size, size), size)
             screen.blit(surf, (int(px), int(py)))
 
-        for idx, (player, side) in enumerate([(player1, -1), (player2, 1)]):
-            char_img = character_images.get(player.char_stats.image_name)
-            if char_img:
-                frames = char_img.get("frente")
-                if not frames:
-                    continue
-                base = frames[0]
-                scale = 2.0 + 0.2 * math.sin(t * 0.05)
-                scaled = pygame.transform.scale(base, (int(120 * scale), int(120 * scale)))
-                px = SCREEN_WIDTH // 2 + side * 200
-                py = SCREEN_HEIGHT // 2 - 20
-                rect = scaled.get_rect(center=(px, py))
-                screen.blit(scaled, rect)
+        if soccer_mode:
+            if soccer_players == 2:
+                # 1v1: mostra P1 vs P2 como batalha normal
+                for idx, (player, side) in enumerate([(player1, -1), (player2, 1)]):
+                    char_img = character_images.get(player.char_stats.image_name)
+                    if char_img:
+                        frames = char_img.get("frente")
+                        if not frames:
+                            continue
+                        base = frames[0]
+                        scale = 2.0 + 0.2 * math.sin(t * 0.05)
+                        scaled = pygame.transform.scale(base, (int(120 * scale), int(120 * scale)))
+                        px = SCREEN_WIDTH // 2 + side * 200
+                        py = SCREEN_HEIGHT // 2 - 20
+                        rect = scaled.get_rect(center=(px, py))
+                        screen.blit(scaled, rect)
+                draw_text(screen, player1.name, 26, player1.color,
+                          SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2 + 80)
+                draw_text(screen, player2.name, 26, player2.color,
+                          SCREEN_WIDTH * 3 // 4, SCREEN_HEIGHT // 2 + 80)
+            else:
+                # 2v2: mostra 4 jogadores em times
+                team_blue = [p for p in [player1, player3] if p]
+                team_red  = [p for p in [player2, player4] if p]
+                for side, team, color in [(-1, team_blue, TEAM_BLUE_OVERLAY), (1, team_red, TEAM_RED_OVERLAY)]:
+                    for ii, p in enumerate(team):
+                        char_img = character_images.get(p.char_stats.image_name)
+                        if char_img:
+                            frames = char_img.get("frente")
+                            if not frames:
+                                continue
+                            base = frames[0]
+                            scale = 1.6 + 0.15 * math.sin(t * 0.05)
+                            scaled = pygame.transform.scale(base, (int(100 * scale), int(100 * scale)))
+                            px = SCREEN_WIDTH // 2 + side * 200
+                            py = SCREEN_HEIGHT // 2 - 40 + ii * 70
+                            rect = scaled.get_rect(center=(px, py))
+                            screen.blit(scaled, rect)
+                            draw_text(screen, p.name, 16, UI_TEXT_DIM, px, py + 60)
+                draw_text(screen, "TIME AZUL", 28, TEAM_BLUE_OVERLAY[:3], SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2 - 100)
+                draw_text(screen, "TIME VERMELHO", 28, TEAM_RED_OVERLAY[:3], SCREEN_WIDTH * 3 // 4, SCREEN_HEIGHT // 2 - 100)
+        else:
+            for idx, (player, side) in enumerate([(player1, -1), (player2, 1)]):
+                char_img = character_images.get(player.char_stats.image_name)
+                if char_img:
+                    frames = char_img.get("frente")
+                    if not frames:
+                        continue
+                    base = frames[0]
+                    scale = 2.0 + 0.2 * math.sin(t * 0.05)
+                    scaled = pygame.transform.scale(base, (int(120 * scale), int(120 * scale)))
+                    px = SCREEN_WIDTH // 2 + side * 200
+                    py = SCREEN_HEIGHT // 2 - 20
+                    rect = scaled.get_rect(center=(px, py))
+                    screen.blit(scaled, rect)
+
+            # Nomes dos personagens
+            draw_text(screen, player1.char_stats.name, 26, player1.color,
+                      SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2 + 80)
+            draw_text(screen, player2.char_stats.name, 26, player2.color,
+                      SCREEN_WIDTH * 3 // 4, SCREEN_HEIGHT // 2 + 80)
+
+            # Nomes dos jogadores
+            draw_text(screen, player1.name, 20, UI_TEXT_DIM,
+                      SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2 + 110)
+            draw_text(screen, player2.name, 20, UI_TEXT_DIM,
+                      SCREEN_WIDTH * 3 // 4, SCREEN_HEIGHT // 2 + 110)
 
         # VS
         vs_scale = 1.0 + 0.3 * math.sin(t * 0.08)
@@ -2799,19 +3957,7 @@ while running:
             screen.blit(glow_surf, gr)
         screen.blit(vs_surf, vs_rect)
 
-        # Nomes dos personagens
-        draw_text(screen, player1.char_stats.name, 26, player1.color,
-                  SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2 + 80)
-        draw_text(screen, player2.char_stats.name, 26, player2.color,
-                  SCREEN_WIDTH * 3 // 4, SCREEN_HEIGHT // 2 + 80)
-
-        # Nomes dos jogadores
-        draw_text(screen, player1.name, 20, UI_TEXT_DIM,
-                  SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2 + 110)
-        draw_text(screen, player2.name, 20, UI_TEXT_DIM,
-                  SCREEN_WIDTH * 3 // 4, SCREEN_HEIGHT // 2 + 110)
-
-        # FIGHT!
+        # FIGHT! / PARTIDA!
         fight_alpha = 0
         if progress > 0.5:
             fight_progress = (progress - 0.5) / 0.3
@@ -2819,8 +3965,9 @@ while running:
         if fight_alpha > 0:
             fight_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             font = pygame.font.Font(None, 100)
-            txt = font.render("FIGHT!", True, (*YELLOW[:3], fight_alpha))
-            tr = txt.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 50))
+            label = "PARTIDA!" if soccer_mode else "FIGHT!"
+            txt = font.render(label, True, (*YELLOW[:3], fight_alpha))
+            tr = txt.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 60))
             fight_surf.blit(txt, tr)
             screen.blit(fight_surf, (0, 0))
 
@@ -2829,57 +3976,101 @@ while running:
         for wall in walls:
             wall.draw(screen)
 
-        if player1.barrier:
-            player1.barrier.draw(screen)
-        if player2.barrier:
-            player2.barrier.draw(screen)
+        if not soccer_mode:
+            if player1.barrier:
+                player1.barrier.draw(screen)
+            if player2.barrier:
+                player2.barrier.draw(screen)
 
-        player1.draw(screen, enemy=player2)
-        player2.draw(screen, enemy=player1)
+        if soccer_mode:
+            # desenhar gols
+            for g in goals:
+                g.draw()
+            # desenhar bola
+            if ball:
+                ball.draw()
 
-        for b in player1.bullets + player2.bullets:
-            b.draw(screen)
+        # desenhar jogadores
+        all_draw_players = [p for p in [player1, player2, player3, player4] if p]
+        if soccer_mode:
+            for p in all_draw_players:
+                p.draw(screen)
+        else:
+            player1.draw(screen, enemy=player2)
+            player2.draw(screen, enemy=player1)
 
-        draw_hud(screen, player1, player2)
+        if not soccer_mode:
+            for b in player1.bullets + player2.bullets:
+                b.draw(screen)
+
+        # ── RESTAURAR ZOOM (antes do HUD) ──
+        if _zoom_surf is not None:
+            scaled = pygame.transform.scale(screen, (SCREEN_WIDTH, SCREEN_HEIGHT))
+            screen = _real_screen
+            camera_x, camera_y = _old_cam_x, _old_cam_y
+            screen.blit(scaled, (0, 0))
+            _zoom_surf = None
+
+        if soccer_mode:
+            draw_soccer_hud(screen)
+        else:
+            draw_hud(screen, player1, player2)
+
+        # overlay de GOL!
+        if soccer_mode and goal_timer > 0:
+            gol_alpha = min(255, int(255 * (goal_timer / GOAL_FREEZE) * 1.5))
+            gol_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            gol_surf.fill((0, 0, 0, gol_alpha // 2))
+            screen.blit(gol_surf, (0, 0))
+            draw_text(screen, "GOL!", 100, UI_GOLD, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40)
+            draw_text(screen, goal_scorer, 40, WHITE, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 40)
 
     # ── ANIMAÇÃO DE MORTE ──────────────────────
     elif current_state == STATE_DEATH_ANIM:
         for wall in walls:
             wall.draw(screen)
-        if player1.barrier:
-            player1.barrier.draw(screen)
-        if player2.barrier:
-            player2.barrier.draw(screen)
+
+        if not soccer_mode:
+            if player1.barrier:
+                player1.barrier.draw(screen)
+            if player2.barrier:
+                player2.barrier.draw(screen)
 
         progress = 1.0 - (death_timer / DEATH_ANIM_DURATION)
 
-        for p, is_loser in [(player1, player1.hp <= 0), (player2, player2.hp <= 0)]:
-            if is_loser:
-                char_img = character_images.get(p.char_stats.image_name)
-                if char_img:
-                    scale = max(0.2, 1.0 - progress * 0.8)
-                    frames = char_img.get("frente")
-                    if not frames:
-                        continue
-                    scaled = pygame.transform.scale(frames[0], (int(120 * scale), int(120 * scale)))
-                    rect = scaled.get_rect(center=(int(p.x - camera_x), int(p.y - camera_y)))
-                    flash_alpha = int(120 + 80 * math.sin(death_timer * 0.4))
-                    flash = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-                    flash.fill((*RED[:3], flash_alpha))
-                    screen.blit(scaled, rect)
-                    screen.blit(flash, rect)
+        if soccer_mode:
+            all_death_players = [p for p in [player1, player2, player3, player4] if p]
+            for p in all_death_players:
+                p.draw(screen)
+        else:
+            for p, is_loser in [(player1, player1.hp <= 0), (player2, player2.hp <= 0)]:
+                if is_loser:
+                    char_img = character_images.get(p.char_stats.image_name)
+                    if char_img:
+                        scale = max(0.2, 1.0 - progress * 0.8)
+                        frames = char_img.get("frente")
+                        if not frames:
+                            continue
+                        scaled = pygame.transform.scale(frames[0], (int(120 * scale), int(120 * scale)))
+                        rect = scaled.get_rect(center=(int(p.x - camera_x), int(p.y - camera_y)))
+                        flash_alpha = int(120 + 80 * math.sin(death_timer * 0.4))
+                        flash = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+                        flash.fill((*RED[:3], flash_alpha))
+                        screen.blit(scaled, rect)
+                        screen.blit(flash, rect)
+                    else:
+                        flash_alpha = int(120 + 80 * math.sin(death_timer * 0.4))
+                        scale = max(0.2, 1.0 - progress * 0.8)
+                        r = int(p.radius * scale)
+                        surf = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+                        pygame.draw.circle(surf, (*RED[:3], flash_alpha), (r, r), r)
+                        screen.blit(surf, (int(p.x - camera_x - r), int(p.y - camera_y - r)))
                 else:
-                    flash_alpha = int(120 + 80 * math.sin(death_timer * 0.4))
-                    scale = max(0.2, 1.0 - progress * 0.8)
-                    r = int(p.radius * scale)
-                    surf = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
-                    pygame.draw.circle(surf, (*RED[:3], flash_alpha), (r, r), r)
-                    screen.blit(surf, (int(p.x - camera_x - r), int(p.y - camera_y - r)))
-            else:
-                p.draw(screen, enemy=(player2 if p is player1 else player1))
+                    p.draw(screen, enemy=(player2 if p is player1 else player1))
 
-        for b in player1.bullets + player2.bullets:
-            b.draw(screen)
+        if not soccer_mode:
+            for b in player1.bullets + player2.bullets:
+                b.draw(screen)
 
         for p in death_particles:
             alpha = int(255 * (p['life'] / p['max_life']))
@@ -2888,23 +4079,43 @@ while running:
             pygame.draw.circle(surf, (*p['color'][:3], alpha), (sz, sz), sz)
             screen.blit(surf, (int(p['x'] - camera_x - sz), int(p['y'] - camera_y - sz)))
 
+        # ── RESTAURAR ZOOM (antes do overlay/HUD) ──
+        if _zoom_surf is not None:
+            scaled = pygame.transform.scale(screen, (SCREEN_WIDTH, SCREEN_HEIGHT))
+            screen = _real_screen
+            camera_x, camera_y = _old_cam_x, _old_cam_y
+            screen.blit(scaled, (0, 0))
+            _zoom_surf = None
+
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, int(180 * progress)))
         screen.blit(overlay, (0, 0))
 
-        draw_hud(screen, player1, player2)
+        if soccer_mode:
+            draw_soccer_hud(screen)
+        else:
+            draw_hud(screen, player1, player2)
 
     # ── GAME OVER ─────────────────────────────
     elif current_state == STATE_GAME_OVER:
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 180))
         screen.blit(overlay, (0, 0))
-        draw_panel(screen, (SCREEN_WIDTH // 2 - 200, SCREEN_HEIGHT // 2 - 90, 400, 180),
-                   fill=UI_PANEL, border=UI_GOLD, radius=12)
-        draw_text(screen, "FIM DE JOGO!", 52, WHITE, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 55)
-        draw_text(screen, f"{winner} VENCEU!", 44, UI_GOLD, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 10)
-        draw_text(screen, "Pressione R para reiniciar", 20, UI_TEXT_DIM,
-                  SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 65)
+        if soccer_mode:
+            wcolor = TEAM_BLUE_OVERLAY if "AZUL" in (winner or "") else TEAM_RED_OVERLAY
+            draw_panel(screen, (SCREEN_WIDTH // 2 - 220, SCREEN_HEIGHT // 2 - 100, 440, 200),
+                       fill=UI_PANEL, border=UI_GOLD, radius=12)
+            draw_text(screen, f"{winner} VENCEU!", 44, UI_GOLD, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50)
+            draw_text(screen, f"🔵 {score_p1}  🆚  {score_p2} 🔴", 36, WHITE, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 10)
+            draw_text(screen, "Pressione R para reiniciar", 20, UI_TEXT_DIM,
+                      SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 65)
+        else:
+            draw_panel(screen, (SCREEN_WIDTH // 2 - 200, SCREEN_HEIGHT // 2 - 90, 400, 180),
+                       fill=UI_PANEL, border=UI_GOLD, radius=12)
+            draw_text(screen, "FIM DE JOGO!", 52, WHITE, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 55)
+            draw_text(screen, f"{winner} VENCEU!", 44, UI_GOLD, SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 10)
+            draw_text(screen, "Pressione R para reiniciar", 20, UI_TEXT_DIM,
+                      SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 65)
 
     pygame.display.flip()
     clock.tick(FPS)

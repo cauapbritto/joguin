@@ -6,34 +6,263 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Controle Remoto</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; touch-action: none;
+                     background: #0d0d1a; color: white; font-family: sans-serif;
+                     user-select: none; -webkit-user-select: none; }
+
+        /* ─── LAYOUT CONFIG (ajuste aqui) ─── */
+        :root {
+            --js-left: 5%;
+            --js-bottom: 8%;
+            --js-zone-size: clamp(200px, 42vmin, 320px);
+            --js-base-size: clamp(130px, 24vmin, 190px);
+            --js-knob-ratio: 0.38;
+
+            --btn-size: clamp(72px, 16vmin, 100px);
+            --btn-gap: clamp(85px, 16vmin, 130px);
+            --btn-font-size: clamp(14px, 3.2vmin, 20px);
+            --btn-radius: 14px;
+            --btn-right: 6%;
+            --btn-bottom: 10%;
+            --btn-opacity-rest: 0.65;
+            --btn-opacity-active: 1;
+            --btn-scale-active: 0.88;
+        }
+
+        #char-select { display: flex; flex-direction: column; align-items: center;
+                       justify-content: center; height: 100vh; padding: 20px; }
+        #char-select.hidden { display: none !important; }
+        #cs-header { font-size: 26px; font-weight: bold; margin-bottom: 4px; }
+        #cs-team { font-size: 16px; margin-bottom: 14px; }
+        #cs-carousel { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+        .cs-arrow { font-size: 32px; width: 56px; height: 56px; border: none; border-radius: 12px;
+                    background: #2a2a3a; color: gold; cursor: pointer; touch-action: manipulation; }
+        .cs-arrow:active { background: #3a3a5a; }
+        #cs-character-box { width: 160px; height: 100px; display: flex; align-items: center;
+                            justify-content: center; background: #1a1a2a; border-radius: 12px;
+                            border: 2px solid #555; }
+        #cs-char-name { font-size: 22px; font-weight: bold; }
+        #cs-confirm { font-size: 20px; padding: 12px 44px; border: none; border-radius: 12px;
+                      background: #2a8a2a; color: white; font-weight: bold; cursor: pointer;
+                      touch-action: manipulation; }
+        #cs-confirm:active { background: #3aaa3a; }
+        #cs-confirm:disabled { background: #555; color: #999; }
+        #cs-waiting { font-size: 14px; color: #aaa; margin-top: 10px; }
+
+        #container { display: flex; flex-direction: column; width: 100%; height: 100vh; }
+        #container.hidden { display: none !important; }
+
+        #status-bar { display: flex; justify-content: space-between; align-items: center;
+                      padding: 6px 12px; font-size: 13px; color: #aaa;
+                      height: 36px; flex-shrink: 0; }
+
+        #game-area { flex: 1; min-height: 0; }
+
+        /* ── Joystick (esquerda) ── */
+        #joystick-zone {
+            position: fixed;
+            left: var(--js-left);
+            bottom: var(--js-bottom);
+            width: var(--js-zone-size);
+            height: var(--js-zone-size);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        #joystick-base {
+            width: var(--js-base-size);
+            height: var(--js-base-size);
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #3a3a5a, #1a1a2e);
+            border: 2px solid #555;
+            position: relative;
+            transition: box-shadow 0.15s;
+        }
+        #joystick-base.active {
+            border-color: gold;
+            box-shadow: 0 0 24px rgba(255, 215, 0, 0.35);
+        }
+        #joystick-knob {
+            --k: var(--js-knob-ratio);
+            width: calc(var(--js-base-size) * var(--k));
+            height: calc(var(--js-base-size) * var(--k));
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #ffe066, #e6a800);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            pointer-events: none;
+            transition: none;
+        }
+        #joystick-knob.active {
+            box-shadow: 0 0 20px gold, 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        /* ── Losango de botões (direita) ── */
+        #diamond {
+            position: fixed;
+            right: var(--btn-right);
+            bottom: var(--btn-bottom);
+            width: calc(var(--btn-size) + var(--btn-gap) * 2);
+            height: calc(var(--btn-size) + var(--btn-gap) * 2);
+            z-index: 100;
+        }
+        .d-btn {
+            position: absolute;
+            width: var(--btn-size);
+            height: var(--btn-size);
+            border: none;
+            border-radius: var(--btn-radius);
+            color: white;
+            font-weight: bold;
+            font-size: var(--btn-font-size);
+            cursor: pointer;
+            touch-action: manipulation;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: var(--btn-opacity-rest);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.5);
+            transition: opacity 0.08s, transform 0.08s;
+            line-height: 1.1;
+            padding: 0 4px;
+            text-align: center;
+        }
+        .d-btn:active,
+        .d-btn.active {
+            opacity: var(--btn-opacity-active) !important;
+            transform: scale(var(--btn-scale-active)) !important;
+        }
+
+        #d-chute {
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #c0392b, #e74c3c);
+        }
+        #d-chute:active,
+        #d-chute.active {
+            transform: translateX(-50%) scale(var(--btn-scale-active)) !important;
+        }
+
+        #d-passe {
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, #2980b9, #3498db);
+        }
+        #d-passe:active,
+        #d-passe.active {
+            transform: translateY(-50%) scale(var(--btn-scale-active)) !important;
+        }
+
+        #d-carrinho {
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, #8e44ad, #9b59b6);
+        }
+        #d-carrinho:active,
+        #d-carrinho.active {
+            transform: translateY(-50%) scale(var(--btn-scale-active)) !important;
+        }
+
+        #d-corte {
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+        }
+        #d-corte:active,
+        #d-corte.active {
+            transform: translateX(-50%) scale(var(--btn-scale-active)) !important;
+        }
+
+        /* ── SUPER (centro do losango) ── */
+        #d-super {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: calc(var(--btn-size) * 0.78);
+            height: calc(var(--btn-size) * 0.78);
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #ff8833, #cc3300);
+            font-size: calc(var(--btn-font-size) * 0.65);
+            box-shadow: 0 0 18px rgba(255, 100, 0, 0.45);
+            border: 2px solid #ff6600;
+        }
+        #d-super:active,
+        #d-super.active {
+            transform: translate(-50%, -50%) scale(var(--btn-scale-active)) !important;
+        }
+        #d-super-cooldown {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: calc(var(--btn-size) * 0.78);
+            height: calc(var(--btn-size) * 0.78);
+            border-radius: 50%;
+            background: rgba(0,0,0,0.65);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: calc(var(--btn-font-size) * 0.6);
+            font-weight: bold;
+            color: #ff8833;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+        #d-super-cooldown.show {
+            opacity: 1;
+        }
+
+        #status { text-align: center; padding: 4px; font-size: 11px; color: #555;
+                  height: 22px; }
+    </style>
 </head>
 <body>
-    <div id="char-select" style="display:none">
-        <div id="cs-header">JOGADOR <span id="cs-player-num">1</span></div>
-        <div id="cs-controls">
+    <div id="char-select">
+        <div id="cs-header">JOGADOR <span id="cs-player-num">?</span></div>
+        <div id="cs-team"></div>
+        <div id="cs-carousel">
             <button id="cs-prev" class="cs-arrow">&#9664;</button>
-            <div id="cs-character">CARREGANDO...</div>
+            <div id="cs-character-box">
+                <div id="cs-char-name">CARREGANDO...</div>
+            </div>
             <button id="cs-next" class="cs-arrow">&#9654;</button>
         </div>
-        <div id="cs-weapon">
-            <span id="cs-weapon-name">-</span>
-            <button id="cs-weapon-toggle" class="cs-btn-small">Trocar</button>
-        </div>
-        <button id="cs-confirm" class="cs-btn-main">CONFIRMAR</button>
+        <button id="cs-confirm">CONFIRMAR</button>
+        <div id="cs-waiting"></div>
     </div>
 
-    <div id="container">
-        <div id="joystick-zone">
-            <div id="joystick-base">
-                <div id="joystick-knob"></div>
-            </div>
+    <div id="container" class="hidden">
+        <div id="status-bar">
+            <span id="sb-player">Jogador ?</span>
+            <span id="sb-team"></span>
         </div>
 
-        <div id="actions">
-            <button id="btn-attack"  class="action-btn" data-key="attack">ATACAR</button>
-            <button id="btn-special" class="action-btn special" data-key="special">ESPECIAL</button>
-            <button id="btn-dodge"   class="action-btn dodge" data-key="dodge">ESQUIVA</button>
-            <button id="btn-switch"  class="action-btn switch-weapon" data-key="switch_weapon">ARMAS</button>
+        <div id="game-area">
+            <div id="joystick-zone">
+                <div id="joystick-base">
+                    <div id="joystick-knob"></div>
+                </div>
+            </div>
+
+            <div id="diamond">
+                <button id="d-chute" class="d-btn">CHUTAR</button>
+                <button id="d-passe" class="d-btn">PASSE</button>
+                <button id="d-carrinho" class="d-btn">CONDUÇÃO</button>
+                <button id="d-corte" class="d-btn">CORTE</button>
+                <button id="d-super" class="d-btn">SUPER</button>
+                <div id="d-super-cooldown"></div>
+            </div>
         </div>
     </div>
 
