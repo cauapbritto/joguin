@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d0b12">
+<title>Soul Strike · Controle</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='controller.css') }}">
+</head>
+<body>
+
+<!-- Escolha de vaga -->
+<section id="view-join" class="view">
+  <header class="brand">SOUL STRIKE</header>
+  <p class="lead">Qual jogador é você?</p>
+  <div class="slot-grid">
+    <button class="slot" data-slot="1">1</button>
+    <button class="slot" data-slot="2">2</button>
+    <button class="slot" data-slot="3">3</button>
+    <button class="slot" data-slot="4">4</button>
+  </div>
+  <p class="note" id="join-note">Use a mesma rede Wi-Fi do computador.</p>
+</section>
+
+<!-- Espera (menu, conexão, resultado) -->
+<section id="view-wait" class="view">
+  <div class="tag" data-bind="tag">P1</div>
+  <h1 data-bind="wait-title">Conectado</h1>
+  <p class="lead" data-bind="wait-text">Aguardando o anfitrião escolher o modo de jogo.</p>
+  <div class="row" id="results-actions">
+    <button class="btn" data-tap="up">▲</button>
+    <button class="btn" data-tap="down">▼</button>
+    <button class="btn btn-main" data-tap="confirm">OK</button>
+  </div>
+  <button class="link" id="change-slot">trocar de jogador</button>
+</section>
+
+<!-- Seleção de personagem -->
+<section id="view-select" class="view">
+  <div class="select-head">
+    <div class="tag" data-bind="tag">P1</div>
+    <span class="muted" data-bind="mode">DUELO</span>
+  </div>
+  <div class="select-main">
+    <div class="select-body">
+      <button class="arrow" data-tap="char_left" aria-label="anterior">◀</button>
+      <div class="portrait"><img id="portrait" alt=""></div>
+      <button class="arrow" data-tap="char_right" aria-label="próximo">▶</button>
+    </div>
+    <div class="select-info">
+      <h2 id="char-name">—</h2>
+      <div class="stats" id="stats"></div>
+      <p class="ability" id="ability"></p>
+      <button class="btn weapon" data-tap="weapon" id="weapon">ARMA</button>
+      <button class="btn btn-main" id="ready-btn" data-tap="confirm">PRONTO</button>
+    </div>
+  </div>
+</section>
+
+<!-- Controle -->
+<section id="view-pad" class="view">
+  <div class="pad-top">
+    <div class="tag" data-bind="tag">P1</div>
+    <span class="muted" data-bind="mode">DUELO</span>
+    <button class="btn small" data-tap="pause">II</button>
+  </div>
+  <div id="stick-zone">
+    <div id="stick-base"><div id="stick-knob"></div></div>
+    <span class="hint" id="pad-hint">mova · toque 2x para esquivar</span>
+  </div>
+  <div class="actions battle-only">
+    <button class="act act-main" data-hold="attack">ATACAR</button>
+    <button class="act" data-hold="special">HABILIDADE</button>
+    <button class="act" data-hold="dodge">ESQUIVA</button>
+    <button class="act act-wide" data-hold="switch">TROCAR ARMA</button>
+  </div>
+  <div class="actions soccer-only">
+    <button class="act act-main" data-hold="attack">CHUTAR</button>
+    <button class="act" data-hold="special">PASSE</button>
+    <button class="act" data-hold="dodge">CORTE</button>
+    <button class="act" data-hold="dribble">CONDUZIR</button>
+    <button class="act act-super" data-hold="super" id="super-btn"><b id="super-label">SUPER</b><span id="super-meter"></span></button>
+  </div>
+  <div id="paused">PAUSADO</div>
+</section>
+
+<div id="rotate">Gire o celular para jogar deitado</div>
+<div id="offline">Sem conexão com o jogo…</div>
+
+<script src="{{ url_for('static', filename='controller.js') }}"></script>
+</body>
+</html>

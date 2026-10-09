@@ -1,0 +1,80 @@
+"""Caminhos, tamanho de tela e constantes de jogabilidade."""
+import sys
+from pathlib import Path
+
+# No executável (PyInstaller) os arquivos ficam na pasta temporária _MEIPASS
+ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+ASSETS_DIR = ROOT / "assets"
+CHAR_DIR = ASSETS_DIR / "characters"
+TILES_DIR = ASSETS_DIR / "tiles"
+SOUNDS_DIR = ASSETS_DIR / "sounds"
+FONT_PATH = ASSETS_DIR / "font" / "PressStart2P-Regular.ttf"
+WEB_DIR = ROOT / "web"
+
+TITLE = "Soul Strike"
+SCREEN_W, SCREEN_H = 960, 540
+FPS = 60
+WEB_PORT = 5000
+
+# ── Personagens ──
+SPRITE_HEIGHT = 64          # altura do sprite no mundo (px)
+PLAYER_RADIUS = 15
+
+# ── Combate ──
+ABILITY_COOLDOWN = 10 * FPS
+MELEE_BONUS_RANGE = 80      # tiros disparados de perto causam mais dano
+MAX_BULLET_DAMAGE = 30
+EXPLOSION_RADIUS = 60
+DASH_FRAMES = 12
+DASH_COOLDOWN = 45
+DASH_SPEED_MULT = 5
+DOUBLE_TAP_MS = 300
+DEATH_ANIM_FRAMES = 90
+
+# ── Rounds do duelo ──
+ROUNDS_TO_WIN = 2           # melhor de 3
+MAX_ROUNDS = 5              # empates de round não contam; para depois disso
+ROUND_SECONDS = 60
+ROUND_INTRO_FRAMES = 90     # "ROUND 1" ... "LUTEM!"
+ROUND_END_FRAMES = 130      # K.O. / TEMPO
+STUN_FRAMES = 50
+
+# ── Itens na arena ──
+PICKUP_FIRST = 8 * FPS
+PICKUP_EVERY = (10 * FPS, 15 * FPS)
+PICKUP_LIFETIME = 12 * FPS
+PICKUP_MAX = 2
+HEAL_AMOUNT = 40
+FURY_FRAMES = 6 * FPS
+FURY_MULT = 1.5
+
+# ── Futebol ──
+WIN_SCORE = 3
+GOAL_FREEZE = 120
+BALL_RADIUS = 12
+BALL_FRICTION = 0.985
+BALL_MAX_SPEED = 12
+KICK_POWER = 10
+PASS_POWER = 6.0
+PASS_HOMING_FORCE = 0.15
+PASS_HOMING_FRAMES = 45
+# bola no alto
+GRAVITY = 0.32
+BOUNCE = 0.55               # quanto da velocidade vertical sobra depois do quique
+BODY_HEIGHT = 26            # bola acima disso passa por cima dos jogadores
+HEAD_RANGE = (22, 62)       # altura em que dá para cabecear
+CROSSBAR = 50               # acima disso, passa por cima do gol
+LOFT_FRAMES = 12            # segurar CHUTE/PASSE por isso = bola alta
+MAX_CHARGE = 36
+# posse de bola
+TRAP_SPEED = 7.5            # bola mais lenta que isso (em relação ao jogador) pode ser dominada
+CARRY_GAIN = 0.3            # quão rápido a bola volta para a frente do pé (condução normal)
+CLOSE_GAIN = 0.55           # conduzindo colado (botão CONDUZIR)
+CARRY_TURN = 0.16           # quão rápido a bola acompanha a mudança de direção
+CLOSE_TURN = 0.32
+LOSE_DISTANCE = 26          # bola mais longe que isso do pé = perdeu a posse
+STEAL_FRAMES = 14           # adversário mais perto da bola por esse tempo rouba
+NO_TRAP_FRAMES = 12         # depois de chutar, não domina de novo na hora
+SUPER_SHOT_POWER = 16
+SUPER_HOMING_FORCE = 0.35
+SUPER_HOMING_FRAMES = 120

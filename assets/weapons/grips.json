@@ -1,0 +1,114 @@
+{
+ "Espada": {
+  "file": "espada.png",
+  "grip": [
+   3,
+   4
+  ]
+ },
+ "Faca": {
+  "file": "faca.png",
+  "grip": [
+   3,
+   3
+  ]
+ },
+ "Katana": {
+  "file": "katana.png",
+  "grip": [
+   4,
+   3
+  ]
+ },
+ "Espadão": {
+  "file": "espadao.png",
+  "grip": [
+   4,
+   5
+  ]
+ },
+ "Maça": {
+  "file": "maca.png",
+  "grip": [
+   4,
+   5
+  ]
+ },
+ "Martelo": {
+  "file": "martelo.png",
+  "grip": [
+   4,
+   6
+  ]
+ },
+ "Foice": {
+  "file": "foice.png",
+  "grip": [
+   5,
+   11
+  ]
+ },
+ "Lança": {
+  "file": "lanca.png",
+  "grip": [
+   8,
+   4
+  ]
+ },
+ "Arco": {
+  "file": "arco.png",
+  "grip": [
+   10,
+   12
+  ]
+ },
+ "Rifle": {
+  "file": "rifle.png",
+  "grip": [
+   8,
+   5
+  ]
+ },
+ "Corrente": {
+  "file": "corrente.png",
+  "grip": [
+   3,
+   4
+  ]
+ },
+ "Shuriken": {
+  "file": "shuriken.png",
+  "grip": [
+   2,
+   6
+  ]
+ },
+ "Estrela": {
+  "file": "estrela.png",
+  "grip": [
+   2,
+   6
+  ]
+ },
+ "Granada": {
+  "file": "granada.png",
+  "grip": [
+   2,
+   7
+  ]
+ },
+ "Orbe": {
+  "file": "orbe.png",
+  "grip": [
+   1,
+   6
+  ]
+ },
+ "Garras": {
+  "file": "garras.png",
+  "grip": [
+   2,
+   6
+  ]
+ }
+}
