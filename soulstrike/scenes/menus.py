@@ -314,14 +314,17 @@ ABOUT = [
     ("ABSTRAÇÃO", "Entity e Ability são classes abstratas (ABC): dizem o que toda entidade e toda "
      "habilidade faz (update, draw, activate) sem dizer como. Arena.resolve() esconde a colisão de "
      "círculo com retângulo e Camera esconde o zoom e a conversão do mundo para a tela."),
-    ("HERANÇA", "Fighter, Bullet, Explosion, Barrier, Wall, Pickup, Ball e Goal herdam de Entity e ganham "
-     "posição, distance_to() e direction_to(). BattleMatch e SoccerMatch herdam de Match, que já cuida "
-     "de câmera, partículas e desenho. Todas as telas herdam de Scene."),
+    ("HERANÇA", "Fighter, Bullet, Explosion, Barrier, FrostNova, Wall, Pickup, Ball e Goal herdam de Entity e "
+     "ganham posição, distance_to() e direction_to(). Hook (o gancho do Pirata) herda de Bullet: voa e "
+     "colide como um tiro e só muda o que acontece ao acertar (on_hit puxa o alvo). BattleMatch e "
+     "SoccerMatch herdam de Match, que já cuida de câmera, partículas e desenho. Todas as telas herdam "
+     "de Scene."),
     ("POLIMORFISMO", "Cada personagem tem uma subclasse de Ability: Investida, Rajada, Muralha, "
-     "ShurikenTripla, Turbo, Explosao, Teletransporte e Invulneravel. O lutador só chama ability.use() "
-     "e cada classe responde do seu jeito. No futebol, o botão SUPER chama power.use() de uma subclasse "
-     "de SoccerPower (Carrinho, ChuteCerteiro, MuralhaDoGol, Sombra, Arrancada, Bomba, BolaFantasma, "
-     "Gigante). E a cena de jogo chama match.step() sem saber se é duelo ou futebol."),
+     "ShurikenTripla, Turbo, Explosao, Teletransporte, Invulneravel, Gancho e Nevasca. O lutador só chama "
+     "ability.use() e cada classe responde do seu jeito. No futebol, o botão SUPER chama power.use() de "
+     "uma subclasse de SoccerPower (Carrinho, ChuteCerteiro, MuralhaDoGol, Sombra, Arrancada, Bomba, "
+     "BolaFantasma, Gigante, GanchoNaBola e Congelar). E a cena de jogo chama match.step() sem saber se "
+     "é duelo ou futebol."),
 ]
 
 

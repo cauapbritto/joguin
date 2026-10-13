@@ -424,6 +424,125 @@ def tita(p):
     return c.finish()
 
 
+def pirata(p):
+    c = Canvas()
+    skin, beard, hair_c = (226, 170, 128), (72, 42, 30), (60, 36, 28)
+    coat, coat_d = (176, 48, 56), (118, 30, 40)
+    shirt, gold = (236, 230, 214), (226, 180, 72)
+    pants, boots = (52, 44, 58), (38, 30, 36)
+    hat = (40, 32, 44)
+    patch = (20, 16, 22)
+    legs(c, p, pants, boots)
+    x, y, w, h = p.torso
+    # abas do casaco abaixo do cinto
+    if p.dir == "direita":
+        c.rect(x - 1, y + h, 4, 4, coat_d)
+    elif p.dir == "frente":
+        c.rect(x - 1, y + h, 3, 4, coat)
+        c.rect(x + w - 2, y + h, 3, 4, coat_d)
+    else:
+        c.rect(x - 1, y + h, w + 2, 4, coat_d)
+    far_arm(c, p, coat, skin)
+    torso(c, p, coat, belt=(96, 60, 36))
+    if p.dir == "frente":
+        c.rect(x + 3, y, 2, 4, shirt)            # camisa aparecendo no decote
+        c.px(x + 2, y, shirt)
+        c.px(x + 5, y, shirt)
+        c.px(x + 1, y + 5, gold)                 # botões
+        c.px(x + w - 2, y + 5, gold)
+        bx, by, bw, bh = p.belt
+        c.rect(x + w // 2 - 1, by, 2, 2, gold)   # fivela
+    elif p.dir == "direita":
+        c.rect(x + w - 2, y, 2, 3, shirt)
+    arms(c, p, coat, skin)
+    head(c, p, skin)
+    hx, hy, hw, hh = p.head
+    if p.dir == "costas":
+        c.rect(hx, hy + 1, hw, hh - 3, hair_c)
+        c.rect(hx + 4, hy + hh - 2, 2, 3, hair_c)   # rabo de cavalo
+        c.rect(hx + 4, hy + hh - 2, 2, 1, (176, 48, 56))
+    else:
+        eyes(c, p)
+        if p.dir == "frente":
+            c.rect(hx + 1, hy + 7, hw - 2, 3, beard)
+            c.rect(hx + 3, hy + 7, hw - 6, 1, shade(skin, -45))
+            c.rect(hx + 1, hy + 4, 3, 3, patch)  # tapa-olho
+            c.rect(hx, hy + 3, hw, 1, patch)
+        else:
+            c.rect(hx + 4, hy + 7, hw - 4, 3, beard)
+            c.rect(hx + hw - 4, hy + 4, 3, 3, patch)
+            c.rect(hx, hy + 3, hw, 1, patch)
+    # chapéu tricórnio com debrum dourado
+    c.rect(hx - 2, hy, hw + 4, 2, hat)
+    c.rect(hx - 2, hy + 1, hw + 4, 1, gold)
+    c.rect(hx, hy - 3, hw, 3, hat)
+    c.rect(hx + 1, hy - 3, hw - 3, 1, shade(hat, 34))
+    if p.dir == "frente":
+        c.px(hx - 3, hy - 1, hat)
+        c.px(hx + hw + 2, hy - 1, hat)
+        c.rect(hx + hw // 2 - 1, hy - 2, 2, 2, shirt)   # caveirinha
+    elif p.dir == "direita":
+        c.px(hx + hw + 2, hy - 1, hat)
+    return c.finish()
+
+
+def geada(p):
+    c = Canvas()
+    skin, hair_c = (236, 198, 178), (178, 210, 238)
+    robe, robe_d, robe_l = (104, 164, 216), (62, 106, 160), (196, 230, 250)
+    fur, ice, ice_l = (244, 248, 252), (150, 212, 240), (230, 248, 255)
+    legs(c, p, robe_d, (210, 230, 244))
+    x, y, w, h = p.torso
+    far_arm(c, p, robe, skin)
+    torso(c, p, robe, belt=robe_l)
+    # saia longa do manto (os pés aparecem embaixo)
+    sk = y + h
+    c.rect(x - 1, sk, w + 2, 5, robe)
+    if p.dir == "direita":
+        c.rect(x + w, sk, 1, 5, robe_d)
+    else:
+        c.rect(x - 1, sk + 4, w + 2, 1, robe_d)
+        c.rect(x - 1, sk, 1, 5, robe_l)
+        if p.dir == "frente":
+            c.rect(x + w // 2 - 1, sk, 2, 5, robe_l)
+    arms(c, p, robe, skin)
+    # gola de pele
+    if p.dir == "direita":
+        c.rect(x, y - 1, w + 1, 2, fur)
+    else:
+        c.rect(x - 1, y - 1, w + 2, 2, fur)
+    head(c, p, skin)
+    hx, hy, hw, hh = p.head
+    hair(c, p, hair_c)
+    if p.dir == "frente":
+        c.rect(hx - 1, hy + 2, 2, 9, hair_c)       # cabelo comprido
+        c.rect(hx + hw - 1, hy + 2, 2, 9, hair_c)
+        c.px(hx - 1, hy + 10, shade(hair_c, -30))
+        c.px(hx + hw, hy + 10, shade(hair_c, -30))
+    elif p.dir == "direita":
+        c.rect(hx - 1, hy + 2, 4, 10, hair_c)
+        c.rect(hx - 1, hy + 11, 4, 1, shade(hair_c, -30))
+    else:
+        c.rect(hx, hy + hh - 3, hw, 6, hair_c)
+        c.rect(hx + 1, hy + hh + 2, hw - 2, 1, shade(hair_c, -30))
+    if p.dir != "costas":
+        eyes(c, p, color=(40, 84, 150), glow=(200, 244, 255))
+        if p.dir == "frente":
+            c.px(hx + hw // 2 - 1, hy + 8, (196, 112, 116))     # boca
+            c.px(hx + 2, hy + 7, shade(skin, -18))               # bochechas
+            c.px(hx + hw - 3, hy + 7, shade(skin, -18))
+        else:
+            c.px(hx + hw - 3, hy + 8, (196, 112, 116))
+    # tiara de pontas de gelo
+    c.rect(hx + 1, hy, hw - 2, 1, ice)
+    for sx, tall in ((hx + 2, 2), (hx + hw // 2 - 1, 3), (hx + hw - 3, 2)):
+        if p.dir == "direita" and sx < hx + 3:
+            continue
+        c.rect(sx, hy - tall, 1, tall, ice)
+        c.px(sx, hy - tall, ice_l)
+    return c.finish()
+
+
 CHARACTERS = {
     "atirador": (atirador, False),
     "tanque": (tanque, True),
@@ -431,6 +550,8 @@ CHARACTERS = {
     "velocista": (velocista, False),
     "fantasma": (fantasma, False),
     "tita": (tita, True),
+    "pirata": (pirata, False),
+    "geada": (geada, False),
 }
 DIRECTIONS = ("frente", "costas", "direita")
 

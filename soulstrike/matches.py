@@ -377,7 +377,8 @@ class BattleMatch(Match):
                         if not b.explosive:
                             if f.invulnerable_timer > 0:
                                 self.popup(f.x, f.y - 46, "IMUNE", theme.BRASS)
-                            f.take_damage(b.damage, b.x, b.y, attacker=b.owner, match=self)
+                            if f.take_damage(b.damage, b.x, b.y, attacker=b.owner, match=self):
+                                b.on_hit(f, self)
                         break
             if not b.alive and b.explosive:
                 self.effects.append(Explosion(b.owner, b.x, b.y, b.damage))
@@ -439,6 +440,8 @@ class Ball(Entity):
         self.spin = 0.0
         self.ghost_timer = 0
         self.ghost_team = None
+        self.hook_timer = 0         # puxada pelo gancho do Pirata: ele domina na chegada
+        self.hook_owner = None
         self.z = 0.0                # altura
         self.vz = 0.0
         self.squash = 0
@@ -516,6 +519,10 @@ class Ball(Entity):
             self.homing_timer -= 1
         if self.ghost_timer > 0:
             self.ghost_timer -= 1
+        if self.hook_timer > 0:
+            self.hook_timer -= 1
+            if self.hook_timer == 0:
+                self.hook_owner = None
         self.x += self.vx
         self.y += self.vy
         self.spin += math.hypot(self.vx, self.vy) * 0.15
@@ -1218,8 +1225,11 @@ class SoccerMatch(Match):
             if d < reach + (lvl.trap_range if human else 0):
                 rel = math.hypot(ball.vx - (f.x - f.prev_pos[0]), ball.vy - (f.y - f.prev_pos[1]))
                 limit = config.TRAP_SPEED + (3 if ball.airborne else 0) + (lvl.trap_bonus if human else 0)
+                hooked = ball.hook_timer > 0 and ball.hook_owner is f
+                if ball.hook_timer > 0 and not hooked:
+                    continue        # só quem puxou com o gancho domina
                 if d < reach:
-                    if (rel < limit or f.dribbling) and d < best_d:
+                    if (rel < limit or f.dribbling or hooked) and d < best_d:
                         best, best_d = f, d
                 elif human and lvl.trap_pull > 0 and rel < limit and d < pull_d:
                     pull, pull_d = f, d
@@ -1282,6 +1292,8 @@ class SoccerMatch(Match):
         for f in self.fighters:
             if f is self.possessor or (ball.ghost_timer > 0 and f.team != ball.ghost_team):
                 continue
+            if ball.hook_timer > 0:
+                continue        # a bola vem presa à corrente do gancho: não bate em ninguém
             if ball.z > config.BODY_HEIGHT:
                 continue        # bola alta passa por cima
             # corpo de quem não está com a bola funciona como obstáculo; o caminho inteiro da
@@ -1364,6 +1376,7 @@ class SoccerMatch(Match):
             f.knock = [0.0, 0.0]
             f.stun_timer = f.tackle_timer = f.sprint_timer = f.dash_timer = 0
             f.block_timer = f.clear_timer = 0
+            f.slow_timer = f.pull_timer = 0
             f.clear_lock = False
             f.stamina, f.exhausted = 1.0, False
             f.facing = (1.0, 0.0) if f.team == 0 else (-1.0, 0.0)

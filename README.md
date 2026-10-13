@@ -53,6 +53,21 @@ Se o `pip` reclamar de certificado (rede com proxy), use
   próprio de cada personagem** no botão SUPER. Primeiro a 3 gols vence.
   No 2 x 2, quem não conectar o celular vira CPU.
 
+## Personagens
+
+| Personagem | Vida | Habilidade (duelo)                                        | Super (futebol)                                  |
+|------------|------|-----------------------------------------------------------|--------------------------------------------------|
+| Guerreiro  | 150  | Investida: avança e causa 30 de dano                      | Carrinho: desliza, derruba e rouba a bola        |
+| Atirador   | 105  | Rajada: 5 balas em leque                                  | Chute certeiro: chute com curva para o gol       |
+| Tanque     | 230  | Muralha: barreira que bloqueia tiros por 4 s              | Muralha: barreira na frente do próprio gol       |
+| Ninja      | 95   | Shuriken: 3 shurikens de dano alto                        | Sombra: aparece atrás da bola, virado para o gol |
+| Velocista  | 115  | Turbo: 2x mais rápido por 4 s                             | Arrancada: corre muito com a bola colada         |
+| Aryel      | 130  | Explosão: 8 bombas em volta                               | Bomba: empurra e atordoa quem está perto         |
+| Fantasma   | 110  | Teletransporte: some e reaparece                          | Bola fantasma: atravessa os adversários          |
+| Titã       | 180  | Invulnerável por 3 s                                      | Gigante: fica enorme e empurra todo mundo        |
+| Pirata     | 140  | Gancho: puxa o inimigo para a frente do sabre e o atordoa | Gancho: puxa a bola, até do pé do adversário     |
+| Geada      | 100  | Nevasca: onda de gelo, dano em volta e inimigo lento      | Congelar: adversários perto ficam lentos         |
+
 ## Controles
 
 | Ação                          | Jogador 1 | Jogador 2   |

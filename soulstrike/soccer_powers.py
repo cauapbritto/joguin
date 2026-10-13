@@ -238,6 +238,78 @@ class Gigante(SoccerPower):
             and user.distance_to(ball) < 140
 
 
+class GanchoNaBola(SoccerPower):
+    """Pirata: lança o gancho na bola e a traz para o pé (tira até do pé do adversário)."""
+    name = "GANCHO"
+    description = "Puxa a bola para o pé, até do pé do adversário, de longe."
+    cooldown = 12 * config.FPS
+    sound = "dash"
+    RANGE = 380
+
+    def activate(self, user, match):
+        ball = match.ball
+        d = math.hypot(ball.x - user.x, ball.y - user.y)
+        owner = match.possessor
+        if d > self.RANGE or ball.z > config.HEAD_RANGE[1] or (owner is not None and owner.team == user.team):
+            return False
+        if owner is not None:
+            match._release(owner, 30)               # arranca a bola do adversário
+        if d < 40:
+            match._take(user)                       # bola colada: domina na hora
+            return True
+        dx, dy = (user.x - ball.x) / d, (user.y - ball.y) / d
+        speed = min(10.0, 5 + d / 40)
+        ball.vx, ball.vy = dx * speed, dy * speed
+        ball.z = ball.vz = 0.0
+        ball.homing_timer = 40
+        ball.homing_player = user
+        ball.homing_target = (user.x, user.y)
+        ball.homing_force = 0.6
+        ball.hook_timer = 60
+        ball.hook_owner = user
+        user.face(ball)
+        match.last_touch = user
+        steps = int(d // 14)
+        for i in range(steps):                      # a corrente até a bola
+            t = i / max(1, steps)
+            match.burst(user.x + (ball.x - user.x) * t, user.y - 8 + (ball.y - user.y) * t,
+                        (176, 180, 192), 1, speed=0.5)
+        return True
+
+    def worth_using(self, user, match):
+        ball = match.ball
+        owner = match.possessor
+        d = math.hypot(ball.x - user.x, ball.y - user.y)
+        if owner is not None and owner.team != user.team:
+            return 90 < d < self.RANGE
+        return owner is None and 140 < d < self.RANGE and not ball.airborne
+
+
+class Congelar(SoccerPower):
+    """Geada: os adversários em volta ficam lentos."""
+    name = "CONGELAR"
+    description = "Os adversários perto dela ficam lentos por 3s."
+    cooldown = 13 * config.FPS
+    sound = "barrier"
+    RADIUS = 230
+
+    def activate(self, user, match):
+        hit = False
+        for foe in match.foes_of(user):
+            if user.distance_to(foe) < self.RADIUS and foe.slow(3 * config.FPS):
+                hit = True
+                match.burst(foe.x, foe.y - 10, (200, 236, 250), 10, speed=3)
+        match.burst(user.x, user.y - 6, (200, 236, 250), 30, speed=7)
+        match.burst(user.x, user.y - 6, (150, 212, 240), 16, speed=4)
+        match.camera.shake(4)
+        return hit or True
+
+    def worth_using(self, user, match):
+        ball = match.ball
+        return any(user.distance_to(f) < self.RADIUS * 0.8
+                   and math.hypot(f.x - ball.x, f.y - ball.y) < 120 for f in match.foes_of(user))
+
+
 SOCCER_POWERS = {
     "guerreiro": Carrinho,
     "atirador": ChuteCerteiro,
@@ -247,6 +319,8 @@ SOCCER_POWERS = {
     "aryel": Bomba,
     "fantasma": BolaFantasma,
     "tita": Gigante,
+    "pirata": GanchoNaBola,
+    "geada": Congelar,
 }
 
 

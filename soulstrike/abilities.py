@@ -4,7 +4,7 @@ import math
 from abc import ABC, abstractmethod
 
 from . import config
-from .entities import Barrier
+from .entities import Barrier, FrostNova, Hook
 
 
 class Ability(ABC):
@@ -122,6 +122,31 @@ class Invulneravel(Ability):
         return user.hp < user.stats.max_hp * 0.6 and dist < 400
 
 
+class Gancho(Ability):
+    """Pirata: o gancho puxa o inimigo para a frente do sabre."""
+    sound = "shoot"
+
+    def activate(self, user, match, target):
+        dx, dy = _aim(user, target)
+        user.facing = (dx, dy)
+        user.shoot_flash = 4
+        match.bullets.append(Hook(user, user.x + dx * 18, user.y + dy * 18 - 4, dx, dy))
+
+    def worth_using(self, user, target, dist):
+        return 130 < dist < Hook.SPEED * Hook.RANGE_FRAMES - 30
+
+
+class Nevasca(Ability):
+    """Geada: onda de gelo em volta dela."""
+    sound = "barrier"
+
+    def activate(self, user, match, target):
+        match.add_effect(FrostNova(user, user.x, user.y))
+
+    def worth_using(self, user, target, dist):
+        return dist < 170
+
+
 ABILITIES = {
     "guerreiro": Investida,
     "atirador": Rajada,
@@ -131,6 +156,8 @@ ABILITIES = {
     "aryel": Explosao,
     "fantasma": Teletransporte,
     "tita": Invulneravel,
+    "pirata": Gancho,
+    "geada": Nevasca,
 }
 
 

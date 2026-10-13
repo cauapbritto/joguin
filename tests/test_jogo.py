@@ -239,7 +239,9 @@ class FutebolTest(unittest.TestCase):
         for i, stats in enumerate(CHARACTERS):
             match = _futebol((i, 2))
             p1 = match.fighters[0]
-            match.ball.x, match.ball.y = p1.x + 25, p1.y
+            # o gancho do Pirata é para buscar a bola longe; os outros, com a bola no pé
+            gap = 200 if SOCCER_POWERS[stats.key].__name__ == "GanchoNaBola" else 25
+            match.ball.x, match.ball.y = p1.x + gap, p1.y
             for _ in range(2):
                 match.update()
             self.assertTrue(match.use_power(p1), SOCCER_POWERS[stats.key].name)

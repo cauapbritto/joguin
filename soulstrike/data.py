@@ -62,6 +62,12 @@ CHARACTERS = (
     CharacterStats("tita", "Titã", 180, 2, (216, 170, 66),
                    "Invulnerável", "Não recebe dano por 3s.",
                    (_ranged("Corrente", 12, 8, 32), _melee("Espadão", 24, 70)), "tita"),
+    CharacterStats("pirata", "Pirata", 140, 3.3, (186, 58, 70),
+                   "Gancho", "Lança um gancho que puxa o inimigo para perto e o atordoa.",
+                   (_ranged("Pistola", 14, 13, 30), _melee("Sabre", 21, 65)), "pirata"),
+    CharacterStats("geada", "Geada", 100, 3.8, (150, 212, 240),
+                   "Nevasca", "Onda de gelo: dano em volta e o inimigo fica lento por 2,5s.",
+                   (_ranged("Cristal", 9, 12, 16), _melee("Cajado", 17, 72)), "geada"),
 )
 
 MAX_HP = max(c.max_hp for c in CHARACTERS)

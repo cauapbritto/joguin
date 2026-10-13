@@ -23,6 +23,7 @@ RED, DARK = (206, 62, 56), (54, 54, 68)
 GREEN, GREEN_D = (100, 126, 76), (64, 86, 48)
 PURPLE, PURPLE_L, PURPLE_D = (152, 98, 216), (220, 192, 255), (92, 56, 140)
 STRING = (232, 222, 192)
+ICE, ICE_L, ICE_D = (150, 212, 240), (230, 248, 255), (84, 140, 196)
 
 
 class Sprite:
@@ -259,11 +260,78 @@ def garras():
     return s.finish(), (1, 5)
 
 
+def pistola():
+    """Pistola de pederneira do Pirata."""
+    s = Sprite(15, 8)
+    s.rect(0, 4, 3, 4, WOOD)                 # cabo curvo
+    s.rect(0, 7, 3, 1, WOOD_D)
+    s.rect(1, 3, 3, 2, WOOD)
+    s.px(0, 4, GOLD)                         # ponteira do cabo
+    s.rect(4, 2, 10, 2, STEEL_D)             # cano
+    s.rect(4, 2, 10, 1, STEEL_M)
+    s.rect(13, 1, 2, 4, STEEL_D)             # boca do cano
+    s.px(14, 1, STEEL)
+    s.rect(3, 1, 2, 3, GOLD)                 # cão e fecho de latão
+    s.px(3, 0, GOLD_D)
+    s.rect(4, 4, 3, 1, GOLD_D)               # guarda-mato
+    s.px(5, 5, DARK)                         # gatilho
+    return s.finish(), (1, 5)
+
+
+def sabre():
+    """Sabre curvo do Pirata, com guarda de concha."""
+    s = Sprite(20, 9)
+    s.rect(0, 5, 4, 2, LEATHER)
+    s.rect(0, 6, 4, 1, LEATHER_D)
+    s.px(0, 5, GOLD)
+    s.rect(4, 3, 2, 5, GOLD)                 # concha
+    s.rect(1, 8, 5, 1, GOLD_D)               # arco que protege os dedos
+    s.px(1, 7, GOLD_D)
+    for y, x0, x1 in ((5, 6, 11), (4, 8, 14), (3, 12, 16), (2, 15, 18), (1, 17, 19)):
+        s.rect(x0, y, x1 - x0 + 1, 1, STEEL_M)
+    for y, x0, x1 in ((4, 6, 10), (3, 11, 14), (2, 14, 16), (1, 17, 18), (0, 18, 19)):
+        s.rect(x0, y, x1 - x0 + 1, 1, STEEL)  # fio com brilho
+    return s.finish(), (2, 6)
+
+
+def cristal():
+    """Lasca de gelo que a Geada arremessa."""
+    s = Sprite(12, 7)
+    rows = [(4, 7), (2, 9), (1, 11), (2, 9), (4, 7)]
+    for i, (x0, x1) in enumerate(rows):
+        s.rect(x0, i + 1, x1 - x0 + 1, 1, ICE)
+    s.rect(3, 2, 5, 1, ICE_L)                # face de cima brilhando
+    s.rect(4, 4, 5, 1, ICE_D)
+    s.rect(2, 5, 3, 1, ICE_D)
+    s.px(11, 3, ICE_L)
+    s.rect(0, 3, 2, 1, ICE_D)                # cabo de gelo
+    return s.finish(), (0, 3)
+
+
+def cajado():
+    """Cajado de madeira clara com um cristal de gelo na ponta."""
+    s = Sprite(27, 11)
+    s.rect(0, 5, 20, 2, (196, 170, 132))
+    s.rect(0, 6, 20, 1, (140, 116, 86))
+    s.rect(16, 4, 2, 4, ICE_D)               # amarração
+    s.px(16, 4, ICE)
+    rows = [(22, 23), (21, 24), (20, 25), (19, 26), (20, 25), (21, 24), (22, 23)]
+    for i, (x0, x1) in enumerate(rows):
+        s.rect(x0, i + 2, x1 - x0 + 1, 1, ICE)
+    s.rect(21, 3, 3, 2, ICE_L)
+    s.rect(22, 6, 3, 2, ICE_D)
+    s.px(23, 0, ICE_L)                       # faíscas de gelo
+    s.px(26, 1, ICE)
+    s.px(19, 9, ICE)
+    return s.finish(), (7, 6)
+
+
 WEAPONS = {
     "Espada": espada, "Faca": faca, "Katana": katana, "Espadão": espadao,
     "Maça": maca, "Martelo": martelo, "Foice": foice, "Lança": lanca,
     "Arco": arco, "Rifle": rifle, "Corrente": corrente, "Shuriken": shuriken,
     "Estrela": estrela, "Granada": granada, "Orbe": orbe, "Garras": garras,
+    "Pistola": pistola, "Sabre": sabre, "Cristal": cristal, "Cajado": cajado,
 }
 
 

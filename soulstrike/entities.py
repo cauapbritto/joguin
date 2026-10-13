@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 import pygame
 
-from . import config
+from . import config, theme
 
 
 class Entity(ABC):
@@ -121,6 +121,9 @@ class Bullet(Entity):
         if not (0 < self.x < match.arena.width and 0 < self.y < match.arena.height):
             self.alive = False
 
+    def on_hit(self, target, match):
+        """Efeito extra ao acertar alguém (o dano já foi aplicado)."""
+
     @property
     def rect(self):
         r = self.radius
@@ -136,6 +139,102 @@ class Bullet(Entity):
         pygame.draw.circle(surf, (20, 14, 22), (sx, sy), self.radius + 1)
         pygame.draw.circle(surf, self.color if not self.explosive else (232, 108, 52), (sx, sy), self.radius)
         pygame.draw.circle(surf, core, (sx - 1, sy - 1), max(1, self.radius - 2))
+
+
+class Hook(Bullet):
+    """Gancho do Pirata: voa reto preso a uma corrente e puxa quem acertar."""
+
+    SPEED = 15
+    RANGE_FRAMES = 30            # ~450 px
+    DAMAGE = 8
+
+    def __init__(self, owner, x, y, dx, dy):
+        super().__init__(owner, x, y, dx, dy, self.SPEED, self.DAMAGE, (176, 180, 192))
+        self.radius = 6
+        self.life = self.RANGE_FRAMES
+        self.dir = (dx, dy)
+
+    def update(self, match):
+        super().update(match)
+        self.life -= 1
+        if self.life <= 0:
+            self.alive = False
+
+    def on_hit(self, target, match):
+        owner = self.owner
+        dx, dy = owner.x - target.x, owner.y - target.y
+        d = math.hypot(dx, dy)
+        if d > 60:
+            # para logo na frente do pirata, no alcance do sabre
+            target.pull(owner.x - dx / d * 48, owner.y - dy / d * 48, frames=10)
+        target.stun(26)
+        match.popup(target.x, target.y - 62, "PUXOU", theme.BRASS)
+        match.assets.play("dash", 0.4)
+
+    def draw(self, surf, camera):
+        ox, oy = self.owner.x - camera.x, self.owner.y - 10 - camera.y
+        sx, sy = self.x - camera.x, self.y - camera.y
+        # corrente: elos alternados entre o pirata e o gancho
+        steps = max(1, int(math.hypot(sx - ox, sy - oy) // 6))
+        for i in range(steps):
+            t = i / steps
+            px, py = ox + (sx - ox) * t, oy + (sy - oy) * t
+            color = (120, 124, 138) if i % 2 else (176, 180, 192)
+            surf.fill((20, 14, 22), (round(px) - 2, round(py) - 2, 4, 4))
+            surf.fill(color, (round(px) - 1, round(py) - 1, 2, 2))
+        dx, dy = self.dir
+        tip = (round(sx), round(sy))
+        back = (round(sx - dx * 7 - dy * 5), round(sy - dy * 7 + dx * 5))
+        pygame.draw.line(surf, (20, 14, 22), tip, back, 5)
+        pygame.draw.line(surf, (214, 218, 228), tip, back, 3)
+        pygame.draw.circle(surf, (20, 14, 22), tip, 4)
+        pygame.draw.circle(surf, (214, 218, 228), tip, 3)
+
+
+class FrostNova(Entity):
+    """Nevasca da Geada: onda de gelo que machuca e deixa lento quem estiver perto."""
+
+    LIFE = 24
+
+    def __init__(self, owner, x, y, radius=180, damage=10, slow_frames=int(2.5 * config.FPS)):
+        super().__init__(x, y)
+        self.owner = owner
+        self.radius = radius
+        self.damage = damage
+        self.slow_frames = slow_frames
+        self.age = 0
+        self.applied = False
+
+    def update(self, match):
+        if not self.applied:
+            self.applied = True
+            for f in match.opponents_of(self.owner):
+                if not f.alive_in_match or math.hypot(f.x - self.x, f.y - self.y) > self.radius + f.radius:
+                    continue
+                if self.damage and not f.take_damage(self.damage, self.x, self.y, attacker=self.owner,
+                                                     match=match):
+                    continue
+                f.slow(self.slow_frames)
+                match.popup(f.x, f.y - 62, "LENTO", (150, 212, 240))
+            match.burst(self.x, self.y - 6, (200, 236, 250), 26, speed=6)
+            match.camera.shake(4)
+        self.age += 1
+        if self.age >= self.LIFE:
+            self.alive = False
+
+    def draw(self, surf, camera):
+        t = self.age / self.LIFE
+        r = int(self.radius * (0.3 + 0.7 * t))
+        cx, cy = round(self.x - camera.x), round(self.y - camera.y)
+        ring = pygame.Surface((r * 2 + 8, r * 2 + 8), pygame.SRCALPHA)
+        alpha = int(170 * (1 - t))
+        pygame.draw.circle(ring, (150, 212, 240, alpha // 3), (r + 4, r + 4), r)
+        pygame.draw.circle(ring, (220, 244, 255, alpha), (r + 4, r + 4), r, 4)
+        for k in range(10):                      # cristais na borda
+            a = k * math.tau / 10 + t
+            px, py = r + 4 + math.cos(a) * r, r + 4 + math.sin(a) * r * 0.9
+            ring.fill((240, 250, 255, alpha), (round(px) - 2, round(py) - 2, 4, 4))
+        surf.blit(ring, (cx - r - 4, cy - r - 4))
 
 
 class Explosion(Entity):

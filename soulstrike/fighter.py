@@ -62,6 +62,9 @@ class Fighter(Entity):
         self.giant_timer = 0
         self.tackle_timer = 0
         self.sprint_timer = 0
+        self.slow_timer = 0             # lento (Nevasca da Geada)
+        self.pull_timer = 0             # sendo puxado (Gancho do Pirata)
+        self.pull_to = (x, y)
         self.block_timer = 0            # carrinho de bloqueio (futebol)
         self.block_hit = False
         self.clear_timer = 0            # chutão armado (futebol)
@@ -136,7 +139,25 @@ class Fighter(Entity):
             base *= config.SPRINT_MULT
         elif self.carrying_close:
             base *= 0.9            # conduzir colado custa um pouco de velocidade
+        if self.slow_timer > 0:
+            base *= config.SLOW_MULT
         return base * (2 if self.speed_timer > 0 else 1)
+
+    def slow(self, frames):
+        """Fica lento (gelo). Invulnerável não é afetado."""
+        if self.invulnerable:
+            return False
+        self.slow_timer = max(self.slow_timer, frames)
+        return True
+
+    def pull(self, x, y, frames=10):
+        """É puxado até (x, y) em alguns quadros (gancho)."""
+        if self.invulnerable:
+            return False
+        self.pull_to = (x, y)
+        self.pull_timer = frames
+        self.dash_timer = self.charge_timer = 0
+        return True
 
     def update_stamina(self):
         """Gasta fôlego correndo e recupera andando (chamado pela partida de futebol)."""
@@ -175,7 +196,7 @@ class Fighter(Entity):
         self.knock = [0.0, 0.0]
         for name in ("attack_cd", "ability_cd", "dash_timer", "dash_cd", "charge_timer", "speed_timer",
                      "invulnerable_timer", "stun_timer", "fury_timer", "hit_flash", "melee_flash",
-                     "shoot_flash", "teleport_flash"):
+                     "shoot_flash", "teleport_flash", "slow_timer", "pull_timer"):
             setattr(self, name, 0)
         self.trail.clear()
 
@@ -309,6 +330,7 @@ class Fighter(Entity):
         self.age += 1
         for name in ("attack_cd", "ability_cd", "dash_cd", "speed_timer", "invulnerable_timer",
                      "super_cd", "kick_cd", "stun_timer", "fury_timer", "giant_timer", "sprint_timer",
+                     "slow_timer",
                      "hit_flash", "melee_flash", "shoot_flash", "teleport_flash"):
             value = getattr(self, name)
             if value > 0:
@@ -336,6 +358,15 @@ class Fighter(Entity):
             self._move(match, self.dash_dir[0] * step, self.dash_dir[1] * step)
             # ao terminar, sai andando na mesma direção em vez de parar seco
             self.vx, self.vy = self.dash_dir[0] * self.max_speed, self.dash_dir[1] * self.max_speed
+            moving_fast = True
+        elif self.pull_timer > 0:
+            # puxado pelo gancho: chega ao ponto em poucos quadros (para em paredes)
+            tx, ty = self.pull_to
+            k = 1 / self.pull_timer
+            self.pull_timer -= 1
+            self.vx = self.vy = 0.0
+            self.knock = [0.0, 0.0]
+            self._move(match, (tx - self.x) * k, (ty - self.y) * k)
             moving_fast = True
         elif self.charge_timer > 0:
             self.charge_timer -= 1
@@ -448,6 +479,16 @@ class Fighter(Entity):
                 px = sx + math.cos(a) * 14
                 py = rect.top - 4 + math.sin(a) * 4
                 pygame.draw.rect(surf, (250, 226, 120), (round(px) - 2, round(py) - 2, 4, 4))
+
+        if self.slow_timer > 0:
+            # gelo: azulado e com cristais caindo
+            frost = self.sprites.flash(direction, self.anim_frame).copy()
+            frost.fill((150, 212, 240, 110), special_flags=pygame.BLEND_RGBA_MULT)
+            surf.blit(frost, rect)
+            for k in range(3):
+                fx = sx - 10 + ((ticks * 2 + k * 9) % 20)
+                fy = rect.top + ((ticks + k * 13) % rect.h)
+                surf.fill((230, 246, 255), (fx, fy, 2, 2))
 
         if self.invulnerable_timer > 0 and (ticks // 4) % 2 == 0:
             glow = self.sprites.flash(direction, self.anim_frame).copy()

@@ -110,5 +110,33 @@
    2,
    6
   ]
+ },
+ "Pistola": {
+  "file": "pistola.png",
+  "grip": [
+   2,
+   6
+  ]
+ },
+ "Sabre": {
+  "file": "sabre.png",
+  "grip": [
+   3,
+   7
+  ]
+ },
+ "Cristal": {
+  "file": "cristal.png",
+  "grip": [
+   1,
+   4
+  ]
+ },
+ "Cajado": {
+  "file": "cajado.png",
+  "grip": [
+   8,
+   7
+  ]
  }
 }

@@ -38,6 +38,7 @@ ROUND_SECONDS = 60
 ROUND_INTRO_FRAMES = 90     # "ROUND 1" ... "LUTEM!"
 ROUND_END_FRAMES = 130      # K.O. / TEMPO
 STUN_FRAMES = 50
+SLOW_MULT = 0.5             # lento (Nevasca da Geada): metade da velocidade
 
 # ── Itens na arena ──
 PICKUP_FIRST = 8 * FPS
