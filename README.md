@@ -76,6 +76,11 @@ No futebol:
   cabeçada.
 - **Passe** vai para o companheiro na direção que você aponta (na frente dele, se estiver
   correndo). Sem apontar, vai para o mais perto. Ninguém para aquele lado: vai para o espaço.
+- **Cruzamento** (2 x 2): na ponta, no último terço do campo, com um companheiro entrando
+  na área, o passe vira cruzamento. **Passe alto** chega na altura da cabeça, na frente da
+  corrida dele; **passe normal** vai rasteiro e forte, para finalizar de primeira. Cabeçada
+  na área vai para o gol (com a assistência ligada). Apontar para trás continua sendo recuo.
+  A CPU também abre pela ponta, cruza e entra na área.
 - **Correr** (segurar): 40% mais rápido, gastando o fôlego (barrinha embaixo do nome). Com a
   bola, ela vai mais solta e é mais fácil de roubar.
 - **Marcar** (segurar): vai sozinho até a bola; se o adversário está com ela, fica na frente

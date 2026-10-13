@@ -84,6 +84,10 @@ SPRINT_CARRY_AHEAD = 10     # correndo com a bola, ela vai mais solta à frente
 SPRINT_STEAL_FRAMES = 8     # e é mais fácil de roubar
 MARK_SPEED = 0.9            # MARCAR anda um pouco mais devagar que o normal
 GOALKEEPER_ZONE = 340       # bola mais perto que isso do meu gol: MARCAR vira posição de goleiro
+# cruzamento (2x2)
+WING_OFFSET = 170           # tão longe assim do meio do campo (no sentido da lateral) = está na ponta
+CROSS_HEIGHT = 38           # altura em que o cruzamento alto chega no companheiro (cabeçada)
+CROSS_LOW_POWER = 8.0       # cruzamento rasteiro
 # defesa
 BLOCK_SPEED = 6.5           # bola mais rápida que isso batendo no corpo = bloqueio (espirra para o lado)
 BLOCK_DAMP = 0.4            # quanto da velocidade sobra depois do bloqueio

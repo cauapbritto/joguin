@@ -463,6 +463,20 @@ class Ball(Entity):
         t = (self.vz + math.sqrt(self.vz * self.vz + 2 * g * self.z)) / g
         return self.x + self.vx * t, self.y + self.vy * t, t
 
+    def descending_point(self, h):
+        """Onde a bola vai estar quando descer até a altura h (para cabecear), e em quantos quadros."""
+        x, y, z, vx, vy, vz = self.x, self.y, self.z, self.vx, self.vy, self.vz
+        for t in range(1, 150):
+            vz -= config.GRAVITY
+            z += vz
+            vx *= 0.996
+            vy *= 0.996
+            x += vx
+            y += vy
+            if (vz < 0 and z <= h) or z <= 0:
+                return x, y, t
+        return x, y, 150
+
     def update(self, match):
         if self.z > 0 or self.vz > 0:
             self.vz -= config.GRAVITY
@@ -654,10 +668,19 @@ class SoccerMatch(Match):
         self._release(f, 8)
         if direction is None and self.in_own_half(f):
             direction = self.clearance_dir(f)      # cabeçada no próprio campo: afasta
+        elif direction is None and self.assist.shot_cone > 0 and abs(self.goal_x(1 - f.team) - f.x) < 360:
+            # cabeçada na área adversária (cruzamento): vai para o gol, no canto mais longe
+            gx = self.goal_x(1 - f.team)
+            far = self.GOAL_BOTTOM - 22 if f.y < self.arena.height / 2 else self.GOAL_TOP + 22
+            direction = unit(gx - self.ball.x, far - self.ball.y)
         dx, dy = direction or f.facing
         ball = self.ball
         ball.vx, ball.vy = dx * 8, dy * 8
-        ball.lift(2.5)
+        gx = self.goal_x(1 - f.team)
+        if abs(gx - f.x) < 360 and (gx - f.x) * dx > 0:
+            ball.vz = -0.5          # cabeçada para o gol: para baixo, por baixo do travessão
+        else:
+            ball.lift(2.5)
         ball.homing_timer = 0
         f.kick_cd = 14
         self.last_touch = f
@@ -841,6 +864,7 @@ class SoccerMatch(Match):
         dot = ball.vx * nx + ball.vy * ny
         if dot < 0 and speed > config.BLOCK_SPEED:
             # bloqueio: a bola perde força e espirra para o lado, não de volta para quem chutou
+            vin_x = ball.vx
             tx, ty = -ny, nx
             gx, gy = self.goal_x(f.team), self.arena.height / 2
             if tx * (ball.x - gx) + ty * (ball.y - gy) < 0:
@@ -850,9 +874,11 @@ class SoccerMatch(Match):
             ball.vx, ball.vy = ox * out, oy * out
             ball.homing_timer = 0
             f.block_hit = True
-            self.popup(f.x, f.y - 74, "BLOQUEIO", theme.BONE)
+            # só avisa quando bloqueou um chute forte indo para o próprio gol, perto dele
+            if speed > 8.5 and abs(ball.x - gx) < 500 and (gx - ball.x) * vin_x > 0:
+                self.popup(f.x, f.y - 74, "BLOQUEIO", theme.BONE)
+                self.camera.shake(3)
             self.burst(ball.x, ball.y, (236, 230, 220), 8, speed=3)
-            self.camera.shake(3)
             self.assets.play("hit", 0.4)
         else:
             if dot < 0:
@@ -861,6 +887,80 @@ class SoccerMatch(Match):
             ball.vx += nx * 0.8
             ball.vy += ny * 0.8
         self.last_touch = f
+
+    # ── cruzamento ───────────────────────────
+    def in_cross_position(self, f):
+        """Na ponta, no último terço do campo de ataque."""
+        gx = self.goal_x(1 - f.team)
+        return (abs(gx - f.x) < (self.arena.width - 80) / 3
+                and abs(f.y - self.arena.height / 2) >= config.WING_OFFSET)
+
+    def in_cross_zone(self, team, x, y):
+        """Na área adversária ou chegando nela (um pouco antes da linha da área)."""
+        gx = self.goal_x(1 - team)
+        return 40 < abs(gx - x) < 300 and abs(y - self.arena.height / 2) < 210
+
+    def cross_receiver(self, f, mates, aim=None):
+        """Companheiro entrando na área para receber o cruzamento (None = não é caso de cruzar)."""
+        if not mates or not self.in_cross_position(f):
+            return None
+        gx = self.goal_x(1 - f.team)
+        fwd = 1.0 if gx > f.x else -1.0
+        if aim is not None and aim[0] * fwd < -0.3:
+            return None                          # apontou para trás: é recuo, não cruzamento
+        spot = (gx - fwd * 130, self.arena.height / 2)
+        best, best_d = None, 1e9
+        for m in mates:
+            vx, vy = m.x - m.prev_pos[0], m.y - m.prev_pos[1]
+            px, py = m.x + vx * 20, m.y + vy * 20
+            if self.in_cross_zone(f.team, m.x, m.y) or self.in_cross_zone(f.team, px, py):
+                d = math.hypot(px - spot[0], py - spot[1])
+                if d < best_d:
+                    best, best_d = m, d
+        return best
+
+    def _cross(self, f, mate, high):
+        """Cruza da ponta para a frente da corrida do companheiro. Alto: chega na altura da
+        cabeça. Rasteiro: forte, para finalizar de primeira."""
+        ball = self.ball
+        gx = self.goal_x(1 - f.team)
+        fwd = 1.0 if gx > f.x else -1.0
+        mid = self.arena.height / 2
+        mvx, mvy = mate.x - mate.prev_pos[0], mate.y - mate.prev_pos[1]
+        near_x, far_x = gx - fwd * 50, gx - fwd * 230
+        t = 30.0
+        for _ in range(3):                       # onde ele vai estar quando a bola chegar
+            tx = min(max(mate.x + mvx * t, min(near_x, far_x)), max(near_x, far_x))
+            ty = min(max(mate.y + mvy * t, mid - 170), mid + 170)
+            dist = math.hypot(tx - ball.x, ty - ball.y)
+            t = min(52.0, max(24.0, dist / 9)) if high else min(60.0, max(14.0, dist / config.CROSS_LOW_POWER))
+        dx, dy = unit(tx - ball.x, ty - ball.y)
+        if high:
+            # velocidade para chegar em t quadros (a bola no ar perde 0,4% por quadro)
+            frames = int(t)
+            reach = sum(0.996 ** k for k in range(1, frames + 1))
+            speed = min(config.BALL_MAX_SPEED, dist / reach)
+            if speed >= config.BALL_MAX_SPEED:   # longe demais: demora mais para chegar
+                covered, frames = 0.0, 0
+                while covered < dist and frames < 120:
+                    frames += 1
+                    covered += speed * 0.996 ** frames
+            g = config.GRAVITY
+            ball.vx, ball.vy = dx * speed, dy * speed
+            ball.vz = (config.CROSS_HEIGHT + g * frames * (frames + 1) / 2) / frames
+            ball.z = max(ball.z, 0.1)
+            ball.homing_timer = 0
+        else:
+            ball.vx, ball.vy = dx * config.CROSS_LOW_POWER, dy * config.CROSS_LOW_POWER
+            ball.homing_timer = 40
+            ball.homing_player = mate
+            ball.homing_target = (tx, ty)
+            ball.homing_force = 0.12
+        f.facing = (dx, dy)
+        self.last_touch = f
+        self.popup(f.x, f.y - 74, "CRUZAMENTO", theme.BONE)
+        self.assets.play("shoot", 0.3)
+        return True
 
     def pass_ball(self, f, high=False, direction=None):
         """Passe. Sem direção: para o companheiro mais perto. Com direção (analógico/setas): para o
@@ -873,6 +973,10 @@ class SoccerMatch(Match):
         ball = self.ball
         cone = self.assist.pass_cone if not f.is_cpu else 180
         aim = unit(*direction) if direction is not None and math.hypot(*direction) > 0.3 else None
+        # na ponta, no último terço, com companheiro entrando na área: vira cruzamento
+        receiver = self.cross_receiver(f, mates, aim)
+        if receiver is not None:
+            return self._cross(f, receiver, high)
         if f.is_cpu or (aim is None and cone > 0):
             mate = min(mates, key=f.distance_to) if mates else None
         elif cone > 0:

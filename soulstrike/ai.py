@@ -129,6 +129,9 @@ class SoccerAI:
     def __init__(self):
         self.aim_y = None
         self.swerve = random.choice((-1, 1))
+        self.wing = None          # no 2x2, às vezes abre pela ponta para cruzar (lado: -1 ou 1)
+        self.had_ball = False
+        self.wing_wait = 0
 
     def update(self, me, match):
         ball = match.ball
@@ -153,13 +156,25 @@ class SoccerAI:
         me.sprint_held = loose_far or danger
 
         if match.possessor is me:
+            if not self.had_ball:
+                # pegou a bola agora: decide se vai abrir pela ponta
+                self.had_ball = True
+                self.wing_wait = 0
+                self.wing = None
+                if mates and random.random() < 0.3:
+                    self.wing = 1 if me.y > mid_y else -1
             self._carry(me, match, attack_x, mid_y, mates, foes)
             return
+        self.had_ball = False
         if self._defend(me, match, home_x, mid_y):
             return
         if ball.airborne and match.possessor is None:
-            # bola no ar: corre para onde ela vai cair (ou cabeceia)
-            lx, ly, _ = ball.landing()
+            # bola no ar: corre para onde ela vai estar na altura da cabeça (ou cair)
+            apex = ball.z + max(0.0, ball.vz) ** 2 / (2 * config.GRAVITY)
+            if apex >= config.CROSS_HEIGHT:
+                lx, ly, _ = ball.descending_point(config.CROSS_HEIGHT)
+            else:
+                lx, ly, _ = ball.landing()
             dx, dy = lx - me.x, ly - me.y
             d = math.hypot(dx, dy)
             if d > 8:
@@ -172,7 +187,16 @@ class SoccerAI:
                 match.header(me, (gx / g, gy / g))
             return
         owner = match.possessor
-        if owner is not None and owner.team == me.team:
+        going_wide = (owner is not None and owner.team == me.team
+                      and abs(attack_x - owner.x) < match.arena.width * 0.5
+                      and abs(owner.y - mid_y) >= 120)
+        if going_wide:
+            # companheiro na ponta: entra na área para receber o cruzamento (no segundo pau)
+            fwd = 1 if attack_x > me.x else -1
+            side = 1 if owner.y < mid_y else -1
+            tx, ty = attack_x - fwd * 140, mid_y + side * 40
+            me.sprint_held = me.stamina > 0.2
+        elif owner is not None and owner.team == me.team:
             # companheiro com a bola: abre espaço à frente dele
             tx, ty = (owner.x + attack_x) / 2, mid_y + (me.slot % 2 * 2 - 1) * 140
         elif owner is not None and mates and min(mates, key=lambda m: m.distance_to(ball)).distance_to(ball) < dist_ball:
@@ -229,6 +253,25 @@ class SoccerAI:
         gx, gy = attack_x - me.x, self.aim_y - me.y
         g = math.hypot(gx, gy) or 1
         aim = (gx / g, gy / g)
+        if self.wing is not None:
+            fwd = 1 if attack_x > me.x else -1
+            if match.in_cross_position(me):
+                # na ponta: cruza quando o companheiro entra na área; se demorar, corta para dentro
+                self.wing_wait += 1
+                if match.cross_receiver(me, mates) is not None and random.random() < 0.2:
+                    if match.pass_ball(me, high=random.random() < 0.65):
+                        self.wing = None
+                        return
+                if self.wing_wait > 110:
+                    self.wing = None                     # ninguém chegou: volta ao jogo normal
+                else:
+                    aim = (fwd * 0.4, -self.wing * 0.3)  # segura na ponta, sem fugir do campo
+                    m = math.hypot(*aim)
+                    aim = (aim[0] / m, aim[1] / m)
+            else:
+                wx, wy = attack_x - fwd * 260 - me.x, mid_y + self.wing * 250 - me.y
+                w = math.hypot(wx, wy) or 1
+                aim = (wx / w, wy / w)
         blocker = None
         for f in foes:
             d = me.distance_to(f)
@@ -247,7 +290,13 @@ class SoccerAI:
         if me.super_cd <= 0 and random.random() < 0.08 and me.power.worth_using(me, match):
             if match.use_power(me):
                 return
+        if self.wing is not None:
+            return                                   # indo para a ponta: ainda não chuta
         near_goal = abs(attack_x - me.x)
+        # na ponta, com companheiro entrando na área: cruza
+        if near_goal < 460 and match.in_cross_position(me) and random.random() < 0.12:
+            if match.cross_receiver(me, mates) is not None and match.pass_ball(me, high=random.random() < 0.65):
+                return
         if near_goal < 420:
             me.facing = aim
             # marcador colado na frente: tenta encobrir
