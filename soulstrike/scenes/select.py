@@ -7,6 +7,7 @@ from .. import config, theme
 from ..ai import DIFFICULTIES, DIFFICULTY_ORDER
 from ..arena import BATTLE_MAPS, MAPS_BY_KEY
 from ..data import CHARACTERS, MAX_DAMAGE, MAX_HP, MAX_SPEED
+from ..soccer_assist import ASSIST_LEVELS, ASSIST_ORDER
 from ..soccer_powers import SOCCER_POWERS
 from .. import weapon_art
 from ..net.remote import hub
@@ -135,6 +136,10 @@ class CharSelectScene(_MenuScene):
                            pygame.Rect(self.center.right - 32, self.center.y + 104, 28, 28))
         self.diff_arrows = (pygame.Rect(self.center.x + 4, self.center.y + 254, 28, 28),
                             pygame.Rect(self.center.right - 32, self.center.y + 254, 28, 28))
+        self.assist_arrows = (pygame.Rect(self.center.x + 4, self.center.y + 288, 28, 28),
+                              pygame.Rect(self.center.right - 32, self.center.y + 288, 28, 28))
+        # a assistência escolhida vale para as próximas partidas também
+        session.assist = getattr(game, "assist_level", session.assist)
         self._sync_phone_slots()
 
     # ── estado ───────────────────────────────
@@ -185,6 +190,13 @@ class CharSelectScene(_MenuScene):
         s.difficulty = DIFFICULTY_ORDER[(i + step) % len(DIFFICULTY_ORDER)]
         self.sfx("click", 0.4)
 
+    def _cycle_assist(self, step):
+        s = self.game.session
+        i = ASSIST_ORDER.index(s.assist) if s.assist in ASSIST_ORDER else 1
+        s.assist = ASSIST_ORDER[(i + step) % len(ASSIST_ORDER)]
+        self.game.assist_level = s.assist
+        self.sfx("click", 0.4)
+
     def _first_open(self):
         for card in self._humans():
             if not card.ready:
@@ -203,6 +215,8 @@ class CharSelectScene(_MenuScene):
                 card = self._first_open()
                 if card:
                     self._confirm(card)
+            elif self.soccer and event.key == pygame.K_TAB:
+                self._cycle_assist(1)
             elif not self.soccer and event.key in (pygame.K_TAB, pygame.K_RIGHTBRACKET):
                 self._cycle_map(1)
             elif not self.soccer and event.key == pygame.K_LEFTBRACKET:
@@ -233,6 +247,10 @@ class CharSelectScene(_MenuScene):
                     else:
                         self._confirm(card)
                     return
+            if self.soccer and len(self.cards) == 2:
+                for step, r in zip((-1, 1), self.assist_arrows):
+                    if r.collidepoint(pos):
+                        self._cycle_assist(step)
             if not self.soccer:
                 for step, r in zip((-1, 1), self.map_arrows):
                     if r.collidepoint(pos):
@@ -295,6 +313,8 @@ class CharSelectScene(_MenuScene):
             items = [("ENTER", "CONFIRMAR"), ("ESC", "VOLTAR")]
             if not self.soccer:
                 items.insert(0, ("TAB", "MAPA"))
+            else:
+                items.insert(0, ("TAB", "ASSISTÊNCIA: " + ASSIST_LEVELS[self.game.session.assist].label))
             if self.game.session.mode == "cpu":
                 items.insert(1, ("1 2 3", "DIFICULDADE"))
             self.footer(screen, items)
@@ -413,9 +433,16 @@ class CharSelectScene(_MenuScene):
             ui.text(screen, "ESTÁDIO", theme.S, theme.BONE, (c.centerx, c.y + 30))
             thumb = self.game.thumbnail(MAPS_BY_KEY["campo_futebol"], (220, 124))
             screen.blit(thumb, thumb.get_rect(midtop=(c.centerx, c.y + 56)))
-            ui.text(screen, f"PRIMEIRO A {config.WIN_SCORE} GOLS", theme.XS, theme.BRASS, (c.centerx, c.y + 204))
+            ui.text(screen, f"PRIMEIRO A {config.WIN_SCORE} GOLS", theme.XS, theme.BRASS, (c.centerx, c.y + 188))
             ui.paragraph(screen, "Cada personagem tem um poder próprio no botão SUPER.", theme.XS,
-                         theme.MUTED, (c.x + 16, c.y + 228), c.w - 32, spacing=14)
+                         theme.MUTED, (c.x + 16, c.y + 204), c.w - 32, spacing=14)
+            screen.fill(theme.LINE, (c.x + 16, c.y + 258, c.w - 32, 1))
+            ui.text(screen, "ASSISTÊNCIA", theme.XS, theme.MUTED, (c.centerx, c.y + 272))
+            ui.text(screen, ASSIST_LEVELS[self.game.session.assist].label, theme.S, theme.BRASS,
+                    (c.centerx, c.y + 302))
+            mouse = pygame.mouse.get_pos()
+            for direction, r in zip(("left", "right"), self.assist_arrows):
+                ui.arrow(screen, r.center, direction, 7, theme.BRASS if r.collidepoint(mouse) else theme.MUTED)
             return
         ui.panel(screen, c, fill=theme.INK_2)
         ui.text(screen, "ARENA", theme.XS, theme.MUTED, (c.centerx, c.y + 20))

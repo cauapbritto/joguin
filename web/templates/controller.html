@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0d0b12">
 <title>Soul Strike · Controle</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='controller.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='controller.css', v=v) }}">
 </head>
 <body>
 
@@ -64,11 +64,12 @@
   <div class="pad-top">
     <div class="tag" data-bind="tag">P1</div>
     <span class="muted" data-bind="mode">DUELO</span>
+    <span class="net" id="net" title="qualidade da conexão">● --</span>
     <button class="btn small" data-tap="pause">II</button>
   </div>
   <div id="stick-zone">
     <div id="stick-base"><div id="stick-knob"></div></div>
-    <span class="hint" id="pad-hint">mova · toque 2x para esquivar</span>
+    <span class="hint" id="pad-hint">mova o analógico</span>
   </div>
   <div class="actions battle-only">
     <button class="act act-main" data-hold="attack">ATACAR</button>
@@ -81,6 +82,8 @@
     <button class="act" data-hold="special">PASSE</button>
     <button class="act" data-hold="dodge">CORTE</button>
     <button class="act" data-hold="dribble">CONDUZIR</button>
+    <button class="act act-run" data-hold="sprint">CORRER</button>
+    <button class="act act-mark" data-hold="mark">MARCAR</button>
     <button class="act act-super" data-hold="super" id="super-btn"><b id="super-label">SUPER</b><span id="super-meter"></span></button>
   </div>
   <div id="paused">PAUSADO</div>
@@ -89,6 +92,6 @@
 <div id="rotate">Gire o celular para jogar deitado</div>
 <div id="offline">Sem conexão com o jogo…</div>
 
-<script src="{{ url_for('static', filename='controller.js') }}"></script>
+<script src="{{ url_for('static', filename='controller.js', v=v) }}"></script>
 </body>
 </html>

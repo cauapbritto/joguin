@@ -24,6 +24,7 @@ class Game:
         self.ui = UI(self.assets)
         self.inputs = {s: PlayerInput(s) for s in SLOTS}
         self.session = None
+        self.assist_level = "media"     # assistência do futebol escolhida no menu
         self.backdrop = None
         self.base_url = f"http://{server.local_ip()}:{config.WEB_PORT}"
         self._thumbs = {}

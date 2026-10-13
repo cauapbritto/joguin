@@ -11,20 +11,15 @@ from soulstrike import config  # noqa: E402
 from soulstrike.arena import MAPS, Arena  # noqa: E402
 from soulstrike.data import CHARACTERS  # noqa: E402
 from soulstrike.entities import push_circle_out  # noqa: E402
-from soulstrike.game import Game  # noqa: E402
 from soulstrike.matches import BattleMatch, SoccerMatch  # noqa: E402
 from soulstrike.net.remote import RemoteHub  # noqa: E402
 from soulstrike.session import Session, SlotSetup  # noqa: E402
 
-_game = None
 
 
 def game():
-    global _game
-    if _game is None:
-        _game = Game(fullscreen=False, headless=True)
-        _game.assets.load()
-    return _game
+    from apoio import game as shared     # uma janela só para todos os testes
+    return shared()
 
 
 class RemoteHubTest(unittest.TestCase):

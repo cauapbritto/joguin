@@ -49,29 +49,87 @@
   }
 
   // ── comandos ───────────────────────────────
+  // O celular manda o ESTADO COMPLETO do controle (botões segurados, analógico e quantas
+  // vezes cada botão foi apertado), numerado. Pedidos que chegam fora de ordem pela rede
+  // não deixam botão "preso", e um toque rápido nunca se perde.
   var held = {};
+  var counts = {};
+  var axis = { x: 0, y: 0 };
+  var sid = Math.random().toString(36).slice(2);
+  var seq = 0;
+  var sendTimer = null;
+  var rtt = null;          // tempo de ida e volta médio (ms)
+  var netFails = 0;
+
+  function flush() {
+    if (sendTimer !== null) { clearTimeout(sendTimer); sendTimer = null; }
+    if (!slot) return;
+    seq += 1;
+    var t0 = performance.now();
+    post("/api/input", {
+      slot: slot, token: token, sid: sid, seq: seq,
+      held: Object.keys(held), counts: counts,
+      x: Math.round(axis.x * 100) / 100, y: Math.round(axis.y * 100) / 100
+    }).then(function (r) {
+      if (!r.ok && r.status !== 204) return;
+      var ms = performance.now() - t0;
+      rtt = rtt === null ? ms : rtt * 0.8 + ms * 0.2;
+      netFails = 0;
+    }).catch(function () { netFails += 1; });
+  }
+
+  function schedule(delay) {
+    if (sendTimer === null) sendTimer = setTimeout(flush, delay);
+  }
+
+  // enquanto algo está segurado, reenvia sempre: se a rede engasgar, o jogo continua
+  // com o último comando; sem notícias por 1 s ele solta tudo por segurança
+  setInterval(function () {
+    if (slot && (Object.keys(held).length || axis.x || axis.y)) flush();
+  }, 100);
 
   function press(action) {
     if (!slot || held[action]) return;
     held[action] = true;
-    post("/press/p" + slot + "_" + action).catch(function () {});
+    counts[action] = (counts[action] || 0) + 1;
+    flush();
   }
 
   function release(action) {
     if (!slot || !held[action]) return;
     delete held[action];
-    post("/release/p" + slot + "_" + action).catch(function () {});
+    flush();
   }
 
   function releaseAll() {
     held = {};
-    if (slot) post("/release_all?slot=" + slot).catch(function () {});
+    axis = { x: 0, y: 0 };
+    if (slot) {
+      flush();
+      post("/release_all?slot=" + slot).catch(function () {});
+    }
   }
 
   function tap(action) {
-    press(action);
-    setTimeout(function () { release(action); }, 70);
+    if (!slot) return;
+    counts[action] = (counts[action] || 0) + 1;
+    flush();
   }
+
+  function renderNet() {
+    var el = $("net");
+    if (!el) return;
+    var cls = "net-bad", text = "sem sinal";
+    if (netFails < 3 && rtt === null) {
+      cls = ""; text = "--";
+    } else if (netFails < 3) {
+      text = Math.round(rtt) + " ms";
+      cls = rtt < 80 ? "net-good" : rtt < 180 ? "net-mid" : "net-bad";
+    }
+    el.className = "net " + cls;
+    el.textContent = "● " + text;
+  }
+  setInterval(renderNet, 500);
 
   // ── vaga ───────────────────────────────────
   function join(n) {
@@ -152,20 +210,13 @@
     if (on) press(name); else release(name);
   }
 
-  var axisSent = { x: 0, y: 0 }, axisTimer = null, axisWant = { x: 0, y: 0 };
-  function flushAxis() {
-    axisTimer = null;
-    axisSent = { x: axisWant.x, y: axisWant.y };
-    post("/axis/" + slot + "?x=" + axisWant.x.toFixed(2) + "&y=" + axisWant.y.toFixed(2)).catch(function () {});
-  }
   function sendAxis(x, y) {
     if (!slot) return;
-    axisWant = { x: x, y: y };
-    var changed = Math.abs(x - axisSent.x) + Math.abs(y - axisSent.y) > 0.08 || (x === 0 && y === 0);
-    if (changed && axisTimer === null) axisTimer = setTimeout(flushAxis, 33);
+    var changed = Math.abs(x - axis.x) + Math.abs(y - axis.y) > 0.04 || (x === 0 && y === 0);
+    axis = { x: x, y: y };
+    if (x === 0 && y === 0) flush();
+    else if (changed) schedule(33);
   }
-  // reenvia de tempos em tempos enquanto segura (o jogo ignora analógico parado há muito tempo)
-  setInterval(function () { if (stickId !== null) flushAxis(); }, 250);
 
   function moveStick(x, y) {
     var r = base.offsetWidth / 2;
@@ -279,8 +330,8 @@
     if ((phase === "playing" || phase === "paused") && me.playing) {
       show("pad");
       $("pad-hint").textContent = mode === "soccer"
-        ? "segure chutar/passe para levantar a bola"
-        : "mova · toque 2x para esquivar";
+        ? "segure chutar/passe = bola alta"
+        : "mova o analógico";
       document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer"); });
       document.querySelectorAll(".soccer-only").forEach(function (e) { e.classList.toggle("on", mode === "soccer"); });
       $("paused").classList.toggle("on", phase === "paused");
@@ -320,15 +371,20 @@
 
   function refresh() {
     var q = "/api/status?slot=" + (slot || 0) + "&token=" + encodeURIComponent(token);
+    var t0 = performance.now();
     return fetch(q, { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (data) {
+        var ms = performance.now() - t0;          // o status também mede o sinal
+        rtt = rtt === null ? ms : rtt * 0.8 + ms * 0.2;
+        netFails = 0;
         failures = 0;
         $("offline").classList.remove("on");
         status = data;
         render();
       })
       .catch(function () {
+        netFails += 1;
         failures += 1;
         if (failures > 3) $("offline").classList.add("on");
       });

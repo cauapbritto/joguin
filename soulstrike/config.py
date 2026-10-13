@@ -75,6 +75,25 @@ CLOSE_TURN = 0.32
 LOSE_DISTANCE = 26          # bola mais longe que isso do pé = perdeu a posse
 STEAL_FRAMES = 14           # adversário mais perto da bola por esse tempo rouba
 NO_TRAP_FRAMES = 12         # depois de chutar, não domina de novo na hora
+# correr e marcar
+SPRINT_MULT = 1.4           # CORRER: velocidade extra
+SPRINT_SECONDS = 3.5        # fôlego cheio dura isso correndo
+SPRINT_RECOVER_SECONDS = 5  # e enche de novo em tanto tempo sem correr
+SPRINT_RESUME = 0.3         # fôlego acabou: só volta a correr com isso de fôlego
+SPRINT_CARRY_AHEAD = 10     # correndo com a bola, ela vai mais solta à frente
+SPRINT_STEAL_FRAMES = 8     # e é mais fácil de roubar
+MARK_SPEED = 0.9            # MARCAR anda um pouco mais devagar que o normal
+GOALKEEPER_ZONE = 340       # bola mais perto que isso do meu gol: MARCAR vira posição de goleiro
+# defesa
+BLOCK_SPEED = 6.5           # bola mais rápida que isso batendo no corpo = bloqueio (espirra para o lado)
+BLOCK_DAMP = 0.4            # quanto da velocidade sobra depois do bloqueio
+BLOCK_REACH = 12            # alcance extra do corpo durante o carrinho de bloqueio
+BLOCK_FRAMES = 16           # duração do carrinho de bloqueio
+BLOCK_MISS_STUN = 28        # errou o carrinho: fica no chão esse tempo
+CLEAR_REACH = 30            # alcance extra do chutão (o chute normal usa 15)
+CLEAR_POWER = 11
+CLEAR_LIFT = 7.5
+CLEAR_WINDOW = 10           # apertou CHUTE um pouco antes da bola chegar: ainda vale
 SUPER_SHOT_POWER = 16
 SUPER_HOMING_FORCE = 0.35
 SUPER_HOMING_FRAMES = 120

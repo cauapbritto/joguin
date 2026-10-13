@@ -37,6 +37,7 @@ class Session:
     slots: list = field(default_factory=list)
     map_key: str = "arena_classica"
     difficulty: str = "normal"
+    assist: str = "media"          # assistência do futebol: alta, media ou desligada
 
     @property
     def soccer(self):

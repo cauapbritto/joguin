@@ -5,7 +5,7 @@ import webbrowser
 import pygame
 
 from .. import config, theme
-from ..controls import KEY_LABELS
+from ..controls import KEY_LABELS, SOCCER_KEY_LABELS, PlayerInput
 from ..data import CHARACTERS
 from ..net import server
 from ..session import MODES, Session, SlotSetup
@@ -231,41 +231,77 @@ class _InfoScene(_MenuScene):
 class ControlsScene(_InfoScene):
     heading = "CONTROLES"
 
-    ROWS = [("MOVER", "move", "move"), ("ATACAR / CHUTAR", "attack", "attack"),
-            ("HABILIDADE / PASSE", "special", "special"), ("ESQUIVA / CORTE", "dodge", "dodge"),
-            ("TROCAR ARMA / SUPER", "switch", "switch"), ("CONDUZIR A BOLA", "dribble", "dribble")]
+    # (ação, tecla do jogador 1, tecla do jogador 2) — None = mesma tecla do duelo
+    ROWS = [
+        ("MOVER", KEY_LABELS[1]["move"], KEY_LABELS[2]["move"]),
+        ("ATACAR / CHUTAR", KEY_LABELS[1]["attack"], KEY_LABELS[2]["attack"]),
+        ("HABILIDADE / PASSE", KEY_LABELS[1]["special"], KEY_LABELS[2]["special"]),
+        ("ESQUIVA (DUELO)", KEY_LABELS[1]["dodge"], KEY_LABELS[2]["dodge"]),
+        ("TROCAR ARMA / SUPER", KEY_LABELS[1]["switch"], KEY_LABELS[2]["switch"]),
+        ("CORTE / CARRINHO (FUTEBOL)", SOCCER_KEY_LABELS[1]["dodge"], SOCCER_KEY_LABELS[2]["dodge"]),
+        ("CORRER (FUTEBOL)", SOCCER_KEY_LABELS[1]["sprint"], SOCCER_KEY_LABELS[2]["sprint"]),
+        ("MARCAR (FUTEBOL)", SOCCER_KEY_LABELS[1]["mark"], SOCCER_KEY_LABELS[2]["mark"]),
+        ("CONDUZIR COLADO (FUTEBOL)", SOCCER_KEY_LABELS[1]["dribble"], SOCCER_KEY_LABELS[2]["dribble"]),
+    ]
+    TIPS = [
+        "FUTEBOL: TOQUE EM CHUTAR/PASSE = RASTEIRO. SEGURE E SOLTE = PELO ALTO.",
+        "PASSE VAI PARA QUEM ESTÁ NA DIREÇÃO QUE VOCÊ APONTA.",
+        "NO SEU CAMPO, CHUTAR COM A BOLA SOLTA = CHUTÃO PARA LONGE DO GOL.",
+        "CORTE COM UM CHUTE VINDO = CARRINHO DE BLOQUEIO.",
+    ]
+
+    def __init__(self, game):
+        super().__init__(game)
+        self.toggle_rect = pygame.Rect(0, 0, 0, 0)
+
+    def _toggle_double_tap(self):
+        PlayerInput.double_tap_enabled = not PlayerInput.double_tap_enabled
+        self.sfx("click", 0.4)
+
+    def handle(self, event):
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_t:
+            self._toggle_double_tap()
+            return
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.toggle_rect.collidepoint(event.pos):
+            self._toggle_double_tap()
+            return
+        super().handle(event)
 
     def draw_body(self, screen):
         W = config.SCREEN_W
-        panel = pygame.Rect(56, 92, W - 112, 300)
+        panel = pygame.Rect(48, 80, W - 96, 344)
         self.ui.panel(screen, panel)
-        cols = (panel.x + 24, panel.x + 400, panel.x + 600)
-        y = panel.y + 22
+        cols = (panel.x + 20, panel.x + 470, panel.x + 640)
+        y = panel.y + 18
         self.ui.text(screen, "AÇÃO", theme.XS, theme.MUTED, (cols[0], y), anchor="midleft")
         self.ui.text(screen, "JOGADOR 1", theme.XS, theme.SLOT_COLORS[1], (cols[1], y), anchor="midleft")
         self.ui.text(screen, "JOGADOR 2", theme.XS, theme.SLOT_COLORS[2], (cols[2], y), anchor="midleft")
-        y += 14
+        y += 12
         screen.fill(theme.LINE, (panel.x + 16, y, panel.w - 32, 2))
-        y += 22
+        y += 18
         for label, k1, k2 in self.ROWS:
             self.ui.text(screen, label, theme.XS, theme.BONE, (cols[0], y), anchor="midleft", shadow=False)
-            self.ui.keycap(screen, KEY_LABELS[1][k1], (cols[1], y))
-            self.ui.keycap(screen, KEY_LABELS[2][k2], (cols[2], y))
-            y += 30
-        self.ui.text(screen, "TOQUE DUAS VEZES NUMA DIREÇÃO PARA ESQUIVAR.  ESC PAUSA A PARTIDA.",
-                     theme.XS, theme.MUTED, (cols[0], y + 2), anchor="midleft", shadow=False)
-        self.ui.text(screen, "FUTEBOL: TOQUE EM CHUTAR/PASSE = RASTEIRO.  SEGURE E SOLTE = PELO ALTO.",
-                     theme.XS, theme.MUTED, (cols[0], y + 20), anchor="midleft", shadow=False)
-        self.ui.text(screen, "BOLA NA ALTURA DA CABEÇA: CHUTAR VIRA CABEÇADA.",
-                     theme.XS, theme.MUTED, (cols[0], y + 36), anchor="midleft", shadow=False)
+            self.ui.keycap(screen, k1, (cols[1], y))
+            self.ui.keycap(screen, k2, (cols[2], y))
+            y += 23
+        y += 2
+        for tip in self.TIPS:
+            self.ui.text(screen, tip, theme.XS, theme.MUTED, (cols[0], y), anchor="midleft", shadow=False)
+            y += 15
+        state = "LIGADO" if PlayerInput.double_tap_enabled else "DESLIGADO"
+        self.toggle_rect = self.ui.keycap(screen, "T", (cols[0], y + 6))
+        self.ui.text(screen, f"DUPLO TOQUE NAS SETAS = ESQUIVA/CORTE: {state}", theme.XS,
+                     theme.BRASS if PlayerInput.double_tap_enabled else theme.MUTED,
+                     (self.toggle_rect.right + 8, y + 6), anchor="midleft", shadow=False)
+        self.toggle_rect = self.toggle_rect.union(pygame.Rect(self.toggle_rect.right, y - 2, 420, 16))
 
-        phone = pygame.Rect(56, 404, W - 112, 76)
+        phone = pygame.Rect(48, 432, W - 96, 64)
         self.ui.panel(screen, phone, fill=theme.INK_2)
-        self.ui.text(screen, "CELULAR", theme.XS, theme.BRASS, (phone.x + 24, phone.y + 20), anchor="midleft")
+        self.ui.text(screen, "CELULAR", theme.XS, theme.BRASS, (phone.x + 20, phone.y + 18), anchor="midleft")
         self.ui.paragraph(screen, "Na mesma rede Wi-Fi, escaneie o QR code da tela de conexão ou abra "
                           f"{self.game.base_url} e escolha o número do jogador.",
-                          theme.XS, theme.BONE, (phone.x + 24, phone.y + 36), phone.w - 48, spacing=14)
-        self.footer(screen, [("ESC", "VOLTAR")])
+                          theme.XS, theme.BONE, (phone.x + 20, phone.y + 32), phone.w - 40, spacing=13)
+        self.footer(screen, [("T", "DUPLO TOQUE"), ("ESC", "VOLTAR")])
 
 
 ABOUT = [
@@ -273,7 +309,7 @@ ABOUT = [
     ("ENCAPSULAMENTO", "Fighter guarda vida, posição e tempos de recarga. Ninguém altera a vida "
      "diretamente: quem causa dano chama take_damage(), que confere esquiva e invulnerabilidade antes "
      "de descontar. RemoteHub esconde a trava entre a thread do servidor web e o jogo; o resto do código "
-     "só usa press(), poll() e status()."),
+     "só usa apply_input(), poll() e status()."),
     ("ABSTRAÇÃO", "Entity e Ability são classes abstratas (ABC): dizem o que toda entidade e toda "
      "habilidade faz (update, draw, activate) sem dizer como. Arena.resolve() esconde a colisão de "
      "círculo com retângulo e Camera esconde o zoom e a conversão do mundo para a tela."),

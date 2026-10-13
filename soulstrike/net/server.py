@@ -32,9 +32,18 @@ def _slot_arg(source):
         return 0
 
 
+def _static_version():
+    """Muda quando os arquivos do controle mudam: o celular não usa uma versão velha do cache."""
+    try:
+        folder = config.WEB_DIR / "static"
+        return str(int(max(p.stat().st_mtime for p in folder.iterdir())))
+    except (OSError, ValueError):
+        return "1"
+
+
 @app.route("/")
 def index():
-    return render_template("controller.html")
+    return render_template("controller.html", v=_static_version())
 
 
 @app.route("/font.ttf")
@@ -50,6 +59,26 @@ def sprite(index):
     return Response(data, mimetype="image/png", headers={"Cache-Control": "max-age=3600"})
 
 
+@app.post("/api/input")
+def input_state():
+    """Estado completo do controle (o celular manda a cada mudança e de tempos em tempos)."""
+    data = request.get_json(silent=True) or {}
+    slot = _slot_arg(data)
+    if not hub.touch(slot, data.get("token")):
+        return "", 403
+    try:
+        seq = int(data.get("seq", 0))
+        held = [str(a) for a in data.get("held", [])][:32]
+        counts = {str(a): int(n) for a, n in dict(data.get("counts", {})).items()}
+        x = float(data.get("x", 0))
+        y = float(data.get("y", 0))
+    except (TypeError, ValueError):
+        return "", 400
+    hub.apply_input(slot, str(data.get("sid", "")) or None, seq, held, counts, x, y)
+    return "", 204
+
+
+# Rotas antigas (páginas abertas antes da atualização ainda funcionam)
 @app.post("/press/<key>")
 def press(key):
     hub.press(key)

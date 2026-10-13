@@ -62,6 +62,14 @@ class Fighter(Entity):
         self.giant_timer = 0
         self.tackle_timer = 0
         self.sprint_timer = 0
+        self.block_timer = 0            # carrinho de bloqueio (futebol)
+        self.block_hit = False
+        self.clear_timer = 0            # chutão armado (futebol)
+        self.clear_lock = False
+        self.sprint_held = False        # segurando CORRER (futebol)
+        self.stamina = 1.0              # fôlego da corrida, 0..1
+        self.exhausted = False
+        self.marking = False            # segurando MARCAR (futebol)
         self.power = None               # poder do futebol (definido pela partida)
         self.kicked_dust = False
         self.knock = [0.0, 0.0]
@@ -115,13 +123,31 @@ class Fighter(Entity):
         return 1 - self.ability_cd / config.ABILITY_COOLDOWN
 
     @property
+    def sprinting(self):
+        """Correndo de verdade: segurando CORRER, com fôlego e andando."""
+        return self.sprint_held and not self.exhausted and self.stamina > 0 and self.moving
+
+    @property
     def max_speed(self):
         base = self.stats.speed * MOVE_SCALE
         if self.sprint_timer > 0:
             return base * 1.8
-        if self.carrying_close:
+        if self.sprinting:
+            base *= config.SPRINT_MULT
+        elif self.carrying_close:
             base *= 0.9            # conduzir colado custa um pouco de velocidade
         return base * (2 if self.speed_timer > 0 else 1)
+
+    def update_stamina(self):
+        """Gasta fôlego correndo e recupera andando (chamado pela partida de futebol)."""
+        if self.sprinting:
+            self.stamina = max(0.0, self.stamina - 1 / (config.SPRINT_SECONDS * config.FPS))
+            if self.stamina == 0:
+                self.exhausted = True
+        else:
+            self.stamina = min(1.0, self.stamina + 1 / (config.SPRINT_RECOVER_SECONDS * config.FPS))
+            if self.exhausted and self.stamina >= config.SPRINT_RESUME:
+                self.exhausted = False
 
     @property
     def stunned(self):
@@ -462,6 +488,15 @@ class Fighter(Entity):
         tr = tag.get_rect(midbottom=(sx, sy - (8 if show_hp else 2)))
         surf.fill(theme.SHADOW, tr.inflate(6, 4))
         surf.blit(tag, tr)
+        if not show_hp and self.stamina < 0.995:
+            # barra de fôlego da corrida (futebol)
+            bar = pygame.Rect(0, 0, max(28, tr.w), 4)
+            bar.midtop = (sx, tr.bottom + 3)
+            surf.fill(theme.SHADOW, bar.inflate(2, 2))
+            fill = bar.copy()
+            fill.w = round(bar.w * self.stamina)
+            color = (200, 90, 70) if self.exhausted else (120, 200, 110)
+            surf.fill(color, fill)
         if show_hp:
             ratio = self.hp / self.stats.max_hp
             color = theme.MOSS if ratio > 0.5 else theme.BRASS if ratio > 0.25 else theme.BLOOD

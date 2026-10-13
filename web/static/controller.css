@@ -163,6 +163,10 @@ button {
   z-index: 2;
 }
 .pad-top .small { margin-left: auto; }
+.net { font-size: 8px; color: var(--muted); }
+.net-good { color: #7fc36b; }
+.net-mid { color: #e0b44c; }
+.net-bad { color: #e06b5a; }
 
 #stick-zone { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; }
 #stick-base {
@@ -210,6 +214,12 @@ button {
 #super-label { font-weight: normal; }
 #super-meter { position: absolute; left: 0; bottom: 0; height: 4px; background: var(--brass); width: 100%; }
 .act-super.cooling #super-meter { background: var(--line-hi); }
+/* futebol: 3 colunas para caber CORRER e MARCAR com o celular deitado */
+.actions.soccer-only { grid-template-columns: repeat(3, 92px); grid-auto-rows: 72px; gap: 10px; }
+.act-run { border-color: var(--moss); color: var(--moss); }
+.act-run.down { background: #2f4a2a; }
+.act-mark { border-color: var(--blood); color: #e98a84; }
+.act-mark.down { background: #4a2422; }
 
 #paused {
   display: none;
@@ -239,5 +249,7 @@ button {
 }
 @media (max-height: 360px) {
   .actions { grid-auto-rows: 60px; gap: 8px; grid-template-columns: repeat(2, 92px); }
+  .actions.soccer-only { grid-auto-rows: 60px; gap: 8px; grid-template-columns: repeat(3, 84px); }
+  .actions.soccer-only .act { font-size: 9px; }
   #stick-base { width: 120px; height: 120px; bottom: 28px; }
 }

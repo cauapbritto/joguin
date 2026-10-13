@@ -2,6 +2,8 @@
 import math
 import random
 
+from . import config
+
 DIFFICULTIES = {
     "facil": {"label": "FÁCIL", "reaction": 14, "scatter": 0.35, "fire": 0.35,
               "dash": 0.01, "ability": 0.05, "dodge": 0.0, "range": 260},
@@ -143,9 +145,17 @@ class SoccerAI:
         foes = [f for f in match.fighters if f.team != me.team]
         near = lambda f: math.hypot(f.x - ball.x, f.y - ball.y) < 40
         dist_ball = math.hypot(me.x - ball.x, me.y - ball.y)
+        # corre quando vale a pena e tem fôlego: bola solta longe ou adversário perto do meu gol
+        owner = match.possessor
+        loose_far = owner is None and dist_ball > 180 and me.stamina > 0.4
+        danger = (owner is not None and owner.team != me.team and abs(ball.x - home_x) < 500
+                  and dist_ball > 120 and me.stamina > 0.3)
+        me.sprint_held = loose_far or danger
 
         if match.possessor is me:
             self._carry(me, match, attack_x, mid_y, mates, foes)
+            return
+        if self._defend(me, match, home_x, mid_y):
             return
         if ball.airborne and match.possessor is None:
             # bola no ar: corre para onde ela vai cair (ou cabeceia)
@@ -195,6 +205,25 @@ class SoccerAI:
         if me.super_cd <= 0 and random.random() < chance and me.power.worth_using(me, match):
             match.use_power(me)
 
+    def _defend(self, me, match, home_x, mid_y):
+        """Bola solta vindo para o meu gol: chutão ou carrinho de bloqueio."""
+        ball = match.ball
+        if not match.can_clear(me):
+            return False
+        speed = math.hypot(ball.vx, ball.vy)
+        toward_goal = ball.vx * (home_x - ball.x) > 0 and speed > 3
+        pressed = abs(ball.x - home_x) < 320 and any(
+            f.distance_to(ball) < 120 for f in match.foes_of(me))
+        if (toward_goal or pressed) and match.touching(me, config.CLEAR_REACH, max_z=config.HEAD_RANGE[1]):
+            if random.random() < 0.6 and match.clear_ball(me):
+                return True
+        if toward_goal and speed > 6 and me.dash_cd <= 0 and random.random() < 0.05:
+            # entre a bola e o gol? então vale o carrinho
+            if (me.x - ball.x) * (home_x - me.x) > 0 and match.incoming(me, reach=60):
+                match.cut(me)
+                return True
+        return False
+
     def _carry(self, me, match, attack_x, mid_y, mates, foes):
         """Com a bola: conduz rumo ao gol, desvia de quem marca, passa ou chuta."""
         gx, gy = attack_x - me.x, self.aim_y - me.y
@@ -212,6 +241,8 @@ class SoccerAI:
             if random.random() < 0.03:
                 self.swerve = -self.swerve
         me.dribbling = me.sprint_timer > 0 or blocker is not None
+        # campo aberto: arranca com a bola
+        me.sprint_held = blocker is None and me.stamina > 0.5 and abs(attack_x - me.x) > 300
         me.steer(*move)
         if me.super_cd <= 0 and random.random() < 0.08 and me.power.worth_using(me, match):
             if match.use_power(me):

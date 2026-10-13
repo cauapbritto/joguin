@@ -1,8 +1,13 @@
 """Estado compartilhado entre o servidor web (thread do Flask) e o jogo.
 
-O celular manda "apertou"/"soltou" para comandos como ``p1_attack``. O jogo lê,
-uma vez por quadro, quais teclas estão seguradas e quais foram apertadas desde o
-último quadro — assim um toque rápido nunca se perde entre dois quadros.
+O celular manda, a cada mudança e de tempos em tempos, o ESTADO COMPLETO do
+controle: botões segurados, analógico e um contador de apertos por botão, tudo
+com um número de sequência. Pela rede os pedidos podem chegar fora de ordem;
+o número de sequência garante que um pedido atrasado nunca desfaz um mais novo
+(botão "preso"), e os contadores garantem que um toque rápido nunca se perde.
+
+O jogo lê, uma vez por quadro, quais comandos estão segurados e quais foram
+apertados desde o último quadro.
 """
 import threading
 import time
@@ -10,13 +15,35 @@ import time
 SLOTS = (1, 2, 3, 4)
 ACTIONS = (
     "up", "down", "left", "right",
-    "attack", "special", "dodge", "switch", "super", "dribble",
+    "attack", "special", "dodge", "switch", "super", "dribble", "sprint", "mark",
     "char_left", "char_right", "weapon", "confirm", "cancel", "pause",
 )
 COMMANDS = frozenset(f"p{s}_{a}" for s in SLOTS for a in ACTIONS)
 
 STALE_SECONDS = 4.0      # sem notícias do celular há esse tempo → desconectado
 RELEASE_SECONDS = 20.0   # depois disso a vaga é liberada
+INPUT_TIMEOUT = 1.0      # controle sem notícias há esse tempo → solta tudo (para por segurança)
+LEGACY_AXIS_SECONDS = 0.6
+
+
+class PadState:
+    """Último estado do controle de uma vaga, como o celular mandou."""
+
+    def __init__(self):
+        self.sid = None          # sessão da página (muda quando a página recarrega)
+        self.seq = -1            # maior número de sequência aplicado
+        self.counts = {}         # botão → quantas vezes foi apertado nesta sessão
+        self.held = set()
+        self.axis = (0.0, 0.0)
+        self.last = 0.0          # instante do último estado aplicado
+
+    def clear(self):
+        self.held = set()
+        self.axis = (0.0, 0.0)
+
+    @property
+    def active(self):
+        return bool(self.held) or self.axis != (0.0, 0.0)
 
 
 class SlotInfo:
@@ -43,7 +70,8 @@ class RemoteHub:
         self._lock = threading.Lock()
         self._held = set()
         self._pressed = set()
-        self._axes = {}            # vaga → (x, y, instante) do analógico do celular
+        self._axes = {}            # vaga → (x, y, instante) do analógico (rota antiga)
+        self._pads = {s: PadState() for s in SLOTS}
         self._slots = {s: SlotInfo() for s in SLOTS}
         self._phase = "menu"
         self._mode = "battle"
@@ -51,6 +79,34 @@ class RemoteHub:
         self._banner = ""
 
     # ── entrada vinda do celular ──────────────
+    def apply_input(self, slot, sid, seq, held, counts, x=0.0, y=0.0):
+        """Aplica um estado completo do controle. Devolve False se foi ignorado."""
+        pad = self._pads.get(slot)
+        if pad is None or sid is None:
+            return False
+        prefix = f"p{slot}_"
+        now = time.monotonic()
+        with self._lock:
+            if sid != pad.sid:                # página nova: recomeça a contagem
+                pad.sid, pad.seq, pad.counts = sid, -1, {}
+            # apertos: contadores só sobem, então qualquer pedido (mesmo atrasado) serve
+            for action, n in counts.items():
+                if prefix + action not in COMMANDS:
+                    continue
+                if n > pad.counts.get(action, 0):
+                    pad.counts[action] = n
+                    self._pressed.add(prefix + action)
+            if seq <= pad.seq:
+                return False                  # pedido atrasado: o estado dele já é velho
+            pad.seq = seq
+            pad.held = {a for a in held if prefix + a in COMMANDS}
+            mag = (x * x + y * y) ** 0.5
+            if mag > 1:
+                x, y = x / mag, y / mag
+            pad.axis = (x, y) if mag > 0.02 else (0.0, 0.0)
+            pad.last = now
+            return True
+
     def press(self, key):
         if key not in COMMANDS:
             return
@@ -76,21 +132,33 @@ class RemoteHub:
         """Analógicos atualizados há pouco (um celular que travou não fica andando sozinho)."""
         now = time.monotonic()
         with self._lock:
-            return {s: (x, y) for s, (x, y, t) in self._axes.items() if now - t < 0.6}
+            out = {s: (x, y) for s, (x, y, t) in self._axes.items() if now - t < LEGACY_AXIS_SECONDS}
+            for s, pad in self._pads.items():
+                if pad.axis != (0.0, 0.0) and now - pad.last < INPUT_TIMEOUT:
+                    out[s] = pad.axis
+            return out
 
     def release_slot(self, slot):
         prefix = f"p{slot}_"
         with self._lock:
             self._held = {k for k in self._held if not k.startswith(prefix)}
             self._axes.pop(slot, None)
+            pad = self._pads.get(slot)
+            if pad is not None:
+                pad.clear()
 
     def poll(self):
         """Chamado uma vez por quadro: (segurados, apertados desde o último poll)."""
+        now = time.monotonic()
         with self._lock:
-            held = frozenset(self._held)
+            held = set(self._held)
+            for s, pad in self._pads.items():
+                if pad.active and now - pad.last > INPUT_TIMEOUT:
+                    pad.clear()               # celular sumiu: não fica correndo sozinho
+                held.update(f"p{s}_{a}" for a in pad.held)
             pressed = frozenset(self._pressed)
             self._pressed.clear()
-        return held, pressed
+        return frozenset(held), pressed
 
     # ── vagas ────────────────────────────────
     def join(self, slot, token):
@@ -143,6 +211,8 @@ class RemoteHub:
         if phase != "playing":
             with self._lock:
                 self._held.clear()
+                for pad in self._pads.values():
+                    pad.held = set()
 
     def publish_slot(self, slot, **fields):
         """Atualiza o que o celular mostra: char, weapon, ready, team, cooldown."""
