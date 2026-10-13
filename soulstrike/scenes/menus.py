@@ -299,7 +299,8 @@ class ControlsScene(_InfoScene):
         self.ui.panel(screen, phone, fill=theme.INK_2)
         self.ui.text(screen, "CELULAR", theme.XS, theme.BRASS, (phone.x + 20, phone.y + 18), anchor="midleft")
         self.ui.paragraph(screen, "Na mesma rede Wi-Fi, escaneie o QR code da tela de conexão ou abra "
-                          f"{self.game.base_url} e escolha o número do jogador.",
+                          f"{self.game.base_url} e escolha o número do jogador. No futebol, empurre "
+                          "o analógico até a borda para correr.",
                           theme.XS, theme.BONE, (phone.x + 20, phone.y + 32), phone.w - 40, spacing=13)
         self.footer(screen, [("T", "DUPLO TOQUE"), ("ESC", "VOLTAR")])
 

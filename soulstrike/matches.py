@@ -995,7 +995,8 @@ class SoccerMatch(Match):
 
         for f in self.fighters:
             if not f.is_cpu:
-                hub.publish_slot(f.slot, cooldown=f.super_cd / f.power.cooldown)
+                hub.publish_slot(f.slot, cooldown=f.super_cd / f.power.cooldown,
+                                 stamina=f.stamina, tired=f.exhausted)
 
     def _tackle(self, f):
         """Carrinho do Guerreiro: derruba adversários e leva a bola."""

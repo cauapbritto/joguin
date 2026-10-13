@@ -68,23 +68,29 @@
     <button class="btn small" data-tap="pause">II</button>
   </div>
   <div id="stick-zone">
-    <div id="stick-base"><div id="stick-knob"></div></div>
+    <div id="stick-base">
+      <div id="stick-stamina"></div>
+      <div id="stick-knob"></div>
+    </div>
     <span class="hint" id="pad-hint">mova o analógico</span>
   </div>
-  <div class="actions battle-only">
-    <button class="act act-main" data-hold="attack">ATACAR</button>
-    <button class="act" data-hold="special">HABILIDADE</button>
-    <button class="act" data-hold="dodge">ESQUIVA</button>
-    <button class="act act-wide" data-hold="switch">TROCAR ARMA</button>
-  </div>
-  <div class="actions soccer-only">
-    <button class="act act-main" data-hold="attack">CHUTAR</button>
-    <button class="act" data-hold="special">PASSE</button>
-    <button class="act" data-hold="dodge">CORTE</button>
-    <button class="act" data-hold="dribble">CONDUZIR</button>
-    <button class="act act-run" data-hold="sprint">CORRER</button>
-    <button class="act act-mark" data-hold="mark">MARCAR</button>
-    <button class="act act-super" data-hold="super" id="super-btn"><b id="super-label">SUPER</b><span id="super-meter"></span></button>
+  <!-- Botões em arco em volta do polegar direito. O toque vale para o botão mais
+       próximo (não precisa acertar em cheio) e dá para deslizar de um para outro. -->
+  <div id="btn-zone">
+    <div class="pad-set battle-only">
+      <button class="pb pb-main" data-act="attack" data-pos="main">ATACAR</button>
+      <button class="pb" data-act="special" data-pos="w">HABILIDADE</button>
+      <button class="pb" data-act="switch" data-pos="nw">TROCAR ARMA</button>
+      <button class="pb" data-act="dodge" data-pos="n">ESQUIVA</button>
+    </div>
+    <div class="pad-set soccer-only">
+      <button class="pb pb-main" data-act="attack" data-pos="main">CHUTAR</button>
+      <button class="pb" data-act="special" data-pos="w">PASSE</button>
+      <button class="pb pb-mark" data-act="mark" data-pos="nw">MARCAR</button>
+      <button class="pb" data-act="dodge" data-pos="n">CORTE</button>
+      <button class="pb pb-small" data-act="dribble" data-pos="ww">COLADO</button>
+      <button class="pb pb-small pb-super" data-act="super" data-pos="nn" id="super-btn"><span id="super-label">SUPER</span></button>
+    </div>
   </div>
   <div id="paused">PAUSADO</div>
 </section>

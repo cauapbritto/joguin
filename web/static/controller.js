@@ -104,6 +104,7 @@
   function releaseAll() {
     held = {};
     axis = { x: 0, y: 0 };
+    if (typeof clearPadButtons === "function") clearPadButtons();
     if (slot) {
       flush();
       post("/release_all?slot=" + slot).catch(function () {});
@@ -196,6 +197,128 @@
   document.addEventListener("pointerup", endHold);
   document.addEventListener("pointercancel", endHold);
 
+  // ── botões em arco ─────────────────────────
+  // Ficam em volta do ponto onde o polegar direito descansa, do mais usado (grande, no
+  // canto) para os menos usados (em volta). O toque vale para o botão mais próximo, mesmo
+  // um pouco fora dele, e dá para deslizar o dedo de um botão para outro sem levantar.
+  var btnZone = $("btn-zone");
+  var ANGLES = { w: 180, nw: 132, n: 84, ww: 156, nn: 108 };
+  var MAGNET = 26;        // px fora do botão que ainda contam como toque nele
+  var KEEP = 40;          // deslizando: até onde o dedo pode sair do botão sem soltar
+  var soccerMode = false;
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function fitLabel(el, text, size, maxFs) {
+    var lines = text.indexOf(" ") > 0 ? text.split(" ") : [text];
+    var longest = Math.max.apply(null, lines.map(function (l) { return l.length; }));
+    var margin = el.classList.contains("pb-super") ? 26 : 16;          // o anel do SUPER ocupa espaço
+    var fs = clamp(Math.floor((size - margin) / longest), 6, maxFs);   // fonte pixel: 1 caractere ≈ 1em
+    var target = el.querySelector("span") || el;
+    target.textContent = lines.join("\n");
+    el.style.setProperty("--fs", fs + "px");
+  }
+
+  function layoutButtons() {
+    var zr = btnZone.getBoundingClientRect();
+    if (!zr.width || !zr.height) return;
+    var vh = window.innerHeight;
+    var big = clamp(vh * 0.31, 84, 128);
+    document.querySelectorAll(".pad-set").forEach(function (set) {
+      var hasOuter = !!set.querySelector('[data-pos="ww"], [data-pos="nn"]');
+      var mid = hasOuter ? clamp(vh * 0.21, 60, 88) : clamp(vh * 0.24, 66, 98);
+      var small = clamp(vh * 0.175, 52, 72);
+      var gap = clamp(vh * 0.032, 10, 16);
+      var pad = clamp(vh * 0.05, 14, 26);
+      var ox = zr.width - pad - big / 2;
+      var oy = zr.height - pad - big / 2;
+      var ring1 = big / 2 + mid / 2 + gap;
+      var ring2 = ring1 + mid / 2 + small / 2 + gap * 0.6;
+      set.querySelectorAll(".pb").forEach(function (b) {
+        var pos = b.dataset.pos;
+        var size = pos === "main" ? big : (pos === "ww" || pos === "nn") ? small : mid;
+        var x = ox, y = oy;
+        if (pos !== "main") {
+          var a = ANGLES[pos] * Math.PI / 180;
+          var r = (pos === "ww" || pos === "nn") ? ring2 : ring1;
+          x = ox + Math.cos(a) * r;
+          y = oy - Math.sin(a) * r;
+        }
+        b.style.left = x + "px";
+        b.style.top = y + "px";
+        b.style.setProperty("--s", size + "px");
+        if (!b.dataset.label) b.dataset.label = (b.querySelector("span") || b).textContent;
+        fitLabel(b, b.dataset.label, size, pos === "main" ? 15 : 10);
+      });
+    });
+  }
+  window.addEventListener("resize", layoutButtons);
+  window.addEventListener("orientationchange", function () { setTimeout(layoutButtons, 250); });
+
+  var fingers = {};       // dedo → botão que ele está segurando
+  var holdCount = {};     // ação → quantos dedos estão nela
+
+  function padButtons() {
+    return Array.prototype.slice.call(document.querySelectorAll(".pad-set.on .pb"));
+  }
+
+  function edgeDistance(b, x, y) {
+    var r = b.getBoundingClientRect();
+    return Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2)) - r.width / 2;
+  }
+
+  function pickButton(x, y, current) {
+    var best = null, bestD = 1e9;
+    padButtons().forEach(function (b) {
+      var d = edgeDistance(b, x, y);
+      if (d < bestD) { bestD = d; best = b; }
+    });
+    if (current) {
+      if (best !== current && bestD <= 0) return best;           // entrou em outro botão
+      return edgeDistance(current, x, y) <= KEEP ? current : null;
+    }
+    return bestD <= MAGNET ? best : null;
+  }
+
+  function grab(b) {
+    var a = b.dataset.act;
+    holdCount[a] = (holdCount[a] || 0) + 1;
+    if (holdCount[a] === 1) { b.classList.add("down"); press(a); }
+  }
+
+  function letGo(b) {
+    var a = b.dataset.act;
+    holdCount[a] = Math.max(0, (holdCount[a] || 0) - 1);
+    if (holdCount[a] === 0) { b.classList.remove("down"); release(a); }
+  }
+
+  function setFinger(id, b) {
+    var old = fingers[id] || null;
+    if (old === b) return;
+    if (old) letGo(old);
+    if (b) { grab(b); buzz(); fingers[id] = b; } else { delete fingers[id]; }
+  }
+
+  function clearPadButtons() {
+    fingers = {};
+    holdCount = {};
+    padButtons().forEach(function (b) { b.classList.remove("down"); });
+  }
+
+  btnZone.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    capture(btnZone, e.pointerId);
+    setFinger(e.pointerId, pickButton(e.clientX, e.clientY, null));
+  });
+  btnZone.addEventListener("pointermove", function (e) {
+    if (!(e.pointerId in fingers)) return;
+    e.preventDefault();
+    setFinger(e.pointerId, pickButton(e.clientX, e.clientY, fingers[e.pointerId]));
+  });
+  ["pointerup", "pointercancel"].forEach(function (t) {
+    btnZone.addEventListener(t, function (e) { setFinger(e.pointerId, null); });
+  });
+
   // ── analógico ──────────────────────────────
   var zone = $("stick-zone");
   var base = $("stick-base");
@@ -203,6 +326,14 @@
   var stickId = null;
   var origin = null;
   var dirs = { up: false, down: false, left: false, right: false };
+
+  var running = false;
+  function setRun(on) {
+    if (running === on) return;
+    running = on;
+    base.classList.toggle("run", on);
+    if (on) { press("sprint"); buzz(); } else release("sprint");
+  }
 
   function setDir(name, on) {
     if (dirs[name] === on) return;
@@ -229,6 +360,8 @@
     var nx = dist ? dx / dist : 0;
     var ny = dist ? dy / dist : 0;
     var active = dist > r * 0.18;
+    // futebol: empurrar até a borda do analógico = CORRER (o polegar direito fica livre)
+    setRun(soccerMode && dist > r * 1.0);
     // analógico de verdade: direção livre e intensidade proporcional
     var power = active ? Math.min(1, (dist - r * 0.18) / (max - r * 0.18)) : 0;
     sendAxis(nx * power, ny * power);
@@ -269,6 +402,7 @@
     knob.style.transform = "";
     base.classList.remove("live");
     Object.keys(dirs).forEach(function (d) { setDir(d, false); });
+    setRun(false);
     sendAxis(0, 0);
   }
   zone.addEventListener("pointerup", endStick);
@@ -329,17 +463,24 @@
 
     if ((phase === "playing" || phase === "paused") && me.playing) {
       show("pad");
-      $("pad-hint").textContent = mode === "soccer"
-        ? "segure chutar/passe = bola alta"
-        : "mova o analógico";
+      soccerMode = mode === "soccer";
+      document.body.classList.toggle("soccer", soccerMode);
+      $("pad-hint").textContent = soccerMode ? "empurre até a borda para correr" : "mova o analógico";
       document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer"); });
       document.querySelectorAll(".soccer-only").forEach(function (e) { e.classList.toggle("on", mode === "soccer"); });
       $("paused").classList.toggle("on", phase === "paused");
       var ch = roster[me.char];
-      $("super-label").textContent = ch && ch.soccer_power ? ch.soccer_power : "SUPER";
+      var sb = $("super-btn");
+      var superName = (ch && ch.soccer_power ? ch.soccer_power : "SUPER").toUpperCase();
+      if (sb.dataset.label !== superName) sb.dataset.label = superName;
+      layoutButtons();
       var cd = me.cooldown || 0;
-      $("super-btn").classList.toggle("cooling", cd > 0);
-      $("super-meter").style.width = Math.round((1 - cd) * 100) + "%";
+      sb.style.setProperty("--p", (1 - cd).toFixed(3));
+      sb.classList.toggle("cooling", cd > 0);
+      sb.classList.toggle("ready", cd <= 0);
+      var st = $("stick-stamina");
+      st.style.setProperty("--st", (me.stamina === undefined ? 1 : me.stamina).toFixed(3));
+      st.classList.toggle("tired", !!me.tired);
       return;
     }
     if (phase === "select" && me.playing) {

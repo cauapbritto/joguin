@@ -94,8 +94,12 @@ No futebol:
 Na tela "Conecte os celulares" aparece um QR code por jogador. Com o celular na
 mesma rede do computador, é só escanear. O endereço também aparece no menu
 principal (`http://IP-DO-PC:5000/?player=N`). O celular mostra a escolha de
-personagem e, durante a partida, um analógico e os botões do modo atual (no futebol,
-também CORRER e MARCAR). O ponto colorido no topo mostra a qualidade da conexão. Se a
+personagem e, durante a partida, um analógico e os botões do modo atual, em arco em volta
+do polegar direito: o principal (atacar/chutar) é o grande no canto, e o toque vale para o
+botão mais próximo, mesmo um pouco fora dele. Dá para deslizar o dedo de um botão para
+outro sem levantar (de MARCAR para CORTE, por exemplo). No futebol, empurrar o analógico
+até a borda faz correr, e o anel em volta dele mostra o fôlego; o anel do SUPER mostra a
+recarga. O ponto colorido no topo mostra a qualidade da conexão. Se a
 rede engasgar, o jogo continua com o último comando; sem notícias do celular por 1 s, o
 jogador para por segurança.
 

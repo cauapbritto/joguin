@@ -56,6 +56,8 @@ class SlotInfo:
         self.ready = False
         self.team = None
         self.cooldown = 0.0   # 0..1 do super (futebol)
+        self.stamina = 1.0    # 0..1 do fôlego da corrida (futebol)
+        self.tired = False    # fôlego acabou: só volta a correr depois de recuperar um pouco
 
     @property
     def claimed(self):
@@ -215,11 +217,11 @@ class RemoteHub:
                     pad.held = set()
 
     def publish_slot(self, slot, **fields):
-        """Atualiza o que o celular mostra: char, weapon, ready, team, cooldown."""
+        """Atualiza o que o celular mostra: char, weapon, ready, team, cooldown, stamina, tired."""
         with self._lock:
             info = self._slots[slot]
             for name, value in fields.items():
-                if name not in ("char", "weapon", "ready", "team", "cooldown"):
+                if name not in ("char", "weapon", "ready", "team", "cooldown", "stamina", "tired"):
                     raise ValueError(name)
                 setattr(info, name, value)
 
@@ -246,6 +248,8 @@ class RemoteHub:
                     "ready": mine.ready,
                     "team": mine.team,
                     "cooldown": round(mine.cooldown, 3),
+                    "stamina": round(mine.stamina, 3),
+                    "tired": mine.tired,
                     "playing": slot in self._active,
                 }
             return data
