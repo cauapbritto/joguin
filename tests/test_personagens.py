@@ -125,7 +125,8 @@ class ArquivosTest(unittest.TestCase):
         names = [r["name"] for r in roster]
         self.assertIn("Pirata", names)
         self.assertIn("Geada", names)
-        self.assertEqual(len(roster), len(CHARACTERS))
+        from soulstrike.data import roster as available
+        self.assertEqual(len(roster), len(available()))
 
 
 if __name__ == "__main__":

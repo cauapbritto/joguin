@@ -6,7 +6,7 @@ import threading
 from flask import Flask, Response, abort, jsonify, render_template, request, send_from_directory
 
 from .. import config
-from ..data import CHARACTERS, roster_for_web
+from ..data import roster as available_characters, roster_for_web
 from ..soccer_powers import SOCCER_POWERS
 from .remote import hub
 
@@ -113,7 +113,7 @@ def release_all():
 @app.get("/api/roster")
 def roster():
     data = roster_for_web()
-    for entry, stats in zip(data, CHARACTERS):
+    for entry, stats in zip(data, available_characters()):
         power = SOCCER_POWERS[stats.key]
         entry["soccer_power"] = power.name
         entry["soccer_desc"] = power.description

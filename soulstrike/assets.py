@@ -6,7 +6,7 @@ import unicodedata
 import pygame
 
 from . import config
-from .data import CHARACTERS
+from .data import CHARACTERS, SHADOW_CHARACTERS
 
 DIRECTIONS = ("frente", "costas", "direita", "esquerda")
 
@@ -50,8 +50,11 @@ class Assets:
     # ── carga ────────────────────────────────
     def load_steps(self):
         """Carrega tudo aos poucos; cada passo devolve o progresso (0..1)."""
+        from .enemies import CREATURES
         steps = [self._load_sounds, self._load_tiles, self._load_weapons]
         steps += [(lambda c=c: self._load_character(c)) for c in CHARACTERS]
+        # criaturas da campanha: mesma escala de pixel dos heróis (o diabrete fica menor, o golem maior)
+        steps += [(lambda c=c: self._load_character(c, factor=2)) for c in CREATURES.values()]
         for i, step in enumerate(steps):
             step()
             yield (i + 1) / len(steps)
@@ -72,7 +75,18 @@ class Assets:
             except pygame.error:
                 pass
 
-    def _load_character(self, stats):
+    def shadow_sprites(self, key):
+        """Sprites da alma corrompida de um herói (gerados na primeira vez que alguém pede)."""
+        name = "sombra:" + key
+        if name not in self.sprites:
+            from .enemies import LENSES, SHADOW_TINT, TINTS, tint_sprites
+            self.sprites[name] = tint_sprites(self.sprites[key], TINTS.get(key, SHADOW_TINT), lenses=LENSES.get(key))
+        return self.sprites[name]
+
+    def _load_character(self, stats, factor=None):
+        if stats.key in SHADOW_CHARACTERS:
+            self.sprites[stats.key] = self.shadow_sprites(stats.sprite)
+            return
         pattern = re.compile(rf"^{re.escape(stats.sprite)}(\d*)({'|'.join(DIRECTIONS)})\.png$")
         found = {d: [] for d in DIRECTIONS}
         for path in config.CHAR_DIR.glob(f"{stats.sprite}*.png"):
@@ -86,7 +100,7 @@ class Assets:
             found[m.group(2)].append((int(m.group(1) or 0), img))
         if all(found.values()):
             raw = {d: [img for _, img in sorted(found[d], key=lambda t: t[0])] for d in DIRECTIONS}
-            self.sprites[stats.key] = SpriteSet(_normalize(raw))
+            self.sprites[stats.key] = SpriteSet(_normalize(raw, factor))
         else:
             self.sprites[stats.key] = SpriteSet(_placeholder(stats.color))
 
@@ -251,12 +265,15 @@ def window_icon(size=32):
     return surf
 
 
-def _normalize(raw):
-    """Recorta as margens e coloca todos os quadros na mesma escala, sem distorcer."""
+def _normalize(raw, factor=None):
+    """Recorta as margens e coloca todos os quadros na mesma escala, sem distorcer.
+    factor: ampliação fixa (criaturas de tamanhos diferentes); sem ele, todos ficam da mesma altura."""
     cropped = {d: [img.subsurface(img.get_bounding_rect()).copy() for img in frames]
                for d, frames in raw.items()}
     tallest = max(img.get_height() for frames in cropped.values() for img in frames)
-    if tallest <= config.SPRITE_HEIGHT:
+    if factor is not None:
+        smooth = False
+    elif tallest <= config.SPRITE_HEIGHT:
         factor = max(1, round(config.SPRITE_HEIGHT / tallest))   # pixel art pequena: escala inteira
         smooth = False
     else:

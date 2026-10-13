@@ -37,11 +37,11 @@ def _fighter_block(screen, ui, f, right, frame, wins=0):
         pygame.draw.rect(screen, theme.LINE_HI, pip, 1)
 
     # vida
-    ratio = f.hp / f.stats.max_hp
+    ratio = f.hp / f.max_hp
     low = ratio <= 0.25 and (frame // 10) % 2 == 0
     color = _hp_color(ratio) if not low else mix(theme.BLOOD, theme.BONE, 0.4)
     ui.bar(screen, (x, y + 20, bar_w, 16), ratio, color, back=(30, 22, 30), ticks=10, flip=right)
-    hp_txt = f"{f.hp}/{f.stats.max_hp}"
+    hp_txt = f"{f.hp}/{f.max_hp}"
     ui.text(screen, hp_txt, theme.XS, theme.MUTED, (x + bar_w if right else x, y + 44),
             anchor="topright" if right else "topleft", shadow=True)
 
@@ -190,3 +190,122 @@ def draw_goal_banner(screen, ui, team, scorer, own_goal, age):
         ui.text(screen, "GOL!", theme.XL, theme.BONE, (W // 2, H // 2 - 10))
         sub = "GOL CONTRA" if own_goal else f"{scorer} · TIME {theme.TEAM_NAMES[team]}".strip(" ·")
         ui.text(screen, sub, theme.XS, theme.BONE, (W // 2, H // 2 + 30))
+
+
+# ─────────────────────────────────────────────
+#  CAMPANHA
+# ─────────────────────────────────────────────
+BLOCK_W, BLOCK_H = 214, 48
+
+
+def campaign_block_rect(i, n):
+    """Quadro de cada jogador na parte de baixo da tela."""
+    W, H = config.SCREEN_W, config.SCREEN_H
+    gap = 10
+    total = n * BLOCK_W + (n - 1) * gap
+    x0 = 12 if n > 2 else (W - total) // 2
+    return (x0 + i * (BLOCK_W + gap), H - BLOCK_H - 10, BLOCK_W, BLOCK_H)
+
+
+def _soul_icon(screen, center, filled):
+    cx, cy = center
+    pts = [(cx, cy - 6), (cx + 5, cy), (cx, cy + 6), (cx - 5, cy)]
+    pygame.draw.polygon(screen, theme.SHADOW, [(x + 1, y + 1) for x, y in pts])
+    pygame.draw.polygon(screen, (170, 90, 230) if filled else theme.INK_3, pts)
+    if filled:
+        screen.fill((236, 214, 255), (cx - 1, cy - 3, 2, 2))
+    else:
+        pygame.draw.polygon(screen, theme.LINE_HI, pts, 1)
+
+
+def draw_campaign(screen, ui, match):
+    W = config.SCREEN_W
+    run = match.run
+    screen.blit(_top_shade(W, 80), (0, 0))
+
+    # fase e onda (ou a vida do chefão)
+    boss = match.boss
+    if boss is not None and boss.alive_in_match:
+        bar = pygame.Rect(0, 0, 440, 16)
+        bar.midtop = (W // 2, 30)
+        ui.text(screen, boss.stats.name.upper(), theme.XS, (200, 150, 250), (W // 2, 16))
+        ratio = boss.hp / boss.max_hp
+        ui.bar(screen, bar.inflate(4, 4), ratio, (150, 60, 200), back=(30, 16, 40), ticks=10)
+        if getattr(boss, "phase_label", ""):
+            ui.text(screen, boss.phase_label, theme.XS, theme.BLOOD, (W // 2, bar.bottom + 14))
+    else:
+        ui.text(screen, f"FASE {run.phase_index + 1} · {match.phase.name}", theme.XS, theme.BONE, (W // 2, 18))
+        total = len(match.phase.waves)
+        if match.wave >= 0:
+            left = len(match.alive_enemies) + len(match.portals)
+            wave = f"ONDA {match.wave + 1}/{total}"
+            info = f"{wave} · {left} INIMIGO{'S' if left != 1 else ''}" if left else wave
+            ui.text(screen, info, theme.XS, theme.MUTED, (W // 2, 36))
+        for k in range(total):
+            done = k < match.wave or (k == match.wave and match.state in ("between", "clear"))
+            pip = pygame.Rect(W // 2 - total * 9 + k * 18 + 3, 48, 12, 6)
+            screen.fill(theme.SHADOW, pip.move(1, 1))
+            screen.fill(theme.BRASS if done else (theme.LINE_HI if k == match.wave else theme.INK_3), pip)
+
+    # continues e tempo
+    ui.text(screen, "CONTINUES", theme.XS, theme.MUTED, (W - 16, 16), anchor="midright")
+    for k in range(3):
+        _soul_icon(screen, (W - 22 - k * 16, 34), k < run.continues)
+    secs = match.elapsed // config.FPS
+    ui.text(screen, f"{secs // 60}:{secs % 60:02d}", theme.XS, theme.BONE, (16, 16), anchor="midleft")
+
+    # jogadores
+    n = len(match.players)
+    for i, f in enumerate(match.players):
+        _campaign_block(screen, ui, f, pygame.Rect(campaign_block_rect(i, n)), match)
+
+
+def _campaign_block(screen, ui, f, rect, match):
+    screen.fill(theme.SHADOW, rect.move(2, 2))
+    screen.fill(theme.INK_2, rect)
+    screen.fill(f.color, (rect.x, rect.y, 4, rect.h))
+    x = rect.x + 12
+    tag = ui.assets.text(f.label, theme.XS, f.color)
+    screen.blit(tag, tag.get_rect(midleft=(x, rect.y + 10)))
+    ui.text(screen, f.stats.name.upper(), theme.XS, theme.BONE, (x + tag.get_width() + 8, rect.y + 10),
+            anchor="midleft", shadow=False)
+    bar = pygame.Rect(x, rect.y + 19, rect.w - 22, 12)
+    if not f.alive_in_match:
+        ui.bar(screen, bar, 0, theme.BLOOD, back=(30, 22, 30))
+        prog = match.revive_progress.get(f, 0.0)
+        if prog > 0:
+            ui.bar(screen, bar, prog, theme.BONE, back=(30, 22, 30))
+        color = theme.BLOOD if (match.frame // 15) % 2 else theme.MUTED
+        ui.text(screen, "CAÍDO", theme.XS, color, bar.center)
+        return
+    ratio = f.hp / f.max_hp
+    low = ratio <= 0.25 and (match.frame // 10) % 2 == 0
+    color = _hp_color(ratio) if not low else mix(theme.BLOOD, theme.BONE, 0.4)
+    ui.bar(screen, bar, ratio, color, back=(30, 22, 30), ticks=8)
+    if f.shield > 0:
+        screen.fill((150, 212, 240), (bar.x + 1, bar.y + 1, round((bar.w - 2) * min(1, f.shield / 40)), 3))
+    ui.text(screen, f"{f.hp}", theme.XS, theme.BONE, (rect.right - 10, rect.y + 10), anchor="midright", shadow=False)
+    ab = pygame.Rect(x, rect.y + 35, 70, 6)
+    ready = f.ability_ready
+    ui.bar(screen, ab, f.ability_ratio, theme.BRASS if ready else theme.SKY, back=(22, 20, 32))
+    label = f.ability.name.upper() + (" OK" if ready else "")
+    ui.text(screen, label, theme.XS, theme.BRASS if ready else theme.MUTED, (ab.right + 6, ab.centery),
+            anchor="midleft", shadow=False)
+    if f.fury_timer > 0:
+        ui.text(screen, "FÚRIA", theme.XS, theme.EMBER, (rect.right - 10, ab.centery), anchor="midright", shadow=False)
+
+
+def draw_campaign_banners(screen, ui, match):
+    W = config.SCREEN_W
+    if match.wave_banner > 0 and match.state == "fight":
+        age = 100 - match.wave_banner
+        x = W // 2 + int((1 - min(1, age / 8)) * W)
+        if match.wave_banner > 12 or match.wave_banner % 4 < 2:
+            last = match.wave == len(match.phase.waves) - 1
+            word = "ONDA FINAL" if last and match.wave > 0 else f"ONDA {match.wave + 1}"
+            ui.text(screen, word, theme.L, theme.BRASS, (x, 120))
+    if match.state == "between":
+        ui.text(screen, "ONDA CONCLUÍDA", theme.S, theme.MOSS, (W // 2, 120))
+    if match.banner:
+        title, sub, color, age = match.banner
+        _band(screen, ui, color, min(1.0, age / 12), title, sub)

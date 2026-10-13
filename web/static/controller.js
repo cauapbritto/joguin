@@ -11,7 +11,7 @@
   var failures = 0;
 
   var $ = function (id) { return document.getElementById(id); };
-  var views = ["join", "wait", "select", "pad"];
+  var views = ["join", "wait", "select", "pad", "choose"];
 
   function loadToken() {
     var t = null;
@@ -440,10 +440,31 @@
     document.querySelectorAll("#view-select .arrow, #weapon").forEach(function (b) { b.disabled = me.ready; });
   }
 
+  // ── campanha: escolha de melhoria ──────────
+  function renderChoose(me) {
+    var opts = me.options || [];
+    document.querySelectorAll("#view-choose .opt").forEach(function (b, i) {
+      var o = opts[i];
+      b.style.visibility = o ? "" : "hidden";
+      if (!o) return;
+      b.querySelector("b").textContent = o.name;
+      b.querySelector("span").textContent = o.desc;
+      b.style.setProperty("--c", "rgb(" + o.color.join(",") + ")");
+      b.classList.toggle("on", i === me.choice);
+      b.disabled = !!me.ready;
+    });
+    document.body.classList.toggle("locked", !!me.ready);
+    var ok = $("choose-ok");
+    ok.classList.toggle("is-ready", !!me.ready);
+    ok.textContent = me.ready ? "PRONTO! (TOQUE P/ TROCAR)" : "CONFIRMAR";
+    ok.dataset.tap = me.ready ? "cancel" : "confirm";
+  }
+
   // ── estado do jogo ─────────────────────────
   var WAIT_TEXT = {
     menu: ["Conectado", "Aguardando o anfitrião escolher o modo de jogo."],
     lobby: ["Conectado", "Tudo certo! O anfitrião vai avançar para a escolha de personagens."],
+    choose: ["Conectado", "Os jogadores estão escolhendo as melhorias."],
     paused: ["Pausado", ""],
   };
 
@@ -457,9 +478,11 @@
       return;
     }
     var mode = status.mode;
-    bind("mode", mode === "soccer" ? "FUTEBOL" : "DUELO");
+    bind("mode", mode === "soccer" ? "FUTEBOL" : mode === "campaign" ? "CAMPANHA" : "DUELO");
     var phase = status.phase;
     $("results-actions").classList.toggle("on", phase === "results" && me.playing);
+    $("story-actions").classList.toggle("on", phase === "story" && me.playing);
+    if (status.roster && status.roster !== roster.length) loadRoster();   // personagem novo liberado
 
     if ((phase === "playing" || phase === "paused") && me.playing) {
       show("pad");
@@ -488,8 +511,16 @@
       renderSelect(me, mode);
       return;
     }
+    if (phase === "choose" && me.playing) {
+      show("choose");
+      renderChoose(me);
+      return;
+    }
     show("wait");
-    if (phase === "results") {
+    if (phase === "story") {
+      bind("wait-title", status.banner || "História");
+      bind("wait-text", me.playing ? "Acompanhe a história na tela." : "");
+    } else if (phase === "results") {
       bind("wait-title", status.banner || "Fim de jogo");
       bind("wait-text", me.playing ? "Escolha no jogo ou use os botões abaixo." : "");
     } else if (!me.playing && (phase === "select" || phase === "playing")) {
@@ -531,10 +562,17 @@
       });
   }
 
-  fetch("/api/roster").then(function (r) { return r.json(); }).then(function (data) {
-    roster = data;
-    render();
-  }).catch(function () {});
+  var loadingRoster = false;
+  function loadRoster() {
+    if (loadingRoster) return;
+    loadingRoster = true;
+    fetch("/api/roster", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (data) {
+      roster = data;
+      loadingRoster = false;
+      render();
+    }).catch(function () { loadingRoster = false; });
+  }
+  loadRoster();
 
   if (slot) {
     document.body.dataset.slot = slot;

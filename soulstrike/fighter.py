@@ -5,7 +5,7 @@ import pygame
 
 from . import config, theme
 from .abilities import create_ability
-from .entities import Entity
+from .entities import Entity, hostile
 from . import weapon_art
 
 ACCELERATION = 0.3          # quanto da velocidade-alvo é alcançada por quadro
@@ -23,10 +23,23 @@ def proximity_damage(dist, base):
     return base
 
 
+def draw_aura(surf, img, rect, color, ticks, k=2):
+    """Sombra escura espalhada atrás do corpo + contorno que pulsa (almas corrompidas)."""
+    mask = pygame.mask.from_surface(img)
+    smoke = mask.to_surface(setcolor=(8, 2, 14, 255), unsetcolor=(0, 0, 0, 0))
+    smoke.set_alpha(110)
+    for dx, dy in ((-2 * k, -k), (2 * k, -k), (0, -2 * k), (-k, k), (k, k)):
+        surf.blit(smoke, rect.move(dx, dy))
+    edge = mask.to_surface(setcolor=(*color, 255), unsetcolor=(0, 0, 0, 0))
+    edge.set_alpha(round(150 + 70 * math.sin(ticks * 0.12)))
+    for dx, dy in ((-k, 0), (k, 0), (0, -k), (0, k)):
+        surf.blit(edge, rect.move(dx, dy))
+
+
 class Fighter(Entity):
     def __init__(self, stats, slot, x, y, sprites, label, color, team=None, weapon_index=0, is_cpu=False):
         super().__init__(x, y)
-        self.radius = config.PLAYER_RADIUS
+        self.radius = self.base_radius = config.PLAYER_RADIUS
         self.stats = stats
         self.slot = slot
         self.label = label              # "P1", "CPU"...
@@ -35,7 +48,8 @@ class Fighter(Entity):
         self.team = team
         self.is_cpu = is_cpu
         self.sprites = sprites
-        self.hp = stats.max_hp
+        self.max_hp = stats.max_hp      # pode crescer com melhorias (campanha)
+        self.hp = self.max_hp
         self.weapon_index = weapon_index
         self.ability = create_ability(stats)
 
@@ -73,6 +87,27 @@ class Fighter(Entity):
         self.stamina = 1.0              # fôlego da corrida, 0..1
         self.exhausted = False
         self.marking = False            # segurando MARCAR (futebol)
+        # bônus (melhorias da campanha e dificuldade dos inimigos)
+        self.damage_bonus = 1.0
+        self.speed_mult = 1.0
+        self.cd_mult = 1.0              # recarga da habilidade
+        self.dash_cd_mult = 1.0         # recarga da esquiva
+        self.pierce = 0                 # tiros atravessam tantos inimigos
+        self.lifesteal = 0.0            # parte do dano que vira vida
+        self.shield = 0                 # escudo que absorve dano
+        self.draw_scale = 1.0           # tamanho do desenho (chefão)
+        self.overlay = "full"           # o que mostrar acima da cabeça: full, hp ou none
+        self.knock_resist = 0.0         # 1 = não é empurrado por golpes (golem, chefão)
+        self.aura = None                # brilho em volta (almas corrompidas)
+        self.windup = 0                 # preparando um golpe (inimigos brilham antes de atacar)
+        self.windup_total = 1
+        self.windup_color = (255, 255, 255)
+        self.kind = None                # tipo do inimigo (campanha)
+        self.unstoppable = False        # não é atordoado nem puxado (chefão)
+        self.vulnerability = 1.0        # dano recebido é multiplicado por isso (chefão cansado)
+        self.lift = 0                   # altura do desenho acima do chão (pulo do chefão)
+        self.last_attacker = None
+        self.kills = 0
         self.power = None               # poder do futebol (definido pela partida)
         self.kicked_dust = False
         self.knock = [0.0, 0.0]
@@ -122,8 +157,12 @@ class Fighter(Entity):
         return self.ability_cd <= 0
 
     @property
+    def ability_cooldown(self):
+        return max(1, round(config.ABILITY_COOLDOWN * self.cd_mult))
+
+    @property
     def ability_ratio(self):
-        return 1 - self.ability_cd / config.ABILITY_COOLDOWN
+        return 1 - self.ability_cd / self.ability_cooldown
 
     @property
     def sprinting(self):
@@ -141,7 +180,7 @@ class Fighter(Entity):
             base *= 0.9            # conduzir colado custa um pouco de velocidade
         if self.slow_timer > 0:
             base *= config.SLOW_MULT
-        return base * (2 if self.speed_timer > 0 else 1)
+        return base * (2 if self.speed_timer > 0 else 1) * self.speed_mult
 
     def slow(self, frames):
         """Fica lento (gelo). Invulnerável não é afetado."""
@@ -152,7 +191,7 @@ class Fighter(Entity):
 
     def pull(self, x, y, frames=10):
         """É puxado até (x, y) em alguns quadros (gancho)."""
-        if self.invulnerable:
+        if self.invulnerable or self.unstoppable:
             return False
         self.pull_to = (x, y)
         self.pull_timer = frames
@@ -176,10 +215,10 @@ class Fighter(Entity):
 
     @property
     def damage_mult(self):
-        return config.FURY_MULT if self.fury_timer > 0 else 1.0
+        return (config.FURY_MULT if self.fury_timer > 0 else 1.0) * self.damage_bonus
 
     def stun(self, frames=config.STUN_FRAMES):
-        if self.invulnerable:
+        if self.invulnerable or self.unstoppable:
             return False
         self.stun_timer = max(self.stun_timer, frames)
         self.charge_timer = 0
@@ -190,13 +229,13 @@ class Fighter(Entity):
         """Volta ao estado inicial para um novo round (mantém as estatísticas da partida)."""
         self.x, self.y = x, y
         self.facing = facing
-        self.hp = self.stats.max_hp
+        self.hp = self.max_hp
         self.vx = self.vy = 0.0
         self.input = (0.0, 0.0)
         self.knock = [0.0, 0.0]
         for name in ("attack_cd", "ability_cd", "dash_timer", "dash_cd", "charge_timer", "speed_timer",
                      "invulnerable_timer", "stun_timer", "fury_timer", "hit_flash", "melee_flash",
-                     "shoot_flash", "teleport_flash", "slow_timer", "pull_timer"):
+                     "shoot_flash", "teleport_flash", "slow_timer", "pull_timer", "windup"):
             setattr(self, name, 0)
         self.trail.clear()
 
@@ -224,7 +263,7 @@ class Fighter(Entity):
         self.dash_dir = (dx / mag, dy / mag)
         self.dash_timer = frames
         self.dash_len = frames
-        self.dash_cd = cooldown
+        self.dash_cd = round(cooldown * self.dash_cd_mult)
         self.kicked_dust = True
         return True
 
@@ -233,6 +272,11 @@ class Fighter(Entity):
         self.charge_timer = 20
         self.charge_damage = damage
         self.facing = direction
+
+    def start_windup(self, frames, color):
+        """Começa a preparar um golpe: o sprite brilha até ``windup`` chegar a zero."""
+        self.windup = self.windup_total = max(1, frames)
+        self.windup_color = color
 
     def switch_weapon(self):
         if len(self.weapons) < 2:
@@ -252,12 +296,20 @@ class Fighter(Entity):
             self.attack_cd = weapon.cooldown
             match.assets.play("shoot", 0.4)
             self._deflect_bullets(match)
-            if dist <= weapon.reach + target.radius:
-                target.take_damage(round(weapon.damage * self.damage_mult), self.x, self.y,
-                                   attacker=self, match=match)
+            # acerta todos os adversários ao alcance na frente (no duelo, só existe um)
+            fx, fy = self.facing
+            for other in match.opponents_of(self):
+                if not other.alive_in_match:
+                    continue
+                dx, dy = other.x - self.x, other.y - self.y
+                d = math.hypot(dx, dy)
+                in_front = other is target or d < other.radius + 6 or (dx * fx + dy * fy) > -0.2 * d
+                if d <= weapon.reach + other.radius and in_front:
+                    other.take_damage(round(weapon.damage * self.damage_mult), self.x, self.y,
+                                      attacker=self, match=match)
             return True
         damage = round(proximity_damage(dist, weapon.damage) * self.damage_mult)
-        explosive = self.stats.key == "aryel"
+        explosive = self.stats.key in ("aryel", "aryel_corrompido")
         match.spawn_bullet(self, *self.facing, weapon.bullet_speed, damage, explosive=explosive)
         self.attack_cd = weapon.cooldown
         self.shoot_flash = 5
@@ -270,7 +322,7 @@ class Fighter(Entity):
         fx, fy = self.facing
         blocked = 0
         for b in match.bullets:
-            if b.owner is self or not b.alive:
+            if not hostile(b.owner, self) or not b.alive:
                 continue
             dx, dy = b.x - self.x, b.y - self.y
             dist = math.hypot(dx, dy)
@@ -286,30 +338,45 @@ class Fighter(Entity):
     def use_ability(self, match, target):
         if not self.ability_ready or self.stunned:
             return False
-        self.ability_cd = config.ABILITY_COOLDOWN
+        self.ability_cd = self.ability_cooldown
         self.ability.use(self, match, target)
         return True
 
     def take_damage(self, amount, sx=None, sy=None, attacker=None, match=None):
         if self.invulnerable or self.hp <= 0:
             return False
+        if self.vulnerability != 1.0:
+            amount = max(1, round(amount * self.vulnerability))
+        if self.shield > 0:
+            absorbed = min(self.shield, amount)
+            self.shield -= absorbed
+            amount -= absorbed
+            if match is not None and absorbed:
+                match.burst(self.x, self.y - 14, (150, 212, 240), 6, speed=3)
+            if amount <= 0:
+                self.hit_flash = 3
+                return True
         dealt = min(amount, self.hp)
         self.hp -= dealt
+        if attacker is not None and attacker.lifesteal > 0 and attacker.hp > 0:
+            attacker.hp = min(attacker.max_hp, attacker.hp + max(1, round(dealt * attacker.lifesteal)))
         self.hit_flash = 6
         if sx is not None:
             dx, dy = self.x - sx, self.y - sy
             mag = math.hypot(dx, dy)
             if mag:
-                force = min(11.0, 3 + amount * 0.22)    # golpe forte empurra mais
+                force = min(11.0, 3 + amount * 0.22) * (1 - self.knock_resist)    # golpe forte empurra mais
                 self.knock = [dx / mag * force, dy / mag * force]
         if attacker is not None:
             attacker.damage_dealt += dealt
             attacker.hits += 1
+            self.last_attacker = attacker
+            if self.hp <= 0:
+                attacker.kills += 1
         if match is not None:
-            match.popup(self.x, self.y - 46, str(amount), theme.BONE if amount < 20 else theme.BRASS)
+            match.popup(self.x, self.y - 46 * self.draw_scale, str(amount), theme.BONE if amount < 20 else theme.BRASS)
             match.burst(self.x, self.y - 10, (236, 230, 220), 5, speed=3)
-            match.camera.shake(3 if amount < 20 else 6)
-            match.hit_pause(min(8, 2 + amount // 6))
+            match.hit_feedback(self, amount)
             match.assets.play("hit", 0.4)
         return True
 
@@ -330,13 +397,13 @@ class Fighter(Entity):
         self.age += 1
         for name in ("attack_cd", "ability_cd", "dash_cd", "speed_timer", "invulnerable_timer",
                      "super_cd", "kick_cd", "stun_timer", "fury_timer", "giant_timer", "sprint_timer",
-                     "slow_timer",
+                     "slow_timer", "windup",
                      "hit_flash", "melee_flash", "shoot_flash", "teleport_flash"):
             value = getattr(self, name)
             if value > 0:
                 setattr(self, name, value - 1)
-        if self.giant_timer == 0 and self.radius != config.PLAYER_RADIUS:
-            self.radius = config.PLAYER_RADIUS
+        if self.giant_timer == 0 and self.radius != self.base_radius:
+            self.radius = self.base_radius
         if self.kicked_dust:
             self.kicked_dust = False
             match.dust(self.x, self.y + FEET, 6)
@@ -453,20 +520,41 @@ class Fighter(Entity):
 
         bob = -1 if self.anim_frame in (1, 3) else 0
         hand = weapon_art.hand_point(sx, sy, direction, bob)
+        if self.draw_scale != 1.0:
+            # chefão: a mão acompanha o sprite ampliado
+            hand = (sx + (hand[0] - sx) * self.draw_scale, feet + (hand[1] - feet) * self.draw_scale - self.lift)
         swinging = self.melee_flash > 0 and self.weapon.is_melee
         swing = 1 - self.melee_flash / 12 if swinging else None
         recoil = 3 if self.shoot_flash > 2 else 0
         if show_weapon and direction == "costas" and not swinging:
             weapon_art.draw_weapon(surf, self.weapon.name, hand, direction, self.facing, recoil=recoil)
 
-        if self.hit_flash > 0 and self.hit_flash % 2 == 0:
+        flash = self.hit_flash > 0 and self.hit_flash % 2 == 0
+        if flash and self.aura is None:
             img = self.sprites.flash(direction, self.anim_frame)
         else:
             img = self.sprites.frame(direction, self.anim_frame)
-        if self.giant_timer > 0:
-            img = pygame.transform.scale(img, (img.get_width() * 3 // 2, img.get_height() * 3 // 2))
-        rect = img.get_rect(midbottom=(sx, feet + 2))
+        scale = self.draw_scale * (1.5 if self.giant_timer > 0 else 1.0)
+        if scale != 1.0:
+            img = pygame.transform.scale(img, (round(img.get_width() * scale), round(img.get_height() * scale)))
+        rect = img.get_rect(midbottom=(sx, feet + 2 - round(self.lift)))
+        if self.aura is not None:
+            self._draw_aura(surf, img, rect, ticks)
         surf.blit(img, rect)
+        if flash and self.aura is not None:
+            # as sombras só clareiam um pouco ao levar dano (não viram um vulto branco)
+            hit = pygame.mask.from_surface(img).to_surface(setcolor=(200, 170, 230, 255), unsetcolor=(0, 0, 0, 0))
+            hit.set_alpha(90)
+            surf.blit(hit, rect)
+
+        if self.windup > 0:
+            # aviso do golpe: pisca cada vez mais forte até atacar
+            t = 1 - self.windup / self.windup_total
+            if (ticks // (3 if t < 0.6 else 2)) % 2 == 0:
+                glow = pygame.mask.from_surface(img).to_surface(setcolor=(*self.windup_color, 255),
+                                                                unsetcolor=(0, 0, 0, 0))
+                glow.set_alpha(round(60 + 110 * t))
+                surf.blit(glow, rect)
 
         if self.fury_timer > 0 and (ticks // 3) % 3 == 0:
             glow = self.sprites.flash(direction, self.anim_frame).copy()
@@ -512,6 +600,10 @@ class Fighter(Entity):
             r = 14 + (20 - self.teleport_flash) * 2
             pygame.draw.circle(surf, self.stats.color, (sx, sy - 14), r, 2)
 
+    def _draw_aura(self, surf, img, rect, ticks):
+        """Contorno brilhante que pulsa (almas corrompidas e o chefão)."""
+        draw_aura(surf, img, rect, self.aura, ticks, max(2, round(2 * self.draw_scale)))
+
     def _draw_fallen(self, surf, sx, feet, direction):
         img = self.sprites.frame("direita" if self.facing[0] >= 0 else "esquerda", 0)
         img = pygame.transform.rotate(img, 90 if self.facing[0] >= 0 else -90)
@@ -521,10 +613,16 @@ class Fighter(Entity):
 
     def draw_overlay(self, surf, camera, ui, show_hp=True):
         """Etiqueta e vida acima da cabeça, desenhadas na tela (fora do zoom)."""
-        if self.hp <= 0:
+        if self.hp <= 0 or self.overlay == "none":
             return
-        sx, sy = camera.to_screen(self.x, self.y - 50)
+        sx, sy = camera.to_screen(self.x, self.y - 50 * self.draw_scale)
         sx, sy = round(sx), round(sy)
+        if self.overlay == "hp":
+            # inimigo comum: só uma barrinha, e só depois de levar dano
+            if self.hp < self.max_hp:
+                ratio = self.hp / self.max_hp
+                ui.bar(surf, (sx - 14, sy - 2, 28, 5), ratio, theme.BLOOD if ratio < 0.4 else theme.EMBER)
+            return
         tag = ui.assets.text(self.label, theme.XS, self.color)
         tr = tag.get_rect(midbottom=(sx, sy - (8 if show_hp else 2)))
         surf.fill(theme.SHADOW, tr.inflate(6, 4))
@@ -539,6 +637,8 @@ class Fighter(Entity):
             color = (200, 90, 70) if self.exhausted else (120, 200, 110)
             surf.fill(color, fill)
         if show_hp:
-            ratio = self.hp / self.stats.max_hp
+            ratio = self.hp / self.max_hp
             color = theme.MOSS if ratio > 0.5 else theme.BRASS if ratio > 0.25 else theme.BLOOD
             ui.bar(surf, (sx - 18, sy - 6, 36, 6), ratio, color)
+            if self.shield > 0:
+                surf.fill((150, 212, 240), (sx - 18, sy - 9, round(36 * min(1, self.shield / 40)), 2))

@@ -6,7 +6,7 @@ import pygame
 from .. import config, theme
 from ..ai import DIFFICULTIES, DIFFICULTY_ORDER
 from ..arena import BATTLE_MAPS, MAPS_BY_KEY
-from ..data import CHARACTERS, MAX_DAMAGE, MAX_HP, MAX_SPEED
+from ..data import CHARACTERS, MAX_DAMAGE, MAX_HP, MAX_SPEED, roster
 from ..soccer_assist import ASSIST_LEVELS, ASSIST_ORDER
 from ..soccer_powers import SOCCER_POWERS
 from .. import weapon_art
@@ -27,7 +27,15 @@ class LobbyScene(_MenuScene):
 
     def __init__(self, game):
         super().__init__(game)
-        self.slots = [s.slot for s in game.session.slots]
+        session = game.session
+        self.campaign = session.campaign
+        if self.campaign:
+            # campanha: P1 sempre joga; P2 entra pelo teclado ou celular; P3 e P4 pelo celular
+            self.setups = {s.slot: s for s in session.slots}
+            self.joined = set(self.setups) | {1}
+            self.slots = [1, 2, 3, 4]
+        else:
+            self.slots = [s.slot for s in session.slots]
         n = len(self.slots)
         self.card_w = 200
         gap = 40 if n == 2 else 16
@@ -49,21 +57,43 @@ class LobbyScene(_MenuScene):
 
     def update(self):
         super().update()
-        # qualquer jogador no celular pode avançar
         connected = hub.connected_slots()
+        if self.campaign:
+            self._update_joined(connected)
+        # qualquer jogador no celular pode avançar
         if any(self.game.inputs[s].pressed("confirm") for s in self.slots if s in connected):
             self._continue()
 
+    def _update_joined(self, connected):
+        for s in (2, 3, 4):
+            if s in connected and s not in self.joined:
+                self.joined.add(s)
+                self.sfx("select", 0.4)
+            elif s not in connected and s in self.joined and s != 2:
+                self.joined.discard(s)
+        p2 = self.game.inputs[2]
+        if 2 not in connected:
+            if p2.pressed("confirm") and 2 not in self.joined:
+                self.joined.add(2)
+                self.sfx("select", 0.4)
+            elif p2.pressed("cancel") and 2 in self.joined:
+                self.joined.discard(2)
+                self.sfx("cancel", 0.3)
+
     def _continue(self):
         self.sfx("confirm")
+        if self.campaign:
+            from ..session import SlotSetup
+            self.game.session.slots = [self.setups.get(s) or SlotSetup(s) for s in sorted(self.joined)]
         self.game.change(CharSelectScene(self.game))
 
     def draw(self, screen):
         W = config.SCREEN_W
         self.draw_background(screen)
-        self.title(screen, "CONECTE OS CELULARES", y=52)
-        self.ui.text(screen, "MESMA REDE WI-FI · QUEM NÃO CONECTAR JOGA NO TECLADO", theme.XS, theme.MUTED,
-                     (64, 84), anchor="midleft")
+        self.title(screen, "QUEM VAI JOGAR?" if self.campaign else "CONECTE OS CELULARES", y=52)
+        sub = ("ATÉ 4 JOGADORES · CELULAR NA MESMA REDE WI-FI · P1 E P2 TAMBÉM NO TECLADO" if self.campaign
+               else "MESMA REDE WI-FI · QUEM NÃO CONECTAR JOGA NO TECLADO")
+        self.ui.text(screen, sub, theme.XS, theme.MUTED, (64, 84), anchor="midleft")
         connected = hub.connected_slots()
         soccer2 = self.game.session.mode == "soccer2"
         for slot, rect in self.cards.items():
@@ -78,11 +108,18 @@ class LobbyScene(_MenuScene):
                 qr_rect = qr.get_rect(midtop=(rect.centerx, head.bottom + 12))
                 screen.blit(qr, qr_rect)
             on = slot in connected
-            status, scolor = ("CONECTADO", theme.MOSS) if on else ("AGUARDANDO", theme.MUTED)
+            if self.campaign:
+                on = slot in self.joined
+                status = ("NO JOGO · CELULAR" if slot in connected else "NO JOGO · TECLADO") if on else "AGUARDANDO"
+                scolor = theme.MOSS if on else theme.MUTED
+                hint = {1: "SEMPRE JOGA", 2: "; ENTRA · / SAI" if slot not in connected else "",
+                        3: "SÓ PELO CELULAR", 4: "SÓ PELO CELULAR"}[slot]
+            else:
+                status, scolor = ("CONECTADO", theme.MOSS) if on else ("AGUARDANDO", theme.MUTED)
+                hint = "OU TECLADO" if slot <= 2 else ("SEM CELULAR: CPU" if soccer2 else "")
             if not on and (self.ticks // 30) % 2:
                 scolor = theme.FAINT
             self.ui.text(screen, status, theme.XS, scolor, (rect.centerx, rect.bottom - 40))
-            hint = "OU TECLADO" if slot <= 2 else ("SEM CELULAR: CPU" if soccer2 else "")
             self.ui.text(screen, hint, theme.XS, theme.FAINT, (rect.centerx, rect.bottom - 22))
         hot = self.button.collidepoint(pygame.mouse.get_pos())
         _button(screen, self.ui, self.button, "CONTINUAR", hot or (self.ticks // 40) % 2 == 0)
@@ -98,7 +135,7 @@ class _Card:
             self.randomize()
 
     def randomize(self):
-        self.setup.char = random.randrange(len(CHARACTERS))
+        self.setup.char = random.randrange(len(roster()))
         self.setup.weapon = random.randrange(2)
 
     @property
@@ -121,17 +158,32 @@ class CharSelectScene(_MenuScene):
         keys = [m.key for m in BATTLE_MAPS]
         self.map_index = keys.index(session.map_key) if session.map_key in keys else 0
         n = len(self.cards)
-        total = len(CHARACTERS) * self.TILE + (len(CHARACTERS) - 1) * self.TILE_GAP
+        self.roster = roster()
+        count = len(self.roster)
+        for card in self.cards:
+            if card.setup.char >= count:
+                card.setup.char = 0
+        total = count * self.TILE + (count - 1) * self.TILE_GAP
         x0 = (config.SCREEN_W - total) // 2
         self.tiles = [pygame.Rect(x0 + i * (self.TILE + self.TILE_GAP), self.TILE_Y, self.TILE, self.TILE)
-                      for i in range(len(CHARACTERS))]
+                      for i in range(count)]
+        self.campaign = session.campaign
+        self.center = pygame.Rect(356, 158, 248, 328)
         if n == 2:
             self.card_rects = [pygame.Rect(40, 158, 300, 328), pygame.Rect(620, 158, 300, 328)]
+        elif n == 1:
+            # campanha sozinho: cartão + painel da campanha lado a lado
+            self.card_rects = [pygame.Rect(198, 158, 300, 328)]
+            self.center = pygame.Rect(514, 158, 248, 328)
+        elif n == 3:
+            w, gap = 206, 12
+            x0 = (config.SCREEN_W - (3 * w + 2 * gap + 12 + 248)) // 2
+            self.card_rects = [pygame.Rect(x0 + i * (w + gap), 158, w, 328) for i in range(3)]
+            self.center = pygame.Rect(self.card_rects[-1].right + 12, 158, 248, 328)
         else:
             w, gap = 206, 12
             x0 = (config.SCREEN_W - (4 * w + 3 * gap)) // 2
             self.card_rects = [pygame.Rect(x0 + i * (w + gap), 158, w, 328) for i in range(4)]
-        self.center = pygame.Rect(356, 158, 248, 328)
         self.map_arrows = (pygame.Rect(self.center.x + 4, self.center.y + 104, 28, 28),
                            pygame.Rect(self.center.right - 32, self.center.y + 104, 28, 28))
         self.diff_arrows = (pygame.Rect(self.center.x + 4, self.center.y + 254, 28, 28),
@@ -143,6 +195,10 @@ class CharSelectScene(_MenuScene):
         self._sync_phone_slots()
 
     # ── estado ───────────────────────────────
+    @property
+    def _has_difficulty(self):
+        return self.game.session.mode in ("cpu", "campaign")
+
     @property
     def map_key(self):
         return BATTLE_MAPS[self.map_index].key
@@ -171,7 +227,7 @@ class CharSelectScene(_MenuScene):
             hub.set_phase(self.phase, active=self.active_slots())
 
     def _change_char(self, card, step):
-        card.setup.char = (card.setup.char + step) % len(CHARACTERS)
+        card.setup.char = (card.setup.char + step) % len(self.roster)
         card.setup.weapon = 0
         self.sfx("select", 0.3)
 
@@ -217,11 +273,13 @@ class CharSelectScene(_MenuScene):
                     self._confirm(card)
             elif self.soccer and event.key == pygame.K_TAB:
                 self._cycle_assist(1)
-            elif not self.soccer and event.key in (pygame.K_TAB, pygame.K_RIGHTBRACKET):
+            elif self.campaign and event.key == pygame.K_TAB:
+                self._cycle_difficulty(1)
+            elif not self.soccer and not self.campaign and event.key in (pygame.K_TAB, pygame.K_RIGHTBRACKET):
                 self._cycle_map(1)
-            elif not self.soccer and event.key == pygame.K_LEFTBRACKET:
+            elif not self.soccer and not self.campaign and event.key == pygame.K_LEFTBRACKET:
                 self._cycle_map(-1)
-            elif self.game.session.mode == "cpu" and event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
+            elif self._has_difficulty and event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
                 self.game.session.difficulty = DIFFICULTY_ORDER[event.key - pygame.K_1]
                 self.sfx("click", 0.4)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -252,10 +310,11 @@ class CharSelectScene(_MenuScene):
                     if r.collidepoint(pos):
                         self._cycle_assist(step)
             if not self.soccer:
-                for step, r in zip((-1, 1), self.map_arrows):
-                    if r.collidepoint(pos):
-                        self._cycle_map(step)
-                if self.game.session.mode == "cpu":
+                if not self.campaign:
+                    for step, r in zip((-1, 1), self.map_arrows):
+                        if r.collidepoint(pos):
+                            self._cycle_map(step)
+                if self._has_difficulty and len(self.cards) < 4:
                     for step, r in zip((-1, 1), self.diff_arrows):
                         if r.collidepoint(pos):
                             self._cycle_difficulty(step)
@@ -286,6 +345,10 @@ class CharSelectScene(_MenuScene):
         if all(c.ready for c in self.cards):
             self.countdown += 1
             if self.countdown >= 50:
+                if self.campaign:
+                    from .campaign import start_campaign
+                    self.game.change(start_campaign(self.game))
+                    return
                 self.game.session.map_key = self.map_key
                 from .play import VersusScene
                 self.game.change(VersusScene(self.game))
@@ -301,7 +364,7 @@ class CharSelectScene(_MenuScene):
         self._draw_roster(screen)
         for card, rect in zip(self.cards, self.card_rects):
             self._draw_card(screen, card, rect)
-        if len(self.cards) == 2:
+        if len(self.cards) < 4:
             self._draw_center(screen)
         if self.countdown:
             veil = pygame.Surface((config.SCREEN_W, 40), pygame.SRCALPHA)
@@ -311,7 +374,10 @@ class CharSelectScene(_MenuScene):
                          (config.SCREEN_W // 2, config.SCREEN_H - 24))
         else:
             items = [("ENTER", "CONFIRMAR"), ("ESC", "VOLTAR")]
-            if not self.soccer:
+            if self.campaign:
+                label = DIFFICULTIES[self.game.session.difficulty]["label"]
+                items.insert(0, ("TAB", "DIFICULDADE: " + label))
+            elif not self.soccer:
                 items.insert(0, ("TAB", "MAPA"))
             else:
                 items.insert(0, ("TAB", "ASSISTÊNCIA: " + ASSIST_LEVELS[self.game.session.assist].label))
@@ -320,7 +386,7 @@ class CharSelectScene(_MenuScene):
             self.footer(screen, items)
 
     def _draw_roster(self, screen):
-        for i, (tile, stats) in enumerate(zip(self.tiles, CHARACTERS)):
+        for i, (tile, stats) in enumerate(zip(self.tiles, self.roster)):
             pickers = [c for c in self.cards if c.setup.char == i]
             screen.fill(theme.SHADOW, tile.move(3, 3))
             screen.fill(theme.INK_3 if pickers else theme.INK_2, tile)
@@ -428,6 +494,9 @@ class CharSelectScene(_MenuScene):
     def _draw_center(self, screen):
         ui = self.ui
         c = self.center
+        if self.campaign:
+            self._draw_campaign_panel(screen, c)
+            return
         if self.soccer:
             ui.panel(screen, c, fill=theme.INK_2)
             ui.text(screen, "ESTÁDIO", theme.S, theme.BONE, (c.centerx, c.y + 30))
@@ -470,3 +539,22 @@ class CharSelectScene(_MenuScene):
         else:
             ui.paragraph(screen, "Os dois confirmam e a luta começa.", theme.XS, theme.MUTED,
                          (c.x + 16, c.y + 236), c.w - 32, spacing=14)
+
+    def _draw_campaign_panel(self, screen, c):
+        ui = self.ui
+        ui.panel(screen, c, fill=theme.INK_2)
+        ui.text(screen, "CAMPANHA", theme.S, theme.BONE, (c.centerx, c.y + 26))
+        thumb = self.game.thumbnail(MAPS_BY_KEY["floresta"], (200, 100))
+        tr = thumb.get_rect(midtop=(c.centerx, c.y + 48))
+        screen.fill(theme.SHADOW, tr.inflate(4, 4))
+        screen.blit(thumb, tr)
+        ui.text(screen, "3 FASES · CHEFÃO NO FIM", theme.XS, theme.BRASS, (c.centerx, tr.bottom + 16))
+        ui.paragraph(screen, "Levantem quem cair. Melhorias a cada fase.", theme.XS,
+                     theme.MUTED, (c.x + 16, tr.bottom + 32), c.w - 32, spacing=14)
+        screen.fill(theme.LINE, (c.x + 16, c.y + 226, c.w - 32, 1))
+        ui.text(screen, "DIFICULDADE", theme.XS, theme.MUTED, (c.centerx, c.y + 244))
+        label = DIFFICULTIES[self.game.session.difficulty]["label"]
+        ui.text(screen, label, theme.S, theme.BRASS, (c.centerx, c.y + 268))
+        mouse = pygame.mouse.get_pos()
+        for direction, r in zip(("left", "right"), self.diff_arrows):
+            ui.arrow(screen, r.center, direction, 7, theme.BRASS if r.collidepoint(mouse) else theme.MUTED)

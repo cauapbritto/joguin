@@ -6,7 +6,7 @@ import pygame
 
 from .. import config, theme
 from ..controls import KEY_LABELS, SOCCER_KEY_LABELS, PlayerInput
-from ..data import CHARACTERS
+from ..data import roster
 from ..net import server
 from ..session import MODES, Session, SlotSetup
 from ..ui import Backdrop, MenuList
@@ -29,6 +29,8 @@ class LoadingScene(Scene):
             next(self._steps)
         except StopIteration:
             server.set_previews(self.assets.portrait_pngs())
+            from ..net.remote import hub
+            hub.roster_size = len(roster())
             if not self.game.headless:
                 server.start_in_background()
             self.game.change(TitleScene(self.game))
@@ -65,6 +67,7 @@ class TitleScene(_MenuScene):
     def __init__(self, game):
         super().__init__(game)
         game.session = None
+        self.cast = roster()
         self.menu = MenuList(
             [("JOGAR", "play"), ("CONTROLES", "controls"), ("SOBRE O PROJETO", "about"),
              ("CRÉDITOS", "credits"), ("SAIR", "quit")],
@@ -101,8 +104,9 @@ class TitleScene(_MenuScene):
 
         # elenco no chão
         ground = H - 52
-        n = len(CHARACTERS)
-        for i, stats in enumerate(CHARACTERS):
+        cast = self.cast
+        n = len(cast)
+        for i, stats in enumerate(cast):
             x = 96 + i * (W - 192) // (n - 1)
             bob = 1 if (self.ticks // 24 + i) % 2 else 0
             img = self.assets.sprites[stats.key].portrait
@@ -123,15 +127,18 @@ MODE_TEXT = {
                 "2 JOGADORES"),
     "soccer2": ("Times de dois. Os jogadores 3 e 4 entram pelo celular; quem não conectar vira CPU.",
                 "2 A 4 JOGADORES"),
+    "campaign": ("Juntos contra as sombras: 3 fases com ondas de inimigos, melhorias entre as fases e o "
+                 "chefão Aryel Corrompido no fim. Quem cair pode ser levantado por um companheiro.",
+                 "1 A 4 JOGADORES"),
 }
 
 
 class ModeScene(_MenuScene):
     def __init__(self, game):
         super().__init__(game)
-        options = [(MODES[k]["title"], k) for k in ("cpu", "duel", "soccer1", "soccer2")]
+        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "soccer1", "soccer2")]
         options.append(("VOLTAR", "back"))
-        self.menu = MenuList(options, topleft=(56, 112), width=320, row_h=38)
+        self.menu = MenuList(options, topleft=(56, 104), width=320, row_h=38)
 
     def handle(self, event):
         if self.is_back(event):
@@ -148,6 +155,8 @@ class ModeScene(_MenuScene):
         self.sfx("confirm")
         count = MODES[choice]["slots"]
         slots = [SlotSetup(s, cpu=(choice == "cpu" and s == 2)) for s in range(1, count + 1)]
+        if choice == "campaign":
+            slots = slots[:1]           # P2 a P4 entram na tela de conexão
         self.game.session = Session(choice, slots)
         from .select import CharSelectScene, LobbyScene
         if choice == "cpu":
@@ -175,6 +184,9 @@ class ModeScene(_MenuScene):
         self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR"), ("ESC", "VOLTAR")])
 
     def _illustration(self, screen, key, area):
+        if key == "campaign":
+            self._campaign_illustration(screen, area)
+            return
         floor = theme.INK if key in ("cpu", "duel") else (34, 92, 46)
         screen.fill(floor, area)
         if key not in ("cpu", "duel"):
@@ -207,6 +219,34 @@ class ModeScene(_MenuScene):
             bx = area.centerx + int(math.sin(self.ticks * 0.05) * 20)
             pygame.draw.circle(screen, (20, 18, 24), (bx, ground - 6), 9)
             pygame.draw.circle(screen, (238, 236, 228), (bx, ground - 6), 8)
+        screen.fill(theme.LINE, (area.x, area.bottom, area.w, 2))
+
+
+    def _campaign_illustration(self, screen, area):
+        screen.fill((24, 34, 22), area)
+        for x in range(area.x, area.right, 32):
+            screen.fill((30, 44, 28), (x, area.y, 1, area.h))
+        for y in range(area.y, area.bottom, 32):
+            screen.fill((30, 44, 28), (area.x, y, area.w, 1))
+        sprites = self.assets.sprites
+        ground = area.bottom - 22
+        step = (self.ticks // 8) % 4
+        cast = [("guerreiro", "direita", -170, False), ("geada", "direita", -100, False),
+                ("diabrete", "esquerda", 40, False), ("esqueleto", "esquerda", 110, False),
+                ("aryel", "esquerda", 180, True)]
+        for name, direction, dx, shadow in cast:
+            sset = self.assets.shadow_sprites(name) if shadow else sprites[name]
+            img = sset.frame(direction, step)
+            factor = 3 if shadow else 2
+            img = pygame.transform.scale(img, (img.get_width() * factor, img.get_height() * factor))
+            x = area.centerx + dx
+            pygame.draw.ellipse(screen, (0, 0, 0), (x - 30, ground - 8, 60, 14))
+            rect = img.get_rect(midbottom=(x, ground + 4))
+            if shadow:
+                from ..enemies import SHADOW_RIM
+                from ..fighter import draw_aura
+                draw_aura(screen, img, rect, SHADOW_RIM, self.ticks, 3)
+            screen.blit(img, rect)
         screen.fill(theme.LINE, (area.x, area.bottom, area.w, 2))
 
 
@@ -314,17 +354,19 @@ ABOUT = [
     ("ABSTRAÇÃO", "Entity e Ability são classes abstratas (ABC): dizem o que toda entidade e toda "
      "habilidade faz (update, draw, activate) sem dizer como. Arena.resolve() esconde a colisão de "
      "círculo com retângulo e Camera esconde o zoom e a conversão do mundo para a tela."),
-    ("HERANÇA", "Fighter, Bullet, Explosion, Barrier, FrostNova, Wall, Pickup, Ball e Goal herdam de Entity e "
-     "ganham posição, distance_to() e direction_to(). Hook (o gancho do Pirata) herda de Bullet: voa e "
-     "colide como um tiro e só muda o que acontece ao acertar (on_hit puxa o alvo). BattleMatch e "
-     "SoccerMatch herdam de Match, que já cuida de câmera, partículas e desenho. Todas as telas herdam "
-     "de Scene."),
+    ("HERANÇA", "Fighter, Bullet, Explosion, Barrier, FrostNova, Wall, Pickup, Ball, Portal e Shockwave herdam "
+     "de Entity e ganham posição, distance_to() e direction_to(). Hook (o gancho do Pirata) herda de Bullet: "
+     "voa e colide como um tiro e só muda o que acontece ao acertar (on_hit puxa o alvo). ShadowBomb herda "
+     "de GroundMark: é o mesmo aviso no chão, só que explode no fim. BattleMatch, SoccerMatch e "
+     "CampaignMatch herdam de Match, que já cuida de câmera, tiros, partículas e desenho. Os inimigos da "
+     "campanha são Fighters do time das sombras. Todas as telas herdam de Scene."),
     ("POLIMORFISMO", "Cada personagem tem uma subclasse de Ability: Investida, Rajada, Muralha, "
-     "ShurikenTripla, Turbo, Explosao, Teletransporte, Invulneravel, Gancho e Nevasca. O lutador só chama "
-     "ability.use() e cada classe responde do seu jeito. No futebol, o botão SUPER chama power.use() de "
-     "uma subclasse de SoccerPower (Carrinho, ChuteCerteiro, MuralhaDoGol, Sombra, Arrancada, Bomba, "
-     "BolaFantasma, Gigante, GanchoNaBola e Congelar). E a cena de jogo chama match.step() sem saber se "
-     "é duelo ou futebol."),
+     "ShurikenTripla, Turbo, Explosao, Teletransporte, Invulneravel, Gancho, Nevasca e ChuvaSombria. O "
+     "lutador só chama ability.use() e cada classe responde do seu jeito. No futebol, o botão SUPER chama "
+     "power.use() de uma subclasse de SoccerPower (Carrinho, ChuteCerteiro, MuralhaDoGol, Sombra, Arrancada, "
+     "Bomba, BombaSombria, BolaFantasma, Gigante, GanchoNaBola e Congelar). Na campanha, cada inimigo tem um "
+     "cérebro (DiabreteAI, EsqueletoAI, GolemAI, BossAI) e cada melhoria é uma subclasse de Upgrade com "
+     "apply(). E a cena de jogo chama match.step() sem saber se é duelo, futebol ou campanha."),
 ]
 
 
@@ -377,13 +419,23 @@ class AboutScene(_InfoScene):
 CREDITS = [
     ("Cauã Pedrozo Brito", "https://github.com/cauapbritto",
      "https://www.linkedin.com/in/cau%C3%A3-pedrozo-brito-8a685b358/"),
-    ("Alber Alberguini Cabral", "https://github.com/Alberguini",
-     "https://www.linkedin.com/in/alber-alberguini-cabral-939002293/"),
 ]
+
+
+VERSE = ("Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo "
+         "aquele que nele crê não pereça, mas tenha a vida eterna.")
+VERSE_REF = "JOÃO 3:16"
+DEDICATION = ("TODA A HONRA", "E GLÓRIA A JESUS")
 
 
 class CreditsScene(_InfoScene):
     heading = "CRÉDITOS"
+    PANEL = pygame.Rect(56, 92, config.SCREEN_W - 112, 290)
+
+    @classmethod
+    def _top(cls):
+        """Altura do "DESENVOLVIDO POR": nomes e links ficam no meio do painel, na vertical."""
+        return cls.PANEL.centery - 42 - (len(CREDITS) - 1) * 55
 
     def __init__(self, game):
         super().__init__(game)
@@ -393,12 +445,13 @@ class CreditsScene(_InfoScene):
             options.append(("LINKEDIN", li))
         options.append(("VOLTAR", "back"))
         self.menu = MenuList(options, (0, 0), 200)
-        # posiciona cada link ao lado do nome do autor
+        # posiciona cada link embaixo do nome do autor; VOLTAR fica no pé do painel
+        top = self._top()
         for i in range(len(CREDITS)):
-            y = 150 + i * 110
-            self.menu.rects[i * 2] = pygame.Rect(120, y + 30, 200, 28)
-            self.menu.rects[i * 2 + 1] = pygame.Rect(340, y + 30, 220, 28)
-        self.menu.rects[-1] = pygame.Rect(120, 400, 200, 28)
+            y = top + i * 110
+            self.menu.rects[i * 2] = pygame.Rect(120, y + 56, 200, 28)
+            self.menu.rects[i * 2 + 1] = pygame.Rect(340, y + 56, 220, 28)
+        self.menu.rects[-1] = pygame.Rect(120, self.PANEL.bottom - 50, 200, 28)
 
     def handle(self, event):
         if self.is_back(event):
@@ -418,12 +471,30 @@ class CreditsScene(_InfoScene):
             self.sfx("click")
             webbrowser.open(choice)
 
+    def _draw_verse(self, screen, box):
+        """Dedicatória a Jesus e João 3:16 ao lado dos nomes."""
+        screen.fill(theme.LINE, (box.x - 24, box.y, 2, box.h))
+        cx = box.centerx
+        lines = self.ui.wrap(VERSE, theme.XS, box.w)
+        total = len(DEDICATION) * 24 + 12 + len(lines) * 17 + 20
+        y = box.centery - total // 2 + 12
+        for line in DEDICATION:
+            self.ui.text(screen, line, theme.S, theme.BRASS, (cx, y))
+            y += 24
+        y += 12
+        for line in lines:
+            self.ui.text(screen, line, theme.XS, theme.BONE, (cx, y), shadow=False)
+            y += 17
+        self.ui.text(screen, VERSE_REF, theme.XS, theme.MUTED, (cx, y + 6), shadow=False)
+
     def draw_body(self, screen):
-        panel = pygame.Rect(56, 92, config.SCREEN_W - 112, 360)
+        panel = self.PANEL
         self.ui.panel(screen, panel)
-        self.ui.text(screen, "DESENVOLVIDO POR", theme.XS, theme.MUTED, (120, 124), anchor="midleft")
+        top = self._top()
+        self.ui.text(screen, "DESENVOLVIDO POR", theme.XS, theme.MUTED, (120, top), anchor="midleft")
         for i, (name, _, _) in enumerate(CREDITS):
-            y = 150 + i * 110
-            self.ui.text(screen, name.upper(), theme.S, theme.BONE, (120, y + 10), anchor="midleft")
+            y = top + i * 110
+            self.ui.text(screen, name.upper(), theme.S, theme.BONE, (120, y + 36), anchor="midleft")
+        self._draw_verse(screen, pygame.Rect(596, panel.y + 24, 276, panel.h - 48))
         self.menu.draw(screen, self.ui, self.ticks)
         self.footer(screen, [("←→", "ESCOLHER"), ("ENTER", "ABRIR LINK"), ("ESC", "VOLTAR")])

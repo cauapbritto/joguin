@@ -34,6 +34,10 @@
     <button class="btn" data-tap="down">▼</button>
     <button class="btn btn-main" data-tap="confirm">OK</button>
   </div>
+  <div class="row" id="story-actions">
+    <button class="btn btn-main" data-tap="confirm">AVANÇAR ▶</button>
+    <button class="btn" data-tap="pause">PULAR</button>
+  </div>
   <button class="link" id="change-slot">trocar de jogador</button>
 </section>
 
@@ -57,6 +61,20 @@
       <button class="btn btn-main" id="ready-btn" data-tap="confirm">PRONTO</button>
     </div>
   </div>
+</section>
+
+<!-- Campanha: escolha de melhoria no fim da fase -->
+<section id="view-choose" class="view">
+  <div class="select-head">
+    <div class="tag" data-bind="tag">P1</div>
+    <span class="muted">ESCOLHA UMA MELHORIA</span>
+  </div>
+  <div class="choose-list">
+    <button class="opt" data-tap="opt1"><b></b><span></span></button>
+    <button class="opt" data-tap="opt2"><b></b><span></span></button>
+    <button class="opt" data-tap="opt3"><b></b><span></span></button>
+  </div>
+  <button class="btn btn-main" id="choose-ok" data-tap="confirm">CONFIRMAR</button>
 </section>
 
 <!-- Controle -->

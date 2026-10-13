@@ -68,7 +68,21 @@ CHARACTERS = (
     CharacterStats("geada", "Geada", 100, 3.8, (150, 212, 240),
                    "Nevasca", "Onda de gelo: dano em volta e o inimigo fica lento por 2,5s.",
                    (_ranged("Cristal", 9, 12, 16), _melee("Cajado", 17, 72)), "geada"),
+    # liberado ao zerar a campanha (fica sempre por último, para os índices não mudarem)
+    CharacterStats("aryel_corrompido", "Aryel Corrompido", 135, 3.2, (150, 70, 210),
+                   "Chuva Sombria", "Faz chover 5 bombas sombrias em cima e em volta do inimigo.",
+                   (_ranged("Granada", 12, 8, 24), _melee("Martelo", 24, 55)), "aryel"),
 )
+UNLOCKABLE = "aryel_corrompido"
+SHADOW_CHARACTERS = {"aryel_corrompido"}     # usam a versão sombria do sprite (campo "sprite")
+
+
+def roster():
+    """Personagens que dá para escolher agora (o Aryel Corrompido só depois de zerar a campanha)."""
+    from . import progress
+    if progress.campaign_cleared():
+        return CHARACTERS
+    return tuple(c for c in CHARACTERS if c.key != UNLOCKABLE)
 
 MAX_HP = max(c.max_hp for c in CHARACTERS)
 MAX_SPEED = max(c.speed for c in CHARACTERS)
@@ -87,5 +101,5 @@ def roster_for_web():
             "ability_desc": c.ability_desc,
             "weapons": [{"name": w.name, "melee": w.is_melee, "damage": w.damage} for w in c.weapons],
         }
-        for c in CHARACTERS
+        for c in roster()
     ]

@@ -1,8 +1,11 @@
 """Ajudantes dos testes de futebol: partida sem janela e controle falso."""
 import os
+import tempfile
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+# progresso salvo dos testes vai para uma pasta temporária (não mexe no do jogador)
+os.environ.setdefault("SOULSTRIKE_PROGRESS", os.path.join(tempfile.mkdtemp(prefix="soulstrike-"), "progresso.json"))
 
 from soulstrike.ai import SoccerAI  # noqa: E402
 from soulstrike.game import Game  # noqa: E402

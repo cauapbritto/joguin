@@ -111,9 +111,31 @@ button {
 #view-wait { flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; }
 #view-wait h1 { font-size: 16px; font-weight: normal; }
 .row { display: flex; gap: 10px; }
-#results-actions { display: none; }
-#results-actions.on { display: flex; }
+#results-actions, #story-actions { display: none; }
+#results-actions.on, #story-actions.on { display: flex; }
 #results-actions .btn { min-width: 64px; }
+#story-actions .btn { min-width: 120px; }
+
+/* ── campanha: melhorias ── */
+#view-choose { flex-direction: column; gap: 10px; }
+.choose-list { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+@media (orientation: landscape) { .choose-list { flex-direction: row; } }
+.opt {
+  flex: 1;
+  display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--ink-2);
+  border: 2px solid var(--line);
+  box-shadow: 0 4px 0 #000;
+}
+.opt b { font-weight: normal; color: var(--c, var(--brass)); font-size: 13px; }
+.opt span { color: var(--muted); font-size: 10px; }
+.opt.on { background: var(--ink-3); border-color: var(--slot); }
+.opt.on span { color: var(--bone); }
+.opt:active, .opt.down { transform: translateY(3px); box-shadow: 0 1px 0 #000; }
+#choose-ok.is-ready { background: #2f4a2a; border-color: var(--moss); }
+body.locked .opt { opacity: .55; }
 
 /* ── seleção ── */
 #view-select { flex-direction: column; gap: 12px; overflow-y: auto; }

@@ -31,9 +31,14 @@ class Scene:
         pygame.mouse.set_visible(self.show_cursor)
         if self.music:
             self.assets.music(self.music)
+        hub.set_phase(self.phase, mode=self.phone_mode(), active=self.active_slots())
+
+    def phone_mode(self):
+        """Que conjunto de botões e textos o celular usa: battle, soccer ou campaign."""
         session = self.game.session
-        hub.set_phase(self.phase, mode="soccer" if session and session.soccer else "battle",
-                      active=self.active_slots())
+        if session is None:
+            return "battle"
+        return "soccer" if session.soccer else "campaign" if session.campaign else "battle"
 
     def active_slots(self):
         session = self.game.session

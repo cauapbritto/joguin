@@ -3,6 +3,7 @@ import math
 import random
 
 from . import config
+from .entities import hostile
 
 DIFFICULTIES = {
     "facil": {"label": "FÁCIL", "reaction": 14, "scatter": 0.35, "fire": 0.35,
@@ -100,7 +101,7 @@ class FighterAI:
     def _wanted_pickup(me, target, match):
         best, best_d = None, 360
         for item in getattr(match, "pickups", ()):
-            if item.kind == "vida" and me.hp > me.stats.max_hp * 0.75:
+            if item.kind == "vida" and me.hp > me.max_hp * 0.75:
                 continue
             if item.kind == "energia" and me.ability_ready:
                 continue
@@ -113,7 +114,7 @@ class FighterAI:
     @staticmethod
     def _incoming(me, match):
         for b in match.bullets:
-            if b.owner is me:
+            if not hostile(b.owner, me):
                 continue
             rx, ry = me.x - b.x, me.y - b.y
             dist = math.hypot(rx, ry)

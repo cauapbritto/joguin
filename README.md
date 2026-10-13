@@ -1,7 +1,8 @@
 # Soul Strike
 
-Duelo de arena e futebol em pixel art, para 1 a 4 jogadores. Dá para jogar no
-teclado ou usar o celular como controle (pela rede Wi-Fi, sem instalar nada).
+Campanha cooperativa, duelo de arena e futebol em pixel art, para 1 a 4 jogadores.
+Dá para jogar no teclado ou usar o celular como controle (pela rede Wi-Fi, sem
+instalar nada).
 
 ## Como rodar
 
@@ -43,6 +44,28 @@ Se o `pip` reclamar de certificado (rede com proxy), use
 
 ## Modos
 
+- **Campanha** (1 a 4 jogadores, juntos) — Aryel tocou no Cristal das Almas e virou **Aryel
+  Corrompido**; quem ele derrota vira sombra. São 3 fases, cada uma com ondas de inimigos que
+  saem de portais:
+  1. **Floresta Sombria** — diabretes, esqueletos arqueiros e o Velocista Sombrio.
+  2. **Calabouço das Almas** — golem, esqueletos e as sombras do Tanque e do Ninja.
+  3. **Templo Gelado** — uma última onda e o chefão **Aryel Corrompido**.
+
+  Inimigos novos: o **diabrete** chega rápido e dá um bote; o **esqueleto arqueiro** para,
+  mira (brilha) e atira; o **golem** levanta os punhos e esmaga o chão (saia de perto quando
+  ele brilhar). As **almas corrompidas** lutam como os heróis, com a mesma habilidade.
+  O chefão alterna **chuva de bombas** (saia dos círculos), **anel de granadas** e **martelada**
+  (pula e cai onde o círculo vermelho marca). Depois de cada sequência ele fica **CANSADO** e
+  leva mais dano. Com metade da vida chama ajuda; com 20% fica furioso.
+
+  Quem cair pode ser **levantado**: fique perto do companheiro caído até o anel encher. Se todo
+  mundo cair, gasta um dos **3 continues**. No fim de cada fase todos recuperam um pouco da vida
+  e cada jogador escolhe **1 de 3 melhorias** (vida, dano, recarga, velocidade, tiros que
+  atravessam, esquiva, vampirismo ou escudo), que se acumulam. Mais jogadores, mais inimigos.
+  O jogador 1 sempre joga; o 2 entra pelo teclado (tecla `;`) ou celular; o 3 e o 4, pelo celular.
+  Escolha a dificuldade na seleção de personagem (TAB). Zerar a campanha libera o **Aryel
+  Corrompido** para jogar em todos os modos e guarda o melhor tempo (em
+  `%APPDATA%/SoulStrike/progresso.json` no Windows).
 - **Duelo contra CPU** — escolha a dificuldade (fácil, normal, difícil) e a arena.
 - **Duelo local** — dois jogadores no teclado ou no celular.
 - Duelos em **melhor de 3 rounds** (60 s cada; no fim do tempo vence quem tiver mais vida).
@@ -67,6 +90,9 @@ Se o `pip` reclamar de certificado (rede com proxy), use
 | Titã       | 180  | Invulnerável por 3 s                                      | Gigante: fica enorme e empurra todo mundo        |
 | Pirata     | 140  | Gancho: puxa o inimigo para a frente do sabre e o atordoa | Gancho: puxa a bola, até do pé do adversário     |
 | Geada      | 100  | Nevasca: onda de gelo, dano em volta e inimigo lento      | Congelar: adversários perto ficam lentos         |
+| Aryel Corrompido* | 135 | Chuva Sombria: 5 bombas caem em cima e em volta do inimigo | Bomba sombria: maior, atordoa e deixa lento |
+
+\* Liberado ao zerar a campanha.
 
 ## Controles
 
@@ -131,6 +157,11 @@ soulstrike/
   game.py               loop principal e troca de telas
   scenes/               telas (menu, seleção, partida, resultado...)
   matches.py            Match, BattleMatch (duelo) e SoccerMatch (futebol)
+  campaign.py           CampaignMatch (uma fase), CampaignRun (a campanha toda), fases e história
+  enemies.py            inimigos da campanha e o cérebro de cada um
+  boss.py               o chefão Aryel Corrompido
+  upgrades.py           melhorias entre as fases
+  progress.py           progresso salvo (campanha zerada, melhor tempo)
   fighter.py            o lutador
   abilities.py          uma subclasse de Ability por personagem (duelo)
   soccer_powers.py      uma subclasse de SoccerPower por personagem (futebol)
@@ -142,7 +173,7 @@ soulstrike/
   net/                  servidor Flask e estado compartilhado com o celular
 web/                    página do controle no celular
 assets/                 sprites, tiles, sons e fonte
-tools/gerar_sprites.py  gera os sprites pixel art dos personagens
+tools/gerar_sprites.py  gera os sprites pixel art dos personagens e das criaturas
 tools/gerar_armas.py    gera os sprites das armas
 tools/build_exe.py      gera dist/SoulStrike.exe
 tests/                  testes automáticos
@@ -156,11 +187,17 @@ python -m unittest discover tests
 
 ## Sprites
 
-Guerreiro e Aryel têm arte desenhada à mão. Os demais personagens são gerados
-pelo script `tools/gerar_sprites.py` (4 direções × 4 quadros de caminhada) e as
-16 armas por `tools/gerar_armas.py` (saem em `assets/weapons/`, com o ponto da
-mão em `grips.json`). Rode os scripts de novo depois de editá-los.
+Guerreiro e Aryel têm arte desenhada à mão. Os demais personagens e as criaturas da
+campanha (diabrete, esqueleto e golem) são gerados pelo script `tools/gerar_sprites.py`
+(4 direções × 4 quadros de caminhada). As almas corrompidas são os próprios heróis
+escurecidos pelo jogo, com os olhos acesos. As 16 armas são geradas por
+`tools/gerar_armas.py` (saem em `assets/weapons/`, com o ponto da mão em `grips.json`). Rode os scripts de novo depois de editá-los.
 
 ## Créditos
 
-Cauã Pedrozo Brito e Alber Alberguini Cabral.
+Desenvolvido por Cauã Pedrozo Brito.
+
+Toda a honra e glória a Jesus.
+
+> "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele
+> que nele crê não pereça, mas tenha a vida eterna." (João 3:16)

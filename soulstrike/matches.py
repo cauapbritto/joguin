@@ -10,8 +10,8 @@ from . import config, hud, theme
 from .ai import FighterAI, SoccerAI
 from .arena import MAPS_BY_KEY, SOCCER_MAP, Arena
 from .camera import Camera
-from .data import CHARACTERS
-from .entities import Barrier, Bullet, Entity, Explosion, FloatingText, Particle, Pickup
+from .data import CHARACTERS, SHADOW_CHARACTERS
+from .entities import Barrier, Bullet, Entity, Explosion, FloatingText, Particle, Pickup, hostile
 from .fighter import Fighter
 from .net.remote import hub
 from .soccer_assist import (ASSIST_LEVELS, closest_approach, pick_receiver, segment_contact, shot_assist,
@@ -58,6 +58,9 @@ class Match(ABC):
                           setup.label, color or setup.color, team=team,
                           weapon_index=setup.weapon, is_cpu=setup.cpu)
         fighter.facing = (1.0, 0.0) if x < self.arena.width / 2 else (-1.0, 0.0)
+        if stats.key in SHADOW_CHARACTERS:
+            from .enemies import SHADOW_RIM
+            fighter.aura = SHADOW_RIM          # Aryel Corrompido jogável também solta a sombra
         self.fighters.append(fighter)
         return fighter
 
@@ -88,8 +91,55 @@ class Match(ABC):
     def hit_pause(self, frames):
         self.hitstop = max(self.hitstop, frames)
 
+    def hit_feedback(self, target, amount):
+        """Tremida e pausa curta quando alguém leva um golpe (o "peso" do impacto)."""
+        self.camera.shake(3 if amount < 20 else 6)
+        self.hit_pause(min(8, 2 + amount // 6))
+
     def opponents_of(self, fighter):
-        return [f for f in self.fighters if f is not fighter and (f.team is None or f.team != fighter.team)]
+        return [f for f in self.fighters if hostile(fighter, f)]
+
+    @staticmethod
+    def hostile(a, b):
+        return hostile(a, b)
+
+    def _update_bullets(self):
+        """Move os tiros e aplica acertos (barreiras, paredes, quem é inimigo de quem)."""
+        alive = []
+        for b in self.bullets:
+            if b.alive:
+                b.update(self)
+            if b.alive and any(w.rect.colliderect(b.rect) for w in self.arena.walls):
+                b.alive = False
+            if b.alive:
+                for e in self.effects:
+                    if isinstance(e, Barrier) and hostile(e.owner, b.owner) and e.rect.colliderect(b.rect):
+                        b.alive = False
+                        self.burst(b.x, b.y, (150, 226, 240), 4, speed=2)
+                        break
+            if b.alive:
+                for f in self.fighters:
+                    if f in b.hit or not hostile(b.owner, f) or not f.alive_in_match or f.dash_timer > 0:
+                        continue
+                    if math.hypot(f.x - b.x, f.y - 6 - b.y) < f.radius + b.radius + 4:
+                        b.hit.add(f)
+                        if b.pierce > 0 and not b.explosive:
+                            b.pierce -= 1            # atravessa (melhoria da campanha)
+                        else:
+                            b.alive = False
+                        if not b.explosive:
+                            if f.invulnerable_timer > 0:
+                                self.popup(f.x, f.y - 46, "IMUNE", theme.BRASS)
+                            if f.take_damage(b.damage, b.x, b.y, attacker=b.owner, match=self):
+                                b.on_hit(f, self)
+                        break
+            if not b.alive and b.explosive:
+                self.effects.append(Explosion(b.owner, b.x, b.y, b.damage))
+                self.assets.play("explosion", 0.45)
+                self.camera.shake(5)
+            if b.alive:
+                alive.append(b)
+        self.bullets = alive
 
     # ── ciclo ────────────────────────────────
     def update(self):
@@ -106,12 +156,35 @@ class Match(ABC):
                 return
         self.frame += 1
         self.step()
+        self._emit_smoke()
         self.particles = [p for p in self.particles if p.update()]
         self.popups = [p for p in self.popups if p.update()]
         self.camera.focus(self.focus_points(), instant=self.frame == 1)
 
     def focus_points(self):
         return [(f.x, f.y - 20) for f in self.fighters]
+
+    def _emit_smoke(self):
+        """Fumaça escura subindo de quem tem aura sombria (almas corrompidas, Aryel Corrompido)."""
+        if self.frame % 3:
+            return
+        from .enemies import SMOKE
+        for f in self.fighters:
+            if f.aura is None or not f.alive_in_match:
+                continue
+            s = f.draw_scale
+            x = f.x + random.uniform(-12, 12) * s
+            y = f.y + 18 - random.uniform(0, 46) * s - f.lift
+            self.particles.append(Particle(x, y, random.uniform(-0.3, 0.3), random.uniform(-1.1, -0.4),
+                                           random.choice(SMOKE), random.randint(24, 44), round(4 * s), -0.01))
+
+    def next_scene(self):
+        """Tela depois do fim da partida (None = tela de resultado padrão)."""
+        return None
+
+    def restart_scene(self):
+        """Tela ao escolher REINICIAR na pausa (None = começar a mesma partida de novo)."""
+        return None
 
     @abstractmethod
     def step(self):
@@ -270,7 +343,7 @@ class BattleMatch(Match):
         self.time_left -= 1
         if self.time_left <= 0:
             a, b = self.fighters
-            ra, rb = a.hp / a.stats.max_hp, b.hp / b.stats.max_hp
+            ra, rb = a.hp / a.max_hp, b.hp / b.max_hp
             winner = a if ra > rb else b if rb > ra else None
             self._end_round(winner, "time")
 
@@ -354,39 +427,6 @@ class BattleMatch(Match):
         kind = random.choices(("vida", "furia", "energia"), weights=(45, 30, 25))[0]
         self.pickups.append(Pickup(kind, x, y))
         self.burst(x, y - 10, Pickup.KINDS[kind][1], 10, speed=2)
-
-    def _update_bullets(self):
-        alive = []
-        for b in self.bullets:
-            if b.alive:
-                b.update(self)
-            if b.alive and any(w.rect.colliderect(b.rect) for w in self.arena.walls):
-                b.alive = False
-            if b.alive:
-                for e in self.effects:
-                    if isinstance(e, Barrier) and e.owner is not b.owner and e.rect.colliderect(b.rect):
-                        b.alive = False
-                        self.burst(b.x, b.y, (150, 226, 240), 4, speed=2)
-                        break
-            if b.alive:
-                for f in self.fighters:
-                    if f is b.owner or not f.alive_in_match or f.dash_timer > 0:
-                        continue
-                    if math.hypot(f.x - b.x, f.y - 6 - b.y) < f.radius + b.radius + 4:
-                        b.alive = False
-                        if not b.explosive:
-                            if f.invulnerable_timer > 0:
-                                self.popup(f.x, f.y - 46, "IMUNE", theme.BRASS)
-                            if f.take_damage(b.damage, b.x, b.y, attacker=b.owner, match=self):
-                                b.on_hit(f, self)
-                        break
-            if not b.alive and b.explosive:
-                self.effects.append(Explosion(b.owner, b.x, b.y, b.damage))
-                self.assets.play("explosion", 0.45)
-                self.camera.shake(5)
-            if b.alive:
-                alive.append(b)
-        self.bullets = alive
 
     def _finish(self):
         a, b = self.fighters

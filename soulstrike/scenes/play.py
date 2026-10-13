@@ -110,7 +110,8 @@ class PlayScene(Scene):
         super().__init__(game)
         self.match = match
         self.paused = False
-        self.pause_menu = MenuList([("CONTINUAR", "resume"), ("REINICIAR", "restart"), ("SAIR PARA O MENU", "quit")],
+        restart = "REINICIAR FASE" if game.session and game.session.campaign else "REINICIAR"
+        self.pause_menu = MenuList([("CONTINUAR", "resume"), (restart, "restart"), ("SAIR PARA O MENU", "quit")],
                                    topleft=(config.SCREEN_W // 2 - 156, 250), width=312)
 
     def _set_paused(self, value):
@@ -140,7 +141,7 @@ class PlayScene(Scene):
         elif choice == "restart":
             if pygame.mixer.get_init():
                 pygame.mixer.music.unpause()
-            self.game.change(VersusScene(self.game))
+            self.game.change(self.match.restart_scene() or VersusScene(self.game))
         elif choice == "quit":
             if pygame.mixer.get_init():
                 pygame.mixer.music.unpause()
@@ -163,7 +164,7 @@ class PlayScene(Scene):
             return
         self.match.update()
         if self.match.finished:
-            self.game.change(ResultsScene(self.game, self.match.result))
+            self.game.change(self.match.next_scene() or ResultsScene(self.game, self.match.result))
 
     def draw(self, screen):
         self.match.draw(screen, self.ui)

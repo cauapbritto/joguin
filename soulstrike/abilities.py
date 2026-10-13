@@ -1,10 +1,11 @@
 """Habilidades especiais. Cada personagem tem uma subclasse de Ability (polimorfismo):
 o lutador só chama ``ability.use(...)`` e não precisa saber qual habilidade é."""
 import math
+import random
 from abc import ABC, abstractmethod
 
 from . import config
-from .entities import Barrier, FrostNova, Hook
+from .entities import Barrier, FrostNova, Hook, ShadowBomb
 
 
 class Ability(ABC):
@@ -35,7 +36,13 @@ def _aim(user, target):
     return user.facing
 
 
+def _dmg(user, base):
+    """Dano da habilidade com os bônus permanentes (melhorias da campanha); no duelo é o próprio valor."""
+    return round(base * user.damage_bonus)
+
+
 def _fan(user, match, target, count, spread_deg, speed, damage):
+    damage = _dmg(user, damage)
     dx, dy = _aim(user, target)
     base = math.atan2(dy, dx)
     for i in range(count):
@@ -48,7 +55,7 @@ class Investida(Ability):
     DAMAGE = 30
 
     def activate(self, user, match, target):
-        user.start_charge(_aim(user, target), self.DAMAGE)
+        user.start_charge(_aim(user, target), _dmg(user, self.DAMAGE))
 
     def worth_using(self, user, target, dist):
         return 100 < dist < 360
@@ -86,7 +93,7 @@ class Turbo(Ability):
         user.speed_timer = 4 * config.FPS
 
     def worth_using(self, user, target, dist):
-        return dist > 260 or user.hp < user.stats.max_hp * 0.4
+        return dist > 260 or user.hp < user.max_hp * 0.4
 
 
 class Explosao(Ability):
@@ -95,7 +102,8 @@ class Explosao(Ability):
     def activate(self, user, match, target):
         for k in range(8):
             a = k * math.pi / 4
-            match.spawn_bullet(user, math.cos(a), math.sin(a), user.weapons[0].bullet_speed, 25, explosive=True)
+            match.spawn_bullet(user, math.cos(a), math.sin(a), user.weapons[0].bullet_speed, _dmg(user, 25),
+                               explosive=True)
 
     def worth_using(self, user, target, dist):
         return dist < 220
@@ -111,7 +119,7 @@ class Teletransporte(Ability):
         match.burst(x, y - 16, user.stats.color, 18)
 
     def worth_using(self, user, target, dist):
-        return dist < 110 or user.hp < user.stats.max_hp * 0.3
+        return dist < 110 or user.hp < user.max_hp * 0.3
 
 
 class Invulneravel(Ability):
@@ -119,7 +127,7 @@ class Invulneravel(Ability):
         user.invulnerable_timer = 3 * config.FPS
 
     def worth_using(self, user, target, dist):
-        return user.hp < user.stats.max_hp * 0.6 and dist < 400
+        return user.hp < user.max_hp * 0.6 and dist < 400
 
 
 class Gancho(Ability):
@@ -141,10 +149,31 @@ class Nevasca(Ability):
     sound = "barrier"
 
     def activate(self, user, match, target):
-        match.add_effect(FrostNova(user, user.x, user.y))
+        match.add_effect(FrostNova(user, user.x, user.y, damage=_dmg(user, 10)))
 
     def worth_using(self, user, target, dist):
         return dist < 170
+
+
+class ChuvaSombria(Ability):
+    """Aryel Corrompido: bombas sombrias caem em cima do inimigo e em volta dele."""
+    sound = "ability"
+    DAMAGE = 18
+
+    def activate(self, user, match, target):
+        tx, ty = (target.x, target.y) if target is not None else (user.x + user.facing[0] * 200,
+                                                                  user.y + user.facing[1] * 200)
+        spots = [(tx, ty)]
+        for k in range(4):
+            a = k * math.pi / 2 + random.uniform(-0.4, 0.4)
+            r = random.uniform(70, 110)
+            spots.append((tx + math.cos(a) * r, ty + math.sin(a) * r))
+        for i, (x, y) in enumerate(spots):
+            x, y = match.arena.free_spot(x, y, 8)
+            match.add_effect(ShadowBomb(user, x, y, delay=40 + i * 4, damage=_dmg(user, self.DAMAGE), radius=50))
+
+    def worth_using(self, user, target, dist):
+        return 120 < dist < 460
 
 
 ABILITIES = {
@@ -158,8 +187,26 @@ ABILITIES = {
     "tita": Invulneravel,
     "pirata": Gancho,
     "geada": Nevasca,
+    "aryel_corrompido": ChuvaSombria,
 }
 
 
+class SemHabilidade(Ability):
+    """Inimigos da campanha: os ataques especiais ficam na IA deles."""
+    sound = None
+
+    def use(self, user, match, target):
+        self.activate(user, match, target)
+
+    def activate(self, user, match, target):
+        pass
+
+    def worth_using(self, user, target, dist):
+        return False
+
+
 def create_ability(stats):
-    return ABILITIES[stats.key](stats)
+    cls = ABILITIES.get(stats.key)
+    if cls is None:
+        return SemHabilidade(stats)
+    return cls(stats)

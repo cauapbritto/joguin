@@ -34,6 +34,13 @@ class Entity(ABC):
         """Desenha no espaço do mundo (já deslocado pela câmera)."""
 
 
+def hostile(a, b):
+    """a e b são inimigos? Sem time (duelo), todo mundo é inimigo de todo mundo."""
+    if a is None or b is None:
+        return a is not b
+    return a is not b and (a.team is None or a.team != b.team)
+
+
 def push_circle_out(x, y, r, rect):
     """Se o círculo invade o retângulo, devolve a posição empurrada para fora e a normal."""
     nx = min(max(x, rect.left), rect.right)
@@ -111,6 +118,8 @@ class Bullet(Entity):
         self.explosive = explosive
         self.radius = 5 if explosive else 4
         self.trail = []
+        self.pierce = getattr(owner, "pierce", 0)     # quantos inimigos ainda atravessa
+        self.hit = set()                              # quem já foi atingido por este tiro
 
     def update(self, match):
         self.trail.append((self.x, self.y))
@@ -252,7 +261,7 @@ class Explosion(Entity):
         if not self.applied:
             self.applied = True
             for fighter in match.fighters:
-                if fighter is not self.owner and fighter.alive_in_match and self.distance_to(fighter) < self.radius + fighter.radius:
+                if hostile(self.owner, fighter) and fighter.alive_in_match and self.distance_to(fighter) < self.radius + fighter.radius:
                     fighter.take_damage(self.damage, self.x, self.y, attacker=self.owner, match=match)
         self.timer -= 1
         if self.timer <= 0:
@@ -270,6 +279,67 @@ class Explosion(Entity):
         inner = int(r * (1 - t))
         if inner > 2:
             pygame.draw.circle(surf, (255, 196, 92), (sx, sy), inner)
+
+
+class GroundMark(Entity):
+    """Círculo de aviso no chão: algo vai cair (ou pousar) aqui daqui a pouco."""
+
+    def __init__(self, x, y, radius, frames, color=(220, 70, 90)):
+        super().__init__(x, y)
+        self.radius = radius
+        self.frames = self.left = frames
+        self.color = color
+
+    @property
+    def progress(self):
+        return 1 - self.left / self.frames
+
+    def update(self, match):
+        self.left -= 1
+        if self.left <= 0:
+            self.alive = False
+
+    def draw(self, surf, camera):
+        t = self.progress
+        r = max(4, round(self.radius * (0.35 + 0.65 * t)))
+        cx, cy = round(self.x - camera.x), round(self.y + 14 - camera.y)
+        layer = pygame.Surface((r * 2 + 6, r + 6), pygame.SRCALPHA)
+        rect = pygame.Rect(3, 3, r * 2, r)
+        pygame.draw.ellipse(layer, (*self.color, round(40 + 60 * t)), rect)
+        pygame.draw.ellipse(layer, (*self.color, 220), rect, 2)
+        full = pygame.Rect(0, 0, self.radius * 2, self.radius)
+        full.center = (cx, cy)
+        surf.blit(layer, (cx - r - 3, cy - r // 2 - 3))
+        pygame.draw.ellipse(surf, _dim(self.color, 0.8), full, 1)
+
+
+class ShadowBomb(GroundMark):
+    """Bomba sombria (Aryel Corrompido): marca o chão, cai do céu e explode."""
+
+    def __init__(self, owner, x, y, delay=60, damage=20, radius=54):
+        super().__init__(x, y, radius, delay, (190, 80, 230))
+        self.owner = owner
+        self.damage = damage
+
+    def update(self, match):
+        super().update(match)
+        if not self.alive:
+            match.add_effect(Explosion(self.owner, self.x, self.y, self.damage, self.radius))
+            match.burst(self.x, self.y, (190, 120, 255), 10, speed=5)
+            match.assets.play("explosion", 0.35)
+            match.camera.shake(4)
+
+    def draw(self, surf, camera):
+        super().draw(surf, camera)
+        t = self.progress
+        if t > 0.55:
+            fall = (1 - (t - 0.55) / 0.45) ** 2
+            bx, by = round(self.x - camera.x), round(self.y + 6 - camera.y - fall * 240)
+            for k in range(1, 4):
+                surf.fill((120, 60, 170), (bx - 1, by - k * 8, 3, 4))
+            pygame.draw.circle(surf, (20, 10, 28), (bx, by), 8)
+            pygame.draw.circle(surf, (110, 50, 160), (bx, by), 6)
+            surf.fill((230, 200, 255), (bx - 3, by - 3, 2, 2))
 
 
 class Barrier(Entity):
@@ -359,7 +429,7 @@ class Pickup(Entity):
     def apply(self, fighter, match):
         label, color = self.KINDS[self.kind]
         if self.kind == "vida":
-            heal = min(config.HEAL_AMOUNT, fighter.stats.max_hp - fighter.hp)
+            heal = min(config.HEAL_AMOUNT, fighter.max_hp - fighter.hp)
             fighter.hp += heal
             label = f"+{heal}"
         elif self.kind == "furia":

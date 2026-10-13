@@ -17,6 +17,7 @@ ACTIONS = (
     "up", "down", "left", "right",
     "attack", "special", "dodge", "switch", "super", "dribble", "sprint", "mark",
     "char_left", "char_right", "weapon", "confirm", "cancel", "pause",
+    "opt1", "opt2", "opt3",          # escolher uma das 3 melhorias (campanha)
 )
 COMMANDS = frozenset(f"p{s}_{a}" for s in SLOTS for a in ACTIONS)
 
@@ -58,6 +59,8 @@ class SlotInfo:
         self.cooldown = 0.0   # 0..1 do super (futebol)
         self.stamina = 1.0    # 0..1 do fôlego da corrida (futebol)
         self.tired = False    # fôlego acabou: só volta a correr depois de recuperar um pouco
+        self.options = []     # melhorias para escolher (campanha): [{name, desc, color}]
+        self.choice = 0       # qual está marcada
 
     @property
     def claimed(self):
@@ -79,6 +82,7 @@ class RemoteHub:
         self._mode = "battle"
         self._active = (1, 2)
         self._banner = ""
+        self.roster_size = 0       # quantos personagens o celular deve mostrar (muda ao liberar um)
 
     # ── entrada vinda do celular ──────────────
     def apply_input(self, slot, sid, seq, held, counts, x=0.0, y=0.0):
@@ -217,11 +221,13 @@ class RemoteHub:
                     pad.held = set()
 
     def publish_slot(self, slot, **fields):
-        """Atualiza o que o celular mostra: char, weapon, ready, team, cooldown, stamina, tired."""
+        """Atualiza o que o celular mostra: char, weapon, ready, team, cooldown, stamina, tired,
+        options e choice (melhorias da campanha)."""
         with self._lock:
             info = self._slots[slot]
             for name, value in fields.items():
-                if name not in ("char", "weapon", "ready", "team", "cooldown", "stamina", "tired"):
+                if name not in ("char", "weapon", "ready", "team", "cooldown", "stamina", "tired",
+                                "options", "choice"):
                     raise ValueError(name)
                 setattr(info, name, value)
 
@@ -234,6 +240,7 @@ class RemoteHub:
                 "mode": self._mode,
                 "active": list(self._active),
                 "banner": self._banner,
+                "roster": self.roster_size,
                 "slots": {
                     str(s): {"claimed": i.claimed, "connected": i.connected(now)}
                     for s, i in self._slots.items()
@@ -250,6 +257,8 @@ class RemoteHub:
                     "cooldown": round(mine.cooldown, 3),
                     "stamina": round(mine.stamina, 3),
                     "tired": mine.tired,
+                    "options": mine.options,
+                    "choice": mine.choice,
                     "playing": slot in self._active,
                 }
             return data

@@ -8,6 +8,7 @@ MODES = {
     "duel": {"title": "DUELO LOCAL", "soccer": False, "slots": 2},
     "soccer1": {"title": "FUTEBOL 1 x 1", "soccer": True, "slots": 2},
     "soccer2": {"title": "FUTEBOL 2 x 2", "soccer": True, "slots": 4},
+    "campaign": {"title": "CAMPANHA", "soccer": False, "slots": 4},
 }
 
 
@@ -42,6 +43,10 @@ class Session:
     @property
     def soccer(self):
         return MODES[self.mode]["soccer"]
+
+    @property
+    def campaign(self):
+        return self.mode == "campaign"
 
     @property
     def title(self):

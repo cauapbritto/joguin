@@ -3,7 +3,7 @@
 Uso:  python tools/gerar_sprites.py
 
 Cria assets/characters/<nome>[n]<direção>.png (24x34 px, 4 quadros de caminhada
-por direção). O jogo amplia sem suavizar, então cada pixel daqui vira um bloco.
+por direção), e também as criaturas da campanha (diabrete, esqueleto e golem). O jogo amplia sem suavizar, então cada pixel daqui vira um bloco.
 Guerreiro e Aryel já têm arte própria e não são tocados.
 """
 import os
@@ -20,15 +20,16 @@ EYE = (28, 22, 34)
 
 
 class Canvas:
-    def __init__(self):
-        self.surf = pygame.Surface((W, H), pygame.SRCALPHA)
+    def __init__(self, w=W, h=H):
+        self.w, self.h = w, h
+        self.surf = pygame.Surface((w, h), pygame.SRCALPHA)
 
     def rect(self, x, y, w, h, color):
         if w > 0 and h > 0:
             self.surf.fill(color, (x, y, w, h))
 
     def px(self, x, y, color):
-        if 0 <= x < W and 0 <= y < H:
+        if 0 <= x < self.w and 0 <= y < self.h:
             self.surf.set_at((x, y), color)
 
     def erase(self, x, y, w=1, h=1):
@@ -38,7 +39,7 @@ class Canvas:
         """Contorno escuro de 1 px em volta de tudo (o que dá a cara de pixel art)."""
         mask = pygame.mask.from_surface(self.surf)
         line = mask.to_surface(setcolor=OUTLINE, unsetcolor=(0, 0, 0, 0))
-        out = pygame.Surface((W, H), pygame.SRCALPHA)
+        out = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
         for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             out.blit(line, (dx, dy))
         out.blit(self.surf, (0, 0))
@@ -543,6 +544,230 @@ def geada(p):
     return c.finish()
 
 
+# ── criaturas da campanha ─────────────────────
+
+def diabrete(p):
+    """Diabinho vermelho que voa baixo: chifres, asas de morcego e rabo de ponta."""
+    c = Canvas(24, 28)
+    red, red_d, red_l = (204, 64, 58), (140, 36, 40), (240, 112, 92)
+    wing, wing_d = (112, 40, 64), (74, 24, 44)
+    horn, eye, dark = (236, 220, 180), (255, 214, 80), (40, 16, 22)
+    fly = {0: 0, 1: -1, 2: -2, 3: -1}[p.frame]
+    up = p.frame in (1, 2)
+    hx, hy = 8, 6 + fly
+    bx, by = 9, 13 + fly
+
+    def wing_poly(cx, side, front):
+        tip_y = by - 6 if up else by + 4
+        pts = [(cx, by + 1), (cx + side * 7, tip_y), (cx + side * 8, tip_y + 3), (cx + side * 4, by + 5)]
+        pygame.draw.polygon(c.surf, wing if front else wing_d, pts)
+        pygame.draw.line(c.surf, wing_d if front else (50, 16, 30), (cx, by + 1), (cx + side * 7, tip_y))
+
+    def tail(x0, side):
+        for i, (dx, dy) in enumerate(((0, 0), (side, 1), (side * 2, 1), (side * 3, 0), (side * 3, -1))):
+            c.px(x0 + dx, by + 6 + dy, red_d)
+        c.rect(x0 + side * 3 - (1 if side < 0 else 0), by + 3, 2, 2, red_d)
+
+    if p.dir == "direita":
+        wing_poly(bx + 1, -1, False)
+        tail(bx, -1)
+    elif p.dir == "frente":
+        wing_poly(bx, -1, True)
+        wing_poly(bx + 6, 1, True)
+        tail(bx + 5, 1)
+    # pernas curtas penduradas
+    if p.dir == "direita":
+        c.rect(bx + 1, by + 6, 2, 3, red_d)
+        c.rect(bx + 3, by + 6, 2, 2, red_d)
+    else:
+        c.rect(bx, by + 6, 2, 3, red_d)
+        c.rect(bx + 4, by + 6, 2, 3, red_d)
+    # corpo
+    w = 5 if p.dir == "direita" else 6
+    c.rect(bx, by, w, 6, red)
+    c.rect(bx, by, 1, 6, red_l)
+    c.rect(bx + w - 1, by, 1, 6, red_d)
+    if p.dir == "frente":
+        c.rect(bx + 2, by + 2, 2, 3, red_l)              # barriga
+        c.rect(bx - 1, by + 1, 1, 3, red_d)              # braços
+        c.rect(bx + 6, by + 1, 1, 3, red_d)
+    elif p.dir == "direita":
+        c.rect(bx + 3, by + 1, 2, 2, red_d)              # braço na frente
+    # cabeça
+    c.rect(hx, hy, 8, 7, red)
+    c.rect(hx, hy + 6, 8, 1, red_d)
+    for cx, cy in ((hx, hy), (hx + 7, hy), (hx, hy + 6), (hx + 7, hy + 6)):
+        c.erase(cx, cy)
+    c.rect(hx + 1, hy, 5, 1, red_l)
+    # chifres
+    if p.dir == "direita":
+        c.rect(hx + 4, hy - 2, 2, 2, horn)
+        c.px(hx + 6, hy - 3, horn)
+        c.px(hx + 1, hy - 1, horn)
+        c.px(hx - 1, hy + 2, red)                        # orelha
+    else:
+        c.rect(hx, hy - 2, 2, 2, horn)
+        c.px(hx - 1, hy - 3, horn)
+        c.rect(hx + 6, hy - 2, 2, 2, horn)
+        c.px(hx + 8, hy - 3, horn)
+        c.px(hx - 1, hy + 2, red)
+        c.px(hx + 8, hy + 2, red)
+    if p.dir == "frente":
+        for ex in (hx + 1, hx + 5):
+            c.rect(ex, hy + 3, 2, 1, eye)
+            c.px(ex + (1 if ex < hx + 4 else 0), hy + 3, dark)
+        c.rect(hx + 2, hy + 5, 4, 1, dark)               # boca com presas
+        c.px(hx + 2, hy + 5, horn)
+        c.px(hx + 5, hy + 5, horn)
+    elif p.dir == "direita":
+        c.rect(hx + 5, hy + 3, 2, 1, eye)
+        c.px(hx + 6, hy + 3, dark)
+        c.rect(hx + 5, hy + 5, 3, 1, dark)
+        c.px(hx + 6, hy + 5, horn)
+    else:
+        wing_poly(bx, -1, True)                          # de costas as asas ficam na frente
+        wing_poly(bx + 6, 1, True)
+        tail(bx + 2, 1)
+    return c.finish()
+
+
+def esqueleto(p):
+    """Esqueleto arqueiro de capuz, com aljava nas costas e olhos acesos."""
+    c = Canvas()
+    bone, bone_d = (226, 220, 200), (162, 154, 136)
+    cloth, cloth_d = (70, 52, 84), (44, 32, 56)
+    socket, glow = (30, 22, 34), (255, 86, 70)
+    quiver, feather = (110, 72, 44), (214, 64, 58)
+    legs(c, p, bone_d, (86, 70, 60))
+    x, y, w, h = p.torso
+    far_arm(c, p, bone, bone)
+    # tronco: costelas por cima de um pano escuro
+    c.rect(x, y, w, h, cloth_d)
+    if p.dir != "costas":
+        for k in range(3):
+            c.rect(x + 1, y + 1 + k * 2, w - 2, 1, bone)
+        if p.dir == "frente":
+            c.rect(x + w // 2 - 1, y, 2, h, bone_d)       # esterno
+    else:
+        c.rect(x + w // 2 - 1, y, 2, h, bone)             # coluna
+        c.rect(x + 1, y - 2, 3, 9, quiver)                 # aljava
+        c.px(x + 1, y - 3, feather)
+        c.px(x + 3, y - 3, feather)
+    c.rect(x, y + h - 1, w, 1, cloth)
+    bx, by, bw, bh = p.belt
+    c.rect(bx, by, bw, bh, cloth)
+    if p.dir == "direita":
+        c.rect(x - 2, y - 1, 2, 8, quiver)
+        c.px(x - 2, y - 2, feather)
+    arms(c, p, bone, bone)
+    # caveira
+    hx, hy, hw, hh = p.head
+    head(c, p, bone)
+    c.rect(hx, hy + hh - 2, hw, 1, bone_d)
+    if p.dir == "frente":
+        for ex in (hx + 1, hx + hw - 4):
+            c.rect(ex, hy + 4, 3, 2, socket)
+            c.px(ex + 1, hy + 4, glow)
+        c.px(hx + hw // 2, hy + 6, socket)                # nariz
+        for tx in range(hx + 2, hx + hw - 2, 2):          # dentes
+            c.px(tx, hy + 8, socket)
+    elif p.dir == "direita":
+        c.rect(hx + hw - 4, hy + 4, 3, 2, socket)
+        c.px(hx + hw - 3, hy + 4, glow)
+        c.px(hx + hw - 1, hy + 6, socket)
+        for tx in range(hx + 5, hx + hw, 2):
+            c.px(tx, hy + 8, socket)
+    # capuz
+    if p.dir == "costas":
+        c.rect(hx - 1, hy - 1, hw + 2, hh - 1, cloth)
+        c.rect(hx, hy - 1, hw - 2, 1, shade(cloth, 26))
+        c.rect(hx + 2, hy + hh - 3, hw - 4, 2, cloth_d)
+    elif p.dir == "frente":
+        c.rect(hx - 1, hy - 1, hw + 2, 3, cloth)
+        c.rect(hx, hy - 1, hw - 2, 1, shade(cloth, 26))
+        c.rect(hx - 1, hy + 2, 1, 7, cloth)
+        c.rect(hx + hw, hy + 2, 1, 7, cloth_d)
+    else:
+        c.rect(hx - 1, hy - 1, hw, 3, cloth)
+        c.rect(hx - 1, hy + 2, 5, 7, cloth)
+        c.rect(hx, hy - 1, hw - 3, 1, shade(cloth, 26))
+    return c.finish()
+
+
+def golem(p):
+    """Golem de pedra: ombros de rocha com musgo, punhos enormes e runas acesas."""
+    c = Canvas(36, 40)
+    stone, stone_d, stone_l = (132, 122, 108), (88, 80, 72), (170, 160, 142)
+    moss, moss_d = (88, 128, 62), (60, 92, 44)
+    glow, glow_d = (255, 160, 64), (200, 92, 40)
+    b = -1 if p.frame in (1, 3) else 0
+    lift_l, lift_r = p.frame == 1, p.frame == 3
+
+    def block(x, y, w, h, base=stone):
+        c.rect(x, y, w, h, base)
+        c.rect(x, y, w, 1, shade(base, 34))
+        c.rect(x, y, 1, h, shade(base, 18))
+        c.rect(x + w - 1, y, 1, h, shade(base, -34))
+        c.rect(x, y + h - 1, w, 1, shade(base, -40))
+
+    if p.dir == "direita":
+        stride = {0: 0, 1: 3, 2: 0, 3: -3}[p.frame]
+        block(14 - stride, 30 + b, 7, 8, stone_d)          # perna de trás
+        block(15 + stride, 30 + b, 7, 8)
+        swing = {0: 0, 1: -2, 2: 0, 3: 2}[p.frame]
+        block(11 + swing, 20 + b, 6, 9, stone_d)           # braço de trás
+        block(11, 15 + b, 14, 16)                          # tronco
+        c.rect(19, 21 + b, 4, 1, glow_d)
+        c.rect(21, 22 + b, 1, 3, glow)
+        block(14, 8 + b, 10, 9)                            # cabeça
+        c.rect(21, 12 + b, 2, 2, glow)
+        c.rect(14, 8 + b, 10, 2, moss)
+        block(12, 13 + b, 9, 8, stone_l)                   # ombro
+        c.rect(12, 13 + b, 9, 2, moss)
+        c.rect(14, 12 + b, 3, 1, moss_d)
+        block(15 - swing, 21 + b, 6, 10)                   # braço da frente
+        block(14 - swing, 30 + b, 8, 7, stone_l)           # punho
+        c.rect(16 - swing, 32 + b, 4, 1, stone_d)
+        return c.finish()
+
+    for x, lifted in ((10, lift_l), (20, lift_r)):
+        block(x, (28 if lifted else 30) + b, 7, 8, stone_d)
+    block(9, 15 + b, 18, 16)                               # tronco
+    if p.dir == "frente":
+        # runas acesas no peito
+        c.rect(15, 19 + b, 6, 1, glow_d)
+        c.rect(17, 19 + b, 2, 6, glow)
+        c.rect(14, 23 + b, 8, 1, glow_d)
+        c.px(17, 21 + b, (255, 236, 180))
+    else:
+        c.rect(12, 18 + b, 12, 3, moss_d)
+        c.rect(14, 21 + b, 8, 2, moss)
+    arm_l = 1 if lift_r else 0
+    arm_r = 1 if lift_l else 0
+    for x, dy in ((3, arm_l), (27, arm_r)):
+        block(x, 21 + b + dy, 6, 11)
+        block(x - 1, 31 + b + dy, 8, 7, stone_l)
+        c.rect(x + 1, 33 + b + dy, 4, 1, stone_d)
+    block(13, 8 + b, 10, 9)                                # cabeça encaixada nos ombros
+    if p.dir == "frente":
+        c.rect(15, 12 + b, 2, 2, glow)
+        c.rect(19, 12 + b, 2, 2, glow)
+        c.rect(16, 15 + b, 4, 1, stone_d)
+    c.rect(13, 8 + b, 10, 2, moss)
+    for x in (2, 25):                                      # ombros de rocha com musgo
+        block(x, 13 + b, 9, 9, stone_l)
+        c.rect(x, 13 + b, 9, 2, moss)
+        c.rect(x + 2, 12 + b, 4, 1, moss_d)
+        c.px(x + 3, 15 + b, moss_d)
+    return c.finish()
+
+
+CREATURES = {
+    "diabrete": diabrete,
+    "esqueleto": esqueleto,
+    "golem": golem,
+}
+
 CHARACTERS = {
     "atirador": (atirador, False),
     "tanque": (tanque, True),
@@ -557,7 +782,10 @@ DIRECTIONS = ("frente", "costas", "direita")
 
 
 def build(name):
-    draw, wide = CHARACTERS[name]
+    if name in CREATURES:
+        draw, wide = CREATURES[name], False
+    else:
+        draw, wide = CHARACTERS[name]
     frames = {}
     for d in DIRECTIONS:
         frames[d] = [draw(Pose(d, f, wide)) for f in range(4)]
@@ -568,7 +796,7 @@ def build(name):
 def main():
     pygame.init()
     OUT.mkdir(parents=True, exist_ok=True)
-    only = sys.argv[1:] or list(CHARACTERS)
+    only = sys.argv[1:] or list(CHARACTERS) + list(CREATURES)
     for name in only:
         for direction, frames in build(name).items():
             for i, surf in enumerate(frames):

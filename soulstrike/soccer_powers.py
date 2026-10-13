@@ -201,6 +201,21 @@ class Bomba(SoccerPower):
         return sum(user.distance_to(f) < 100 for f in match.foes_of(user)) >= 1
 
 
+class BombaSombria(Bomba):
+    """Aryel Corrompido: a bomba é maior e quem é pego ainda fica lento."""
+    name = "BOMBA SOMBRIA"
+    description = "Explosão sombria maior: empurra, atordoa e deixa lento quem estiver perto."
+    RADIUS = 150
+
+    def activate(self, user, match):
+        for foe in match.foes_of(user):
+            if user.distance_to(foe) < self.RADIUS:
+                foe.slow(int(1.5 * config.FPS))
+        super().activate(user, match)
+        match.burst(user.x, user.y - 6, (150, 70, 210), 30, speed=8)
+        return True
+
+
 class BolaFantasma(SoccerPower):
     name = "BOLA FANTASMA"
     description = "Chute que atravessa os adversários a caminho do gol."
@@ -321,6 +336,7 @@ SOCCER_POWERS = {
     "tita": Gigante,
     "pirata": GanchoNaBola,
     "geada": Congelar,
+    "aryel_corrompido": BombaSombria,
 }
 
 

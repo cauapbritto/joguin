@@ -255,7 +255,8 @@ class ServidorTest(unittest.TestCase):
         from soulstrike.net.remote import hub
         client = server.app.test_client()
         self.assertEqual(client.get("/").status_code, 200)
-        self.assertEqual(len(client.get("/api/roster").get_json()), len(CHARACTERS))
+        from soulstrike.data import roster
+        self.assertEqual(len(client.get("/api/roster").get_json()), len(roster()))
         self.assertTrue(client.post("/api/join", json={"slot": 4, "token": "t"}).get_json()["ok"])
         self.assertEqual(client.post("/api/join", json={"slot": 4, "token": "x"}).status_code, 409)
         client.post("/press/p4_attack")
