@@ -1,3 +1,4 @@
 pygame>=2.5
 flask>=3.0
 qrcode>=7.4
+pillow>=10.0

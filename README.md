@@ -5,6 +5,20 @@ teclado ou usar o celular como controle (pela rede Wi-Fi, sem instalar nada).
 
 ## Como rodar
 
+### Windows, jeito fácil (um clique)
+
+Extraia o zip do projeto e dê dois cliques em **`INSTALAR.bat`**. Ele encontra o
+Python 3.10 a 3.13 (ou instala o 3.11 pelo `winget`, se faltar), cria o `.venv`,
+instala as bibliotecas (com nova tentativa em redes que interceptam HTTPS) e cria o
+atalho **Soul Strike** na Área de Trabalho. Depois é só abrir o atalho (ou o
+`SoulStrike.bat`). Pode rodar o instalador de novo quando quiser: o que já existe é
+aproveitado. O log fica em `instalar.log`.
+
+Se o Windows mostrar "O Windows protegeu o computador": **Mais informações** →
+**Executar assim mesmo**.
+
+### Manual
+
 ```
 pip install -r requirements.txt
 python main.py            # tela cheia
