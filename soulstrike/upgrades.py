@@ -75,7 +75,18 @@ class Escudo(Upgrade):
         fighter.shield += 40
 
 
-UPGRADES = {cls.key: cls() for cls in (Vida, Dano, Recarga, Velocidade, Perfurar, Esquiva, Vampirismo, Escudo)}
+class Municao(Upgrade):
+    key, name, description, color = ("municao", "MUNIÇÃO", "Pente 50% maior e recarga 30% mais rápida.",
+                                     (226, 176, 74))
+
+    def apply(self, fighter):
+        fighter.ammo_mult *= 1.5
+        fighter.reload_mult *= 0.7
+        fighter.clips.clear()                 # pentes novos, já no tamanho maior
+
+
+UPGRADES = {cls.key: cls() for cls in (Vida, Dano, Recarga, Velocidade, Perfurar, Esquiva, Vampirismo, Escudo,
+                                       Municao)}
 
 # desenho 7x7 de cada ícone ("#" = cor da melhoria, "+" = claro)
 ICONS = {
@@ -87,6 +98,7 @@ ICONS = {
     "esquiva": ["...##..", "..##...", ".##....", "#######", ".##....", "..##...", "...##.."],
     "vampirismo": [".#...#.", "##...##", "#######", "##+#+##", ".#####.", "..#.#..", "..#.#.."],
     "escudo": ["#######", "#+++++#", "#+###+#", "#+###+#", ".#+#+#.", "..#+#..", "...#..."],
+    "municao": ["..#.#..", ".##.##.", ".##.##.", ".+#.+#.", ".##.##.", ".##.##.", "###.###"],
 }
 
 

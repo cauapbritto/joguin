@@ -48,6 +48,25 @@ def icon(name):
     return _icons.get(name)
 
 
+_rotated = {}
+ANGLE_STEP = 15               # projéteis giram em passos de 15° (fica pixelado igual ao resto)
+
+
+def rotated(name, angle_deg, scale=SCALE):
+    """Sprite da arma (ou projétil) girado para o ângulo dado, ampliado sem borrar. Guardado em cache."""
+    small = _icons.get(name)
+    if small is None:
+        return None
+    step = round(angle_deg / ANGLE_STEP) % (360 // ANGLE_STEP)
+    key = (name, step, scale)
+    img = _rotated.get(key)
+    if img is None:
+        img = pygame.transform.rotate(small, -step * ANGLE_STEP)      # gira o 1x (vizinho mais próximo)
+        img = pygame.transform.scale(img, (img.get_width() * scale, img.get_height() * scale))
+        _rotated[key] = img
+    return img
+
+
 def hand_point(x, y, direction, bob):
     """Onde fica a mão que segura a arma, para cada direção do personagem."""
     if direction == "direita":

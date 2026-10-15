@@ -7,9 +7,17 @@ MODES = {
     "cpu": {"title": "DUELO CONTRA CPU", "soccer": False, "slots": 2},
     "duel": {"title": "DUELO LOCAL", "soccer": False, "slots": 2},
     "soccer1": {"title": "FUTEBOL 1 x 1", "soccer": True, "slots": 2},
-    "soccer2": {"title": "FUTEBOL 2 x 2", "soccer": True, "slots": 4},
+    "duel2": {"title": "DUELO 2 x 2", "soccer": False, "slots": 4, "teams": True},
+    "soccer2": {"title": "FUTEBOL 2 x 2", "soccer": True, "slots": 4, "teams": True},
     "campaign": {"title": "CAMPANHA", "soccer": False, "slots": 4},
 }
+
+# Como as vagas formam os times nos modos 2 x 2 (escolhido no lobby)
+TEAM_LAYOUTS = {
+    "alternado": ((1, 3), (2, 4)),     # P1 e P2 (teclado) em times diferentes
+    "juntos": ((1, 2), (3, 4)),        # P1 e P2 juntos (por exemplo, contra a CPU)
+}
+TEAM_LAYOUT_ORDER = ("alternado", "juntos")
 
 
 @dataclass
@@ -39,10 +47,16 @@ class Session:
     map_key: str = "arena_classica"
     difficulty: str = "normal"
     assist: str = "media"          # assistência do futebol: alta, media ou desligada
+    layout: str = "alternado"      # times no 2 x 2 (veja TEAM_LAYOUTS)
 
     @property
     def soccer(self):
         return MODES[self.mode]["soccer"]
+
+    @property
+    def team_mode(self):
+        """Dois times de dois (futebol 2 x 2 e duelo 2 x 2)."""
+        return MODES[self.mode].get("teams", False)
 
     @property
     def campaign(self):
@@ -52,6 +66,10 @@ class Session:
     def title(self):
         return MODES[self.mode]["title"]
 
-    @staticmethod
-    def team_of(slot):
-        return 0 if slot in (1, 3) else 1
+    def team_of(self, slot):
+        first, _ = TEAM_LAYOUTS.get(self.layout, TEAM_LAYOUTS["alternado"])
+        return 0 if slot in first else 1
+
+    def teammates(self, team):
+        """Vagas de um time, em ordem."""
+        return [s for s in (1, 2, 3, 4) if self.team_of(s) == team]

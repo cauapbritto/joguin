@@ -1,5 +1,6 @@
 """Carregamento de recursos: fontes, sons, sprites, texturas e QR codes."""
 import io
+import json
 import re
 import unicodedata
 
@@ -9,31 +10,66 @@ from . import config
 from .data import CHARACTERS, SHADOW_CHARACTERS
 
 DIRECTIONS = ("frente", "costas", "direita", "esquerda")
+# folha de sprite (tools/gerar_sprites.py): uma linha por direção, colunas nesta ordem
+SHEET_DIRECTIONS = DIRECTIONS
+SHEET_POSES = (("andar", 8), ("parado", 2), ("ataque", 3), ("dano", 1), ("esquiva", 1))
+SHEET_FACTOR = 2                 # a arte é ampliada 2x sem suavizar
+TEAM_KITS = ("azul", "vermelho")  # uniforme do time 0 e do time 1 no futebol (characters/uniformes)
 
 
 class SpriteSet:
-    """Quadros de animação de um personagem nas quatro direções."""
+    """Quadros de um personagem nas quatro direções, separados por pose:
+    andar, parado, ataque, dano e esquiva (folhas novas) ou só andar (arte antiga)."""
 
-    def __init__(self, frames):
-        self.frames = frames                     # {direção: [Surface, ...]}
+    def __init__(self, frames=None, poses=None, hands=None, glow=()):
+        if poses is None:
+            poses = {d: {"andar": list(imgs)} for d, imgs in frames.items()}
+        self.poses = poses                       # {direção: {pose: [Surface, ...]}}
+        self.frames = {d: kinds["andar"] for d, kinds in poses.items()}
+        self.hands = hands                       # {direção: {pose: [(dx, dy), ...]}} ou None
+        self.glow = tuple(glow)                  # cores dos olhos (acendem na alma corrompida)
         self._flash = {}
+        self.cache = {}                          # imagens derivadas prontas (ex.: caído no chão)
+
+    @property
+    def walk_len(self):
+        return len(self.frames["frente"])
 
     def frame(self, direction, index):
+        """Quadro da caminhada (o índice dá a volta)."""
         frames = self.frames.get(direction) or self.frames["frente"]
         return frames[index % len(frames)]
 
-    def flash(self, direction, index):
+    def pose(self, direction, kind, index=0):
+        if kind == "andar":
+            return self.frame(direction, index)
+        frames = (self.poses.get(direction) or self.poses["frente"]).get(kind)
+        if not frames:
+            return self.frame(direction, 0)
+        return frames[min(index, len(frames) - 1)]
+
+    def hand(self, direction, kind, index):
+        """Onde fica a mão que segura a arma, em pixels de tela a partir do meio de baixo
+        do sprite (None na arte antiga, que não tem essa informação)."""
+        if self.hands is None:
+            return None
+        spots = self.hands.get(direction, {}).get(kind) or self.hands.get(direction, {}).get("andar")
+        if not spots:
+            return None
+        return spots[index % len(spots)] if kind == "andar" else spots[min(index, len(spots) - 1)]
+
+    def flash(self, direction, index, kind="andar"):
         """Silhueta branca do quadro (usada quando o personagem leva dano)."""
-        key = (direction, index)
+        key = (direction, kind, index)
         if key not in self._flash:
-            img = self.frame(direction, index)
+            img = self.pose(direction, kind, index)
             mask = pygame.mask.from_surface(img)
             self._flash[key] = mask.to_surface(setcolor=(255, 255, 255, 255), unsetcolor=(0, 0, 0, 0))
         return self._flash[key]
 
     @property
     def portrait(self):
-        return self.frames["frente"][0]
+        return self.pose("frente", "parado", 0)
 
 
 class Assets:
@@ -79,14 +115,32 @@ class Assets:
         """Sprites da alma corrompida de um herói (gerados na primeira vez que alguém pede)."""
         name = "sombra:" + key
         if name not in self.sprites:
-            from .enemies import LENSES, SHADOW_TINT, TINTS, tint_sprites
-            self.sprites[name] = tint_sprites(self.sprites[key], TINTS.get(key, SHADOW_TINT), lenses=LENSES.get(key))
+            from .enemies import SHADOW_TINT, TINTS, tint_sprites
+            self.sprites[name] = tint_sprites(self.sprites[key], TINTS.get(key, SHADOW_TINT))
+        return self.sprites[name]
+
+    def kit_sprites(self, key, team):
+        """Sprites do herói com o uniforme do time (futebol). Carregados na primeira vez que
+        alguém pede; sem a folha do uniforme (ex.: Aryel Corrompido), ficam os de sempre."""
+        name = f"uniforme:{TEAM_KITS[team]}:{key}"
+        if name not in self.sprites:
+            stats = next((c for c in CHARACTERS if c.key == key), None)
+            sheet = None
+            if stats is not None and key not in SHADOW_CHARACTERS:
+                kit = config.CHAR_DIR / "uniformes" / f"{stats.sprite}_{TEAM_KITS[team]}.png"
+                sheet = load_sheet(stats.sprite, image=kit)
+            self.sprites[name] = sheet or self.sprites[key]
         return self.sprites[name]
 
     def _load_character(self, stats, factor=None):
         if stats.key in SHADOW_CHARACTERS:
             self.sprites[stats.key] = self.shadow_sprites(stats.sprite)
             return
+        sheet = load_sheet(stats.sprite)
+        if sheet is not None:
+            self.sprites[stats.key] = sheet
+            return
+        # arte antiga: um PNG por quadro (<nome>[n]<direção>.png)
         pattern = re.compile(rf"^{re.escape(stats.sprite)}(\d*)({'|'.join(DIRECTIONS)})\.png$")
         found = {d: [] for d in DIRECTIONS}
         for path in config.CHAR_DIR.glob(f"{stats.sprite}*.png"):
@@ -248,19 +302,61 @@ for _ch in "ÁÀÂÃÉÊÍÓÔÕÚ":
     _UPPER_ACCENTS[_ch] = (_base, _MARK_NAMES[_mark])
 
 
+def load_sheet(name, image=None):
+    """Folha de sprite gerada por tools/gerar_sprites.py (<nome>.png + <nome>.json), ou None.
+    ``image`` troca só a imagem (o uniforme usa o mesmo .json do personagem)."""
+    png, meta = image or config.CHAR_DIR / f"{name}.png", config.CHAR_DIR / f"{name}.json"
+    if not (png.is_file() and meta.is_file()):
+        return None
+    try:
+        info = json.loads(meta.read_text(encoding="utf-8"))
+        sheet = pygame.image.load(str(png))
+    except (OSError, ValueError, pygame.error):
+        return None
+    if pygame.display.get_surface() is not None:
+        sheet = sheet.convert_alpha()
+    cw, ch = info["cell"]
+    poses = [(kind, n) for kind, n in info["poses"]]
+    if sheet.get_width() < cw * sum(n for _, n in poses) or sheet.get_height() < ch * len(SHEET_DIRECTIONS):
+        return None
+    f = SHEET_FACTOR
+    frames, hands = {}, {}
+    for row, direction in enumerate(SHEET_DIRECTIONS):
+        frames[direction], col = {}, 0
+        for kind, n in poses:
+            cells = []
+            for i in range(n):
+                cell = sheet.subsurface((col * cw, row * ch, cw, ch))
+                cells.append(pygame.transform.scale(cell, (cw * f, ch * f)))
+                col += 1
+            frames[direction][kind] = cells
+    raw_hands = info.get("hand", {})
+    for direction in SHEET_DIRECTIONS:
+        source = raw_hands.get("direita" if direction == "esquerda" else direction)
+        if not source:
+            continue
+        mirror = -1 if direction == "esquerda" else 1
+        spots = [(mirror * (x - cw / 2) * f, (y - ch) * f) for x, y in source]
+        hands[direction], col = {}, 0
+        for kind, n in poses:
+            hands[direction][kind] = spots[col:col + n]
+            col += n
+    return SpriteSet(poses=frames, hands=hands or None, glow=[tuple(c) for c in info.get("eyes", ())])
+
+
 def window_icon(size=32):
     """Ícone da janela/executável: cabeça do Guerreiro sobre fundo escuro."""
     surf = pygame.Surface((size, size), pygame.SRCALPHA)
     pygame.draw.rect(surf, (22, 19, 30), surf.get_rect(), border_radius=size // 6)
-    path = config.CHAR_DIR / "guerreirofrente.png"
-    try:
-        img = pygame.image.load(str(path))
-    except (pygame.error, FileNotFoundError):
+    sprites = load_sheet("guerreiro")
+    if sprites is None:
         return surf
-    box = img.get_bounding_rect()
-    head = img.subsurface((box.x, box.y, box.w, int(box.h * 0.6)))
-    scale = size * 0.86 / max(head.get_size())
-    head = pygame.transform.smoothscale(head, (round(head.get_width() * scale), round(head.get_height() * scale)))
+    img = sprites.portrait
+    top = img.get_bounding_rect().y
+    cx = img.get_width() // 2
+    head = img.subsurface((cx - 16, top, 32, min(32, img.get_height() - top)))
+    k = max(1, size // max(head.get_size()))           # ampliação inteira: pixel art sem borrar
+    head = pygame.transform.scale(head, (head.get_width() * k, head.get_height() * k))
     surf.blit(head, head.get_rect(center=(size // 2, size // 2 + size // 20)))
     return surf
 
@@ -271,6 +367,14 @@ def _normalize(raw, factor=None):
     cropped = {d: [img.subsurface(img.get_bounding_rect()).copy() for img in frames]
                for d, frames in raw.items()}
     tallest = max(img.get_height() for frames in cropped.values() for img in frames)
+    if factor is None and tallest > config.SPRITE_HEIGHT:
+        # arte desenhada à mão: alguns quadros foram desenhados num tamanho um pouco diferente
+        # (o personagem "pulava" ao andar); cada quadro fica da altura do maior daquela direção
+        for d, frames in cropped.items():
+            top = max(img.get_height() for img in frames)
+            cropped[d] = [img if img.get_height() >= top * 0.97 else
+                          pygame.transform.smoothscale(img, (round(img.get_width() * top / img.get_height()), top))
+                          for img in frames]
     if factor is not None:
         smooth = False
     elif tallest <= config.SPRITE_HEIGHT:

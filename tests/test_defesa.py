@@ -2,7 +2,7 @@
 import math
 import unittest
 
-from apoio import futebol, run
+from apoio import GOL_D, MEIO, futebol, run
 
 from soulstrike import config
 from soulstrike.soccer_assist import closest_approach, segment_contact
@@ -61,9 +61,9 @@ class ChutaoTest(unittest.TestCase):
         match, inputs = futebol(humans=(1,))
         p1, p2 = match.fighters
         p2.x, p2.y = 1300, 200
-        p1.x, p1.y = 200, 450                   # P1 defende o gol da esquerda (x=20)
+        p1.x, p1.y = 200, MEIO                  # P1 defende o gol da esquerda (x=20)
         ball = match.ball
-        ball.x, ball.y = 300, 470
+        ball.x, ball.y = 300, MEIO + 20
         ball.vx = -7.0                           # chute vindo para o gol
         inputs[1].hold("attack")                 # apertou um pouco antes da bola chegar
         run(match, 20, inputs)
@@ -73,10 +73,10 @@ class ChutaoTest(unittest.TestCase):
     def test_cabecada_no_proprio_campo_afasta(self):
         match, _ = futebol()
         p1, p2 = match.fighters
-        p1.x, p1.y = 200, 450
+        p1.x, p1.y = 200, MEIO
         p1.facing = (-1.0, 0.0)                   # olhando para o próprio gol
         ball = match.ball
-        ball.x, ball.y, ball.z = 205, 450, 40
+        ball.x, ball.y, ball.z = 205, MEIO, 40
         self.assertTrue(match.header(p1))
         self.assertGreater(ball.vx, 0)
 
@@ -93,8 +93,8 @@ class ChutaoTest(unittest.TestCase):
     def test_sem_chutao_no_campo_adversario(self):
         match, _ = futebol()
         p1, _ = match.fighters
-        p1.x, p1.y = 1300, 450
-        match.ball.x, match.ball.y = 1330, 450
+        p1.x, p1.y = GOL_D - 300, MEIO               # no campo do adversário
+        match.ball.x, match.ball.y = p1.x + 30, MEIO
         self.assertFalse(match.can_clear(p1))
         self.assertFalse(match.clear_ball(p1))
 

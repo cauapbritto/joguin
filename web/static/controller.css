@@ -251,6 +251,32 @@ body.locked .opt { opacity: .55; }
 .pb-super.cooling { color: var(--muted); }
 .pb-super.ready::before { box-shadow: 0 0 0 3px rgba(228, 170, 76, .35); }
 
+/* munição: anel em volta do ATACAR (verde = pente, dourado = recarregando) e o contador embaixo */
+.pb-main.has-ammo::before {
+  content: ""; position: absolute; inset: -8px; border-radius: 50%;
+  background: conic-gradient(var(--moss) calc(var(--a, 1) * 1turn), var(--line) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+}
+.pb-main.has-ammo.reloading::before {
+  background: conic-gradient(var(--brass) calc(var(--a, 0) * 1turn), var(--line) 0);
+}
+.pb-main.has-ammo.extra::before {
+  background: conic-gradient(var(--brass) calc(var(--a, 1) * 1turn), var(--line) 0);
+}
+#ammo-badge {
+  position: absolute; display: none;
+  transform: translate(-50%, 0);
+  padding: 3px 6px 1px;
+  font-style: normal; font-size: 9px; white-space: nowrap;
+  color: var(--bone); background: var(--ink-2);
+  border: 2px solid var(--line-hi); box-shadow: 0 2px 0 #000;
+  pointer-events: none;
+}
+#ammo-badge.on { display: block; }
+#ammo-badge.reloading { color: var(--brass); border-color: var(--brass); }
+#ammo-badge.empty { color: #f0a49e; border-color: var(--blood); }
+
 /* correr: empurrar o analógico até a borda; o anel mostra o fôlego */
 #stick-stamina {
   position: absolute; inset: -11px; border-radius: 50%;
@@ -264,6 +290,21 @@ body.soccer #stick-stamina { opacity: 1; }
 #stick-stamina.tired { background: conic-gradient(var(--blood) calc(var(--st, 1) * 1turn), var(--line) 0); }
 #stick-base.run { border-color: var(--moss); }
 #stick-base.run #stick-knob { background: var(--moss); }
+
+#vote-btn {
+  display: none;
+  position: absolute; left: 50%; top: 58px; z-index: 4;
+  transform: translateX(-50%);
+  min-height: 64px; padding: 14px 22px 12px;
+  font-size: 14px; white-space: nowrap;
+  border-color: var(--brass);
+  animation: vote-pulse 1s ease-in-out infinite alternate;
+}
+#vote-btn.on { display: block; }
+#vote-btn:active { transform: translate(-50%, 3px); }
+#vote-btn.is-ready { animation: none; background: #2f4a2a; border-color: var(--moss); font-size: 11px; }
+@keyframes vote-pulse { from { box-shadow: 0 4px 0 #000, 0 0 0 0 rgba(228,170,76,.0); }
+                        to   { box-shadow: 0 4px 0 #000, 0 0 0 8px rgba(228,170,76,.35); } }
 
 #paused {
   display: none;

@@ -8,6 +8,7 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 os.environ.setdefault("SOULSTRIKE_PROGRESS", os.path.join(tempfile.mkdtemp(prefix="soulstrike-"), "progresso.json"))
 
 from soulstrike.ai import SoccerAI  # noqa: E402
+from soulstrike.arena import Pitch  # noqa: E402
 from soulstrike.game import Game  # noqa: E402
 from soulstrike.matches import SoccerMatch  # noqa: E402
 from soulstrike.session import Session, SlotSetup  # noqa: E402
@@ -61,6 +62,11 @@ class FakeInput:
 
     def end_frame(self):
         self._pressed.clear()
+
+
+# referências no campo de futebol: linha do gol da direita (o time azul ataca para lá) e o meio
+GOL_D = Pitch.goal_x(1)
+MEIO = Pitch.MID_Y
 
 
 def futebol(chars=(4, 2), humans=()):

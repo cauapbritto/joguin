@@ -2,7 +2,7 @@
 import math
 import unittest
 
-from apoio import futebol, run
+from apoio import GOL_D, MEIO, futebol, run
 
 from soulstrike.soccer_assist import ASSIST_LEVELS, shot_assist
 
@@ -78,12 +78,12 @@ class ChuteTest(unittest.TestCase):
     def test_chute_do_jogador_usa_a_assistencia(self):
         match, inputs = futebol(humans=(1,))
         p1, p2 = match.fighters
-        p2.x, p2.y = 300, 100
-        _com_bola(match, inputs, p1, 1100, 450)
+        p2.x, p2.y = 300, MEIO - 350
+        _com_bola(match, inputs, p1, GOL_D - 480, MEIO)
         p1.facing = (math.cos(-0.33), math.sin(-0.33))   # um pouco para fora
         self.assertTrue(match.kick(p1, loft=0.0, assist=True))
         ball = match.ball
-        t = (1580 - ball.x) / ball.vx
+        t = (GOL_D - ball.x) / ball.vx
         self.assertTrue(match.GOAL_TOP <= ball.y + ball.vy * t <= match.GOAL_BOTTOM)
 
 

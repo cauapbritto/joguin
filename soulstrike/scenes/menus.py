@@ -6,7 +6,7 @@ import pygame
 
 from .. import config, theme
 from ..controls import KEY_LABELS, SOCCER_KEY_LABELS, PlayerInput
-from ..data import roster
+from ..data import CHARACTERS, SHADOW_CHARACTERS, roster
 from ..net import server
 from ..session import MODES, Session, SlotSetup
 from ..ui import Backdrop, MenuList
@@ -39,6 +39,22 @@ class LoadingScene(Scene):
         for progress in self.assets.load_steps():
             self.progress = progress
             yield
+        # os QR codes da tela de conexão também ficam prontos aqui (gerar na hora dava um tranco)
+        for slot in (1, 2, 3, 4):
+            self.assets.qr(f"{self.game.base_url}/?player={slot}", module=4)
+            yield
+        # e o cenário pintado dos mapas (chão e paredes ficam guardados)
+        from ..arena import MAPS, Arena
+        from ..scenery import THEMED_MAPS
+        for cfg in MAPS:                 # arenas, variações e acampamentos da campanha
+            if cfg.scenery in THEMED_MAPS:
+                Arena(cfg, self.assets)
+                yield
+        # e as almas corrompidas de cada herói (campanha)
+        for stats in CHARACTERS:
+            if stats.key not in SHADOW_CHARACTERS:
+                self.assets.shadow_sprites(stats.sprite)
+                yield
 
     def draw(self, screen):
         screen.fill(theme.INK)
@@ -113,8 +129,15 @@ class TitleScene(_MenuScene):
             pygame.draw.ellipse(screen, (6, 4, 10), (x - 18, ground - 5, 36, 10))
             screen.blit(img, img.get_rect(midbottom=(x, ground + bob)))
 
-        self.ui.text(screen, "CELULAR COMO CONTROLE:", theme.XS, theme.FAINT, (W - 16, H - 28), anchor="bottomright")
-        self.ui.text(screen, self.game.base_url, theme.XS, theme.MUTED, (W - 16, H - 14), anchor="bottomright")
+        if server.start_error:
+            # outro Soul Strike aberto (ou outro programa) já está usando a porta do controle
+            self.ui.text(screen, "CELULAR INDISPONÍVEL: " + server.start_error, theme.XS, theme.BLOOD,
+                         (W - 16, H - 28), anchor="bottomright")
+            self.ui.text(screen, "FECHE A OUTRA JANELA DO JOGO E ABRA DE NOVO", theme.XS, theme.MUTED,
+                         (W - 16, H - 14), anchor="bottomright")
+        else:
+            self.ui.text(screen, "CELULAR COMO CONTROLE:", theme.XS, theme.FAINT, (W - 16, H - 28), anchor="bottomright")
+            self.ui.text(screen, self.game.base_url, theme.XS, theme.MUTED, (W - 16, H - 14), anchor="bottomright")
         self.ui.text(screen, "F11 TELA CHEIA", theme.XS, theme.FAINT, (16, H - 14), anchor="bottomleft")
 
 
@@ -123,12 +146,17 @@ MODE_TEXT = {
             "1 JOGADOR"),
     "duel": ("Dois jogadores no mesmo teclado, ou cada um com o celular como controle.",
              "2 JOGADORES"),
+    "duel2": ("Times de dois, sem fogo amigo: o round acaba quando o time inteiro cai, e dá para levantar "
+              "o companheiro caído. Quem faltar vira CPU.",
+              "1 A 4 JOGADORES"),
     "soccer1": ("Futebol com habilidades: passe, corte, condução e super chute. Primeiro a 3 gols vence.",
                 "2 JOGADORES"),
-    "soccer2": ("Times de dois. Os jogadores 3 e 4 entram pelo celular; quem não conectar vira CPU.",
-                "2 A 4 JOGADORES"),
-    "campaign": ("Juntos contra as sombras: 3 fases com ondas de inimigos, melhorias entre as fases e o "
-                 "chefão Aryel Corrompido no fim. Quem cair pode ser levantado por um companheiro.",
+    "soccer2": ("Times de dois. O jogador 2 entra pelo teclado (;) ou celular; o 3 e o 4, pelo celular. "
+                "Quem faltar vira CPU para fechar o time.",
+                "1 A 4 JOGADORES"),
+    "campaign": ("Juntos contra as sombras: em cada fase, um acampamento e duas masmorras, com um baú "
+                 "escondido de armas raras no caminho. No fim, o chefão Aryel Corrompido. Quem cair pode "
+                 "ser levantado por um companheiro.",
                  "1 A 4 JOGADORES"),
 }
 
@@ -136,7 +164,7 @@ MODE_TEXT = {
 class ModeScene(_MenuScene):
     def __init__(self, game):
         super().__init__(game)
-        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "soccer1", "soccer2")]
+        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2")]
         options.append(("VOLTAR", "back"))
         self.menu = MenuList(options, topleft=(56, 104), width=320, row_h=38)
 
@@ -154,10 +182,15 @@ class ModeScene(_MenuScene):
             return
         self.sfx("confirm")
         count = MODES[choice]["slots"]
-        slots = [SlotSetup(s, cpu=(choice == "cpu" and s == 2)) for s in range(1, count + 1)]
+        teams = MODES[choice].get("teams", False)
+        slots = [SlotSetup(s, cpu=(choice == "cpu" and s == 2) or (teams and s > 1))
+                 for s in range(1, count + 1)]
         if choice == "campaign":
             slots = slots[:1]           # P2 a P4 entram na tela de conexão
+        previous = self.game.session
         self.game.session = Session(choice, slots)
+        if previous is not None and teams:
+            self.game.session.layout = previous.layout      # mantém a divisão de times escolhida
         from .select import CharSelectScene, LobbyScene
         if choice == "cpu":
             self.game.change(CharSelectScene(self.game))
@@ -187,9 +220,10 @@ class ModeScene(_MenuScene):
         if key == "campaign":
             self._campaign_illustration(screen, area)
             return
-        floor = theme.INK if key in ("cpu", "duel") else (34, 92, 46)
+        battle = key in ("cpu", "duel", "duel2")
+        floor = theme.INK if battle else (34, 92, 46)
         screen.fill(floor, area)
-        if key not in ("cpu", "duel"):
+        if not battle:
             for i, x in enumerate(range(area.x, area.right, 40)):
                 if i % 2:
                     screen.fill((40, 104, 52), (x, area.y, 40, area.h))
@@ -204,16 +238,20 @@ class ModeScene(_MenuScene):
         cast = {
             "cpu": [("guerreiro", "direita", -90), ("tanque", "esquerda", 90)],
             "duel": [("aryel", "direita", -90), ("ninja", "esquerda", 90)],
+            "duel2": [("pirata", "direita", -150), ("geada", "direita", -70),
+                      ("atirador", "esquerda", 70), ("tanque", "esquerda", 150)],
             "soccer1": [("velocista", "direita", -110), ("atirador", "esquerda", 110)],
             "soccer2": [("tita", "direita", -150), ("fantasma", "direita", -70),
                         ("guerreiro", "esquerda", 70), ("aryel", "esquerda", 150)],
         }[key]
-        step = (self.ticks // 8) % 4
+        step = self.ticks // 4
         for name, direction, dx in cast:
             img = sprites[name].frame(direction, step)
             img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
             x = area.centerx + dx
             pygame.draw.ellipse(screen, (0, 0, 0), (x - 30, ground - 8, 60, 14))
+            if MODES[key].get("teams"):
+                pygame.draw.ellipse(screen, theme.TEAM_COLORS[0 if dx < 0 else 1], (x - 33, ground - 10, 66, 18), 2)
             screen.blit(img, img.get_rect(midbottom=(x, ground + 4)))
         if key.startswith("soccer"):
             bx = area.centerx + int(math.sin(self.ticks * 0.05) * 20)
@@ -230,7 +268,7 @@ class ModeScene(_MenuScene):
             screen.fill((30, 44, 28), (area.x, y, area.w, 1))
         sprites = self.assets.sprites
         ground = area.bottom - 22
-        step = (self.ticks // 8) % 4
+        step = self.ticks // 4
         cast = [("guerreiro", "direita", -170, False), ("geada", "direita", -100, False),
                 ("diabrete", "esquerda", 40, False), ("esqueleto", "esquerda", 110, False),
                 ("aryel", "esquerda", 180, True)]
@@ -284,6 +322,7 @@ class ControlsScene(_InfoScene):
         ("CONDUZIR COLADO (FUTEBOL)", SOCCER_KEY_LABELS[1]["dribble"], SOCCER_KEY_LABELS[2]["dribble"]),
     ]
     TIPS = [
+        "DUELO: A MUNIÇÃO RECARREGA SOZINHA. ARCO: SEGURE ATACAR PARA TENSIONAR.",
         "FUTEBOL: TOQUE EM CHUTAR/PASSE = RASTEIRO. SEGURE E SOLTE = PELO ALTO.",
         "PASSE VAI NA DIREÇÃO QUE VOCÊ APONTA. NA PONTA, NO 2X2, VIRA CRUZAMENTO.",
         "NO SEU CAMPO, CHUTAR COM A BOLA SOLTA = CHUTÃO PARA LONGE DO GOL.",
@@ -323,7 +362,7 @@ class ControlsScene(_InfoScene):
             self.ui.text(screen, label, theme.XS, theme.BONE, (cols[0], y), anchor="midleft", shadow=False)
             self.ui.keycap(screen, k1, (cols[1], y))
             self.ui.keycap(screen, k2, (cols[2], y))
-            y += 23
+            y += 21
         y += 2
         for tip in self.TIPS:
             self.ui.text(screen, tip, theme.XS, theme.MUTED, (cols[0], y), anchor="midleft", shadow=False)
@@ -347,26 +386,37 @@ class ControlsScene(_InfoScene):
 
 ABOUT = [
     ("OS 4 PILARES DA ORIENTAÇÃO A OBJETOS NO SOUL STRIKE", None),
-    ("ENCAPSULAMENTO", "Fighter guarda vida, posição e tempos de recarga. Ninguém altera a vida "
+    ("ENCAPSULAMENTO", "Fighter guarda vida, posição, tempos de recarga e a munição. Ninguém altera a vida "
      "diretamente: quem causa dano chama take_damage(), que confere esquiva e invulnerabilidade antes "
-     "de descontar. RemoteHub esconde a trava entre a thread do servidor web e o jogo; o resto do código "
+     "de descontar. Do mesmo jeito, só attack() gasta tiro e só start_reload() e refill_ammo() enchem o pente. RemoteHub esconde a trava entre a thread do servidor web e o jogo; o resto do código "
      "só usa apply_input(), poll() e status()."),
     ("ABSTRAÇÃO", "Entity e Ability são classes abstratas (ABC): dizem o que toda entidade e toda "
      "habilidade faz (update, draw, activate) sem dizer como. Arena.resolve() esconde a colisão de "
      "círculo com retângulo e Camera esconde o zoom e a conversão do mundo para a tela."),
     ("HERANÇA", "Fighter, Bullet, Explosion, Barrier, FrostNova, Wall, Pickup, Ball, Portal e Shockwave herdam "
      "de Entity e ganham posição, distance_to() e direction_to(). Hook (o gancho do Pirata) herda de Bullet: "
-     "voa e colide como um tiro e só muda o que acontece ao acertar (on_hit puxa o alvo). ShadowBomb herda "
+     "voa e colide como um tiro e só muda o que acontece ao acertar (on_hit puxa o alvo). Os projéteis das "
+     "armas (Arrow, Grenade, ChainBall...) herdam de Projectile, que herda de Bullet. ShadowBomb herda "
      "de GroundMark: é o mesmo aviso no chão, só que explode no fim. BattleMatch, SoccerMatch e "
-     "CampaignMatch herdam de Match, que já cuida de câmera, tiros, partículas e desenho. Os inimigos da "
+     "CampaignMatch herdam de Match, que já cuida de câmera, tiros, partículas e desenho. Na campanha, "
+     "CampaignMatch (a masmorra) e LobbyMatch (o acampamento) herdam de CoopMatch, que junta o que as duas "
+     "têm em comum (levantar quem caiu, a mira, os itens, o escurecer entre as etapas). TeamBattleMatch "
+     "(o duelo 2 x 2) herda de BattleMatch e só troca o que é um \"lado\": em vez de um lutador, um time "
+     "inteiro, que precisa cair todo para perder o round. Os inimigos da "
      "campanha são Fighters do time das sombras. Todas as telas herdam de Scene."),
-    ("POLIMORFISMO", "Cada personagem tem uma subclasse de Ability: Investida, Rajada, Muralha, "
+    ("POLIMORFISMO", "Cada arma de tiro dispara a sua subclasse de Projectile: Arrow (a flecha que finca na "
+     "parede), Tracer, Spear, ShurikenStar (ricocheteia), ThrowingStar, Grenade (vai por cima das paredes), "
+     "Orb (persegue e atravessa paredes), ChainBall (vai e volta), LeadBall e IceShard (deixa lento). A partida "
+     "só chama update(), on_hit() e on_wall() e cada uma responde do seu jeito. "
+     "Cada personagem tem uma subclasse de Ability: Investida, Rajada, Muralha, "
      "ShurikenTripla, Turbo, Explosao, Teletransporte, Invulneravel, Gancho, Nevasca e ChuvaSombria. O "
      "lutador só chama ability.use() e cada classe responde do seu jeito. No futebol, o botão SUPER chama "
      "power.use() de uma subclasse de SoccerPower (Carrinho, ChuteCerteiro, MuralhaDoGol, Sombra, Arrancada, "
      "Bomba, BombaSombria, BolaFantasma, Gigante, GanchoNaBola e Congelar). Na campanha, cada inimigo tem um "
      "cérebro (DiabreteAI, EsqueletoAI, GolemAI, BossAI) e cada melhoria é uma subclasse de Upgrade com "
-     "apply(). E a cena de jogo chama match.step() sem saber se é duelo, futebol ou campanha."),
+     "apply(). Nos mapas, cada estilo de parede (Hedge, DungeonStone, IceBlock) e cada ambiente (Fireflies, "
+     "Torches, Snow) responde ao mesmo paint() ou draw(). E a cena de jogo chama match.step() sem saber se "
+     "é duelo, duelo 2 x 2, futebol ou campanha."),
 ]
 
 

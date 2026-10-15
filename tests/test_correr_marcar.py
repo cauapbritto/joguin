@@ -2,7 +2,7 @@
 import math
 import unittest
 
-from apoio import futebol, run
+from apoio import MEIO, futebol, run
 
 from soulstrike import config
 
@@ -99,9 +99,9 @@ class MarcarTest(unittest.TestCase):
     def test_perto_do_gol_vira_goleiro(self):
         match, inputs = futebol(humans=(1,))
         p1, p2 = match.fighters
-        p2.x, p2.y = 1500, 900
-        p1.x, p1.y = 300, 750                        # vem de baixo, sem passar pela bola
-        match.ball.x, match.ball.y = 260, 300        # bola perto do gol da esquerda, parada
+        p2.x, p2.y = 1500, MEIO + 450
+        p1.x, p1.y = 300, MEIO + 300                 # vem de baixo, sem passar pela bola
+        match.ball.x, match.ball.y = 260, MEIO - 150  # bola perto do gol da esquerda, parada
         inputs[1].hold("mark")
         run(match, 120, inputs)
         gx, gy = match.goal_center(0)

@@ -59,6 +59,10 @@ class SlotInfo:
         self.cooldown = 0.0   # 0..1 do super (futebol)
         self.stamina = 1.0    # 0..1 do fôlego da corrida (futebol)
         self.tired = False    # fôlego acabou: só volta a correr depois de recuperar um pouco
+        self.ammo = 0         # munição da arma na mão (duelo e campanha)
+        self.mag = 0          # tamanho do pente (0 = arma sem munição, ex.: corpo a corpo)
+        self.reload = 0.0     # 0..1 da recarga (0 = não está recarregando)
+        self.vote = 0         # teletransporte de fase: 0 nada, 1 falta você confirmar, 2 confirmado
         self.options = []     # melhorias para escolher (campanha): [{name, desc, color}]
         self.choice = 0       # qual está marcada
 
@@ -219,15 +223,18 @@ class RemoteHub:
                 self._held.clear()
                 for pad in self._pads.values():
                     pad.held = set()
+                if phase != "paused":
+                    for info in self._slots.values():
+                        info.vote = 0             # fora da partida não tem teletransporte para confirmar
 
     def publish_slot(self, slot, **fields):
         """Atualiza o que o celular mostra: char, weapon, ready, team, cooldown, stamina, tired,
-        options e choice (melhorias da campanha)."""
+        munição (ammo, mag, reload), options e choice (melhorias da campanha)."""
         with self._lock:
             info = self._slots[slot]
             for name, value in fields.items():
                 if name not in ("char", "weapon", "ready", "team", "cooldown", "stamina", "tired",
-                                "options", "choice"):
+                                "options", "choice", "ammo", "mag", "reload", "vote"):
                     raise ValueError(name)
                 setattr(info, name, value)
 
@@ -257,6 +264,10 @@ class RemoteHub:
                     "cooldown": round(mine.cooldown, 3),
                     "stamina": round(mine.stamina, 3),
                     "tired": mine.tired,
+                    "ammo": mine.ammo,
+                    "mag": mine.mag,
+                    "reload": round(mine.reload, 3),
+                    "vote": mine.vote,
                     "options": mine.options,
                     "choice": mine.choice,
                     "playing": slot in self._active,

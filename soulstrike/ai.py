@@ -27,8 +27,11 @@ class FighterAI:
         self.strafe = random.choice((-1, 1))
         self.last_pos = None
         self.detour = 0
+        self.preferred = None         # arma escolhida na seleção (volta para ela depois de recarregar)
 
     def update(self, me, target, match):
+        if self.preferred is None:
+            self.preferred = me.weapon_index
         if target is None or not target.alive_in_match:
             me.steer(0, 0)
             return
@@ -49,6 +52,7 @@ class FighterAI:
         mag = math.hypot(ax, ay) or 1
         ax, ay = ax / mag, ay / mag
 
+        self._manage_weapon(me, match, dist)
         weapon = me.weapon
         ideal = weapon.reach * 0.7 if weapon.is_melee else cfg["range"]
         blocked = match.arena.blocks_segment((me.x, me.y), (target.x, target.y))
@@ -64,7 +68,14 @@ class FighterAI:
 
         side = (-ay * self.strafe, ax * self.strafe)
         item = self._wanted_pickup(me, target, match)
-        if item is not None:
+        mate = self._downed_mate(me, match)
+        reviving = mate is not None and (dist > 170 or blocked)
+        if reviving:
+            # 2 x 2: vai levantar o companheiro caído (e continua atirando de lá)
+            mx, my = mate.x - me.x, mate.y - me.y
+            d = math.hypot(mx, my) or 1
+            self.move = (mx / d, my / d) if d > 22 else (0.0, 0.0)
+        elif item is not None:
             # vai buscar o item (vida quando está machucado, fúria/energia quando está perto)
             ix, iy = item.x - me.x, item.y - me.y
             d = math.hypot(ix, iy) or 1
@@ -93,9 +104,31 @@ class FighterAI:
             bx, by = threat
             if me.dash((-by, bx) if random.random() < 0.5 else (by, -bx)):
                 match.assets.play("dash", 0.3)
-        elif random.random() < cfg["dash"]:
+        elif random.random() < cfg["dash"] and not reviving:
             if me.dash((ax, ay) if dist > 200 else (-ax, -ay)):
                 match.assets.play("dash", 0.3)
+
+    def _manage_weapon(self, me, match, dist):
+        """Sem munição e com o inimigo colado: troca para a arma de perto enquanto recarrega;
+        pente cheio de novo: volta para a arma de tiro (a não ser que ainda esteja colado)."""
+        if not me.mag or len(me.weapons) < 2:
+            return
+        ranged_out = me.reloading or me.ammo <= 0
+        if not me.weapon.is_melee and ranged_out and dist < 130:
+            if me.switch_weapon():
+                match.assets.play("click", 0.3)
+        elif (me.weapon.is_melee and not me.weapons[self.preferred].is_melee and not ranged_out
+              and dist > 110):
+            if me.switch_weapon():
+                match.assets.play("click", 0.3)
+
+    @staticmethod
+    def _downed_mate(me, match):
+        can_revive = getattr(match, "can_revive", None)
+        if can_revive is None or me.team is None:
+            return None
+        mates = [f for f in match.fighters if f is not me and f.team == me.team and can_revive(f)]
+        return min(mates, key=me.distance_to) if mates else None
 
     @staticmethod
     def _wanted_pickup(me, target, match):
@@ -104,6 +137,8 @@ class FighterAI:
             if item.kind == "vida" and me.hp > me.max_hp * 0.75:
                 continue
             if item.kind == "energia" and me.ability_ready:
+                continue
+            if item.kind == "municao" and (not me.mag or me.ammo >= me.mag // 2 and not me.reloading):
                 continue
             d = math.hypot(item.x - me.x, item.y - me.y)
             rival = math.hypot(item.x - target.x, item.y - target.y)
@@ -122,6 +157,9 @@ class FighterAI:
             if dist < 140 and (rx * b.vx + ry * b.vy) / (dist * speed + 1e-6) > 0.9:
                 return b.vx / speed, b.vy / speed
         return None
+
+
+SHOOT_RANGE = 540        # a CPU chuta a gol mais perto que isso
 
 
 class SoccerAI:
@@ -151,8 +189,8 @@ class SoccerAI:
         dist_ball = math.hypot(me.x - ball.x, me.y - ball.y)
         # corre quando vale a pena e tem fôlego: bola solta longe ou adversário perto do meu gol
         owner = match.possessor
-        loose_far = owner is None and dist_ball > 180 and me.stamina > 0.4
-        danger = (owner is not None and owner.team != me.team and abs(ball.x - home_x) < 500
+        loose_far = owner is None and dist_ball > 220 and me.stamina > 0.4
+        danger = (owner is not None and owner.team != me.team and abs(ball.x - home_x) < 650
                   and dist_ball > 120 and me.stamina > 0.3)
         me.sprint_held = loose_far or danger
 
@@ -190,16 +228,16 @@ class SoccerAI:
         owner = match.possessor
         going_wide = (owner is not None and owner.team == me.team
                       and abs(attack_x - owner.x) < match.arena.width * 0.5
-                      and abs(owner.y - mid_y) >= 120)
+                      and abs(owner.y - mid_y) >= 170)
         if going_wide:
             # companheiro na ponta: entra na área para receber o cruzamento (no segundo pau)
             fwd = 1 if attack_x > me.x else -1
             side = 1 if owner.y < mid_y else -1
-            tx, ty = attack_x - fwd * 140, mid_y + side * 40
+            tx, ty = attack_x - fwd * 180, mid_y + side * 50
             me.sprint_held = me.stamina > 0.2
         elif owner is not None and owner.team == me.team:
             # companheiro com a bola: abre espaço à frente dele
-            tx, ty = (owner.x + attack_x) / 2, mid_y + (me.slot % 2 * 2 - 1) * 140
+            tx, ty = (owner.x + attack_x) / 2, mid_y + (me.slot % 2 * 2 - 1) * 190
         elif owner is not None and mates and min(mates, key=lambda m: m.distance_to(ball)).distance_to(ball) < dist_ball:
             # o companheiro pressiona; eu fecho o caminho do gol
             tx, ty = (ball.x + home_x) / 2, (ball.y + mid_y) / 2
@@ -211,7 +249,7 @@ class SoccerAI:
             if dist_ball < 40 and me.dash_cd <= 0 and random.random() < 0.04:
                 match.cut(me, ((ball.x - me.x) / (dist_ball or 1), (ball.y - me.y) / (dist_ball or 1)))
         elif any(near(f) for f in mates):
-            tx, ty = attack_x, mid_y + (me.slot % 2 * 2 - 1) * 120
+            tx, ty = attack_x, mid_y + (me.slot % 2 * 2 - 1) * 170
         elif any(near(f) for f in foes) and dist_ball > 60:
             tx, ty = (ball.x + home_x) / 2, (ball.y + mid_y) / 2
         else:
@@ -237,7 +275,7 @@ class SoccerAI:
             return False
         speed = math.hypot(ball.vx, ball.vy)
         toward_goal = ball.vx * (home_x - ball.x) > 0 and speed > 3
-        pressed = abs(ball.x - home_x) < 320 and any(
+        pressed = abs(ball.x - home_x) < 420 and any(
             f.distance_to(ball) < 120 for f in match.foes_of(me))
         if (toward_goal or pressed) and match.touching(me, config.CLEAR_REACH, max_z=config.HEAD_RANGE[1]):
             if random.random() < 0.6 and match.clear_ball(me):
@@ -270,7 +308,7 @@ class SoccerAI:
                     m = math.hypot(*aim)
                     aim = (aim[0] / m, aim[1] / m)
             else:
-                wx, wy = attack_x - fwd * 260 - me.x, mid_y + self.wing * 250 - me.y
+                wx, wy = attack_x - fwd * 340 - me.x, mid_y + self.wing * 340 - me.y
                 w = math.hypot(wx, wy) or 1
                 aim = (wx / w, wy / w)
         blocker = None
@@ -286,7 +324,7 @@ class SoccerAI:
                 self.swerve = -self.swerve
         me.dribbling = me.sprint_timer > 0 or blocker is not None
         # campo aberto: arranca com a bola
-        me.sprint_held = blocker is None and me.stamina > 0.5 and abs(attack_x - me.x) > 300
+        me.sprint_held = blocker is None and me.stamina > 0.5 and abs(attack_x - me.x) > 380
         me.steer(*move)
         if me.super_cd <= 0 and random.random() < 0.08 and me.power.worth_using(me, match):
             if match.use_power(me):
@@ -295,13 +333,13 @@ class SoccerAI:
             return                                   # indo para a ponta: ainda não chuta
         near_goal = abs(attack_x - me.x)
         # na ponta, com companheiro entrando na área: cruza
-        if near_goal < 460 and match.in_cross_position(me) and random.random() < 0.12:
+        if near_goal < 600 and match.in_cross_position(me) and random.random() < 0.12:
             if match.cross_receiver(me, mates) is not None and match.pass_ball(me, high=random.random() < 0.65):
                 return
-        if near_goal < 420:
+        if near_goal < SHOOT_RANGE:
             me.facing = aim
             # marcador colado na frente: tenta encobrir
-            loft = 0.25 if blocker is not None and me.distance_to(blocker) < 80 and near_goal > 220 else 0.0
+            loft = 0.25 if blocker is not None and me.distance_to(blocker) < 80 and near_goal > 280 else 0.0
             match.kick(me, aim, loft=loft)
         elif blocker is not None and me.distance_to(blocker) < 45:
             open_mates = [m for m in mates if abs(attack_x - m.x) < abs(attack_x - me.x) + 80]

@@ -1,10 +1,19 @@
-"""Câmera que segue os jogadores e afasta o zoom para manter todos na tela."""
+"""Câmera que segue os jogadores e afasta o zoom para manter todos na tela.
+
+O zoom anda em degraus (100%, 75% e 60%) e, parado num degrau, a posição da câmera
+encaixa na grade desse zoom: assim a redução da imagem cai sempre igual nos mesmos
+pixels e a pixel art não "treme" quando a câmera desliza.
+"""
 import math
 import random
+from fractions import Fraction
 
 import pygame
 
 from . import config
+
+ZOOM_STEPS = (Fraction(1), Fraction(3, 4), Fraction(3, 5))
+ZOOM_IN_MARGIN = 0.06     # para aproximar de novo precisa sobrar essa folga (não fica indo e voltando)
 
 
 class Camera:
@@ -13,6 +22,11 @@ class Camera:
         sw, sh = config.SCREEN_W, config.SCREEN_H
         # nunca mostrar além das bordas do mapa
         self.min_zoom = min(1.0, max(min_zoom, sw / self.world_w, sh / self.world_h))
+        lowest = Fraction(self.min_zoom).limit_denominator(20)
+        self.levels = [z for z in ZOOM_STEPS if z >= lowest] or [Fraction(1)]
+        if self.levels[-1] != lowest and lowest < 1:
+            self.levels.append(lowest)
+        self.level = self.levels[0]
         self.margin = margin
         self.zoom = 1.0
         self.x = self.y = 0.0
@@ -25,8 +39,25 @@ class Camera:
 
     @property
     def view_size(self):
-        return (min(self._canvas.get_width(), math.ceil(config.SCREEN_W / self.zoom)),
-                min(self._canvas.get_height(), math.ceil(config.SCREEN_H / self.zoom)))
+        return (min(self._canvas.get_width(), math.ceil(config.SCREEN_W / self.zoom - 1e-6)),
+                min(self._canvas.get_height(), math.ceil(config.SCREEN_H / self.zoom - 1e-6)))
+
+    @property
+    def settled(self):
+        """O zoom está parado exatamente num degrau."""
+        return self.zoom == float(self.level)
+
+    def _pick_level(self, fit):
+        """fit: maior zoom em que todo mundo cabe (sem limite). Se o degrau atual não cabe mais,
+        afasta na hora; para aproximar de novo, o degrau mais perto precisa caber com folga."""
+        if fit < float(self.level) - 1e-9:
+            return next((z for z in self.levels if z <= fit + 1e-9), self.levels[-1])
+        for z in self.levels:                     # do mais perto para o mais longe
+            if z <= self.level:
+                break
+            if fit >= float(z) * (1 + ZOOM_IN_MARGIN):
+                return z
+        return self.level
 
     def focus(self, points, instant=False):
         if not points:
@@ -35,10 +66,13 @@ class Camera:
         ys = [p[1] for p in points]
         span_w = max(xs) - min(xs) + self.margin * 2
         span_h = max(ys) - min(ys) + self.margin * 2
-        target_zoom = min(1.0, config.SCREEN_W / span_w, config.SCREEN_H / span_h)
-        target_zoom = max(self.min_zoom, target_zoom)
-        k_zoom, k_pos = (1.0, 1.0) if instant else (0.05, 0.1)
-        self.zoom += (target_zoom - self.zoom) * k_zoom
+        fit = min(config.SCREEN_W / span_w, config.SCREEN_H / span_h)
+        self.level = self._pick_level(fit)
+        goal = float(self.level)
+        k_zoom, k_pos = (1.0, 1.0) if instant else (0.12, 0.1)
+        self.zoom += (goal - self.zoom) * k_zoom
+        if abs(goal - self.zoom) < 0.003:
+            self.zoom = goal
         vw, vh = config.SCREEN_W / self.zoom, config.SCREEN_H / self.zoom
         cx = (max(xs) + min(xs)) / 2
         cy = (max(ys) + min(ys)) / 2
@@ -63,8 +97,13 @@ class Camera:
         """Devolve a superfície do mundo visível e prende a posição em pixels inteiros."""
         vw, vh = self.view_size
         self._render_x, self._render_y = self.x, self.y
-        self.x = round(min(max(self.x + self._offset[0], 0), max(0, self.world_w - vw)))
-        self.y = round(min(max(self.y + self._offset[1], 0), max(0, self.world_h - vh)))
+        x, y = self.x + self._offset[0], self.y + self._offset[1]
+        if self.settled and self.level.denominator > 1:
+            # zoom 3/4: andar de 4 em 4 pixels do mundo = 3 pixels inteiros da tela
+            q = self.level.denominator
+            x, y = round(x / q) * q, round(y / q) * q
+        self.x = round(min(max(x, 0), max(0, self.world_w - vw)))
+        self.y = round(min(max(y, 0), max(0, self.world_h - vh)))
         return self._canvas.subsurface((0, 0, vw, vh))
 
     def end(self, view, screen):

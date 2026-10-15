@@ -12,9 +12,15 @@ import pygame
 
 from . import config, hud, theme
 from .ai import FighterAI
-from .entities import Pickup
-from .enemies import CREATURES, SHADOW_AURA, Portal, spawn_enemy
+from .entities import Particle, Pickup
+from .enemies import CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_enemy
+from .arena import MAPS_BY_KEY
 from .matches import Match, Result, _separate
+from .net.remote import hub
+from .ui import darken
+from .data import RARE_WEAPONS
+from .dungeon import Campfire, Chest, ExitDoor, Gate, RelicDrop
+from .lobbies import cells_rect
 from .upgrades import apply_all
 
 PLAYERS, ENEMIES = 0, 1
@@ -30,7 +36,8 @@ BETWEEN_FRAMES = 110
 CLEAR_FRAMES = 200
 DOWN_FRAMES = 150
 GAMEOVER_FRAMES = 220
-CORPSE_FRAMES = 70
+CORPSE_FRAMES = 80
+CORPSE_FADE = 32              # últimos quadros do corpo: vai sumindo
 SOLO_DAMAGE = 0.85
 
 # dificuldade da campanha: (vida dos inimigos, dano dos inimigos)
@@ -38,33 +45,71 @@ DIFFICULTY = {"facil": (0.75, 0.7), "normal": (1.0, 1.0), "dificil": (1.3, 1.25)
 
 
 @dataclass(frozen=True)
-class Phase:
-    key: str
+class Dungeon:
+    """Uma masmorra (sala de batalha) da fase."""
     map_key: str
     name: str
-    starts: tuple             # onde cada jogador começa
+    starts: tuple             # onde cada jogador entra
     facing: tuple
     waves: tuple              # cada onda: ((tipo, quantidade), ...)
+    exit_spot: tuple          # onde aparece a porta de volta (ou o portal, na última)
     boss_spot: tuple = None
 
 
+@dataclass(frozen=True)
+class Phase:
+    """Uma fase: o acampamento (lobby, no tema da fase) e duas masmorras.
+
+    Caminho: acampamento → masmorra 1 → acampamento (baú escondido) → masmorra 2 → portal."""
+    key: str
+    name: str
+    theme: str                # tema do acampamento (floresta, calabouco, templo_gelado)
+    dungeons: tuple
+
+    @property
+    def lobby(self):
+        return f"acampamento_{self.theme}"
+
+
+LEFT = ((180, 640), (180, 760), (260, 640), (260, 760))
+LEFT_CELLS = ((110, 540), (110, 660), (170, 540), (170, 660))
+BOTTOM = ((740, 1090), (860, 1090), (680, 1100), (920, 1100))
+
 PHASES = (
-    Phase("floresta", "floresta", "FLORESTA SOMBRIA",
-          ((200, 640), (200, 760), (290, 640), (290, 760)), (1.0, 0.0),
-          ((("diabrete", 5),),
-           (("diabrete", 4), ("esqueleto", 2)),
-           (("sombra:velocista", 1), ("diabrete", 3)))),
-    Phase("calabouco", "calabouco", "CALABOUÇO DAS ALMAS",
-          ((110, 540), (110, 660), (170, 540), (170, 660)), (1.0, 0.0),
-          ((("esqueleto", 3), ("diabrete", 3)),
-           (("golem", 1), ("esqueleto", 2), ("diabrete", 2)),
-           (("sombra:tanque", 1), ("sombra:ninja", 1), ("diabrete", 2)))),
-    Phase("templo", "templo_gelado", "TEMPLO GELADO",
-          ((740, 1090), (860, 1090), (680, 1100), (920, 1100)), (0.0, -1.0),
-          ((("diabrete", 4), ("esqueleto", 2), ("golem", 1)),
-           (("chefe", 1),)),
-          boss_spot=(800, 330)),
+    Phase("floresta", "FLORESTA SOMBRIA", "floresta", (
+        Dungeon("floresta", "CLAREIRA SOMBRIA", LEFT, (1.0, 0.0),
+                ((("diabrete", 5),),
+                 (("diabrete", 4), ("esqueleto", 2))),
+                exit_spot=(1840, 700)),
+        Dungeon("floresta_ruinas", "RUÍNAS DA FLORESTA", LEFT, (1.0, 0.0),
+                ((("diabrete", 3), ("esqueleto", 2)),
+                 (("sombra:velocista", 1), ("diabrete", 3))),
+                exit_spot=(1000, 700)),
+    )),
+    Phase("calabouco", "CALABOUÇO DAS ALMAS", "calabouco", (
+        Dungeon("calabouco", "CORREDORES", LEFT_CELLS, (1.0, 0.0),
+                ((("esqueleto", 3), ("diabrete", 3)),
+                 (("golem", 1), ("esqueleto", 2), ("diabrete", 2))),
+                exit_spot=(1450, 600)),
+        Dungeon("calabouco_celas", "CELAS DAS ALMAS", LEFT_CELLS, (1.0, 0.0),
+                ((("diabrete", 4), ("esqueleto", 2)),
+                 (("sombra:tanque", 1), ("sombra:ninja", 1), ("diabrete", 2))),
+                exit_spot=(800, 600)),
+    )),
+    Phase("templo", "TEMPLO GELADO", "templo_gelado", (
+        Dungeon("templo_patio", "PÁTIO DO TEMPLO", BOTTOM, (0.0, -1.0),
+                ((("diabrete", 4), ("esqueleto", 2)),
+                 (("golem", 1), ("esqueleto", 2), ("diabrete", 2))),
+                exit_spot=(800, 600)),
+        Dungeon("templo_gelado", "ALTAR DO CRISTAL", BOTTOM, (0.0, -1.0),
+                ((("chefe", 1),),),
+                exit_spot=(800, 460), boss_spot=(800, 330)),
+    )),
 )
+
+# etapas de uma fase (CampaignRun.stage)
+LOBBY_START, DUNGEON_1, LOBBY_BACK, DUNGEON_2 = range(4)
+STAGE_REVIVE = 0.3            # quem estava caído ao fim de uma masmorra volta com essa vida
 
 
 def is_elite(kind):
@@ -97,11 +142,27 @@ class CampaignRun:
         self.kills = {s: 0 for s in self.slots}
         self.damage = {s: 0 for s in self.slots}
         self.frames = 0
+        self.stage = LOBBY_START
+        self.chest_open = False
+        self.relics = {s: None for s in self.slots}       # arma rara do baú de cada jogador
+        self.held = {s: 0 for s in self.slots}            # arma na mão de uma etapa para a outra
         self._snapshot = None
 
     @property
     def phase(self):
         return PHASES[self.phase_index]
+
+    @property
+    def in_lobby(self):
+        return self.stage in (LOBBY_START, LOBBY_BACK)
+
+    @property
+    def dungeon_index(self):
+        return 1 if self.stage >= LOBBY_BACK else 0
+
+    @property
+    def dungeon(self):
+        return self.phase.dungeons[self.dungeon_index]
 
     @property
     def players(self):
@@ -113,10 +174,13 @@ class CampaignRun:
 
     def _state(self):
         return {k: copy.deepcopy(getattr(self, k))
-                for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames")}
+                for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames",
+                          "stage", "chest_open", "relics", "held")}
 
     def begin_phase(self):
-        """Guarda como tudo estava no começo da fase (para TENTAR DE NOVO)."""
+        """Começa a fase no acampamento e guarda como tudo estava (para TENTAR DE NOVO)."""
+        self.stage = LOBBY_START
+        self.chest_open = False
         self._snapshot = self._state()
 
     def retry_phase(self):
@@ -127,23 +191,46 @@ class CampaignRun:
         self.hp_ratio = {s: max(r, 0.6) for s, r in self.hp_ratio.items()}
 
     def prepare(self, fighter):
-        """Aplica as melhorias e a vida que sobrou da fase anterior."""
+        """Aplica as melhorias, a arma rara do baú e a vida que sobrou da etapa anterior."""
         apply_all(fighter, self.upgrades.get(fighter.slot, ()))
+        relic = RARE_WEAPONS.get(self.relics.get(fighter.slot))
+        if relic is not None:
+            fighter.give_relic(relic)
+        fighter.weapon_index = min(self.held.get(fighter.slot, 0), len(fighter.weapons) - 1)
         fighter.hp = max(1, round(fighter.max_hp * self.hp_ratio.get(fighter.slot, 1.0)))
 
+    def carry(self, match):
+        """Fim de uma etapa: vida, arma na mão, arma rara e as contas passam para a próxima."""
+        for f in match.players:
+            self.hp_ratio[f.slot] = f.hp / f.max_hp if f.hp > 0 else STAGE_REVIVE
+            self.kills[f.slot] += f.kills
+            self.damage[f.slot] += f.damage_dealt
+            self.held[f.slot] = f.weapon_index
+            self.relics[f.slot] = relic_key(f.relic)
+        self.frames += match.frame
+
     def finish_phase(self, match):
+        """Fim da fase (portal): leva tudo e ainda recupera um pouco da vida."""
+        for f in match.players:
+            if f.hp <= 0:
+                f.hp = 0
+        self.carry(match)
         for f in match.players:
             ratio = f.hp / f.max_hp if f.hp > 0 else 0.0
             self.hp_ratio[f.slot] = min(1.0, ratio + PHASE_HEAL)
-            self.kills[f.slot] += f.kills
-            self.damage[f.slot] += f.damage_dealt
-        self.frames += match.frame
 
     def add_upgrade(self, slot, key):
         self.upgrades[slot].append(key)
 
     def advance(self):
         self.phase_index += 1
+
+
+def relic_key(weapon):
+    for key, w in RARE_WEAPONS.items():
+        if w is weapon:
+            return key
+    return None
 
 
 class _Point:
@@ -153,20 +240,28 @@ class _Point:
         self.x, self.y = x, y
 
 
-class CampaignMatch(Match):
-    min_zoom = 0.6
+LEAVE_FRAMES = 32             # escurecendo para trocar de etapa
+FADE_IN = 26
+EXIT_DELAY = 70               # depois da sala limpa, a porta (ou o portal) aparece
+TELEPORT_FRAMES = 80
+LEASH_STEP = 40               # correção grande (teletransporte) só acima disso; abaixo, anda passo a passo
 
-    def __init__(self, game, run):
+
+class CoopMatch(Match):
+    """Base das etapas da campanha (acampamento e masmorra): os jogadores do mesmo time,
+    a mira, levantar quem caiu, os itens, o escurecer entre uma etapa e outra e o HUD."""
+
+    min_zoom = 0.6
+    lobby = False
+
+    def __init__(self, game, run, map_key, starts, facing):
         self.run = run
         self.phase = run.phase
-        super().__init__(game, run.session, self.phase.map_key)
-        self.enemy_hp, self.enemy_dmg = DIFFICULTY.get(run.session.difficulty, (1.0, 1.0))
-        if run.players == 1:
-            self.enemy_dmg *= SOLO_DAMAGE         # sozinho não tem quem levante: inimigos batem menos
-        for setup, pos in zip(run.session.slots, self.phase.starts):
+        super().__init__(game, run.session, map_key)
+        for setup, pos in zip(run.session.slots, starts):
             f = self._add_fighter(setup, pos, team=PLAYERS)
             f.full_name = setup.name
-            f.facing = self.phase.facing
+            f.facing = facing
             run.prepare(f)
             game.inputs[setup.slot].set_layout("battle")
             self.controllers[f] = game.inputs[setup.slot]
@@ -174,32 +269,16 @@ class CampaignMatch(Match):
         self.enemies = []
         self.portals = []
         self.pickups = []
-        self.corpses = {}
+        self.props = []                 # entrada, fogueira, baú, porta, portal...
         self.revive_progress = {f: 0.0 for f in self.players}
         self.was_down = set()
         self.wave = -1
-        self.state = "intro"
-        self.state_timer = INTRO_FRAMES
         self.banner = None              # (título, subtítulo, cor, idade)
         self.wave_banner = 0
         self.boss = None
-        self.slain_boss = False
         self.won = False
+        self.leaving = 0                # escurecendo para a próxima etapa
         self._last_pause = -99
-
-    def hit_feedback(self, target, amount):
-        """Com muita gente batendo ao mesmo tempo, pausar a cada tiro travaria o jogo:
-        a pausa fica para quando um jogador apanha ou um inimigo cai (e não mais que uma por vez)."""
-        if target.team == PLAYERS:
-            self.camera.shake(4 if amount < 20 else 7)
-            pause = 2 if amount < 20 else 4
-        else:
-            if amount >= 20:
-                self.camera.shake(2)
-            pause = 3 if target.hp <= 0 else 0
-        if pause and self.frame - self._last_pause > 12:
-            self._last_pause = self.frame
-            self.hit_pause(pause)
 
     # ── consultas ────────────────────────────
     @property
@@ -213,6 +292,10 @@ class CampaignMatch(Match):
     @property
     def elapsed(self):
         return self.run.frames + self.frame
+
+    @property
+    def waves(self):
+        return ()
 
     def nearest_player(self, me):
         alive = self.alive_players
@@ -240,13 +323,43 @@ class CampaignMatch(Match):
         return [(p.x, p.y - 20) for p in self.players]
 
     def world_entities(self):
-        return self.fighters + self.pickups
+        return self.fighters + self.pickups + [p for p in self.props if not getattr(p, "flat", False)]
+
+    def draw_over_walls(self, view, cam):
+        for p in self.props:
+            if getattr(p, "flat", False):
+                p.draw(view, cam)
+
+    def objective(self):
+        """Ponto para onde a seta (fora da tela) aponta: a próxima entrada, a porta ou o portal."""
+        return None
+
+    @property
+    def objective_text(self):
+        return ""
+
+    def hit_feedback(self, target, amount):
+        """Com muita gente batendo ao mesmo tempo, pausar a cada tiro travaria o jogo:
+        a pausa fica para quando um jogador apanha ou um inimigo cai (e não mais que uma por vez)."""
+        if target.team == PLAYERS:
+            self.camera.shake(4 if amount < 20 else 7)
+            pause = 2 if amount < 20 else 4
+        else:
+            if amount >= 20:
+                self.camera.shake(2)
+            pause = 3 if target.hp <= 0 else 0
+        if pause and self.frame - self._last_pause > 12:
+            self._last_pause = self.frame
+            self.hit_pause(pause)
 
     # ── ciclo ────────────────────────────────
+    @property
+    def locked(self):
+        """Jogadores parados (apresentação, fim de fase, saindo)."""
+        return self.leaving > 0
+
     def step(self):
-        if self.state_timer > 0:
-            self.state_timer -= 1
-        locked = self.state in ("clear", "gameover") or (self.state == "intro" and self.state_timer > INTRO_FRAMES - 40)
+        locked = self.locked
         for f, ctrl in list(self.controllers.items()):
             if not f.alive_in_match or locked or f.stunned:
                 f.steer(0, 0)
@@ -267,23 +380,39 @@ class CampaignMatch(Match):
         for effect in self.effects:
             effect.update(self)
         self.effects = [e for e in self.effects if e.alive]
-        self._update_portals()
+        for prop in self.props:
+            prop.update(self)
+        self.props = [p for p in self.props if p.alive]
         self._update_pickups()
-        self._update_corpses()
-        self._update_downed()
-        self._update_state()
+        self.publish_ammo()
+        self.update_stage()
         if self.wave_banner > 0:
             self.wave_banner -= 1
         if self.banner:
             t, s, c, age = self.banner
             self.banner = (t, s, c, age + 1)
+        if self.leaving:
+            self.leaving += 1
+            if self.leaving >= LEAVE_FRAMES:
+                self._finish(won=True)
+
+    def update_stage(self):
+        """O que é próprio da etapa (ondas, entradas, baú...)."""
+
+    def interact(self, f):
+        """ATACAR perto de algo (baú, portal): devolve True se usou o botão para isso."""
+        return False
 
     def _human(self, f, inp):
         f.steer(*inp.axis())
+        if (inp.pressed("attack") or inp.pressed("confirm")) and self.interact(f):
+            return
         target = self.aim_target(f)
         if target is None:
-            fx, fy = f.facing
-            target = _Point(f.x + fx * 260, f.y + fy * 260)
+            # sem inimigo por perto: atira para onde está andando (ou olhando)
+            fx, fy = f.input if math.hypot(*f.input) > 0.3 else f.facing
+            mag = math.hypot(fx, fy) or 1
+            target = _Point(f.x + fx / mag * 260, f.y + fy / mag * 260)
         if inp.held("attack"):
             f.attack(self, target)
         if inp.pressed("special"):
@@ -307,7 +436,8 @@ class CampaignMatch(Match):
             self.arena.resolve(f)
 
     def _leash(self):
-        """Ninguém se afasta demais do grupo: todos cabem na câmera."""
+        """Ninguém se afasta demais do grupo: todos cabem na câmera.
+        A correção pequena (a de todo quadro) anda passo a passo, para ninguém atravessar parede."""
         if len(self.players) < 2:
             return
         for p in self.alive_players:
@@ -316,16 +446,181 @@ class CampaignMatch(Match):
             min_y, max_y = min(q.y for q in others), max(q.y for q in others)
             x = min(max(p.x, max_x - LEASH_X), min_x + LEASH_X)
             y = min(max(p.y, max_y - LEASH_Y), min_y + LEASH_Y)
-            if (x, y) != (p.x, p.y):
+            if (x, y) == (p.x, p.y):
+                continue
+            if abs(x - p.x) + abs(y - p.y) > LEASH_STEP:
                 p.x, p.y = x, y
                 self.arena.resolve(p)
+            else:
+                p._move(self, x - p.x, y - p.y)
+
+    def _update_pickups(self):
+        for item in self.pickups:
+            item.update(self)
+            if not item.alive:
+                continue
+            for f in self.alive_players:
+                if math.hypot(f.x - item.x, f.y - item.y) < f.radius + item.radius + 6:
+                    item.apply(f, self)
+                    break
+        self.pickups = [p for p in self.pickups if p.alive]
+
+    def _revive(self, p, ratio):
+        p.hp = max(1, round(p.max_hp * ratio))
+        p.invulnerable_timer = 100
+        p.stun_timer = 0
+        p.vx = p.vy = 0.0
+        p.down_age = 0
+        self.revive_progress[p] = 0.0
+        self.was_down.discard(p)
+        self.burst(p.x, p.y - 16, p.color, 22, speed=5)
+        self.assets.play("select", 0.5)
+
+    def _set_banner(self, title, sub=None, color=theme.BRASS):
+        self.banner = (title, sub, color, 0)
+
+    def group_near(self, x, y, radius):
+        """Todos os jogadores em pé estão perto de (x, y)?"""
+        alive = self.alive_players
+        return bool(alive) and all(math.hypot(p.x - x, p.y - y) < radius for p in alive)
+
+    def leave(self):
+        """Escurece a tela e passa para a próxima etapa."""
+        if not self.leaving:
+            self.leaving = 1
+            self.assets.play("dash", 0.5)
+
+    def _finish(self, won):
+        self.won = won
+        if won:
+            self.run.carry(self)
+        title = "ETAPA CONCLUÍDA" if won else "FIM DE JOGO"
+        self.result = Result(title, theme.MOSS if won else theme.BLOOD, self.players if won else [])
+        self.finished = True
+
+    def restart_scene(self):
+        from .scenes.campaign import start_phase
+        self.run.retry_phase()
+        return start_phase(self.game, self.run, story=False)
+
+    # ── desenho ──────────────────────────────
+    def draw(self, screen, ui):
+        super().draw(screen, ui)
+        self.draw_screen_layer(screen, ui)
+        self._draw_objective_arrow(screen, self.camera)
+        hud.draw_campaign_banners(screen, ui, self)
+        dark = 0
+        if self.frame < FADE_IN:
+            dark = 1 - self.frame / FADE_IN
+        if self.leaving:
+            dark = max(dark, self.leaving / LEAVE_FRAMES)
+        if dark > 0:
+            darken(screen, round(255 * min(1.0, dark)))
+
+    def draw_screen_layer(self, screen, ui):
+        """Textos presos no mundo (nomes das entradas, ABRIR, prontos do portal...)."""
+
+    def _draw_objective_arrow(self, screen, cam):
+        point = self.objective()
+        if point is None:
+            return
+        W, H = config.SCREEN_W, config.SCREEN_H
+        sx, sy = cam.to_screen(*point)
+        if 0 <= sx <= W and 0 <= sy <= H:
+            return
+        _edge_arrow(screen, sx, sy, theme.BRASS, 10)
+
+    def draw_hud(self, screen, ui):
+        hud.draw_campaign(screen, ui, self)
+
+    def hud_regions(self):
+        W = config.SCREEN_W
+        n = len(self.players)
+        regions = [pygame.Rect(W // 2 - 230, 0, 460, 74), pygame.Rect(W - 190, 0, 190, 60)]
+        for i in range(n):
+            regions.append(pygame.Rect(*hud.campaign_block_rect(i, n)).inflate(8, 8))
+        return regions
+
+
+_edge_arrow = hud.edge_arrow
+
+
+class CampaignMatch(CoopMatch):
+    """Uma masmorra: ondas de inimigos saem de portais. Limpou a 1ª, abre a porta de volta para o
+    acampamento; limpou a 2ª, aparece na tela o botão TELETRANSPORTE DE FASE: quando todos
+    confirmam (ATACAR no teclado, o botão no celular ou clique), o grupo vai para a próxima fase."""
+
+    def __init__(self, game, run):
+        self.dungeon_index = run.dungeon_index
+        self.dungeon = run.dungeon
+        super().__init__(game, run, self.dungeon.map_key, self.dungeon.starts, self.dungeon.facing)
+        self.enemy_hp, self.enemy_dmg = DIFFICULTY.get(run.session.difficulty, (1.0, 1.0))
+        if run.players == 1:
+            self.enemy_dmg *= SOLO_DAMAGE         # sozinho não tem quem levante: inimigos batem menos
+        self.corpses = {}
+        self.state = "intro"
+        self.state_timer = INTRO_FRAMES
+        self.slain_boss = False
+        self.exit = None                # porta de volta (só na masmorra 1)
+        self.votes = set()              # quem já confirmou o teletransporte (masmorra 2)
+        self.vote_button = None         # retângulo do botão na tela (para o clique)
+        hub_vote(self, 0)
+
+    @property
+    def last(self):
+        return self.dungeon_index == len(self.phase.dungeons) - 1
+
+    @property
+    def waves(self):
+        return self.dungeon.waves
+
+    @property
+    def locked(self):
+        return (super().locked or self.state in ("gameover", "teleport")
+                or (self.state == "intro" and self.state_timer > INTRO_FRAMES - 40))
+
+    def objective(self):
+        if self.exit is not None:
+            return self.exit.x, self.exit.y
+        return None
+
+    @property
+    def voting(self):
+        return self.state == "vote"
+
+    @property
+    def wants_cursor(self):
+        return self.voting                  # o botão do teletransporte também aceita clique
+
+    @property
+    def objective_text(self):
+        if self.state == "teleport":
+            return "TELETRANSPORTANDO..."
+        if self.voting:
+            alive = self.alive_players
+            ready = sum(1 for p in alive if p in self.votes)
+            return f"TELETRANSPORTE DE FASE: TODOS CONFIRMAM ({ready}/{len(alive)})"
+        if self.exit is not None:
+            return "VOLTEM PELA PORTA PARA O ACAMPAMENTO"
+        return ""
+
+    def step(self):
+        if self.state_timer > 0:
+            self.state_timer -= 1
+        super().step()
+
+    def update_stage(self):
+        self._update_portals()
+        self._update_corpses()
+        self._update_downed()
+        self._update_state()
 
     # ── ondas e inimigos ─────────────────────
     def _start_wave(self, index):
         self.wave = index
         self.wave_banner = 100
         delay = 0
-        for kind, count in self.phase.waves[index]:
+        for kind, count in self.waves[index]:
             for _ in range(scaled_count(kind, count, len(self.players))):
                 x, y = self._spawn_spot(kind)
                 self.portals.append(Portal(x, y, kind, delay))
@@ -333,8 +628,8 @@ class CampaignMatch(Match):
         self.assets.play("ability", 0.4)
 
     def _spawn_spot(self, kind):
-        if kind == "chefe" and self.phase.boss_spot:
-            return self.phase.boss_spot
+        if kind == "chefe" and self.dungeon.boss_spot:
+            return self.dungeon.boss_spot
         radius = 30 if kind in ("golem", "chefe") else config.PLAYER_RADIUS + 6
         players = self.alive_players or self.players
         best, best_score = None, -1
@@ -400,14 +695,22 @@ class CampaignMatch(Match):
         gone = []
         for e in list(self.corpses):
             self.corpses[e] += 1
-            if self.corpses[e] >= CORPSE_FRAMES:
+            age = self.corpses[e]
+            # o corpo some aos poucos, desfazendo em fumaça escura
+            fading = age - (CORPSE_FRAMES - CORPSE_FADE)
+            if fading > 0:
+                e.fade = 1 - fading / CORPSE_FADE
+                if age % 4 == 0:
+                    self.particles.append(Particle(e.x + random.uniform(-14, 14) * e.draw_scale, e.y + 14,
+                                                   random.uniform(-0.3, 0.3), random.uniform(-0.9, -0.3),
+                                                   random.choice(SMOKE), random.randint(20, 34), 4, -0.01))
+            if age >= CORPSE_FRAMES:
                 gone.append(e)
         for e in gone:
             del self.corpses[e]
             self.enemies.remove(e)
             self.fighters.remove(e)
             self.controllers.pop(e, None)
-            self.burst(e.x, e.y + 10, (70, 60, 80), 8, speed=2)
 
     def _on_enemy_death(self, e):
         # a alma presa sobe e se liberta
@@ -422,20 +725,9 @@ class CampaignMatch(Match):
             self.bullets.clear()
             return
         if random.random() < e.stats.drop_chance:
-            kind = random.choices(("vida", "furia", "energia"), weights=(55, 25, 20))[0]
+            kind = random.choices(("vida", "furia", "energia", "municao"), weights=(46, 20, 16, 18))[0]
             x, y = self.arena.free_spot(e.x, e.y, 14)
             self.pickups.append(Pickup(kind, x, y))
-
-    def _update_pickups(self):
-        for item in self.pickups:
-            item.update(self)
-            if not item.alive:
-                continue
-            for f in self.alive_players:
-                if math.hypot(f.x - item.x, f.y - item.y) < f.radius + item.radius + 6:
-                    item.apply(f, self)
-                    break
-        self.pickups = [p for p in self.pickups if p.alive]
 
     # ── caídos e continues ───────────────────
     def _update_downed(self):
@@ -463,16 +755,6 @@ class CampaignMatch(Match):
                 self._revive(p, REVIVE_HP)
                 self.popup(p.x, p.y - 70, "DE PÉ!", theme.MOSS)
 
-    def _revive(self, p, ratio):
-        p.hp = max(1, round(p.max_hp * ratio))
-        p.invulnerable_timer = 100
-        p.stun_timer = 0
-        p.vx = p.vy = 0.0
-        self.revive_progress[p] = 0.0
-        self.was_down.discard(p)
-        self.burst(p.x, p.y - 16, p.color, 22, speed=5)
-        self.assets.play("select", 0.5)
-
     def _use_continue(self):
         self.run.continues -= 1
         for p in self.players:
@@ -488,15 +770,12 @@ class CampaignMatch(Match):
                 e.stun(40)
         self.camera.shake(8)
 
-    # ── estados da fase ──────────────────────
-    def _set_banner(self, title, sub=None, color=theme.BRASS):
-        self.banner = (title, sub, color, 0)
-
+    # ── estados da masmorra ──────────────────
     def _update_state(self):
         state, timer = self.state, self.state_timer
         if state == "intro":
             if timer == INTRO_FRAMES - 1:
-                self._set_banner(f"FASE {self.run.phase_index + 1}", self.phase.name, theme.BRASS)
+                self._set_banner(f"MASMORRA {self.dungeon_index + 1}", self.dungeon.name, theme.BRASS)
             if timer == 30:
                 self.banner = None
             if timer == 0:
@@ -510,14 +789,10 @@ class CampaignMatch(Match):
         if state == "fight":
             if self.portals or self.alive_enemies:
                 return
-            if self.wave + 1 < len(self.phase.waves):
+            if self.wave + 1 < len(self.waves):
                 self.state, self.state_timer = "between", BETWEEN_FRAMES
             else:
-                self.state, self.state_timer = "clear", CLEAR_FRAMES
-                self.bullets.clear()
-                self._set_banner("FASE CONCLUÍDA!", self.phase.name, theme.MOSS)
-                self.assets.stop_music(1500)
-                self.assets.play("victory", 0.5)
+                self._clear()
         elif state == "between":
             if timer == 0:
                 self._start_wave(self.wave + 1)
@@ -535,27 +810,111 @@ class CampaignMatch(Match):
                     self._set_banner("FIM DE JOGO", "SEM CONTINUES", theme.BLOOD)
                     self.assets.stop_music(1500)
                     self.assets.play("gameover", 0.5)
-        elif state == "clear" and timer == 0:
-            self._finish(won=True)
+        elif state == "clear":
+            if timer == 0:
+                self._open_exit()
+        elif state in ("exit", "vote") and self.banner and self.banner[3] > 130:
+            self.banner = None
+        if state == "exit":
+            if self.group_near(self.exit.x, self.exit.y, ExitDoor.RADIUS + 40):
+                self.state = "leaving"
+                self.leave()
+        elif state == "vote":
+            alive = self.alive_players
+            self.votes &= set(alive)
+            if self.frame % 6 == 0:
+                for p in self.players:
+                    hub_vote_slot(p, 2 if p in self.votes else 1)
+            if alive and all(p in self.votes for p in alive):
+                self.state, self.state_timer = "teleport", TELEPORT_FRAMES
+                hub_vote(self, 0)
+                self.assets.play("ability", 0.7)
+        elif state == "teleport":
+            if timer % 3 == 0:
+                for p in self.alive_players:
+                    self.particles.append(Particle(p.x + random.uniform(-12, 12), p.y + random.uniform(-40, 10),
+                                                   0, random.uniform(-3, -1.5),
+                                                   random.choice(((240, 230, 255), (170, 120, 250))), 26, 3))
+            if timer == 20:
+                self.camera.shake(8)
+            if timer == 0:
+                self._finish(won=True)
         elif state == "gameover" and timer == 0:
             self._finish(won=False)
 
+    def _clear(self):
+        """Sala limpa: quem caiu levanta, e daqui a pouco aparece a porta (ou o portal)."""
+        self.state, self.state_timer = "clear", EXIT_DELAY
+        self.bullets.clear()
+        for p in self.players:
+            if not p.alive_in_match:
+                self._revive(p, STAGE_REVIVE)
+        if self.last:
+            title = "FASE CONCLUÍDA!" if not self.slain_boss else "O CRISTAL ESTÁ LIVRE!"
+            self._set_banner(title, self.phase.name, theme.MOSS)
+            self.assets.stop_music(1500)
+            self.assets.play("victory", 0.5)
+        else:
+            self._set_banner("MASMORRA LIMPA!", self.dungeon.name, theme.MOSS)
+            self.assets.play("select", 0.6)
+
+    def _open_exit(self):
+        if self.last:
+            self.state = "vote"            # o botão TELETRANSPORTE DE FASE aparece na tela
+            self.votes = set()
+            hub_vote(self, 1)
+            self.assets.play("ability", 0.5)
+            return
+        x, y = self.arena.free_spot(*self.dungeon.exit_spot, 40)
+        self.exit = ExitDoor(x, y)
+        self.state = "exit"
+        self.popup(x, y - 100, "SAÍDA", theme.BRASS)
+        self.props.append(self.exit)
+        self.assets.play("ability", 0.5)
+
+    def vote(self, f):
+        """Um jogador confirmou o teletransporte."""
+        if self.voting and f.alive_in_match and f not in self.votes:
+            self.votes.add(f)
+            self.burst(f.x, f.y - 20, (200, 170, 255), 12, speed=3)
+            self.popup(f.x, f.y - 70, "PRONTO", theme.MOSS)
+            self.assets.play("select", 0.4)
+            hub_vote_slot(f, 2)
+            return True
+        return False
+
+    def interact(self, f):
+        if self.voting:
+            self.vote(f)
+            return True
+        return False
+
+    def click(self, pos):
+        """Clique no botão da tela: confirma o próximo jogador do teclado que ainda não confirmou."""
+        if not self.voting or self.vote_button is None or not self.vote_button.collidepoint(pos):
+            return False
+        phones = hub.connected_slots()
+        for f in self.players:
+            if f.alive_in_match and f not in self.votes and f.slot not in phones:
+                return self.vote(f)
+        return False
+
     def _finish(self, won):
-        self.won = won
-        if won:
+        if won and self.last:
+            self.won = True
             self.run.finish_phase(self)
-        title = "FASE CONCLUÍDA" if won else "FIM DE JOGO"
-        self.result = Result(title, theme.MOSS if won else theme.BLOOD, self.players if won else [])
-        self.finished = True
+            self.result = Result("FASE CONCLUÍDA", theme.MOSS, self.players)
+            self.finished = True
+            return
+        super()._finish(won)
 
     def next_scene(self):
-        from .scenes.campaign import after_phase, game_over
-        return after_phase(self.game, self.run) if self.won else game_over(self.game, self.run)
-
-    def restart_scene(self):
-        from .scenes.campaign import start_phase
-        self.run.retry_phase()
-        return start_phase(self.game, self.run, story=False)
+        from .scenes.campaign import after_phase, game_over, next_stage
+        if not self.won:
+            return game_over(self.game, self.run)
+        if self.last:
+            return after_phase(self.game, self.run)
+        return next_stage(self.game, self.run, LOBBY_BACK)
 
     # ── desenho ──────────────────────────────
     def draw_under(self, view, cam):
@@ -579,8 +938,7 @@ class CampaignMatch(Match):
                 pygame.draw.arc(layer, (*theme.BONE, 255), inner, math.pi / 2, math.pi / 2 + math.tau * prog, 4)
             view.blit(layer, ring.inflate(8, 8).topleft)
 
-    def draw(self, screen, ui):
-        super().draw(screen, ui)
+    def draw_screen_layer(self, screen, ui):
         cam = self.camera
         for p in self.players:
             if not p.alive_in_match and self.state in ("fight", "between", "intro"):
@@ -588,43 +946,180 @@ class CampaignMatch(Match):
                 if (self.frame // 20) % 2:
                     ui.text(screen, "LEVANTE!" if len(self.players) > 1 else "", theme.XS, p.color, (round(sx), round(sy)))
         self._draw_offscreen(screen, cam)
-        hud.draw_campaign_banners(screen, ui, self)
+        if self.voting:
+            self.vote_button = hud.draw_teleport_vote(screen, ui, self)
+        else:
+            self.vote_button = None
+        if self.state == "teleport":
+            self._draw_teleport(screen, cam)
+
+    def _draw_teleport(self, screen, cam):
+        """Cada um vira uma coluna de luz e a tela fica branca no fim."""
+        from .dungeon import _beam
+        k = 1 - self.state_timer / TELEPORT_FRAMES
+        beam = _beam(round(255 * min(1.0, k * 1.6)))
+        for p in self.alive_players:
+            sx, sy = cam.to_screen(p.x, p.y + 20)
+            screen.blit(beam, beam.get_rect(midbottom=(round(sx), round(sy))), special_flags=pygame.BLEND_ADD)
+        if k > 0.6:
+            veil = pygame.Surface(screen.get_size())
+            veil.fill((255, 255, 255))
+            veil.set_alpha(round(255 * min(1.0, (k - 0.6) / 0.4)))
+            screen.blit(veil, (0, 0))
 
     def _draw_offscreen(self, screen, cam):
         """Setinha na borda da tela apontando para os inimigos fora da câmera."""
         W, H = config.SCREEN_W, config.SCREEN_H
-        cx = W / 2
         for e in self.alive_enemies + [_Point(p.x, p.y) for p in self.portals]:
             sx, sy = cam.to_screen(e.x, e.y - 20)
             if 0 <= sx <= W and 0 <= sy <= H:
                 continue
-            # a área das setas fica entre o HUD de cima e o de baixo
-            top, bottom = 64, H - 72
-            cy = (top + bottom) / 2
-            dx, dy = sx - cx, sy - cy
-            k = min((W / 2 - 22) / abs(dx) if dx else 1e9, (bottom - top) / 2 / abs(dy) if dy else 1e9)
-            ax, ay = cx + dx * k, cy + dy * k
-            d = math.hypot(dx, dy) or 1
-            ux, uy = dx / d, dy / d
             big = e is self.boss
-            size = 11 if big else 7
             color = SHADOW_AURA if big or getattr(e, "aura", None) else theme.BLOOD
-            tip = (ax + ux * size, ay + uy * size)
-            left = (ax - uy * size * 0.7, ay + ux * size * 0.7)
-            right = (ax + uy * size * 0.7, ay - ux * size * 0.7)
-            pygame.draw.polygon(screen, theme.SHADOW, [(x + 1, y + 1) for x, y in (tip, left, right)])
-            pygame.draw.polygon(screen, color, (tip, left, right))
+            _edge_arrow(screen, sx, sy, color, 11 if big else 7)
 
-    def draw_hud(self, screen, ui):
-        hud.draw_campaign(screen, ui, self)
 
-    def hud_regions(self):
-        W = config.SCREEN_W
-        n = len(self.players)
-        regions = [pygame.Rect(W // 2 - 230, 0, 460, 74), pygame.Rect(W - 190, 0, 190, 60)]
-        for i in range(n):
-            regions.append(pygame.Rect(*hud.campaign_block_rect(i, n)).inflate(8, 8))
-        return regions
+def hub_vote(match, value):
+    """Avisa o celular de cada jogador: 0 = sem votação, 1 = falta confirmar, 2 = já confirmou."""
+    for p in match.players:
+        hub_vote_slot(p, value)
+
+
+def hub_vote_slot(fighter, value):
+    if fighter.slot and not fighter.is_cpu:
+        hub.publish_slot(fighter.slot, vote=value)
+
+
+class LobbyMatch(CoopMatch):
+    """Acampamento (lobby) da fase: sem batalha, com a fogueira que recupera vida, a entrada
+    das duas masmorras e, na volta da primeira, o baú escondido com as armas raras."""
+
+    lobby = True
+
+    def __init__(self, game, run):
+        cfg = MAPS_BY_KEY[run.phase.lobby]
+        markers = cfg.markers
+        self.back = run.stage == LOBBY_BACK
+        starts = markers["a"] if self.back else markers["S"]
+        starts = _spread(starts, len(run.session.slots))
+        super().__init__(game, run, cfg.key, starts, (0.0, -1.0))
+        self.state = "explore"
+        self.gates = {}
+        for number in (1, 2):
+            rect = cells_rect(markers[str(number)])
+            if number == 1:
+                state = "done" if self.back else "open"
+            else:
+                state = "locked"
+            self.gates[number] = Gate(number, rect, state)
+        for gate in self.gates.values():
+            gate.sync_wall(self.arena)
+        fx, fy = _center(markers["F"])
+        self.campfire = Campfire(fx, fy)
+        self.arena.walls.append(self.campfire.wall)
+        self.props += list(self.gates.values()) + [self.campfire]
+        self.chest = None
+        if self.back and not run.chest_open:
+            cx, cy = markers["C"][0]
+            self.chest = Chest(cx, cy)
+            self.arena.walls.append(self.chest.wall)
+            self.props.append(self.chest)
+        self.target_gate = 2 if self.back else 1
+        hub_vote(self, 0)
+        for p in self.players:              # chegando (teletransporte ou saindo da masmorra)
+            self.burst(p.x, p.y - 20, (200, 180, 255), 14, speed=3)
+
+    @property
+    def objective_text(self):
+        if self.back and self.gates[2].state != "open":
+            return "A MASMORRA 2 ESTÁ ABRINDO..."
+        if self.back and self.chest is not None and self.chest.state == "closed":
+            return "TEM UM BAÚ ESCONDIDO POR AQUI · ENTRE NA MASMORRA 2"
+        return f"ACAMPAMENTO · ENTREM NA MASMORRA {self.target_gate}"
+
+    def objective(self):
+        gate = self.gates[self.target_gate]
+        return gate.entrance
+
+    def update_stage(self):
+        if self.back and self.frame == 50:
+            self.gates[2].open()
+            self.assets.play("barrier", 0.5)
+            self.camera.shake(3)
+        if self.frame == 1:
+            name = self.arena.cfg.name.upper()
+            if self.back:
+                self._set_banner("ACAMPAMENTO", f"DE VOLTA · {name}", theme.BRASS)
+            else:
+                self._set_banner(f"FASE {self.run.phase_index + 1}", f"{self.phase.name} · {name}", theme.BRASS)
+        if self.banner and self.banner[3] > 110:
+            self.banner = None
+        if self.leaving:
+            return
+        gate = self.gates[self.target_gate]
+        if gate.state == "open" and gate.bars <= 0:
+            ex, ey = gate.entrance
+            inside = any(gate.rect.inflate(20, 30).collidepoint(p.x, p.y) for p in self.alive_players)
+            if inside and self.group_near(ex, ey - 20, 170):
+                self.leave()
+
+    def interact(self, f):
+        if self.chest is not None and self.chest.can_open(f):
+            self.chest.open(self)
+            self.run.chest_open = True
+            return True
+        return False
+
+    def launch_relics(self, chest):
+        """O baú solta uma arma rara para cada jogador (armas diferentes, e diferente da que já tem)."""
+        pool = list(RARE_WEAPONS.values())
+        random.shuffle(pool)
+        for p in self.players:
+            choices = [w for w in pool if w is not p.relic] or list(RARE_WEAPONS.values())
+            weapon = choices[0]
+            if weapon in pool:
+                pool.remove(weapon)
+            self.props.append(RelicDrop(chest, p, weapon))
+
+    def give_relic(self, fighter, weapon):
+        fighter.give_relic(weapon)
+        self.run.relics[fighter.slot] = relic_key(weapon)
+        self.popup(fighter.x, fighter.y - 80, weapon.name.upper(), (255, 220, 120))
+        self.burst(fighter.x, fighter.y - 20, (255, 220, 120), 18, speed=4)
+        self.assets.play("select", 0.5)
+
+    def next_scene(self):
+        from .scenes.campaign import next_stage
+        return next_stage(self.game, self.run, DUNGEON_2 if self.back else DUNGEON_1)
+
+    def draw_screen_layer(self, screen, ui):
+        cam = self.camera
+        for gate in self.gates.values():
+            gate.draw_label(screen, cam, ui, self.frame)
+        if self.chest is not None:
+            near = any(self.chest.can_open(p) for p in self.alive_players)
+            self.chest.draw_prompt(screen, cam, ui, self.frame, near)
+        gate = self.gates[self.target_gate]
+        alive = self.alive_players
+        inside = [p for p in alive if gate.rect.inflate(20, 30).collidepoint(p.x, p.y)]
+        if inside and len(inside) < len(alive):
+            # alguém já está na entrada: avisa quem falta
+            waiting = " ".join(p.label for p in alive if p not in inside)
+            sx, sy = cam.to_screen(*gate.entrance)
+            ui.text(screen, f"ESPERANDO {waiting}", theme.XS, theme.BRASS, (round(sx), round(sy) + 24))
+
+
+def _center(points):
+    return sum(x for x, _ in points) / len(points), sum(y for _, y in points) / len(points)
+
+
+def _spread(points, n):
+    """Lugares de largada para n jogadores (repete com um passinho de lado se faltar)."""
+    out = list(points[:n])
+    while len(out) < n:
+        x, y = points[len(out) % len(points)]
+        out.append((x + 30, y))
+    return out
 
 
 class _SoulParticle:

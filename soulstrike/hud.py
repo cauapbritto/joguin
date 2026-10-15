@@ -1,4 +1,6 @@
 """Informações na tela durante a partida."""
+import math
+
 import pygame
 
 from . import config, theme
@@ -7,6 +9,29 @@ from .ui import mix
 
 def _hp_color(ratio):
     return theme.MOSS if ratio > 0.5 else theme.BRASS if ratio > 0.25 else theme.BLOOD
+
+
+def ammo_text(f):
+    """Munição da arma na mão, para o HUD: ("4/6", cor), ("RECARGA", cor)... ou None."""
+    mag = f.mag
+    if not mag or f.weapon.is_melee:
+        return None
+    if f.reloading:
+        return "RECARGA", theme.BRASS
+    if f.ammo <= 0:
+        return "VAZIO", theme.BLOOD
+    return f"{f.ammo}/{mag}", theme.BRASS if f.ammo > mag else theme.BONE
+
+
+def _weapon_label(screen, ui, f, pos, right):
+    """Nome da arma e, ao lado, a munição (alinhado à direita ou à esquerda)."""
+    anchor = "midright" if right else "midleft"
+    rect = ui.text(screen, f.weapon.name.upper(), theme.XS, theme.MUTED, pos, anchor=anchor, shadow=True)
+    ammo = ammo_text(f)
+    if ammo:
+        text, color = ammo
+        x = rect.left - 8 if right else rect.right + 8
+        ui.text(screen, text, theme.XS, color, (x, rect.centery), anchor=anchor, shadow=True)
 
 
 def _fighter_block(screen, ui, f, right, frame, wins=0):
@@ -54,9 +79,7 @@ def _fighter_block(screen, ui, f, right, frame, wins=0):
     label = f.ability.name.upper() + (" OK" if ready else "")
     ui.text(screen, label, theme.XS, theme.BRASS if ready else theme.MUTED,
             (ab_x + ab_w if not right else ab_x, y + 60), anchor="topright" if not right else "topleft")
-    weapon = f.weapon.name.upper()
-    ui.text(screen, weapon, theme.XS, theme.MUTED, (x + bar_w if right else x, y + 60),
-            anchor="topright" if right else "topleft")
+    _weapon_label(screen, ui, f, (x + bar_w if right else x, y + 64), right)
 
     if f.invulnerable_timer > 0:
         status, scolor = "INVULNERÁVEL", theme.BRASS
@@ -93,6 +116,82 @@ def draw_battle(screen, ui, match):
         _fighter_block(screen, ui, f, right=i == 1, frame=match.frame, wins=match.wins[f])
 
     # relógio
+    clock = pygame.Rect(0, 0, 72, 44)
+    clock.midtop = (W // 2, 10)
+    ui.panel(screen, clock, fill=theme.INK_2)
+    secs = max(0, -(-match.time_left // config.FPS))
+    hurry = secs <= 10 and not match.round_end
+    color = theme.BLOOD if hurry and (match.frame // 15) % 2 else theme.BONE
+    ui.text(screen, str(secs), theme.M, color, (clock.centerx, clock.centery + 1))
+    label = "ROUND FINAL" if match.match_point else f"ROUND {match.round_no}"
+    ui.text(screen, label, theme.XS, theme.MUTED, (W // 2, clock.bottom + 12))
+
+
+TEAM_BLOCK_W = 330
+
+
+def _team_row(screen, ui, f, x, y, right, match):
+    """Uma linha do time no 2 x 2: etiqueta, personagem, vida e habilidade."""
+    w = TEAM_BLOCK_W
+    edge = x + w if right else x
+    anchor = "topright" if right else "topleft"
+    tag = ui.assets.text(f.label, theme.XS, theme.INK)
+    tag_rect = pygame.Rect(0, 0, tag.get_width() + 8, 12)
+    setattr(tag_rect, anchor, (edge, y))
+    screen.fill(theme.SHADOW, tag_rect.move(1, 1))
+    screen.fill(f.color, tag_rect)
+    screen.blit(tag, tag.get_rect(center=(tag_rect.centerx + 1, tag_rect.centery)))
+    name_pos = (tag_rect.left - 6, tag_rect.centery) if right else (tag_rect.right + 6, tag_rect.centery)
+    ui.text(screen, f.stats.name.upper(), theme.XS, theme.BONE, name_pos,
+            anchor="midright" if right else "midleft", shadow=True)
+    other = (x, tag_rect.centery) if right else (x + w, tag_rect.centery)
+    _weapon_label(screen, ui, f, other, not right)
+
+    hp_w, ab_w, gap = 236, 84, 10
+    hp_x = x + w - hp_w if right else x
+    ab_x = x if right else x + hp_w + gap
+    bar = pygame.Rect(hp_x, y + 16, hp_w, 10)
+    if not f.alive_in_match:
+        ui.bar(screen, bar, 0, theme.BLOOD, back=(30, 22, 30))
+        prog = match.revive_progress.get(f, 0.0)
+        if prog > 0:
+            ui.bar(screen, bar, prog, theme.BONE, back=(30, 22, 30), flip=right)
+        color = theme.BLOOD if (match.frame // 15) % 2 else theme.MUTED
+        ui.text(screen, "CAÍDO", theme.XS, color, bar.center)
+    else:
+        ratio = f.hp / f.max_hp
+        low = ratio <= 0.25 and (match.frame // 10) % 2 == 0
+        color = _hp_color(ratio) if not low else mix(theme.BLOOD, theme.BONE, 0.4)
+        ui.bar(screen, bar, ratio, color, back=(30, 22, 30), ticks=8, flip=right)
+    ready = f.ability_ready
+    ui.bar(screen, (ab_x, y + 18, ab_w, 6), f.ability_ratio, theme.BRASS if ready else theme.SKY,
+           back=(22, 20, 32), flip=right)
+
+
+def draw_team_battle(screen, ui, match):
+    """HUD do duelo 2 x 2: um bloco por time (dois jogadores cada) e o relógio no meio."""
+    W = config.SCREEN_W
+    w = TEAM_BLOCK_W
+    screen.blit(_top_shade(W, 96), (0, 0))
+    for team in (0, 1):
+        right = team == 1
+        x = W - 16 - w if right else 16
+        color = theme.TEAM_COLORS[team]
+        head = pygame.Rect(x, 8, w, 16)
+        screen.fill(theme.SHADOW, head.move(2, 2))
+        screen.fill(mix(color, theme.INK, 0.55), head)
+        screen.fill(color, (head.x, head.bottom - 2, head.w, 2))
+        name = f"TIME {theme.TEAM_NAMES[team]}"
+        ui.text(screen, name, theme.XS, theme.BONE, (head.right - 8, head.centery) if right else (head.x + 8, head.centery),
+                anchor="midright" if right else "midleft", shadow=False)
+        for k in range(config.ROUNDS_TO_WIN):
+            px = head.x + 6 + k * 14 if right else head.right - 16 - k * 14
+            pip = pygame.Rect(px, head.y + 3, 10, 10)
+            screen.fill(theme.BRASS if k < match.wins[team] else theme.INK, pip)
+            pygame.draw.rect(screen, theme.LINE_HI, pip, 1)
+        for i, f in enumerate(sorted(match.members(team), key=lambda f: f.slot)):
+            _team_row(screen, ui, f, x, 32 + i * 32, right, match)
+
     clock = pygame.Rect(0, 0, 72, 44)
     clock.midtop = (W // 2, 10)
     ui.panel(screen, clock, fill=theme.INK_2)
@@ -233,16 +332,24 @@ def draw_campaign(screen, ui, match):
         ui.bar(screen, bar.inflate(4, 4), ratio, (150, 60, 200), back=(30, 16, 40), ticks=10)
         if getattr(boss, "phase_label", ""):
             ui.text(screen, boss.phase_label, theme.XS, theme.BLOOD, (W // 2, bar.bottom + 14))
-    else:
+    elif match.lobby:
         ui.text(screen, f"FASE {run.phase_index + 1} · {match.phase.name}", theme.XS, theme.BONE, (W // 2, 18))
-        total = len(match.phase.waves)
-        if match.wave >= 0:
+        ui.text(screen, match.objective_text, theme.XS, theme.BRASS, (W // 2, 36))
+    else:
+        title = f"FASE {run.phase_index + 1} · MASMORRA {match.dungeon_index + 1} · {match.dungeon.name}"
+        ui.text(screen, title, theme.XS, theme.BONE, (W // 2, 18))
+        total = len(match.waves)
+        goal = match.objective_text
+        if goal:
+            color = theme.BRASS if (match.frame // 20) % 2 else theme.BONE
+            ui.text(screen, goal, theme.XS, color, (W // 2, 36))
+        elif match.wave >= 0:
             left = len(match.alive_enemies) + len(match.portals)
             wave = f"ONDA {match.wave + 1}/{total}"
             info = f"{wave} · {left} INIMIGO{'S' if left != 1 else ''}" if left else wave
             ui.text(screen, info, theme.XS, theme.MUTED, (W // 2, 36))
         for k in range(total):
-            done = k < match.wave or (k == match.wave and match.state in ("between", "clear"))
+            done = k < match.wave or (k == match.wave and match.state not in ("fight", "intro", "down"))
             pip = pygame.Rect(W // 2 - total * 9 + k * 18 + 3, 48, 12, 6)
             screen.fill(theme.SHADOW, pip.move(1, 1))
             screen.fill(theme.BRASS if done else (theme.LINE_HI if k == match.wave else theme.INK_3), pip)
@@ -293,19 +400,96 @@ def _campaign_block(screen, ui, f, rect, match):
             anchor="midleft", shadow=False)
     if f.fury_timer > 0:
         ui.text(screen, "FÚRIA", theme.XS, theme.EMBER, (rect.right - 10, ab.centery), anchor="midright", shadow=False)
+    _ammo_strip(screen, f, pygame.Rect(x, rect.bottom - 5, rect.w - 22, 3))
+
+
+def _ammo_strip(screen, f, area):
+    """Munição em tracinhos na beirada de baixo do quadro do jogador (ou a recarga enchendo)."""
+    mag = f.mag
+    if not mag or (f.weapon.is_melee and not f.reloading):
+        return
+    if f.reloading:
+        screen.fill((58, 44, 22), area)
+        screen.fill(theme.BRASS, (area.x, area.y, round(area.w * f.reload_ratio), area.h))
+        return
+    cap = max(mag, f.ammo)
+    pip = max(1, min(12, (area.w - (cap - 1)) // cap))
+    for i in range(cap):
+        if i >= f.ammo:
+            color = (44, 40, 54)
+        elif i >= mag:
+            color = theme.BRASS
+        else:
+            color = (226, 220, 200)
+        screen.fill(color, (area.x + i * (pip + 1), area.y, pip, area.h))
+
+
+def draw_teleport_vote(screen, ui, match):
+    """Botão TELETRANSPORTE DE FASE no fim da fase, com quem já confirmou. Devolve o retângulo do botão."""
+    W = config.SCREEN_W
+    pulse = 0.5 + 0.5 * math.sin(match.frame * 0.12)
+    button = pygame.Rect(0, 0, 440, 54)
+    button.midtop = (W // 2, 92)
+    hot = button.collidepoint(pygame.mouse.get_pos())
+    glow = pygame.Surface(button.inflate(24, 24).size, pygame.SRCALPHA)
+    glow.fill((170, 120, 250, round(40 + 50 * pulse)))
+    screen.blit(glow, button.inflate(24, 24).topleft)
+    screen.fill(theme.SHADOW, button.move(3, 4))
+    screen.fill((46, 30, 70) if not hot else (70, 46, 104), button)
+    pygame.draw.rect(screen, mix(theme.BRASS, (255, 255, 255), 0.3 * pulse), button, 3)
+    ui.text(screen, "TELETRANSPORTE DE FASE", theme.S, theme.BONE, (button.centerx, button.centery + 1))
+    players = match.players
+    chip_w, gap = 96, 8
+    x = W // 2 - (len(players) * chip_w + (len(players) - 1) * gap) // 2
+    for p in players:
+        chip = pygame.Rect(x, button.bottom + 12, chip_w, 20)
+        ready = p in match.votes
+        screen.fill(theme.SHADOW, chip.move(2, 2))
+        screen.fill(mix(theme.MOSS, theme.INK, 0.5) if ready else theme.INK_2, chip)
+        screen.fill(p.color, (chip.x, chip.y, 3, chip.h))
+        if ready:
+            label, color = f"{p.label} PRONTO", theme.BONE
+        else:
+            label = f"{p.label} " + "." * (1 + (match.frame // 15) % 3)
+            color = theme.MUTED
+        ui.text(screen, label, theme.XS, color, (chip.x + 10, chip.centery + 1), anchor="midleft", shadow=False)
+        x += chip_w + gap
+    ui.text(screen, "ATACAR NO TECLADO · BOTÃO NO CELULAR · OU CLIQUE", theme.XS, theme.MUTED,
+            (W // 2, button.bottom + 48))
+    return button
 
 
 def draw_campaign_banners(screen, ui, match):
     W = config.SCREEN_W
-    if match.wave_banner > 0 and match.state == "fight":
+    if match.wave_banner > 0 and getattr(match, "state", "") == "fight":
         age = 100 - match.wave_banner
         x = W // 2 + int((1 - min(1, age / 8)) * W)
         if match.wave_banner > 12 or match.wave_banner % 4 < 2:
-            last = match.wave == len(match.phase.waves) - 1
+            last = match.wave == len(match.waves) - 1
             word = "ONDA FINAL" if last and match.wave > 0 else f"ONDA {match.wave + 1}"
             ui.text(screen, word, theme.L, theme.BRASS, (x, 120))
-    if match.state == "between":
+    if getattr(match, "state", "") == "between":
         ui.text(screen, "ONDA CONCLUÍDA", theme.S, theme.MOSS, (W // 2, 120))
     if match.banner:
         title, sub, color, age = match.banner
         _band(screen, ui, color, min(1.0, age / 12), title, sub)
+
+
+def edge_arrow(screen, sx, sy, color, size, top=64, bottom_gap=72):
+    """Setinha na borda da tela apontando para (sx, sy), que está fora dela.
+    Devolve onde a seta ficou (para pôr um rótulo do lado)."""
+    W, H = config.SCREEN_W, config.SCREEN_H
+    cx = W / 2
+    bottom = H - bottom_gap            # entre o HUD de cima e o de baixo
+    cy = (top + bottom) / 2
+    dx, dy = sx - cx, sy - cy
+    k = min((W / 2 - 22) / abs(dx) if dx else 1e9, (bottom - top) / 2 / abs(dy) if dy else 1e9)
+    ax, ay = cx + dx * k, cy + dy * k
+    d = math.hypot(dx, dy) or 1
+    ux, uy = dx / d, dy / d
+    tip = (ax + ux * size, ay + uy * size)
+    left = (ax - uy * size * 0.7, ay + ux * size * 0.7)
+    right = (ax + uy * size * 0.7, ay - ux * size * 0.7)
+    pygame.draw.polygon(screen, theme.SHADOW, [(x + 1, y + 1) for x, y in (tip, left, right)])
+    pygame.draw.polygon(screen, color, (tip, left, right))
+    return ax, ay, ux, uy

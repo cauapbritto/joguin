@@ -46,6 +46,7 @@ PICKUP_EVERY = (10 * FPS, 15 * FPS)
 PICKUP_LIFETIME = 12 * FPS
 PICKUP_MAX = 2
 HEAL_AMOUNT = 40
+AMMO_PICKUP_EXTRA = 2       # item de munição: pente cheio + um pente extra
 FURY_FRAMES = 6 * FPS
 FURY_MULT = 1.5
 
@@ -53,15 +54,21 @@ FURY_MULT = 1.5
 WIN_SCORE = 3
 GOAL_FREEZE = 120
 BALL_RADIUS = 12
-BALL_FRICTION = 0.985
-BALL_MAX_SPEED = 12
-KICK_POWER = 10
-PASS_POWER = 6.0
+BALL_FRICTION = 0.989       # rolando: a bola perde 1,1% da velocidade por quadro (no ar, 0,4%)
+BALL_MAX_SPEED = 13.5
+BALL_AIR_MAX_SPEED = 15     # no ar ela pode ir mais rápido (lançamento longo)
+KICK_POWER = 10.5           # chute rasteiro (rola uns 900 px; no campo antigo eram uns 640)
+LOFT_KICK_POWER = (9.0, 15.0)   # chute alto: força com pouca carga e com a carga cheia (cai a ~750 px)
+PASS_POWER = 6.2
+LOB_SPACE = (380, 900)      # passe alto para o espaço: distância com pouca carga e com a carga cheia
+LOB_MAX_FRAMES = 72         # passe alto para o espaço fica no máximo isso no ar (~1,2 s)
+LOB_MATE_MAX_FRAMES = 96    # lançamento para o companheiro do outro lado do campo pode subir mais
 PASS_HOMING_FORCE = 0.15
 PASS_HOMING_FRAMES = 45
 # bola no alto
 GRAVITY = 0.32
 BOUNCE = 0.55               # quanto da velocidade vertical sobra depois do quique
+BOUNCE_ROLL = 0.78          # e quanto da velocidade para a frente (a grama segura a bola)
 BODY_HEIGHT = 26            # bola acima disso passa por cima dos jogadores
 HEAD_RANGE = (22, 62)       # altura em que dá para cabecear
 CROSSBAR = 50               # acima disso, passa por cima do gol
@@ -84,9 +91,9 @@ SPRINT_RESUME = 0.3         # fôlego acabou: só volta a correr com isso de fô
 SPRINT_CARRY_AHEAD = 10     # correndo com a bola, ela vai mais solta à frente
 SPRINT_STEAL_FRAMES = 8     # e é mais fácil de roubar
 MARK_SPEED = 0.9            # MARCAR anda um pouco mais devagar que o normal
-GOALKEEPER_ZONE = 340       # bola mais perto que isso do meu gol: MARCAR vira posição de goleiro
+GOALKEEPER_ZONE = 430       # bola mais perto que isso do meu gol: MARCAR vira posição de goleiro
 # cruzamento (2x2)
-WING_OFFSET = 170           # tão longe assim do meio do campo (no sentido da lateral) = está na ponta
+WING_OFFSET = 240           # tão longe assim do meio do campo (no sentido da lateral) = está na ponta
 CROSS_HEIGHT = 38           # altura em que o cruzamento alto chega no companheiro (cabeçada)
 CROSS_LOW_POWER = 8.0       # cruzamento rasteiro
 # defesa
@@ -96,8 +103,8 @@ BLOCK_REACH = 12            # alcance extra do corpo durante o carrinho de bloqu
 BLOCK_FRAMES = 16           # duração do carrinho de bloqueio
 BLOCK_MISS_STUN = 28        # errou o carrinho: fica no chão esse tempo
 CLEAR_REACH = 30            # alcance extra do chutão (o chute normal usa 15)
-CLEAR_POWER = 11
-CLEAR_LIFT = 7.5
+CLEAR_POWER = 13.5
+CLEAR_LIFT = 9.0
 CLEAR_WINDOW = 10           # apertou CHUTE um pouco antes da bola chegar: ainda vale
 SUPER_SHOT_POWER = 16
 SUPER_HOMING_FORCE = 0.35

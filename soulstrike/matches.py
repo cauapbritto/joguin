@@ -8,12 +8,13 @@ import pygame
 
 from . import config, hud, theme
 from .ai import FighterAI, SoccerAI
-from .arena import MAPS_BY_KEY, SOCCER_MAP, Arena
+from .arena import MAPS_BY_KEY, SOCCER_MAP, Arena, Pitch
 from .camera import Camera
 from .data import CHARACTERS, SHADOW_CHARACTERS
 from .entities import Barrier, Bullet, Entity, Explosion, FloatingText, Particle, Pickup, hostile
 from .fighter import Fighter
 from .net.remote import hub
+from .projectiles import projectile_class
 from .soccer_assist import (ASSIST_LEVELS, closest_approach, pick_receiver, segment_contact, shot_assist,
                             unit)
 from .soccer_powers import create_power
@@ -69,6 +70,13 @@ class Match(ABC):
         color = owner.stats.color
         self.bullets.append(Bullet(owner, owner.x + dx * 18, owner.y + dy * 18 - 4, dx, dy, speed, damage, color, explosive))
 
+    def spawn_projectile(self, owner, weapon, direction, damage, target=None, power=1.0, explosive=False):
+        """Tiro de uma arma: cada estilo de arma tem sua classe de projétil (flecha, granada...)."""
+        proj = projectile_class(weapon.style).launch(self, owner, weapon, direction, damage, target, power,
+                                                     explosive)
+        self.bullets.append(proj)
+        return proj
+
     def add_effect(self, effect):
         self.effects.append(effect)
 
@@ -109,9 +117,11 @@ class Match(ABC):
         for b in self.bullets:
             if b.alive:
                 b.update(self)
-            if b.alive and any(w.rect.colliderect(b.rect) for w in self.arena.walls):
-                b.alive = False
-            if b.alive:
+            if b.alive and not (b.ghost or b.lobbed):
+                wall = next((w for w in self.arena.walls if w.rect.colliderect(b.rect)), None)
+                if wall is not None:
+                    b.alive = b.on_wall(wall, self)
+            if b.alive and not b.lobbed:
                 for e in self.effects:
                     if isinstance(e, Barrier) and hostile(e.owner, b.owner) and e.rect.colliderect(b.rect):
                         b.alive = False
@@ -121,12 +131,11 @@ class Match(ABC):
                 for f in self.fighters:
                     if f in b.hit or not hostile(b.owner, f) or not f.alive_in_match or f.dash_timer > 0:
                         continue
+                    if not b.can_hit(f):
+                        continue
                     if math.hypot(f.x - b.x, f.y - 6 - b.y) < f.radius + b.radius + 4:
                         b.hit.add(f)
-                        if b.pierce > 0 and not b.explosive:
-                            b.pierce -= 1            # atravessa (melhoria da campanha)
-                        else:
-                            b.alive = False
+                        b.alive = b.survives_hit()      # atravessa (lança, flecha tensa, melhoria)?
                         if not b.explosive:
                             if f.invulnerable_timer > 0:
                                 self.popup(f.x, f.y - 46, "IMUNE", theme.BRASS)
@@ -134,7 +143,8 @@ class Match(ABC):
                                 b.on_hit(f, self)
                         break
             if not b.alive and b.explosive:
-                self.effects.append(Explosion(b.owner, b.x, b.y, b.damage))
+                self.effects.append(Explosion(b.owner, b.x, b.y, b.damage,
+                                              getattr(b, "blast", config.EXPLOSION_RADIUS)))
                 self.assets.play("explosion", 0.45)
                 self.camera.shake(5)
             if b.alive:
@@ -178,6 +188,16 @@ class Match(ABC):
             self.particles.append(Particle(x, y, random.uniform(-0.3, 0.3), random.uniform(-1.1, -0.4),
                                            random.choice(SMOKE), random.randint(24, 44), round(4 * s), -0.01))
 
+    def publish_ammo(self):
+        """Manda a munição de cada jogador humano para o celular dele (de tempos em tempos)."""
+        if self.frame % 6:
+            return
+        for f in self.fighters:
+            if f.is_cpu or not f.slot:
+                continue
+            mag = f.mag if not f.weapon.is_melee else 0
+            hub.publish_slot(f.slot, ammo=f.ammo, mag=mag, reload=f.reload_ratio if f.reloading else 0.0)
+
     def next_scene(self):
         """Tela depois do fim da partida (None = tela de resultado padrão)."""
         return None
@@ -203,6 +223,8 @@ class Match(ABC):
         self.arena.draw_floor(view, cam, view.get_size())
         self.draw_under(view, cam)
         self.arena.draw_walls(view, cam)
+        self.draw_over_walls(view, cam)
+        self.arena.draw_ambience(view, cam, self.frame, "ground")
         for effect in self.effects:
             effect.draw(view, cam)
         for entity in sorted(self.world_entities(), key=lambda e: getattr(e, "sort_y", e.y)):
@@ -211,6 +233,7 @@ class Match(ABC):
             b.draw(view, cam)
         for p in self.particles:
             p.draw(view, cam)
+        self.arena.draw_ambience(view, cam, self.frame, "air")
         cam.end(view, screen)
         for f in self.fighters:
             f.draw_overlay(screen, cam, ui, show_hp=not self.session.soccer)
@@ -222,6 +245,9 @@ class Match(ABC):
 
     def draw_under(self, view, cam):
         pass
+
+    def draw_over_walls(self, view, cam):
+        """Coisas no chão que ficam por cima das paredes e por baixo dos lutadores (entradas, portal)."""
 
     # ── HUD ──────────────────────────────────
     def hud_regions(self):
@@ -261,26 +287,56 @@ class Match(ABC):
 #  DUELO
 # ─────────────────────────────────────────────
 class BattleMatch(Match):
-    """Duelo em melhor de 3 rounds, com relógio e itens aparecendo na arena."""
+    """Duelo em melhor de 3 rounds, com relógio e itens aparecendo na arena.
+
+    Cada "lado" disputa os rounds: no 1 x 1 o lado é o próprio lutador; no 2 x 2
+    (TeamBattleMatch) é o time."""
 
     def __init__(self, game, session):
         super().__init__(game, session, session.map_key)
-        spawns = self.arena.cfg.spawns
-        for setup, pos in zip(session.slots, spawns):
-            fighter = self._add_fighter(setup, pos)
-            fighter.full_name = setup.name
-            if setup.cpu:
-                self.controllers[fighter] = FighterAI(session.difficulty)
-            else:
-                game.inputs[setup.slot].set_layout("battle")
-                self.controllers[fighter] = game.inputs[setup.slot]
+        self._create_fighters(session)
         self.starts = {f: (f.x, f.y, f.facing) for f in self.fighters}
-        self.wins = {f: 0 for f in self.fighters}
+        self.wins = {side: 0 for side in self.sides()}
         self.round_no = 1
         self.rounds_played = 0
         self.pickups = []
         self.loser = None
         self._start_round()
+
+    def _create_fighters(self, session):
+        spawns = self.arena.cfg.spawns
+        for setup, pos in zip(session.slots, spawns):
+            self._add_player(setup, pos)
+
+    def _add_player(self, setup, pos, team=None, color=None):
+        fighter = self._add_fighter(setup, pos, team=team, color=color)
+        fighter.full_name = setup.name
+        if setup.cpu:
+            self.controllers[fighter] = FighterAI(self.session.difficulty)
+        else:
+            self.game.inputs[setup.slot].set_layout("battle")
+            self.controllers[fighter] = self.game.inputs[setup.slot]
+        return fighter
+
+    # ── lados (quem disputa os rounds) ───────
+    def sides(self):
+        return list(self.fighters)
+
+    def members(self, side):
+        return [side]
+
+    def side_of(self, fighter):
+        return fighter
+
+    def side_name(self, side):
+        return side.full_name
+
+    def side_color(self, side):
+        return side.color
+
+    def _side_health(self, side):
+        team = self.members(side)
+        return sum(max(0, f.hp) for f in team) / max(1, sum(f.max_hp for f in team))
 
     def _start_round(self):
         self.intro = config.ROUND_INTRO_FRAMES
@@ -301,8 +357,18 @@ class BattleMatch(Match):
         return all(w == config.ROUNDS_TO_WIN - 1 for w in self.wins.values())
 
     def target_of(self, fighter):
-        others = [f for f in self.fighters if f is not fighter and f.alive_in_match]
-        return min(others, key=fighter.distance_to) if others else None
+        """Adversário em pé mais "à mão": o mais perto, com preferência para quem está na direção em que
+        o jogador está indo (no 2 x 2 dá para escolher em quem atirar só apontando)."""
+        foes = [f for f in self.fighters if f.alive_in_match and hostile(fighter, f)]
+        if len(foes) <= 1:
+            return foes[0] if foes else None
+        ax, ay = fighter.input if math.hypot(*fighter.input) > 0.3 else fighter.facing
+
+        def score(f):
+            d = fighter.distance_to(f) or 1.0
+            along = ((f.x - fighter.x) * ax + (f.y - fighter.y) * ay) / d
+            return d * (1.6 - 0.6 * along)
+        return min(foes, key=score)
 
     def world_entities(self):
         return self.fighters + self.pickups
@@ -332,20 +398,26 @@ class BattleMatch(Match):
             effect.update(self)
         self.effects = [e for e in self.effects if e.alive]
         self._update_pickups(active)
+        self._update_downed(active)
+        self.publish_ammo()
         if not active:
             return
-        dead = [f for f in self.fighters if not f.alive_in_match]
-        if dead:
-            self.loser = dead[0]
-            winner = self.target_of(self.loser)
-            self._end_round(winner, "ko")
+        down = [s for s in self.sides() if not any(f.alive_in_match for f in self.members(s))]
+        if down:
+            standing = [s for s in self.sides() if s not in down]
+            fallen = [f for s in down for f in self.members(s)]
+            self.loser = min(fallen, key=lambda f: f.down_age)       # quem caiu por último
+            self._end_round(standing[0] if len(standing) == 1 else None, "ko")
             return
         self.time_left -= 1
         if self.time_left <= 0:
-            a, b = self.fighters
-            ra, rb = a.hp / a.max_hp, b.hp / b.max_hp
-            winner = a if ra > rb else b if rb > ra else None
-            self._end_round(winner, "time")
+            health = {s: self._side_health(s) for s in self.sides()}
+            best = max(health.values())
+            leaders = [s for s, h in health.items() if h == best]
+            self._end_round(leaders[0] if len(leaders) == 1 else None, "time")
+
+    def _update_downed(self, active):
+        """Só o 2 x 2 tem companheiro para levantar quem caiu."""
 
     def _end_round(self, winner, reason):
         self.round_end = config.ROUND_END_FRAMES
@@ -360,12 +432,12 @@ class BattleMatch(Match):
             title = "K.O.!"
         else:
             title = "TEMPO!"
-        sub = f"{winner.full_name} VENCE O ROUND" if winner else "EMPATE"
-        self.round_banner = (title, sub, winner.color if winner else theme.BONE)
+        sub = f"{self.side_name(winner)} VENCE O ROUND" if winner is not None else "EMPATE"
+        self.round_banner = (title, sub, self.side_color(winner) if winner is not None else theme.BONE)
         if self._decided():
             self.assets.stop_music(1500)
-            champion = max(self.fighters, key=lambda f: self.wins[f])
-            human_won = not champion.is_cpu
+            champion = max(self.sides(), key=lambda s: self.wins[s])
+            human_won = any(not f.is_cpu for f in self.members(champion))
             self.assets.play("victory" if human_won else "gameover", 0.5)
         else:
             self.assets.play("hit", 0.6)
@@ -416,15 +488,19 @@ class BattleMatch(Match):
         self.pickup_timer -= 1
         if self.pickup_timer <= 0:
             self.pickup_timer = random.randint(*config.PICKUP_EVERY)
-            if len(self.pickups) < config.PICKUP_MAX:
+            if len(self.pickups) < self.pickup_max:
                 self._spawn_pickup()
+
+    @property
+    def pickup_max(self):
+        return config.PICKUP_MAX
 
     def _spawn_pickup(self):
         for _ in range(20):
             x, y = self.arena.random_free_spot(16)
             if all(math.hypot(f.x - x, f.y - y) > 160 for f in self.fighters):
                 break
-        kind = random.choices(("vida", "furia", "energia"), weights=(45, 30, 25))[0]
+        kind = random.choices(("vida", "furia", "energia", "municao"), weights=(36, 22, 18, 24))[0]
         self.pickups.append(Pickup(kind, x, y))
         self.burst(x, y - 10, Pickup.KINDS[kind][1], 10, speed=2)
 
@@ -460,6 +536,152 @@ class BattleMatch(Match):
                 pygame.Rect(W // 2 + half, 0, W // 2 - half, 104)]
 
 
+REVIVE_FRAMES = 150         # 2 x 2: tempo perto de um companheiro caído para levantá-lo
+REVIVE_RADIUS = 52
+REVIVE_HP = 0.35            # volta com essa parte da vida
+REVIVES_PER_ROUND = 1       # cada lutador pode ser levantado uma vez por round
+TEAM_SPREAD = 110           # distância entre os dois do mesmo time na largada
+
+
+class TeamBattleMatch(BattleMatch):
+    """Duelo 2 x 2: dois times, sem fogo amigo. O round acaba quando o time inteiro cai,
+    e dá para levantar o companheiro caído ficando perto dele."""
+
+    min_zoom = 0.6
+
+    def _create_fighters(self, session):
+        spawns = self.arena.cfg.spawns
+        for setup in session.slots:
+            team = session.team_of(setup.slot)
+            k = session.teammates(team).index(setup.slot)
+            bx, by = spawns[team]
+            pos = (bx, by + (k * 2 - 1) * TEAM_SPREAD)
+            color = theme.TEAM_COLORS[team] if setup.cpu else None
+            fighter = self._add_player(setup, pos, team=team, color=color)
+            fighter.ring_color = theme.TEAM_COLORS[team]
+            fighter.facing = (1.0, 0.0) if team == 0 else (-1.0, 0.0)
+        self.revive_progress = {f: 0.0 for f in self.fighters}
+        self.revives = {f: 0 for f in self.fighters}
+
+    def sides(self):
+        return [0, 1]
+
+    def members(self, side):
+        return [f for f in self.fighters if f.team == side]
+
+    def side_of(self, fighter):
+        return fighter.team
+
+    def side_name(self, side):
+        return f"TIME {theme.TEAM_NAMES[side]}"
+
+    def side_color(self, side):
+        return theme.TEAM_COLORS[side]
+
+    @property
+    def pickup_max(self):
+        return config.PICKUP_MAX + 1          # mais gente na arena, um item a mais
+
+    def _start_round(self):
+        super()._start_round()
+        for f in self.fighters:
+            self.revive_progress[f] = 0.0
+            self.revives[f] = 0
+
+    def focus_points(self):
+        # quem caiu há um tempo sai do enquadramento (a câmera fica em quem ainda luta)
+        pts = [(f.x, f.y - 20) for f in self.fighters if f.alive_in_match or f.down_age < 90]
+        return pts or super().focus_points()
+
+    # ── levantar o companheiro ───────────────
+    def can_revive(self, f):
+        return (not f.alive_in_match and self.revives[f] < REVIVES_PER_ROUND
+                and any(m.alive_in_match for m in self.members(f.team)))
+
+    def _update_downed(self, active):
+        for f in self.fighters:
+            if not active or not self.can_revive(f):
+                self.revive_progress[f] = 0.0
+                continue
+            helpers = [m for m in self.members(f.team)
+                       if m is not f and m.alive_in_match and m.distance_to(f) < REVIVE_RADIUS]
+            prog = self.revive_progress[f]
+            if helpers:
+                prog += 1 / REVIVE_FRAMES
+                if self.frame % 6 == 0:
+                    self.burst(f.x, f.y, theme.TEAM_COLORS[f.team], 1, speed=2)
+            else:
+                prog = max(0.0, prog - 1 / 200)
+            self.revive_progress[f] = prog
+            if prog >= 1:
+                self._revive(f)
+
+    def _revive(self, f):
+        f.hp = max(1, round(f.max_hp * REVIVE_HP))
+        f.invulnerable_timer = 90
+        f.stun_timer = 0
+        f.vx = f.vy = 0.0
+        f.down_age = 0
+        self.revives[f] += 1
+        self.revive_progress[f] = 0.0
+        self.burst(f.x, f.y - 16, theme.TEAM_COLORS[f.team], 22, speed=5)
+        self.popup(f.x, f.y - 70, "DE PÉ!", theme.MOSS)
+        self.assets.play("select", 0.5)
+
+    def _finish(self):
+        w0, w1 = self.wins[0], self.wins[1]
+        if w0 == w1:
+            winners, title, color = [], "EMPATE", theme.BONE
+        else:
+            team = 0 if w0 > w1 else 1
+            winners = self.members(team)
+            title, color = f"TIME {theme.TEAM_NAMES[team]} VENCEU", theme.TEAM_COLORS[team]
+        seconds = self.frame // config.FPS
+        lines = [("ROUNDS", f"{w0} x {w1}"), ("TEMPO TOTAL", f"{seconds // 60}:{seconds % 60:02d}")]
+        for f in sorted(self.fighters, key=lambda f: (f.team, f.slot)):
+            lines.append((f"{f.label} DANO · ABATES", f"{f.damage_dealt} · {f.kills}"))
+        self.result = Result(title, color, winners, lines, score=(w0, w1))
+        self.finished = True
+
+    # ── desenho ──────────────────────────────
+    def draw_under(self, view, cam):
+        for f in self.fighters:
+            if not self.can_revive(f) or not self.active:
+                continue
+            # anel de "levante seu companheiro" na cor do time
+            color = theme.TEAM_COLORS[f.team]
+            sx, sy = round(f.x - cam.x), round(f.y + 14 - cam.y)
+            ring = pygame.Rect(0, 0, REVIVE_RADIUS * 2, REVIVE_RADIUS)
+            ring.center = (sx, sy)
+            pulse = 120 + round(60 * math.sin(self.frame * 0.15))
+            layer = pygame.Surface(ring.inflate(8, 8).size, pygame.SRCALPHA)
+            inner = pygame.Rect(4, 4, ring.w, ring.h)
+            pygame.draw.ellipse(layer, (*color, pulse // 3), inner)
+            pygame.draw.ellipse(layer, (*color, pulse), inner, 2)
+            prog = self.revive_progress.get(f, 0.0)
+            if prog > 0:
+                pygame.draw.arc(layer, (*theme.BONE, 255), inner, math.pi / 2, math.pi / 2 + math.tau * prog, 4)
+            view.blit(layer, ring.inflate(8, 8).topleft)
+
+    def draw(self, screen, ui):
+        Match.draw(self, screen, ui)
+        cam = self.camera
+        if (self.frame // 20) % 2:
+            for f in self.fighters:
+                if self.can_revive(f) and self.active:
+                    sx, sy = cam.to_screen(f.x, f.y - 34)
+                    ui.text(screen, "LEVANTE!", theme.XS, theme.TEAM_COLORS[f.team], (round(sx), round(sy)))
+        hud.draw_round_banner(screen, ui, self)
+
+    def draw_hud(self, screen, ui):
+        hud.draw_team_battle(screen, ui, self)
+
+    def hud_regions(self):
+        W, half = config.SCREEN_W, 52
+        return [pygame.Rect(0, 0, W // 2 - half, 96), pygame.Rect(W // 2 - half, 0, half * 2, 96),
+                pygame.Rect(W // 2 + half, 0, W // 2 - half, 96)]
+
+
 # ─────────────────────────────────────────────
 #  FUTEBOL
 # ─────────────────────────────────────────────
@@ -482,6 +704,8 @@ class Ball(Entity):
         self.ghost_team = None
         self.hook_timer = 0         # puxada pelo gancho do Pirata: ele domina na chegada
         self.hook_owner = None
+        self.receiver = None        # lançamento: o companheiro que vai receber domina mesmo a bola rápida
+        self.receiver_timer = 0
         self.z = 0.0                # altura
         self.vz = 0.0
         self.squash = 0
@@ -529,8 +753,8 @@ class Ball(Entity):
                 if self.vz < -1.4:
                     # quique: perde força a cada toque no chão
                     self.vz = -self.vz * config.BOUNCE
-                    self.vx *= 0.82
-                    self.vy *= 0.82
+                    self.vx *= config.BOUNCE_ROLL
+                    self.vy *= config.BOUNCE_ROLL
                     self.squash = 4
                     match.ball_bounced(self)
                 else:
@@ -545,9 +769,10 @@ class Ball(Entity):
         if abs(self.vy) < 0.05:
             self.vy = 0.0
         speed = math.hypot(self.vx, self.vy)
-        if speed > config.BALL_MAX_SPEED:
-            self.vx *= config.BALL_MAX_SPEED / speed
-            self.vy *= config.BALL_MAX_SPEED / speed
+        limit = config.BALL_AIR_MAX_SPEED if self.airborne else config.BALL_MAX_SPEED
+        if speed > limit:
+            self.vx *= limit / speed
+            self.vy *= limit / speed
         if self.homing_timer > 0:
             if self.homing_player is not None:
                 self.homing_target = (self.homing_player.x, self.homing_player.y)
@@ -563,6 +788,10 @@ class Ball(Entity):
             self.hook_timer -= 1
             if self.hook_timer == 0:
                 self.hook_owner = None
+        if self.receiver_timer > 0:
+            self.receiver_timer -= 1
+            if self.receiver_timer == 0:
+                self.receiver = None
         self.x += self.vx
         self.y += self.vy
         self.spin += math.hypot(self.vx, self.vy) * 0.15
@@ -618,8 +847,12 @@ class Goal(Entity):
 
 
 class SoccerMatch(Match):
-    min_zoom = 0.55
-    GOAL_TOP, GOAL_BOTTOM = 370, 530
+    min_zoom = 0.5            # bem de longe a arte fica no tamanho original (pixel por pixel)
+    GOAL_TOP, GOAL_BOTTOM = Pitch.GOAL_TOP, Pitch.GOAL_BOTTOM
+    # zonas do jogo, medidas a partir da linha do gol
+    HEADER_RANGE = 460        # cabeçada mais perto do gol que isso vai para o gol (por baixo do travessão)
+    CROSS_DEPTH = Pitch.AREA_DEPTH + 130          # zona de quem recebe o cruzamento
+    CROSS_HALF = Pitch.AREA_HALF - 40
 
     def __init__(self, game, session):
         super().__init__(game, session, SOCCER_MAP)
@@ -627,9 +860,11 @@ class SoccerMatch(Match):
         self.spawn_of = {}
         for setup in session.slots:
             team = session.team_of(setup.slot)
-            pos = spawns[setup.slot - 1]
+            k = session.teammates(team).index(setup.slot)
+            pos = spawns[team + 2 * k]           # time 0 à esquerda (0 e 2), time 1 à direita (1 e 3)
             fighter = self._add_fighter(setup, pos, team=team, color=theme.TEAM_COLORS[team] if setup.cpu else None)
             fighter.ring_color = theme.TEAM_COLORS[team]
+            fighter.sprites = self.assets.kit_sprites(fighter.stats.key, team)    # uniforme do time
             fighter.armed = False
             fighter.power = create_power(fighter.stats)
             self.spawn_of[fighter] = pos
@@ -639,8 +874,9 @@ class SoccerMatch(Match):
                 game.inputs[setup.slot].set_layout("soccer")      # CORRER e MARCAR no teclado
                 self.controllers[fighter] = game.inputs[setup.slot]
         self.ball = Ball(self.arena.width / 2, self.arena.height / 2)
-        self.goals = [Goal(2, self.GOAL_TOP, 18, self.GOAL_BOTTOM - self.GOAL_TOP, 0),
-                      Goal(1580, self.GOAL_TOP, 18, self.GOAL_BOTTOM - self.GOAL_TOP, 1)]
+        depth = Pitch.EDGE - 2
+        self.goals = [Goal(2, self.GOAL_TOP, depth, Pitch.GOAL, 0),
+                      Goal(Pitch.W - Pitch.EDGE, self.GOAL_TOP, depth, Pitch.GOAL, 1)]
         self.score = [0, 0]
         self.freeze = 0
         self.last_touch = None
@@ -656,11 +892,26 @@ class SoccerMatch(Match):
     @staticmethod
     def goal_x(team):
         """Linha do gol que o time defende."""
-        return 20 if team == 0 else 1580
+        return Pitch.goal_x(team)
 
     def focus_points(self):
-        pts = [(f.x, f.y - 20) for f in self.fighters]
-        pts.append((self.ball.x, self.ball.y - self.ball.z))
+        """A bola fica sempre na tela; entra junto quem couber no zoom mais afastado
+        (as pessoas antes da CPU, os mais perto da bola primeiro). Quem ficou de fora
+        ganha uma setinha na borda da tela."""
+        ball = self.ball
+        bx, by = ball.x, ball.y - ball.z
+        pts = [(bx, by)]
+        cam = self.camera
+        max_w = config.SCREEN_W / cam.min_zoom - cam.margin * 2
+        max_h = config.SCREEN_H / cam.min_zoom - cam.margin * 2
+        lo_x = hi_x = bx
+        lo_y = hi_y = by
+        for f in sorted(self.fighters, key=lambda f: (f.is_cpu, f.distance_to(ball))):
+            x, y = f.x, f.y - 20
+            nlx, nhx, nly, nhy = min(lo_x, x), max(hi_x, x), min(lo_y, y), max(hi_y, y)
+            if nhx - nlx <= max_w and nhy - nly <= max_h:
+                lo_x, hi_x, lo_y, hi_y = nlx, nhx, nly, nhy
+                pts.append((x, y))
         return pts
 
     def world_entities(self):
@@ -715,7 +966,7 @@ class SoccerMatch(Match):
         self._release(f, 8)
         if direction is None and self.in_own_half(f):
             direction = self.clearance_dir(f)      # cabeçada no próprio campo: afasta
-        elif direction is None and self.assist.shot_cone > 0 and abs(self.goal_x(1 - f.team) - f.x) < 360:
+        elif direction is None and self.assist.shot_cone > 0 and abs(self.goal_x(1 - f.team) - f.x) < self.HEADER_RANGE:
             # cabeçada na área adversária (cruzamento): vai para o gol, no canto mais longe
             gx = self.goal_x(1 - f.team)
             far = self.GOAL_BOTTOM - 22 if f.y < self.arena.height / 2 else self.GOAL_TOP + 22
@@ -724,7 +975,7 @@ class SoccerMatch(Match):
         ball = self.ball
         ball.vx, ball.vy = dx * 8, dy * 8
         gx = self.goal_x(1 - f.team)
-        if abs(gx - f.x) < 360 and (gx - f.x) * dx > 0:
+        if abs(gx - f.x) < self.HEADER_RANGE and (gx - f.x) * dx > 0:
             ball.vz = -0.5          # cabeçada para o gol: para baixo, por baixo do travessão
         else:
             ball.lift(2.5)
@@ -741,6 +992,7 @@ class SoccerMatch(Match):
             self.possessor = None
         self.no_trap[f] = frames
         self.contest.clear()
+        self.ball.receiver, self.ball.receiver_timer = None, 0
 
     def kick(self, f, direction=None, loft=0.0, assist=False):
         """Chute rasteiro (loft=0) ou pelo alto (loft de 0 a 1 = força e altura).
@@ -759,8 +1011,8 @@ class SoccerMatch(Match):
                                  self.GOAL_TOP, self.GOAL_BOTTOM, self.assist.shot_cone)
             f.facing = (dx, dy)
         if loft > 0:
-            power = 8 + 4 * loft
-            ball.lift(5 + 3 * loft)
+            power = config.LOFT_KICK_POWER[0] + (config.LOFT_KICK_POWER[1] - config.LOFT_KICK_POWER[0]) * loft
+            ball.lift(5 + 4 * loft)
         else:
             power = config.KICK_POWER
         ball.vx, ball.vy = dx * power, dy * power
@@ -897,6 +1149,7 @@ class SoccerMatch(Match):
     def _body_block(self, f, reach):
         """A bola bateu no corpo de quem não está com ela."""
         ball = self.ball
+        ball.receiver, ball.receiver_timer = None, 0          # desviou: o lançamento não chega mais
         dx, dy = ball.x - f.x, ball.y - f.y
         dist = math.hypot(dx, dy)
         if dist < 1e-6:
@@ -922,7 +1175,7 @@ class SoccerMatch(Match):
             ball.homing_timer = 0
             f.block_hit = True
             # só avisa quando bloqueou um chute forte indo para o próprio gol, perto dele
-            if speed > 8.5 and abs(ball.x - gx) < 500 and (gx - ball.x) * vin_x > 0:
+            if speed > 8.5 and abs(ball.x - gx) < 650 and (gx - ball.x) * vin_x > 0:
                 self.popup(f.x, f.y - 74, "BLOQUEIO", theme.BONE)
                 self.camera.shake(3)
             self.burst(ball.x, ball.y, (236, 230, 220), 8, speed=3)
@@ -945,7 +1198,7 @@ class SoccerMatch(Match):
     def in_cross_zone(self, team, x, y):
         """Na área adversária ou chegando nela (um pouco antes da linha da área)."""
         gx = self.goal_x(1 - team)
-        return 40 < abs(gx - x) < 300 and abs(y - self.arena.height / 2) < 210
+        return 40 < abs(gx - x) < self.CROSS_DEPTH and abs(y - self.arena.height / 2) < self.CROSS_HALF
 
     def cross_receiver(self, f, mates, aim=None):
         """Companheiro entrando na área para receber o cruzamento (None = não é caso de cruzar)."""
@@ -955,7 +1208,7 @@ class SoccerMatch(Match):
         fwd = 1.0 if gx > f.x else -1.0
         if aim is not None and aim[0] * fwd < -0.3:
             return None                          # apontou para trás: é recuo, não cruzamento
-        spot = (gx - fwd * 130, self.arena.height / 2)
+        spot = (gx - fwd * (Pitch.SPOT - 20), self.arena.height / 2)
         best, best_d = None, 1e9
         for m in mates:
             vx, vy = m.x - m.prev_pos[0], m.y - m.prev_pos[1]
@@ -974,11 +1227,11 @@ class SoccerMatch(Match):
         fwd = 1.0 if gx > f.x else -1.0
         mid = self.arena.height / 2
         mvx, mvy = mate.x - mate.prev_pos[0], mate.y - mate.prev_pos[1]
-        near_x, far_x = gx - fwd * 50, gx - fwd * 230
+        near_x, far_x = gx - fwd * 60, gx - fwd * 300
         t = 30.0
         for _ in range(3):                       # onde ele vai estar quando a bola chegar
             tx = min(max(mate.x + mvx * t, min(near_x, far_x)), max(near_x, far_x))
-            ty = min(max(mate.y + mvy * t, mid - 170), mid + 170)
+            ty = min(max(mate.y + mvy * t, mid - 230), mid + 230)
             dist = math.hypot(tx - ball.x, ty - ball.y)
             t = min(52.0, max(24.0, dist / 9)) if high else min(60.0, max(14.0, dist / config.CROSS_LOW_POWER))
         dx, dy = unit(tx - ball.x, ty - ball.y)
@@ -1009,10 +1262,12 @@ class SoccerMatch(Match):
         self.assets.play("shoot", 0.3)
         return True
 
-    def pass_ball(self, f, high=False, direction=None):
+    def pass_ball(self, f, high=False, direction=None, power=1.0):
         """Passe. Sem direção: para o companheiro mais perto. Com direção (analógico/setas): para o
         companheiro que estiver para aquele lado, na frente dele se estiver correndo; se ninguém
-        estiver para lá, a bola vai para o espaço. Com a assistência desligada, vai reto."""
+        estiver para lá, a bola vai para o espaço. Com a assistência desligada, vai reto.
+        Passe alto (``high``): lançamento por cima, que alcança o companheiro mesmo do outro lado
+        do campo; para o espaço, vai mais longe quanto mais tempo segurou (``power`` de 0 a 1)."""
         if self.freeze or f.stunned or not self.touching(f):
             return False
         self._release(f)
@@ -1033,20 +1288,26 @@ class SoccerMatch(Match):
         if mate is None and aim is not None:
             f.facing = aim
         if high:
-            # passe por cima: calcula o arco para cair no pé do companheiro (ou à frente)
+            # lançamento: calcula o arco para cair no pé do companheiro (na frente da corrida dele)
             if mate is not None:
-                tx = mate.x + (mate.x - mate.prev_pos[0]) * 24
-                ty = mate.y + (mate.y - mate.prev_pos[1]) * 24
+                mvx, mvy = mate.x - mate.prev_pos[0], mate.y - mate.prev_pos[1]
+                tx, ty, frames = mate.x, mate.y, 24
+                for _ in range(2):                   # onde ele vai estar quando a bola cair
+                    tx, ty = mate.x + mvx * frames, mate.y + mvy * frames
+                    _, frames = lob(math.hypot(tx - ball.x, ty - ball.y), t_max=config.LOB_MATE_MAX_FRAMES)
             else:
-                tx, ty = f.x + f.facing[0] * 320, f.y + f.facing[1] * 320
+                lo, hi = config.LOB_SPACE
+                reach = lo + (hi - lo) * max(0.0, min(1.0, power))
+                tx, ty = f.x + f.facing[0] * reach, f.y + f.facing[1] * reach
             dx, dy = tx - ball.x, ty - ball.y
             dist = math.hypot(dx, dy) or 1
-            t = max(22.0, min(48.0, dist / 8))
-            speed = min(config.BALL_MAX_SPEED, dist / t)
+            speed, frames = lob(dist, t_max=config.LOB_MATE_MAX_FRAMES if mate is not None else None)
             f.facing = (dx / dist, dy / dist)
             ball.vx, ball.vy = f.facing[0] * speed, f.facing[1] * speed
-            ball.lift(config.GRAVITY * t / 2)
+            ball.lift(config.GRAVITY * (frames + 1) / 2)    # volta ao chão em `frames` quadros
             ball.homing_timer = 0
+            if mate is not None:
+                ball.receiver, ball.receiver_timer = mate, frames + 40
         else:
             power = config.PASS_POWER
             if mate is not None:
@@ -1103,7 +1364,8 @@ class SoccerMatch(Match):
             self.ending -= 1
             if self.frame % 4 == 0:
                 team = self.result_team
-                self.burst(random.uniform(200, 1400), random.uniform(100, 400), theme.TEAM_COLORS[team], 6,
+                self.burst(random.uniform(200, self.arena.width - 200),
+                           random.uniform(self.arena.height * 0.1, self.arena.height * 0.45), theme.TEAM_COLORS[team], 6,
                            speed=3, gravity=0.15, size=5)
             if self.ending == 0:
                 self._finish()
@@ -1201,7 +1463,8 @@ class SoccerMatch(Match):
         if inp.held("special"):
             f.pass_charge = min(f.pass_charge + 1, config.MAX_CHARGE)
         elif f.pass_charge:
-            self.pass_ball(f, high=f.pass_charge >= config.LOFT_FRAMES, direction=stick)
+            self.pass_ball(f, high=f.pass_charge >= config.LOFT_FRAMES, direction=stick,
+                           power=_loft(f.pass_charge))
             f.pass_charge = 0
         if inp.pressed("super"):
             if not self.use_power(f):
@@ -1251,7 +1514,9 @@ class SoccerMatch(Match):
                     self.contest.pop(foe, None)
             return
         # bola sem dono: quem encostar e conseguir dominar fica com ela
-        if not self._trappable_height():
+        low = self._trappable_height()
+        receiver = ball.receiver if ball.receiver_timer > 0 else None
+        if not low and not (receiver is not None and ball.z < config.HEAD_RANGE[1]):
             return
         best, best_d = None, 1e9
         pull, pull_d = None, 1e9
@@ -1259,13 +1524,16 @@ class SoccerMatch(Match):
         for f in self.fighters:
             if not self._can_touch(f):
                 continue
+            if not low and f is not receiver:
+                continue        # bola no peito: só quem ia receber o lançamento domina
             d = f.distance_to(ball)
             reach = f.radius + ball.radius + 8
             human = not f.is_cpu
             if d < reach + (lvl.trap_range if human else 0):
                 rel = math.hypot(ball.vx - (f.x - f.prev_pos[0]), ball.vy - (f.y - f.prev_pos[1]))
                 limit = config.TRAP_SPEED + (3 if ball.airborne else 0) + (lvl.trap_bonus if human else 0)
-                hooked = ball.hook_timer > 0 and ball.hook_owner is f
+                hooked = ((ball.hook_timer > 0 and ball.hook_owner is f)
+                          or (ball.receiver_timer > 0 and ball.receiver is f))
                 if ball.hook_timer > 0 and not hooked:
                     continue        # só quem puxou com o gancho domina
                 if d < reach:
@@ -1286,6 +1554,7 @@ class SoccerMatch(Match):
         if ball.airborne:
             self.popup(f.x, f.y - 74, "DOMINOU", theme.BONE)
         ball.z = ball.vz = 0.0
+        ball.receiver, ball.receiver_timer = None, 0
         self.possessor = f
         self.contest.clear()
         dx, dy = ball.x - f.x, ball.y - f.y
@@ -1334,6 +1603,8 @@ class SoccerMatch(Match):
                 continue
             if ball.hook_timer > 0:
                 continue        # a bola vem presa à corrente do gancho: não bate em ninguém
+            if ball.receiver_timer > 0 and f is ball.receiver:
+                continue        # o lançamento é para ele: domina em vez de rebater
             if ball.z > config.BODY_HEIGHT:
                 continue        # bola alta passa por cima
             # corpo de quem não está com a bola funciona como obstáculo; o caminho inteiro da
@@ -1364,8 +1635,8 @@ class SoccerMatch(Match):
                 side = random.choice((-1, 1))
                 ball.vx, ball.vy = px * side * 6, py * side * 6
                 self._ball_trail.clear()
-        if self.GOAL_TOP < ball.y < self.GOAL_BOTTOM and (ball.x < 20 or ball.x > 1580):
-            defending = 0 if ball.x < 20 else 1
+        if self.GOAL_TOP < ball.y < self.GOAL_BOTTOM and (ball.x < Pitch.EDGE or ball.x > Pitch.W - Pitch.EDGE):
+            defending = 0 if ball.x < Pitch.EDGE else 1
             if ball.z > config.CROSSBAR:
                 self._over_bar(defending)
             else:
@@ -1375,7 +1646,7 @@ class SoccerMatch(Match):
 
     def _over_bar(self, defending):
         """Passou por cima do gol: tiro de meta para quem defende."""
-        x = 110 if defending == 0 else self.arena.width - 110
+        x = Pitch.LINE + 110 if defending == 0 else self.arena.width - Pitch.LINE - 110
         self.popup(self.goal_x(defending), self.arena.height / 2 - 60, "POR CIMA", theme.BONE)
         self.ball.reset(x, self.arena.height / 2)
         self.possessor = None
@@ -1444,8 +1715,19 @@ class SoccerMatch(Match):
                    theme.BRASS if high else theme.SKY)
             if high:
                 ui.text(screen, "ALTO", theme.XS, theme.BRASS, (round(sx), round(sy) + 12))
+        self._draw_offscreen(screen, ui)
         if self.goal_banner:
             hud.draw_goal_banner(screen, ui, *self.goal_banner, self.banner_age)
+
+    def _draw_offscreen(self, screen, ui):
+        """Campo grande: quem saiu da câmera aparece como uma setinha (cor do time) na borda."""
+        W, H = config.SCREEN_W, config.SCREEN_H
+        for f in self.fighters:
+            sx, sy = self.camera.to_screen(f.x, f.y - 20)
+            if 0 <= sx <= W and 0 <= sy <= H:
+                continue
+            ax, ay, ux, uy = hud.edge_arrow(screen, sx, sy, theme.TEAM_COLORS[f.team], 8, top=96, bottom_gap=60)
+            ui.text(screen, f.label, theme.XS, f.color, (round(ax - ux * 14), round(ay - uy * 12)))
 
     def draw_hud(self, screen, ui):
         hud.draw_soccer(screen, ui, self)
@@ -1461,6 +1743,22 @@ class SoccerMatch(Match):
         r.center = (sx, sy)
         rects.append(r)
         return rects
+
+
+def lob(dist, max_speed=None, t_min=22, t_max=None):
+    """Bola alta que cai a ``dist`` pixels: (velocidade, quadros no ar). No ar ela perde 0,4% por
+    quadro. Longe demais para a velocidade máxima: fica mais tempo no ar (até t_max) e cai antes."""
+    max_speed = max_speed or config.BALL_AIR_MAX_SPEED
+    t_max = t_max or config.LOB_MAX_FRAMES
+    frames = int(max(t_min, min(t_max, dist / 9)))
+    reach = sum(0.996 ** k for k in range(1, frames + 1))
+    speed = dist / reach
+    if speed > max_speed:
+        speed, covered, frames = max_speed, 0.0, 0
+        while covered < dist and frames < t_max:
+            frames += 1
+            covered += speed * 0.996 ** frames
+    return speed, frames
 
 
 def _loft(charge):
@@ -1522,4 +1820,6 @@ def _bounce_off_walls(ball, walls):
 
 
 def create_match(game, session):
-    return SoccerMatch(game, session) if session.soccer else BattleMatch(game, session)
+    if session.soccer:
+        return SoccerMatch(game, session)
+    return TeamBattleMatch(game, session) if session.team_mode else BattleMatch(game, session)

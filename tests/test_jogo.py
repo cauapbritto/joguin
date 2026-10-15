@@ -119,7 +119,7 @@ class PartidaTest(unittest.TestCase):
         match.score = [config.WIN_SCORE - 1, 0]
         ball = match.ball
         for _ in range(400):
-            ball.x, ball.y, ball.vx, ball.vy = 1590, 450, 0, 0
+            ball.x, ball.y, ball.vx, ball.vy = match.arena.width - 10, match.arena.height / 2, 0, 0
             match.update()
             if match.finished:
                 break

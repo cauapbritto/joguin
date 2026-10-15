@@ -247,6 +247,11 @@
         b.style.left = x + "px";
         b.style.top = y + "px";
         b.style.setProperty("--s", size + "px");
+        if (pos === "main" && set.classList.contains("battle-only")) {
+          var badge = $("ammo-badge");           // contador de munição logo abaixo do ATACAR
+          badge.style.left = x + "px";
+          badge.style.top = Math.min(zr.height - 26, y + size / 2 - 6) + "px";
+        }
         if (!b.dataset.label) b.dataset.label = (b.querySelector("span") || b).textContent;
         fitLabel(b, b.dataset.label, size, pos === "main" ? 15 : 10);
       });
@@ -428,9 +433,11 @@
       return "<span>" + r[0] + '</span><span class="bar"><i style="width:' + Math.round(r[1] * 100) + '%"></i></span>';
     }).join("");
     var weapon = ch.weapons[me.weapon] || ch.weapons[0];
+    var gun = ch.weapons.filter(function (w) { return !w.melee; })[0];
     $("ability").innerHTML = mode === "soccer"
       ? "<b>SUPER: " + (ch.soccer_power || "") + "</b>" + (ch.soccer_desc || "")
-      : "<b>" + ch.ability.toUpperCase() + "</b>" + ch.ability_desc;
+      : "<b>" + ch.ability.toUpperCase() + "</b>" + ch.ability_desc +
+        (gun && gun.note ? "<br><b>" + gun.name.toUpperCase() + " (" + gun.mag + " TIROS)</b>" + gun.note : "");
     $("weapon").style.display = mode === "soccer" ? "none" : "";
     $("weapon").textContent = "ARMA: " + weapon.name.toUpperCase() + (weapon.melee ? " · CORPO A CORPO" : " · DISTÂNCIA");
     var ready = $("ready-btn");
@@ -478,7 +485,11 @@
       return;
     }
     var mode = status.mode;
-    bind("mode", mode === "soccer" ? "FUTEBOL" : mode === "campaign" ? "CAMPANHA" : "DUELO");
+    var modeName = mode === "soccer" ? "FUTEBOL" : mode === "campaign" ? "CAMPANHA" : "DUELO";
+    if (mode !== "campaign" && (me.team === 0 || me.team === 1)) {
+      modeName += " · TIME " + (me.team === 0 ? "AZUL" : "VERMELHO");   // 2 x 2
+    }
+    bind("mode", modeName);
     var phase = status.phase;
     $("results-actions").classList.toggle("on", phase === "results" && me.playing);
     $("story-actions").classList.toggle("on", phase === "story" && me.playing);
@@ -501,6 +512,14 @@
       sb.style.setProperty("--p", (1 - cd).toFixed(3));
       sb.classList.toggle("cooling", cd > 0);
       sb.classList.toggle("ready", cd <= 0);
+      renderAmmo(me, mode);
+      var vote = me.vote || 0;                 // 1 = falta confirmar o teletransporte, 2 = confirmado
+      var vb = $("vote-btn");
+      vb.classList.toggle("on", vote > 0 && phase === "playing");
+      vb.classList.toggle("is-ready", vote === 2);
+      var vtext = vote === 2 ? "PRONTO! ESPERANDO OS OUTROS" : "TELETRANSPORTE DE FASE";
+      if (vb.textContent !== vtext) vb.textContent = vtext;
+      vb.disabled = vote === 2;
       var st = $("stick-stamina");
       st.style.setProperty("--st", (me.stamina === undefined ? 1 : me.stamina).toFixed(3));
       st.classList.toggle("tired", !!me.tired);
@@ -531,6 +550,26 @@
       bind("wait-title", t[0]);
       bind("wait-text", t[1]);
     }
+  }
+
+  function renderAmmo(me, mode) {
+    var btn = document.querySelector('.battle-only [data-act="attack"]');
+    var badge = $("ammo-badge");
+    if (!btn || !badge) return;
+    var mag = me.mag || 0;
+    var on = mode !== "soccer" && mag > 0;
+    btn.classList.toggle("has-ammo", on);
+    badge.classList.toggle("on", on);
+    if (!on) return;
+    var reloading = (me.reload || 0) > 0;
+    var ammo = me.ammo || 0;
+    btn.classList.toggle("reloading", reloading);
+    btn.classList.toggle("extra", !reloading && ammo > mag);
+    btn.style.setProperty("--a", (reloading ? me.reload : Math.min(1, ammo / mag)).toFixed(3));
+    badge.classList.toggle("reloading", reloading);
+    badge.classList.toggle("empty", !reloading && ammo <= 0);
+    var text = reloading ? "RECARGA" : ammo <= 0 ? "VAZIO" : ammo + "/" + mag;
+    if (badge.textContent !== text) badge.textContent = text;
   }
 
   function markTaken() {

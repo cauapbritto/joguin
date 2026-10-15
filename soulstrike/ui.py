@@ -209,9 +209,16 @@ def mix(a, b, t):
     return _mix(a, b, t)
 
 
+_VEILS = {}
+
+
 def darken(surface, alpha):
-    veil = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
-    veil.fill((0, 0, 0, alpha))
+    """Escurece a tela inteira (o véu é guardado: a pausa chama isso todo quadro)."""
+    key = (surface.get_size(), alpha)
+    veil = _VEILS.get(key)
+    if veil is None:
+        veil = _VEILS[key] = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+        veil.fill((0, 0, 0, alpha))
     surface.blit(veil, (0, 0))
 
 

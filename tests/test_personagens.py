@@ -114,8 +114,8 @@ class ArquivosTest(unittest.TestCase):
     def test_todo_personagem_tem_sprites_e_armas(self):
         grips = json.loads((config.ASSETS_DIR / "weapons" / "grips.json").read_text(encoding="utf-8"))
         for c in CHARACTERS:
-            for d in ("frente", "costas", "direita", "esquerda"):
-                self.assertTrue((config.CHAR_DIR / f"{c.sprite}{d}.png").is_file(), (c.name, d))
+            for ext in ("png", "json"):
+                self.assertTrue((config.CHAR_DIR / f"{c.sprite}.{ext}").is_file(), (c.name, ext))
             for w in c.weapons:
                 self.assertIn(w.name, grips, (c.name, w.name))
 

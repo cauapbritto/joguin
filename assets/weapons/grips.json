@@ -58,7 +58,7 @@
  "Arco": {
   "file": "arco.png",
   "grip": [
-   10,
+   12,
    12
   ]
  },
@@ -137,6 +137,76 @@
   "grip": [
    8,
    7
+  ]
+ },
+ "Arco Vazio": {
+  "file": "arco_vazio.png",
+  "grip": [
+   12,
+   12
+  ]
+ },
+ "Arco Puxado": {
+  "file": "arco_puxado.png",
+  "grip": [
+   12,
+   12
+  ]
+ },
+ "Arco Tenso": {
+  "file": "arco_tenso.png",
+  "grip": [
+   12,
+   12
+  ]
+ },
+ "Flecha": {
+  "file": "flecha.png",
+  "grip": [
+   8,
+   2
+  ]
+ },
+ "Besta": {
+  "file": "besta.png",
+  "grip": [
+   5,
+   9
+  ]
+ },
+ "Lança-chamas": {
+  "file": "lanca-chamas.png",
+  "grip": [
+   9,
+   7
+  ]
+ },
+ "Bumerangue": {
+  "file": "bumerangue.png",
+  "grip": [
+   2,
+   3
+  ]
+ },
+ "Cajado do Raio": {
+  "file": "cajado_do_raio.png",
+  "grip": [
+   8,
+   7
+  ]
+ },
+ "Canhão de Mão": {
+  "file": "canhao_de_mao.png",
+  "grip": [
+   3,
+   8
+  ]
+ },
+ "Virote": {
+  "file": "virote.png",
+  "grip": [
+   7,
+   2
   ]
  }
 }

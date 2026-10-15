@@ -8,7 +8,7 @@ from ..ai import DIFFICULTIES
 from ..arena import MAPS_BY_KEY
 from ..enemies import SHADOW_RIM
 from ..fighter import draw_aura
-from ..campaign import BROKEN, CRYSTAL, PHASE_HEAL, PHASES, STORY, CampaignMatch, CampaignRun
+from ..campaign import BROKEN, CRYSTAL, PHASE_HEAL, PHASES, STORY, CampaignMatch, CampaignRun, LobbyMatch
 from ..net.remote import hub
 from ..ui import MenuList, darken, mix
 from ..upgrades import ICONS, UPGRADES, choices
@@ -22,12 +22,24 @@ def start_campaign(game):
 
 
 def start_phase(game, run, story=True):
-    from .play import PlayScene
+    """Começa a fase no acampamento (depois da história dela)."""
     run.begin_phase()
 
     def play():
-        return PlayScene(game, CampaignMatch(game, run))
+        return stage_scene(game, run)
     return StoryScene(game, run.phase.key, play) if story else play()
+
+
+def stage_scene(game, run):
+    """A etapa atual da fase: acampamento ou masmorra."""
+    from .play import PlayScene
+    match = LobbyMatch(game, run) if run.in_lobby else CampaignMatch(game, run)
+    return PlayScene(game, match)
+
+
+def next_stage(game, run, stage):
+    run.stage = stage
+    return stage_scene(game, run)
 
 
 def after_phase(game, run):
@@ -164,7 +176,8 @@ class StoryScene(_MenuScene):
         else:
             sprites = (self.assets.shadow_sprites(portrait.split(":", 1)[1]) if portrait.startswith("sombra:")
                        else self.assets.sprites[portrait])
-            img = sprites.frame("frente", (self.ticks // 14) % 4 if self.page_ticks < 60 else 0)
+            img = (sprites.frame("frente", self.ticks // 7) if self.page_ticks < 60
+                   else sprites.pose("frente", "parado", (self.ticks // 36) % 2))
             factor = 3 if img.get_height() > 50 else 4
             img = pygame.transform.scale(img, (img.get_width() * factor, img.get_height() * factor))
             pygame.draw.ellipse(screen, theme.SHADOW, (W // 2 - 70, stage_y + 30, 140, 22))
@@ -307,7 +320,8 @@ class UpgradeScene(_MenuScene):
         setup = next(s for s in self.run.session.slots if s.slot == slot)
         from ..data import CHARACTERS
         stats = CHARACTERS[setup.char]
-        img = self.assets.sprites[stats.key].frame("frente", 0 if self.locked[slot] else (self.ticks // 10) % 4)
+        sprites = self.assets.sprites[stats.key]
+        img = sprites.pose("frente", "parado", 0) if self.locked[slot] else sprites.frame("frente", self.ticks // 5)
         factor = 2 if self.row_h > 120 else 1
         img = pygame.transform.scale(img, (img.get_width() * factor, img.get_height() * factor))
         screen.blit(img, img.get_rect(midbottom=(row.x + 48, row.bottom - 10)))
@@ -477,7 +491,7 @@ class CampaignEndScene(_RunMenuScene):
         # heróis comemorando
         from ..data import CHARACTERS
         for i, setup in enumerate(self.run.session.slots):
-            img = self.assets.sprites[CHARACTERS[setup.char].key].frame("frente", (self.ticks // 10) % 4)
+            img = self.assets.sprites[CHARACTERS[setup.char].key].frame("frente", self.ticks // 5 + i * 2)
             img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
             x = 110 + i * 90
             bob = int(abs(math.sin(self.ticks * 0.08 + i)) * 6)
@@ -490,7 +504,7 @@ class CampaignEndScene(_RunMenuScene):
             title = "NOVO LUTADOR LIBERADO!" if self.unlocked else "LUTADOR LIBERADO"
             self.ui.text(screen, title, theme.XS, theme.BRASS, (box.centerx, box.y + 22))
             sprites = self.assets.shadow_sprites("aryel")
-            img = sprites.frame("frente", (self.ticks // 12) % 4)
+            img = sprites.frame("frente", self.ticks // 6)
             img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
             rect = img.get_rect(midbottom=(box.centerx, box.y + 160))
             draw_aura(screen, img, rect, SHADOW_RIM, self.ticks, 3)

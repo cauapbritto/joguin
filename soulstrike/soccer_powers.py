@@ -86,7 +86,7 @@ class ChuteCerteiro(SoccerPower):
         return True
 
     def worth_using(self, user, match):
-        return abs(match.goal_x(1 - user.team) - user.x) < 600
+        return abs(match.goal_x(1 - user.team) - user.x) < 800
 
 
 class BallWall(Entity):
@@ -130,7 +130,7 @@ class MuralhaDoGol(SoccerPower):
         ball = match.ball
         home = match.goal_x(user.team)
         coming = (ball.vx < -3) if user.team == 0 else (ball.vx > 3)
-        return coming and abs(ball.x - home) < 500
+        return coming and abs(ball.x - home) < 650
 
 
 class Sombra(SoccerPower):
@@ -233,7 +233,7 @@ class BolaFantasma(SoccerPower):
         return True
 
     def worth_using(self, user, match):
-        return abs(match.goal_x(1 - user.team) - user.x) < 700
+        return abs(match.goal_x(1 - user.team) - user.x) < 900
 
 
 class Gigante(SoccerPower):

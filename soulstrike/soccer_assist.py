@@ -75,7 +75,7 @@ def angle_between(a, b):
     return math.degrees(math.acos(dot))
 
 
-SHOT_ASSIST_RANGE = 700     # chute de mais longe que isso não é corrigido
+SHOT_ASSIST_RANGE = 950     # chute de mais longe que isso não é corrigido
 
 
 def shot_assist(bx, by, direction, goal_x, goal_top, goal_bottom, cone, margin=18):

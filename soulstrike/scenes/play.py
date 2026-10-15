@@ -48,9 +48,10 @@ class VersusScene(Scene):
         W, H = config.SCREEN_W, config.SCREEN_H
         t = self.ticks
         soccer = self.session.soccer
+        teams = soccer or self.session.team_mode
         sides = [[s for s in self.session.slots if self.session.team_of(s.slot) == team] for team in (0, 1)] \
-            if soccer else [[self.session.slots[0]], [self.session.slots[1]]]
-        colors = [theme.TEAM_COLORS[0], theme.TEAM_COLORS[1]] if soccer else [sides[0][0].color, sides[1][0].color]
+            if teams else [[self.session.slots[0]], [self.session.slots[1]]]
+        colors = [theme.TEAM_COLORS[0], theme.TEAM_COLORS[1]] if teams else [sides[0][0].color, sides[1][0].color]
 
         screen.fill(theme.INK)
         tilt = 60
@@ -66,7 +67,8 @@ class VersusScene(Scene):
             direction = 1 if side == 0 else -1
             for k, setup in enumerate(slots):
                 stats = CHARACTERS[setup.char]
-                img = self.assets.sprites[stats.key].frame("direita" if side == 0 else "esquerda", 0)
+                sprites = self.assets.kit_sprites(stats.key, side) if soccer else self.assets.sprites[stats.key]
+                img = sprites.pose("direita" if side == 0 else "esquerda", "parado", 0)
                 factor = 3 if len(slots) == 1 else 2
                 img = _scaled(img, factor)
                 spread = 0 if len(slots) == 1 else (k * 2 - 1) * 70
@@ -80,7 +82,7 @@ class VersusScene(Scene):
                     self.ui.text(screen, setup.name, theme.XS, colors[side], (base_x, ground + 70))
                 else:
                     self.ui.text(screen, setup.label, theme.XS, setup.color, (x, gy + 24))
-            if soccer and len(slots) > 1:
+            if teams and len(slots) > 1:
                 self.ui.text(screen, f"TIME {theme.TEAM_NAMES[side]}", theme.S, theme.BONE,
                              (W // 4 if side == 0 else W * 3 // 4, 80))
 
@@ -116,7 +118,8 @@ class PlayScene(Scene):
 
     def _set_paused(self, value):
         self.paused = value
-        pygame.mouse.set_visible(value)       # mouse só aparece no menu de pausa
+        pygame.mouse.set_visible(value)       # mouse só aparece no menu de pausa (e no teletransporte)
+        self._cursor = value
         self.pause_menu.index = 0
         hub.set_phase("paused" if value else "playing", active=self.active_slots())
         self.sfx("click", 0.5)
@@ -134,6 +137,8 @@ class PlayScene(Scene):
             choice = self.pause_menu.handle(event, self.sfx)
             if choice:
                 self._choose(choice)
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and hasattr(self.match, "click"):
+            self.match.click(event.pos)          # botão TELETRANSPORTE DE FASE
 
     def _choose(self, choice):
         if choice == "resume":
@@ -162,6 +167,10 @@ class PlayScene(Scene):
                     self._choose(self.pause_menu.value)
                     return
             return
+        cursor = self.paused or getattr(self.match, "wants_cursor", False)
+        if cursor != getattr(self, "_cursor", False):
+            self._cursor = cursor
+            pygame.mouse.set_visible(cursor)
         self.match.update()
         if self.match.finished:
             self.game.change(self.match.next_scene() or ResultsScene(self.game, self.match.result))
@@ -245,7 +254,8 @@ class ResultsScene(_MenuScene):
         ground = 300
         n = len(r.winners)
         for i, f in enumerate(r.winners):
-            img = f.sprites.frame("frente", (self.ticks // 10) % 4 if (self.ticks // 60) % 2 else 0)
+            img = (f.sprites.frame("frente", self.ticks // 5) if (self.ticks // 60) % 2
+                   else f.sprites.pose("frente", "ataque", 1 if (self.ticks // 15) % 2 else 2))
             img = _scaled(img, 3 if n == 1 else 2)
             x = stage_x + (i - (n - 1) / 2) * 120
             bob = int(abs(math.sin(self.ticks * 0.08)) * 6)

@@ -71,9 +71,28 @@ class Wall(Entity):
         self.rect = pygame.Rect(x, y, w, h)
         self.visible = visible
         self.image = None          # textura definida pela arena
+        self._drawn = None         # parede desenhada no código, guardada pronta (com a sombra embaixo)
 
     def update(self, match):
         pass
+
+    @property
+    def area(self):
+        """Retângulo que o desenho ocupa (sombra e enfeites passam um pouco da base)."""
+        if self.image is not None:
+            return self.rect
+        below = getattr(self.style, "below", 6)
+        return pygame.Rect(self.rect.x, self.rect.y, self.rect.w, self.rect.h + below)
+
+    def prepare(self):
+        """Desenha a parede uma vez só (tijolos e folhas custam centenas de retângulos)."""
+        if self._drawn is not None or self.image is not None or not self.visible:
+            return
+        if hasattr(self.style, "render"):
+            self._drawn = self.style.render(self.rect.w, self.rect.h, (self.rect.x, self.rect.y))
+        else:
+            self._drawn = pygame.Surface((self.rect.w, self.rect.h + 6), pygame.SRCALPHA)
+            self.style.draw(self._drawn, pygame.Rect(0, 0, self.rect.w, self.rect.h))
 
     def draw(self, surf, camera):
         if not self.visible:
@@ -81,8 +100,10 @@ class Wall(Entity):
         r = self.rect.move(-camera.x, -camera.y)
         if self.image is not None:
             surf.blit(self.image, r)
-        else:
-            self.style.draw(surf, r)
+            return
+        if self._drawn is None:
+            self.prepare()
+        surf.blit(self._drawn, r)
 
     def overlaps_circle(self, x, y, radius):
         return push_circle_out(x, y, radius, self.rect) is not None
@@ -109,6 +130,9 @@ class WallStyle:
 
 
 class Bullet(Entity):
+    ghost = False         # atravessa paredes (orbe do Fantasma)
+    lobbed = False        # vai pelo alto: passa por cima de paredes, barreiras e lutadores (granada)
+
     def __init__(self, owner, x, y, dx, dy, speed, damage, color, explosive=False):
         super().__init__(x, y)
         self.owner = owner
@@ -132,6 +156,21 @@ class Bullet(Entity):
 
     def on_hit(self, target, match):
         """Efeito extra ao acertar alguém (o dano já foi aplicado)."""
+
+    def can_hit(self, fighter):
+        """Pode acertar este lutador agora? (a granada só no chão, a corrente só na ida)"""
+        return True
+
+    def survives_hit(self):
+        """Depois de acertar alguém: continua voando? Por padrão só se ainda atravessa."""
+        if self.pierce > 0 and not self.explosive:
+            self.pierce -= 1
+            return True
+        return False
+
+    def on_wall(self, wall, match):
+        """Bateu numa parede: devolve True se continua (ricochete, corrente voltando...)."""
+        return False
 
     @property
     def rect(self):
@@ -384,6 +423,9 @@ _ICONS = {
     "energia": (["....bb..", "...bb...", "..bbb...", ".bbbbbb.", "...bbw..",
                  "...bb...", "..bb....", "..b.....", "........"],
                 {"b": (110, 180, 246), "w": (230, 246, 255)}),
+    "municao": (["..t...t.", ".ttt.ttt", ".ccc.ccc", ".cwc.cwc", ".ccc.ccc",
+                 ".ccc.ccc", ".ccc.ccc", ".ddd.ddd", "........"],
+                {"t": (200, 204, 216), "c": (226, 176, 74), "w": (255, 236, 170), "d": (166, 120, 40)}),
 }
 
 
@@ -404,12 +446,14 @@ def _icon(kind, scale=4):
 
 
 class Pickup(Entity):
-    """Item que aparece na arena: vida, fúria (mais dano) ou energia (habilidade pronta)."""
+    """Item que aparece na arena: vida, fúria (mais dano), energia (habilidade pronta) ou
+    munição (enche o pente na hora e ainda sobra um pente extra)."""
 
     KINDS = {
         "vida": ("+VIDA", (214, 64, 64)),
         "furia": ("FÚRIA", (234, 104, 44)),
         "energia": ("HABILIDADE PRONTA", (110, 180, 246)),
+        "municao": ("+MUNIÇÃO", (226, 176, 74)),
     }
     _images = {}
 
@@ -434,6 +478,8 @@ class Pickup(Entity):
             label = f"+{heal}"
         elif self.kind == "furia":
             fighter.fury_timer = config.FURY_FRAMES
+        elif self.kind == "municao":
+            fighter.refill_ammo(config.AMMO_PICKUP_EXTRA)
         else:
             fighter.ability_cd = 0
         match.popup(fighter.x, fighter.y - 74, label, color)

@@ -149,23 +149,71 @@ def lanca():
     return s.finish(), (7, 3)
 
 
-def arco():
-    s = Sprite(15, 21)
+BOW_PULL = {0: 4, 1: 4, 2: 2, 3: 0}     # onde fica o meio da corda (x) em cada estágio
+
+
+def _arco(stage):
+    """Arco em 4 estágios: 0 vazio (sem flecha), 1 flecha encaixada, 2 meio puxado, 3 tenso.
+    Todos no mesmo tamanho e com a pegada no mesmo ponto (a animação não "pula" na mão)."""
+    s = Sprite(17, 21)
+    ox = 2
+    bend = {0: 0, 1: 0, 2: 1, 3: 1}[stage]       # puxado, as pontas do arco vêm um pouco para trás
     curve = [5, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 7, 7, 6, 5, 4]
     for y, x in enumerate(curve):
+        tip = y < 3 or y > 17
+        x = ox + x - (bend if tip else 0)
         s.rect(x, y, 2, 1, WOOD)
         s.px(x + 1, y, WOOD_D)
-    s.rect(2, 1, 1, 19, STRING)
-    s.rect(8, 8, 2, 5, LEATHER)
-    # flecha encaixada
-    s.rect(2, 10, 11, 1, WOOD_D)
-    s.px(13, 9, STEEL)
-    s.px(14, 10, STEEL)
-    s.px(13, 11, STEEL)
-    s.px(13, 10, STEEL_M)
-    s.rect(2, 9, 2, 1, RED)
-    s.rect(2, 11, 2, 1, RED)
-    return s.finish(), (9, 11)
+    s.rect(ox + 8, 8, 2, 5, LEATHER)
+    nock = BOW_PULL[stage]
+    top, bottom = (ox + 2, 1), (ox + 2, 19)
+    if nock == top[0]:
+        s.rect(top[0], 1, 1, 19, STRING)
+    else:
+        pygame.draw.line(s.surf, STRING, top, (nock, 10))
+        pygame.draw.line(s.surf, STRING, (nock, 10), bottom)
+    if stage > 0:
+        # flecha encaixada na corda
+        s.rect(nock, 10, 11, 1, WOOD_D)
+        head = nock + 11
+        s.px(head, 9, STEEL)
+        s.px(head + 1, 10, STEEL)
+        s.px(head, 11, STEEL)
+        s.px(head, 10, STEEL_M)
+        s.rect(nock, 9, 2, 1, RED)
+        s.rect(nock, 11, 2, 1, RED)
+    return s.finish(), (ox + 9, 11)
+
+
+def arco():
+    return _arco(1)
+
+
+def arco_vazio():
+    return _arco(0)
+
+
+def arco_puxado():
+    return _arco(2)
+
+
+def arco_tenso():
+    return _arco(3)
+
+
+def flecha():
+    """Flecha em voo (só o projétil, não é arma de mão)."""
+    s = Sprite(15, 3)
+    s.rect(2, 1, 10, 1, WOOD_D)
+    s.rect(3, 1, 8, 1, WOOD)
+    s.px(12, 0, STEEL_M)
+    s.px(12, 2, STEEL_M)
+    s.rect(12, 1, 2, 1, STEEL)
+    s.px(14, 1, STEEL)
+    s.rect(0, 0, 3, 1, RED)
+    s.rect(0, 2, 3, 1, RED)
+    s.px(1, 1, (240, 110, 100))
+    return s.finish(), (7, 1)
 
 
 def rifle():
@@ -326,19 +374,131 @@ def cajado():
     return s.finish(), (7, 6)
 
 
+# ── armas raras (baú da campanha) ─────────────
+FIRE, FIRE_L = (234, 104, 44), (252, 200, 72)
+BOLT, BOLT_L = (246, 214, 70), (255, 250, 210)
+
+
+def besta():
+    """Besta: coronha de madeira, arco de metal na frente e o virote armado."""
+    s = Sprite(20, 13)
+    s.rect(0, 5, 14, 3, WOOD)
+    s.rect(0, 7, 14, 1, WOOD_D)
+    s.rect(3, 8, 2, 3, WOOD_D)                   # cabo
+    s.px(6, 8, DARK)                             # gatilho
+    for y, x in ((0, 13), (1, 14), (2, 14), (3, 15), (4, 15), (5, 15), (6, 15), (7, 15), (8, 15), (9, 15),
+                 (10, 14), (11, 14), (12, 13)):
+        s.px(x, y, STEEL_D)
+        if 2 <= y <= 10:
+            s.px(x - 1, y, STEEL_M)
+    pygame.draw.line(s.surf, STRING, (12, 0), (9, 6))
+    pygame.draw.line(s.surf, STRING, (9, 6), (12, 12))
+    s.rect(9, 4, 9, 1, WOOD_D)                   # virote
+    s.px(18, 3, STEEL)
+    s.px(19, 4, STEEL)
+    s.px(18, 5, STEEL)
+    s.px(18, 4, STEEL_M)
+    return s.finish(), (4, 8)
+
+
+def lanca_chamas():
+    """Lança-chamas: tanque vermelho atrás, cano comprido e a chama piloto acesa."""
+    s = Sprite(23, 9)
+    s.rect(0, 3, 6, 6, RED)                      # tanque
+    s.rect(0, 3, 6, 1, (232, 110, 100))
+    s.rect(0, 8, 6, 1, (140, 40, 36))
+    s.rect(2, 1, 2, 2, STEEL_D)                  # válvula
+    s.rect(6, 4, 12, 3, DARK)                    # cano
+    s.rect(6, 4, 12, 1, STEEL_D)
+    s.rect(9, 7, 2, 2, DARK)                     # gatilho
+    s.rect(18, 3, 3, 5, STEEL_M)                 # bico
+    s.rect(18, 3, 3, 1, STEEL)
+    s.px(21, 5, FIRE)                            # chama piloto
+    s.px(22, 5, FIRE_L)
+    s.px(21, 4, FIRE_L)
+    return s.finish(), (8, 6)
+
+
+def bumerangue():
+    """Bumerangue de madeira com listras pintadas."""
+    s = Sprite(13, 12)
+    pygame.draw.line(s.surf, WOOD, (0, 1), (6, 9), 3)
+    pygame.draw.line(s.surf, WOOD, (6, 9), (12, 1), 3)
+    pygame.draw.line(s.surf, WOOD_D, (1, 3), (6, 10))
+    pygame.draw.line(s.surf, WOOD_D, (6, 10), (11, 3))
+    for x, y in ((2, 3), (10, 3)):
+        s.px(x, y, RED)
+        s.px(x + (1 if x < 6 else -1), y + 1, RED)
+    s.px(6, 8, GOLD)
+    return s.finish(), (1, 2)
+
+
+def cajado_raio():
+    """Cajado do Raio: haste escura e uma pedra amarela soltando faíscas."""
+    s = Sprite(27, 11)
+    s.rect(0, 5, 19, 2, (90, 70, 110))
+    s.rect(0, 6, 19, 1, (60, 44, 76))
+    s.rect(16, 3, 2, 6, GOLD_D)                  # garras que seguram a pedra
+    s.px(18, 2, GOLD)
+    s.px(18, 8, GOLD)
+    rows = [(21, 22), (20, 23), (19, 24), (20, 23), (21, 22)]
+    for i, (x0, x1) in enumerate(rows):
+        s.rect(x0, i + 3, x1 - x0 + 1, 1, BOLT)
+    s.rect(20, 4, 2, 1, BOLT_L)
+    s.px(25, 1, BOLT_L)                          # faíscas
+    s.px(26, 0, BOLT)
+    s.px(25, 9, BOLT)
+    s.px(26, 10, BOLT_L)
+    return s.finish(), (7, 6)
+
+
+def canhao():
+    """Canhão de mão: cano grosso com cintas de latão e o pavio aceso."""
+    s = Sprite(20, 10)
+    s.rect(0, 5, 6, 4, WOOD)
+    s.rect(0, 8, 6, 1, WOOD_D)
+    s.rect(5, 2, 13, 6, STEEL_D)
+    s.rect(5, 2, 13, 2, STEEL_M)
+    s.rect(6, 6, 12, 1, DARK)
+    s.rect(8, 1, 2, 8, GOLD)                     # cintas
+    s.rect(14, 1, 2, 8, GOLD)
+    s.rect(18, 0, 2, 10, DARK)                   # boca
+    s.rect(18, 0, 2, 2, STEEL_M)
+    s.px(5, 0, FIRE)                             # pavio
+    s.px(4, 1, (120, 100, 80))
+    return s.finish(), (2, 7)
+
+
+def virote():
+    """Virote da besta em voo."""
+    s = Sprite(13, 3)
+    s.rect(2, 1, 8, 1, WOOD_D)
+    s.rect(10, 0, 1, 3, STEEL_M)
+    s.rect(10, 1, 2, 1, STEEL)
+    s.px(12, 1, STEEL)
+    s.rect(0, 0, 2, 1, STEEL_M)
+    s.rect(0, 2, 2, 1, STEEL_M)
+    return s.finish(), (6, 1)
+
+
 WEAPONS = {
     "Espada": espada, "Faca": faca, "Katana": katana, "Espadão": espadao,
     "Maça": maca, "Martelo": martelo, "Foice": foice, "Lança": lanca,
     "Arco": arco, "Rifle": rifle, "Corrente": corrente, "Shuriken": shuriken,
     "Estrela": estrela, "Granada": granada, "Orbe": orbe, "Garras": garras,
     "Pistola": pistola, "Sabre": sabre, "Cristal": cristal, "Cajado": cajado,
+    # estágios da animação do arco e o projétil da flecha
+    "Arco Vazio": arco_vazio, "Arco Puxado": arco_puxado, "Arco Tenso": arco_tenso, "Flecha": flecha,
+    # armas raras do baú da campanha e o virote da besta
+    "Besta": besta, "Lança-chamas": lanca_chamas, "Bumerangue": bumerangue, "Cajado do Raio": cajado_raio,
+    "Canhão de Mão": canhao, "Virote": virote,
 }
 
 
 def file_name(name):
     import unicodedata
     plain = unicodedata.normalize("NFD", name).encode("ascii", "ignore").decode()
-    return plain.lower() + ".png"
+    return plain.lower().replace(" ", "_") + ".png"
 
 
 def build_all():

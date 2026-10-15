@@ -2,7 +2,7 @@
 import math
 import unittest
 
-from apoio import futebol, run
+from apoio import GOL_D, MEIO, futebol, run
 
 from soulstrike import config
 from soulstrike.ai import SoccerAI
@@ -12,13 +12,13 @@ def _ponta(humans=(1, 3)):
     """P1 (time azul, ataca para a direita) com a bola na ponta; P3 entrando na área."""
     match, inputs = futebol(chars=(4, 2, 0, 7), humans=humans)
     p1, p2, p3, p4 = match.fighters
-    p2.x, p2.y, p4.x, p4.y = 400, 800, 300, 100          # adversários longe
-    p1.x, p1.y = 1250, 180
-    match.ball.x, match.ball.y = 1280, 180
+    p2.x, p2.y, p4.x, p4.y = 400, MEIO + 350, 300, MEIO - 350   # adversários longe
+    p1.x, p1.y = GOL_D - 330, MEIO - 270                  # na ponta, no último terço
+    match.ball.x, match.ball.y = p1.x + 30, p1.y
     run(match, 3, inputs)
     assert match.possessor is p1
-    p3.x, p3.y = 1330, 430
-    p3.prev_pos = (1327, 430)                             # correndo para o gol
+    p3.x, p3.y = GOL_D - 250, MEIO - 20
+    p3.prev_pos = (p3.x - 3, p3.y)                        # correndo para o gol
     return match, inputs, p1, p3
 
 
@@ -58,39 +58,39 @@ class CruzamentoTest(unittest.TestCase):
 
     def test_no_meio_do_campo_nao_cruza(self):
         match, inputs, p1, p3 = _ponta()
-        p1.y = match.ball.y = 450
+        p1.y = match.ball.y = MEIO
         self.assertIsNone(match.cross_receiver(p1, [p3]))
 
     def test_ninguem_na_area_nao_cruza(self):
         match, inputs, p1, p3 = _ponta()
-        p3.x, p3.y = 900, 450
-        p3.prev_pos = (900, 450)
+        p3.x, p3.y = GOL_D - 680, MEIO                    # longe da área
+        p3.prev_pos = (p3.x, p3.y)
         self.assertIsNone(match.cross_receiver(p1, [p3]))
 
     def test_1x1_nao_cruza(self):
         match, inputs = futebol(humans=(1,))
         p1, _ = match.fighters
-        p1.x, p1.y = 1250, 180
+        p1.x, p1.y = GOL_D - 330, MEIO - 270
         self.assertIsNone(match.cross_receiver(p1, []))
 
     def test_cabecada_na_area_vai_no_gol(self):
         match, inputs, p1, p3 = _ponta()
         match.possessor = None
-        p3.x, p3.y = 1420, 420
+        p3.x, p3.y = GOL_D - 160, MEIO - 30
         p3.facing = (0.0, 1.0)                            # olhando para o lado
         ball = match.ball
-        ball.x, ball.y, ball.z = 1425, 420, 40
+        ball.x, ball.y, ball.z = p3.x + 5, p3.y, 40
         self.assertTrue(match.header(p3))
-        t = (1580 - ball.x) / ball.vx
+        t = (GOL_D - ball.x) / ball.vx
         self.assertTrue(match.GOAL_TOP <= ball.y + ball.vy * t <= match.GOAL_BOTTOM)
 
     def test_cabecada_no_gol_passa_por_baixo_do_travessao(self):
         match, inputs, p1, p3 = _ponta()
         match.possessor = None
-        p1.x, p1.y = 300, 100
-        p3.x, p3.y = 1440, 440
+        p1.x, p1.y = 300, MEIO - 350
+        p3.x, p3.y = GOL_D - 140, MEIO - 10
         ball = match.ball
-        ball.x, ball.y, ball.z, ball.vz = 1445, 440, 40, -1.0
+        ball.x, ball.y, ball.z, ball.vz = p3.x + 5, p3.y, 40, -1.0
         self.assertTrue(match.header(p3, (1.0, 0.0)))
         for _ in range(60):
             run(match, 1, inputs)
@@ -101,10 +101,10 @@ class CruzamentoTest(unittest.TestCase):
     def test_cpu_entra_na_area_quando_o_companheiro_vai_para_a_ponta(self):
         match, inputs, p1, p3 = _ponta(humans=(1,))
         match.controllers[p3] = SoccerAI()
-        p3.x, p3.y = 1000, 600
-        p3.prev_pos = (1000, 600)
+        p3.x, p3.y = GOL_D - 580, MEIO + 150
+        p3.prev_pos = (p3.x, p3.y)
         for _ in range(90):
-            p1.x, p1.y = 1250, 180                        # P1 segura a bola na ponta
+            p1.x, p1.y = GOL_D - 330, MEIO - 270          # P1 segura a bola na ponta
             match.possessor = p1
             run(match, 1, inputs)
         self.assertTrue(match.in_cross_zone(0, p3.x, p3.y), (p3.x, p3.y))

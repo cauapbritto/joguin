@@ -2,6 +2,7 @@
 
     python main.py             tela cheia
     python main.py --janela    em janela
+    python main.py --sem-vsync sem sincronia vertical (se a imagem ficar travando em algum monitor)
 """
 import os
 import sys
@@ -16,8 +17,10 @@ from soulstrike.game import Game  # noqa: E402
 
 
 def main():
-    windowed = any(arg in ("--janela", "--windowed", "-w") for arg in sys.argv[1:])
-    Game(fullscreen=not windowed).run()
+    args = sys.argv[1:]
+    windowed = any(arg in ("--janela", "--windowed", "-w") for arg in args)
+    vsync = "--sem-vsync" not in args
+    Game(fullscreen=not windowed, vsync=vsync).run()
 
 
 if __name__ == "__main__":

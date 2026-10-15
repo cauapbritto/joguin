@@ -21,11 +21,6 @@ SHADOW_AURA = (170, 90, 230)         # cor dos textos e avisos das sombras
 SHADOW_RIM = (104, 34, 160)          # contorno que pulsa em volta delas
 SHADOW_EYES = (255, 52, 64)
 SMOKE = ((26, 8, 36), (46, 14, 64), (12, 4, 18), (74, 22, 104))
-# partes que acendem de vermelho além dos olhos: óculos do Aryel, viseira do Tanque
-LENSES = {
-    "aryel": lambda r, g, b: b > r + 8 and r > 120,
-    "tanque": lambda r, g, b: b > r + 60 and g > 150,
-}
 
 
 @dataclass(frozen=True)
@@ -66,58 +61,44 @@ def shadow_stats(char_key):
         elite=True, armed=True, knock_resist=0.3, drop_chance=1.0)
 
 
-def tint_sprites(sprite_set, tint=SHADOW_TINT, eyes=SHADOW_EYES, lenses=None):
+def tint_sprites(sprite_set, tint=SHADOW_TINT, eyes=SHADOW_EYES):
     """Versão sombria de um herói: tira quase toda a cor, escurece puxando para o roxo
-    e acende os olhos de vermelho."""
+    e acende de vermelho as cores dos olhos (e óculos/viseira) que a folha de sprite indica."""
     from .assets import SpriteSet
     halo = tuple(c // 2 for c in eyes)
-    frames = {}
-    for direction, imgs in sprite_set.frames.items():
-        out = []
-        for img in imgs:
-            # cinza com um resto da cor original por cima
-            dark = pygame.transform.grayscale(img)
-            color = img.copy()
-            color.set_alpha(round(255 * SHADOW_KEEP))
-            dark.blit(color, (0, 0))
-            dark.fill((*tint, 255), special_flags=pygame.BLEND_RGBA_MULT)
-            lift = pygame.mask.from_surface(img).to_surface(setcolor=(10, 2, 18, 0), unsetcolor=(0, 0, 0, 0))
-            dark.blit(lift, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-            # olhos acesos (com um brilho em volta)
-            w, h = img.get_size()
-            lit = []
-            for y in range(h * 2 // 5):
-                for x in range(w):
-                    r, g, b, a = img.get_at((x, y))
-                    if not a:
-                        continue
-                    if r < 60 and g < 60 and b < 70 and _inside_face(img, x, y):
-                        lit.append((x, y))
-                    elif lenses and lenses(r, g, b):
-                        lit.append((x, y))                     # óculos / viseira acesos
-            spots = set(lit)
-            for x, y in lit:
-                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                    q = (x + dx, y + dy)
-                    if q not in spots and 0 <= q[0] < w and 0 <= q[1] < h and dark.get_at(q)[3]:
-                        dark.set_at(q, (*halo, 255))
-            for x, y in lit:
-                dark.set_at((x, y), (*eyes, 255))
-            out.append(dark)
-        frames[direction] = out
-    return SpriteSet(frames)
+    poses = {d: {kind: [_shadow(img, tint, eyes, halo, sprite_set.glow) for img in imgs]
+                 for kind, imgs in kinds.items()}
+             for d, kinds in sprite_set.poses.items()}
+    return SpriteSet(poses=poses, hands=sprite_set.hands)
 
 
-def _inside_face(img, x, y):
-    """Pixel escuro com pele dos dois lados (os olhos), e não o contorno do personagem."""
-    w = img.get_width()
-    if x < 2 or x > w - 3:
-        return False
-    for dx in (-2, 2):
-        r, g, b, a = img.get_at((x + dx, y))
-        if not a or r + g + b < 330:
-            return False
-    return True
+def _shadow(img, tint, eyes, halo, glow):
+    # cinza com um resto da cor original por cima
+    dark = pygame.transform.grayscale(img)
+    color = img.copy()
+    color.set_alpha(round(255 * SHADOW_KEEP))
+    dark.blit(color, (0, 0))
+    dark.fill((*tint, 255), special_flags=pygame.BLEND_RGBA_MULT)
+    body = pygame.mask.from_surface(img)
+    dark.blit(body.to_surface(setcolor=(10, 2, 18, 0), unsetcolor=(0, 0, 0, 0)), (0, 0),
+              special_flags=pygame.BLEND_RGBA_ADD)
+    if not glow:
+        return dark
+    # olhos acesos (só na metade de cima, onde fica a cabeça), com um brilho em volta
+    w, h = img.get_size()
+    lit = pygame.mask.Mask((w, h))
+    for col in glow:
+        lit.draw(pygame.mask.from_threshold(img, (*col, 255), (1, 1, 1, 255)), (0, 0))
+    lit.erase(pygame.mask.Mask((w, h - h // 2), fill=True), (0, h // 2))
+    if lit.count():
+        ring = pygame.mask.Mask((w, h))
+        for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+            ring.draw(lit, (dx, dy))
+        ring.erase(lit, (0, 0))
+        ring = ring.overlap_mask(body, (0, 0))
+        dark.blit(ring.to_surface(setcolor=(*halo, 255), unsetcolor=(0, 0, 0, 0)), (0, 0))
+        dark.blit(lit.to_surface(setcolor=(*eyes, 255), unsetcolor=(0, 0, 0, 0)), (0, 0))
+    return dark
 
 
 # ─────────────────────────────────────────────

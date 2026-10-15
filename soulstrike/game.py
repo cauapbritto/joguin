@@ -10,14 +10,24 @@ from .ui import UI
 
 
 class Game:
-    def __init__(self, fullscreen=True, headless=False):
+    def __init__(self, fullscreen=True, headless=False, vsync=True):
         pygame.init()
         pygame.display.set_caption(config.TITLE)
         from .assets import window_icon
         pygame.display.set_icon(window_icon(32))
         self.headless = headless
         flags = pygame.SCALED | (pygame.FULLSCREEN if fullscreen else 0)
-        self.screen = pygame.display.set_mode((config.SCREEN_W, config.SCREEN_H), flags)
+        size = (config.SCREEN_W, config.SCREEN_H)
+        self.vsync = False
+        if vsync and not headless:
+            # sincronia vertical: a imagem troca junto com o monitor (sem "rasgo" quando a câmera desliza)
+            try:
+                self.screen = pygame.display.set_mode(size, flags, vsync=1)
+                self.vsync = True
+            except pygame.error:
+                pass
+        if not self.vsync:
+            self.screen = pygame.display.set_mode(size, flags)
         self.clock = pygame.time.Clock()
         self.clock_ticks = 0
         self.assets = Assets()
