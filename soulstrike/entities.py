@@ -313,6 +313,85 @@ class Hack(Entity):
             surf.fill(self.GREEN, (cx - 2, cy - 2 + 18, 4, 4))
 
 
+class BetSlip(Entity):
+    """Aposta do Aryel: três símbolos giram num bilhete em cima da cabeça dele e vão parando um
+    por um; no fim aparece o resultado (GREEN, meio green ou RED) e a habilidade paga."""
+
+    SYMBOLS = ("bola", "moeda", "trevo")
+    HOLD = 18                       # o resultado fica um pouco na tela depois de parar
+
+    def __init__(self, owner, outcome, spin, ability):
+        super().__init__(owner.x, owner.y)
+        self.owner = owner
+        self.outcome = outcome
+        self.spin = spin
+        self.ability = ability
+        self.age = 0
+        rng = random.Random()
+        win = rng.randrange(3)
+        if outcome == "green":
+            self.final = (win, win, win)
+        elif outcome == "meio":
+            other = (win + rng.randrange(1, 3)) % 3
+            final = [win, win, other]
+            rng.shuffle(final)
+            self.final = tuple(final)
+        else:
+            self.final = (0, 1, 2) if rng.random() < 0.5 else (2, 0, 1)
+        self.paid = False
+
+    def update(self, match):
+        self.age += 1
+        self.x, self.y = self.owner.x, self.owner.y
+        stop = [self.spin * k // 3 for k in (1, 2, 3)]
+        if self.age in stop:
+            match.assets.play("click", 0.3)
+        if self.age >= self.spin and not self.paid:
+            self.paid = True
+            if self.owner.alive_in_match:
+                self.ability.payout(self.owner, match, self.outcome)
+        if self.age >= self.spin + self.HOLD:
+            self.alive = False
+
+    def _symbol(self, surf, kind, cx, cy):
+        if kind == 0:                                   # bola de futebol
+            pygame.draw.circle(surf, (20, 14, 22), (cx, cy), 5)
+            pygame.draw.circle(surf, (240, 238, 230), (cx, cy), 4)
+            surf.fill((40, 38, 48), (cx - 1, cy - 1, 2, 2))
+        elif kind == 1:                                 # moeda
+            pygame.draw.circle(surf, (90, 60, 10), (cx, cy), 5)
+            pygame.draw.circle(surf, (240, 196, 60), (cx, cy), 4)
+            surf.fill((255, 240, 160), (cx - 1, cy - 2, 1, 4))
+        else:                                           # trevo
+            for dx, dy in ((-2, -2), (2, -2), (-2, 2), (2, 2)):
+                pygame.draw.circle(surf, (60, 170, 80), (cx + dx, cy + dy), 2)
+            surf.fill((30, 110, 50), (cx, cy + 2, 1, 4))
+
+    def draw(self, surf, camera):
+        pass
+
+    def draw_over(self, surf, camera):
+        """Desenhado por cima dos lutadores (o bilhete fica sobre a cabeça)."""
+        owner = self.owner
+        cx = round(owner.x - camera.x)
+        cy = round(owner.y - 92 - owner.lift - camera.y)
+        box = pygame.Rect(0, 0, 46, 18)
+        box.center = (cx, cy)
+        color = {"green": (110, 230, 110), "meio": (230, 220, 110), "red": (230, 80, 70)}[self.outcome]
+        done = self.age >= self.spin
+        pygame.draw.rect(surf, (20, 14, 22), box.inflate(4, 4))
+        surf.fill((246, 240, 222), box)
+        if done and (self.age // 3) % 2 == 0:
+            pygame.draw.rect(surf, color, box.inflate(4, 4), 2)
+        stops = [self.spin * k // 3 for k in (1, 2, 3)]
+        for i in range(3):
+            sx = box.x + 8 + i * 15
+            kind = self.final[i] if self.age >= stops[i] else (self.age // 3 + i) % 3
+            self._symbol(surf, kind, sx, box.centery)
+            if i < 2:
+                surf.fill((200, 190, 170), (sx + 7, box.y + 2, 1, box.h - 4))
+
+
 class ExoSuit(Entity):
     """Exoesqueleto do Borba Jr: placas de metal voam e se encaixam nele com faíscas e vapor;
     enquanto dura, solta vapor de vez em quando; no fim, as placas se soltam."""
@@ -481,16 +560,17 @@ class GroundMark(Entity):
 class ShadowBomb(GroundMark):
     """Bomba sombria (Aryel Corrompido): marca o chão, cai do céu e explode."""
 
-    def __init__(self, owner, x, y, delay=60, damage=20, radius=54):
-        super().__init__(x, y, radius, delay, (190, 80, 230))
+    def __init__(self, owner, x, y, delay=60, damage=20, radius=54, coin=False):
+        super().__init__(x, y, radius, delay, (240, 196, 60) if coin else (190, 80, 230))
         self.owner = owner
         self.damage = damage
+        self.coin = coin                # moeda da aposta (Aryel) em vez de bomba sombria
 
     def update(self, match):
         super().update(match)
         if not self.alive:
             match.add_effect(Explosion(self.owner, self.x, self.y, self.damage, self.radius))
-            match.burst(self.x, self.y, (190, 120, 255), 10, speed=5)
+            match.burst(self.x, self.y, (255, 216, 90) if self.coin else (190, 120, 255), 10, speed=5)
             match.assets.play("explosion", 0.35)
             match.camera.shake(4)
 
@@ -500,6 +580,13 @@ class ShadowBomb(GroundMark):
         if t > 0.55:
             fall = (1 - (t - 0.55) / 0.45) ** 2
             bx, by = round(self.x - camera.x), round(self.y + 6 - camera.y - fall * 240)
+            if self.coin:                                  # moeda de ouro girando
+                w = max(2, round(8 * abs(math.cos(self.left * 0.4))))
+                pygame.draw.ellipse(surf, (90, 60, 10), (bx - w - 1, by - 9, w * 2 + 2, 18))
+                pygame.draw.ellipse(surf, (240, 196, 60), (bx - w, by - 8, w * 2, 16))
+                if w > 3:
+                    surf.fill((255, 240, 160), (bx - 1, by - 5, 2, 8))
+                return
             for k in range(1, 4):
                 surf.fill((120, 60, 170), (bx - 1, by - k * 8, 3, 4))
             pygame.draw.circle(surf, (20, 10, 28), (bx, by), 8)

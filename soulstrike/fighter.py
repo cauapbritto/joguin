@@ -6,7 +6,7 @@ import pygame
 
 from . import config, theme
 from .abilities import create_ability
-from .entities import Entity, hostile
+from .entities import Entity, Particle, hostile
 from . import weapon_art
 
 ACCELERATION = 0.3          # quanto da velocidade-alvo é alcançada por quadro
@@ -32,6 +32,8 @@ EXO_THROW = 22       # golpe de exoesqueleto arremessa longe
 WALL_STUN = 50       # arremessado contra a parede: fica tonto
 VIRUS_TICK = 15      # vírus do pendrive: um pouquinho de dano a cada tantos quadros
 RUSH_MULT = 2.2      # 100 metros (Cauanzera): corre muito
+MOTO_FRAMES = 18     # grau de moto (Aryel): esquiva mais longa
+MOTO_RIDE = 14       # o Aryel fica sentado em cima da moto
 
 
 def proximity_damage(dist, base):
@@ -53,6 +55,48 @@ def draw_aura(surf, img, rect, color, ticks, k=2):
     edge.set_alpha(round(150 + 70 * math.sin(ticks * 0.12)))
     for dx, dy in ((-k, 0), (k, 0), (0, -k), (0, k)):
         surf.blit(edge, rect.move(dx, dy))
+
+
+_MOTO = {}
+
+
+def _moto_image():
+    """Moto do Aryel em pixel art (de lado, virada para a direita), já ampliada 2x."""
+    if "img" not in _MOTO:
+        s = pygame.Surface((32, 16), pygame.SRCALPHA)
+        dark, grey, red, red_d = (30, 30, 36), (150, 154, 166), (204, 52, 48), (130, 30, 30)
+        for cx in (6, 25):                                         # rodas: pneu, aro claro e cubo
+            pygame.draw.circle(s, dark, (cx, 11), 4)
+            pygame.draw.circle(s, (120, 124, 136), (cx, 11), 3, 1)
+            pygame.draw.circle(s, (210, 214, 224), (cx, 11), 1)
+        s.fill(grey, (1, 9, 6, 1))                                 # escapamento
+        s.fill(red, (6, 6, 15, 4))                                 # carenagem
+        s.fill(red_d, (6, 9, 15, 1))
+        s.fill(red, (13, 4, 7, 3))                                 # tanque
+        s.fill((240, 120, 110), (14, 4, 4, 1))
+        s.fill(dark, (6, 4, 7, 2))                                 # banco
+        pygame.draw.line(s, grey, (21, 4), (25, 11))               # garfo
+        s.fill(dark, (19, 2, 4, 1))                                # guidão
+        s.fill((255, 226, 120), (26, 5, 2, 2))                     # farol
+        out = pygame.Surface((34, 18), pygame.SRCALPHA)
+        line = pygame.mask.from_surface(s).to_surface(setcolor=(20, 14, 22, 255), unsetcolor=(0, 0, 0, 0))
+        for dx, dy in ((0, 1), (2, 1), (1, 0), (1, 2)):
+            out.blit(line, (dx, dy))
+        out.blit(s, (1, 1))
+        _MOTO["img"] = pygame.transform.scale(out, (68, 36))
+    return _MOTO["img"]
+
+
+def draw_moto(surf, cx, ground, right, wheelie):
+    """Desenha a moto com as rodas no chão, empinando ``wheelie`` graus (a roda da frente sobe)."""
+    img = _moto_image()
+    if not right:
+        img = pygame.transform.flip(img, True, False)
+    if wheelie:
+        img = pygame.transform.rotate(img, wheelie if right else -wheelie)
+    rect = img.get_rect(midbottom=(cx, ground + 2))
+    rect.x += -6 if right else 6                                   # a roda de trás fica embaixo dele
+    surf.blit(img, rect)
 
 
 def draw_laptop(surf, cx, cy, ticks, progress, back=False):
@@ -117,6 +161,8 @@ class Fighter(Entity):
         self.hp = self.max_hp
         self.weapon_index = weapon_index
         self.ability = create_ability(stats)
+        self.on_moto = False            # esquiva de moto em andamento
+        self.bet_timer = 0              # aposta no gol (futebol, Aryel)
 
         self.vx = self.vy = 0.0
         self.input = (0.0, 0.0)
@@ -176,6 +222,9 @@ class Fighter(Entity):
         self.lifesteal = 0.0            # parte do dano que vira vida
         self.shield = 0                 # escudo que absorve dano
         self.draw_scale = 1.0           # tamanho do desenho (chefão)
+        if self.ability.body_scale != 1.0:          # Baixinho (Aryel): menor e mais difícil de acertar
+            self.draw_scale = self.ability.body_scale
+            self.radius = self.base_radius = round(config.PLAYER_RADIUS * self.ability.body_scale)
         self.overlay = "full"           # o que mostrar acima da cabeça: full, hp ou none
         self.knock_resist = 0.0         # 1 = não é empurrado por golpes (golem, chefão)
         self.aura = None                # brilho em volta (almas corrompidas)
@@ -525,9 +574,12 @@ class Fighter(Entity):
         if d != (0.0, 0.0):
             self.facing = d
 
-    def dash(self, direction=None, frames=config.DASH_FRAMES, cooldown=config.DASH_COOLDOWN):
+    def dash(self, direction=None, frames=None, cooldown=config.DASH_COOLDOWN):
         if self.dash_cd > 0 or self.charge_timer > 0 or self.busy:
             return False
+        self.on_moto = frames is None and self.ability.moto          # só a esquiva normal vira moto
+        if frames is None:
+            frames = MOTO_FRAMES if self.on_moto else config.DASH_FRAMES
         dx, dy = direction or self.input
         if not (dx or dy):
             dx, dy = self.facing
@@ -775,6 +827,14 @@ class Fighter(Entity):
             # arranca forte e desacelera (mesma distância total de antes)
             t = 1 - self.dash_timer / self.dash_len
             self.dash_timer -= 1
+            if self.on_moto:                                           # fumaça do escapamento
+                dx, dy = self.dash_dir
+                back = -1 if (dx if abs(dx) > 0.2 else self.facing[0]) >= 0 else 1
+                for _ in range(2):
+                    match.particles.append(Particle(self.x + back * 30, self.y + 16 + random.uniform(-3, 3),
+                                                    back * random.uniform(0.4, 1.2) - dx * 0.5, random.uniform(-0.9, -0.3),
+                                                    random.choice(((150, 146, 150), (190, 186, 186), (120, 116, 122))),
+                                                    random.randint(24, 40), 9, -0.01))
             step = self.stats.speed * config.DASH_SPEED_MULT * (1.5 - t)
             self._move(match, self.dash_dir[0] * step, self.dash_dir[1] * step)
             # ao terminar, sai andando na mesma direção em vez de parar seco
@@ -836,7 +896,7 @@ class Fighter(Entity):
                 self._rush_over(match)
 
         # rastro (turbo / esquiva / investida)
-        if moving_fast and match.frame % 2 == 0:
+        if moving_fast and match.frame % 2 == 0 and not (self.on_moto and self.dash_timer > 0):
             self.trail.append((self.x, self.y, self._direction(), *self._pose()))
         if len(self.trail) > 4 or (self.trail and not moving_fast and match.frame % 2 == 0):
             self.trail.pop(0)
@@ -1017,7 +1077,10 @@ class Fighter(Entity):
         flash = self.hit_flash > 0 and self.hit_flash % 2 == 0
         scale = self.draw_scale * (1.5 if self.giant_timer > 0 else 1.0) * (EXO_SCALE if self.exo_timer > 0 else 1.0)
         kind, index = self._pose()
-        base = (sx, feet + 2 - round(self.lift))         # meio de baixo do sprite
+        riding = self.on_moto and self.dash_timer > 0
+        ride = MOTO_RIDE if riding else 0
+        base = (sx, feet + 2 - round(self.lift) - ride)  # meio de baixo do sprite
+
         spot = self.sprites.hand(direction, kind, index)
         if spot is None:
             # arte antiga, sem a mão marcada: posição fixa por direção
@@ -1044,6 +1107,10 @@ class Fighter(Entity):
         if self.aura is not None:
             self._draw_aura(surf, img, rect, ticks)
         surf.blit(img, rect)
+        if riding:                                     # a moto na frente das pernas (ele vai sentado)
+            t = 1 - self.dash_timer / max(1, self.dash_len)
+            right = self.dash_dir[0] > 0 if abs(self.dash_dir[0]) > 0.2 else self.facing[0] >= 0
+            draw_moto(surf, sx, feet + 2, right, 20 * math.sin(math.pi * min(1.0, t * 1.2)))
         if flash and self.aura is not None:
             # as sombras só clareiam um pouco ao levar dano (não viram um vulto branco)
             hit = pygame.mask.from_surface(img).to_surface(setcolor=(200, 170, 230, 255), unsetcolor=(0, 0, 0, 0))

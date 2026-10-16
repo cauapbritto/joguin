@@ -231,6 +231,9 @@ class Match(ABC):
             entity.draw(view, cam)
         for b in self.bullets:
             b.draw(view, cam)
+        for effect in self.effects:
+            if hasattr(effect, "draw_over"):
+                effect.draw_over(view, cam)         # por cima de todo mundo (bilhete da aposta)
         for p in self.particles:
             p.draw(view, cam)
         self.arena.draw_ambience(view, cam, self.frame, "air")
@@ -1484,10 +1487,30 @@ class SoccerMatch(Match):
                 self._kickoff()
 
         self._star_effects()
+        self._update_bets()
         for f in self.fighters:
             if not f.is_cpu:
                 hub.publish_slot(f.slot, cooldown=f.super_cd / f.power.cooldown,
                                  stamina=f.stamina, tired=f.exhausted)
+
+    def _update_bets(self):
+        """Aposta no gol (Aryel): o tempo corre; acabou sem gol = RED (fica sem fôlego)."""
+        if self.freeze or self.ending:
+            return
+        for f in self.fighters:
+            if f.bet_timer <= 0:
+                continue
+            f.bet_timer -= 1
+            if self.frame % 6 == 0:
+                self.burst(f.x + random.uniform(-10, 10), f.y - 50, (240, 196, 60), 1, speed=1, size=3)
+            if f.bet_timer == 0:
+                self._lose_bet(f)
+
+    def _lose_bet(self, f):
+        f.bet_timer = 0
+        f.stamina, f.exhausted = 0.0, True
+        self.popup(f.x, f.y - 80, "RED", (230, 80, 70))
+        self.assets.play("cancel", 0.4)
 
     def _exo_bump(self, exo, foe):
         """Exoesqueleto (Borba Jr): quem tromba nele cai."""
@@ -1787,10 +1810,19 @@ class SoccerMatch(Match):
         self.assets.play("cancel", 0.3)
 
     def _goal(self, scoring_team):
-        self.score[scoring_team] += 1
-        self.freeze = config.GOAL_FREEZE
         scorer = self.last_touch
         own_goal = scorer is not None and scorer.team != scoring_team
+        bettors = [f for f in self.fighters if f.bet_timer > 0]
+        won = [f for f in bettors if f.team == scoring_team and not own_goal]
+        self.score[scoring_team] += 2 if won else 1          # aposta no gol: GREEN, vale 2
+        for f in bettors:
+            if f in won:
+                f.bet_timer = 0
+                self.popup(f.x, f.y - 92, "GREEN! VALE 2", (110, 230, 110))
+            else:
+                f.bet_timer = 0
+                self.popup(f.x, f.y - 80, "RED", (230, 80, 70))
+        self.freeze = config.GOAL_FREEZE
         if scorer is not None and not own_goal:
             scorer.goals += 1
         self.goal_banner = (scoring_team, scorer.label if scorer else "", own_goal)
@@ -1824,7 +1856,7 @@ class SoccerMatch(Match):
             f.block_timer = f.clear_timer = 0
             f.slow_timer = f.pull_timer = 0
             f.magic_timer = f.nose_timer = 0
-            f.hack_timer = f.type_timer = f.rush_timer = f.virus_timer = 0
+            f.hack_timer = f.type_timer = f.rush_timer = f.virus_timer = f.bet_timer = 0
             f.lift = 0
             f.end_exo()
             f.clear_lock = False
@@ -1854,6 +1886,12 @@ class SoccerMatch(Match):
                    theme.BRASS if high else theme.SKY)
             if high:
                 ui.text(screen, "ALTO", theme.XS, theme.BRASS, (round(sx), round(sy) + 12))
+        for f in self.fighters:
+            if f.bet_timer > 0:                    # aposta no gol valendo: contagem em cima dele
+                sx, sy = self.camera.to_screen(f.x, f.y - 50 - f.lift)
+                secs = f.bet_timer // config.FPS + 1
+                color = (240, 196, 60) if secs > 3 or (self.frame // 8) % 2 else (230, 80, 70)
+                ui.text(screen, f"APOSTA {secs}s", theme.XS, color, (round(sx), round(sy) - 26))
         self._draw_offscreen(screen, ui)
         if self.goal_banner:
             hud.draw_goal_banner(screen, ui, *self.goal_banner, self.banner_age)

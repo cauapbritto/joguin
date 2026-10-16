@@ -209,6 +209,13 @@
    2
   ]
  },
+ "Capacete": {
+  "file": "capacete.png",
+  "grip": [
+   2,
+   6
+  ]
+ },
  "Disquete": {
   "file": "disquete.png",
   "grip": [

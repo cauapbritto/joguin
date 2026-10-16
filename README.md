@@ -134,7 +134,7 @@ Se o `pip` reclamar de certificado (rede com proxy), use
 | Tanque     | 230  | Muralha: barreira que bloqueia tiros por 4 s              | Muralha: barreira na frente do próprio gol       |
 | Ninja      | 95   | Shuriken: 3 shurikens de dano alto                        | Sombra: aparece atrás da bola, virado para o gol |
 | Velocista  | 115  | Turbo: 2x mais rápido por 4 s                             | Arrancada: corre muito com a bola colada         |
-| Aryel      | 130  | Explosão: 8 bombas em volta                               | Bomba: empurra e atordoa quem está perto         |
+| Aryel      | 120  | Aposta: roleta de GREEN, meio green ou RED (veja abaixo)  | Aposta no gol: gol em até 8 s vale 2             |
 | Fantasma   | 110  | Teletransporte: some e reaparece                          | Bola fantasma: atravessa os adversários          |
 | Titã       | 180  | Invulnerável por 3 s                                      | Gigante: fica enorme e empurra todo mundo        |
 | Pirata     | 140  | Gancho: puxa o inimigo para a frente do sabre e o atordoa | Gancho: puxa a bola, até do pé do adversário     |
@@ -145,6 +145,20 @@ Se o `pip` reclamar de certificado (rede com proxy), use
 | Aryel Corrompido* | 135 | Chuva Sombria: 5 bombas caem em cima e em volta do inimigo | Bomba sombria: maior, atordoa e deixa lento |
 
 \* Liberado ao zerar a campanha.
+
+### Aryel
+
+- **Aposta.** Um bilhete com três símbolos (bola, moeda e trevo) gira em cima da cabeça dele e para
+  um por um. **Três iguais é GREEN:** moedas de ouro caem explodindo em cima dos inimigos.
+  **Dois iguais é meio green:** solta as 8 bombas em volta. **Nenhum igual é RED:** uma bombinha
+  estoura nele mesmo. Como nem sempre dá certo, recarrega mais rápido que as outras.
+- **Baixinho:** o corpo é menor, então é mais difícil de acertar, mas ele tem um pouco menos de vida.
+- **Grau de moto:** a esquiva vira uma empinada de moto, mais longa, soltando fumaça.
+- **Capacete de moto** é a arma de perto (a Granada continua).
+- **Futebol, Aposta no gol:** se o time dele fizer gol nos próximos 8 s, o gol vale 2 (aparece a
+  contagem em cima dele). Se não sair, deu RED e ele fica sem fôlego.
+
+O Aryel Corrompido continua como era (tamanho normal, Martelo e Chuva Sombria).
 
 ### Cauanzera, Albeguinio e Borba Jr
 

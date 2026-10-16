@@ -224,6 +224,29 @@ class BombaSombria(Bomba):
         return True
 
 
+class ApostaNoGol(SoccerPower):
+    """Aryel: aposta que faz gol. Se o time dele marcar com ele em até 8s, o gol vale 2 (GREEN);
+    se não, deu RED e ele fica sem fôlego."""
+    name = "APOSTA NO GOL"
+    description = "Gol em até 8s vale 2. Se não sair, fica sem fôlego."
+    cooldown = 18 * config.FPS
+    sound = "click"
+    FRAMES = 8 * config.FPS
+
+    def activate(self, user, match):
+        if user.bet_timer > 0:
+            return False
+        user.bet_timer = self.FRAMES
+        match.popup(user.x, user.y - 92, "GOL VALE 2!", (110, 230, 110))
+        match.burst(user.x, user.y - 30, (240, 196, 60), 14, speed=4)
+        return True
+
+    def worth_using(self, user, match):
+        owner = match.possessor
+        near = abs(match.goal_x(1 - user.team) - match.ball.x) < 700
+        return near and owner is not None and owner.team == user.team
+
+
 class BolaFantasma(SoccerPower):
     name = "BOLA FANTASMA"
     description = "Chute que atravessa os adversários a caminho do gol."
@@ -623,7 +646,7 @@ SOCCER_POWERS = {
     "tanque": MuralhaDoGol,
     "ninja": Sombra,
     "velocista": Arrancada,
-    "aryel": Bomba,
+    "aryel": ApostaNoGol,
     "fantasma": BolaFantasma,
     "tita": Gigante,
     "pirata": GanchoNaBola,

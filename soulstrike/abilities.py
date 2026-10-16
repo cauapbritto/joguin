@@ -5,7 +5,7 @@ import random
 from abc import ABC, abstractmethod
 
 from . import config
-from .entities import Barrier, ExoSuit, FrostNova, Hack, Hook, ShadowBomb
+from .entities import BetSlip, Barrier, ExoSuit, FrostNova, Hack, Hook, ShadowBomb
 from .projectiles import Basketball, Volleyball
 
 
@@ -13,6 +13,8 @@ class Ability(ABC):
     sound = "ability"
     cooldown_mult = 1.0         # habilidade forte demora mais para recarregar
     reach_mult = 1.0            # alcance do golpe corpo a corpo (passiva de alto do Cauanzera)
+    body_scale = 1.0            # tamanho do corpo (passiva Baixinho do Aryel: menor e mais difícil de acertar)
+    moto = False                # a esquiva é um grau de moto (Aryel)
 
     def __init__(self, stats):
         self.name = stats.ability_name
@@ -116,6 +118,56 @@ class Explosao(Ability):
 
     def worth_using(self, user, target, dist):
         return dist < 220
+
+
+class Aposta(Ability):
+    """Aryel: o bilhete de aposta gira em cima da cabeça dele. Três iguais = GREEN (moedas caem
+    explodindo em cima dos inimigos); dois iguais = as 8 bombas em volta; nada = RED (a bomba
+    estoura nele). Passivas: Baixinho (menor, mais difícil de acertar) e esquiva de moto."""
+    sound = "click"
+    cooldown_mult = 0.75                # nem sempre dá certo: recarrega mais rápido
+    body_scale = 0.88
+    moto = True
+    ODDS = (0.15, 0.50)                 # chance de GREEN e de meio green (o resto é RED)
+    SPIN = 48
+    COIN_DAMAGE = 14
+    SELF_DAMAGE = 7
+
+    def activate(self, user, match, target):
+        r = random.random()
+        green, half = self.ODDS
+        outcome = "green" if r < green else "meio" if r < green + half else "red"
+        match.add_effect(BetSlip(user, outcome, self.SPIN, self))
+
+    def payout(self, user, match, outcome):
+        """Chamado pelo bilhete quando para de girar."""
+        if outcome == "green":
+            match.popup(user.x, user.y - 122, "GREEN!", (110, 230, 110))
+            foes = sorted((f for f in match.opponents_of(user) if f.alive_in_match), key=user.distance_to)[:4]
+            if not foes:
+                foes = [None]
+            for foe in foes:
+                tx, ty = (foe.x, foe.y) if foe is not None else (user.x + user.facing[0] * 220,
+                                                                 user.y + user.facing[1] * 220)
+                spots = [(tx, ty)] + [(tx + math.cos(k * math.pi / 2 + 0.4) * 46,
+                                       ty + math.sin(k * math.pi / 2 + 0.4) * 46) for k in range(4)]
+                for i, (x, y) in enumerate(spots):
+                    x, y = match.arena.free_spot(x, y, 8)
+                    match.add_effect(ShadowBomb(user, x, y, delay=30 + i * 4, damage=_dmg(user, self.COIN_DAMAGE),
+                                                radius=48, coin=True))
+            match.camera.shake(4)
+        elif outcome == "meio":
+            match.popup(user.x, user.y - 122, "MEIO GREEN", (230, 220, 110))
+            Explosao.activate(self, user, match, None)
+            match.assets.play("explosion", 0.4)
+        else:
+            match.popup(user.x, user.y - 122, "RED", (230, 80, 70))
+            user.take_damage(self.SELF_DAMAGE, user.x + user.facing[0] * 10, user.y, match=match)
+            match.burst(user.x, user.y - 20, (232, 108, 52), 14, speed=4)
+            match.assets.play("explosion", 0.3)
+
+    def worth_using(self, user, target, dist):
+        return dist < 360
 
 
 class Teletransporte(Ability):
@@ -289,7 +341,7 @@ ABILITIES = {
     "tanque": Muralha,
     "ninja": ShurikenTripla,
     "velocista": Turbo,
-    "aryel": Explosao,
+    "aryel": Aposta,
     "fantasma": Teletransporte,
     "tita": Invulneravel,
     "pirata": Gancho,

@@ -492,6 +492,22 @@ EXO, EXO_L, EXO_D = (150, 160, 178), (206, 214, 228), (92, 100, 120)
 PULSE, PULSE_L = (80, 170, 255), (210, 244, 255)
 
 
+def capacete():
+    """Capacete de moto do Aryel, segurado pela jugular (bate com o casco)."""
+    s = Sprite(13, 12)
+    shell, shell_d, shell_l = (204, 52, 48), (130, 30, 30), (244, 130, 120)
+    s.rect(0, 5, 3, 1, (40, 40, 48))             # jugular na mão
+    s.rect(2, 2, 10, 9, shell)
+    s.rect(3, 1, 8, 1, shell)
+    s.rect(4, 0, 6, 1, shell)
+    s.rect(3, 1, 4, 1, shell_l)                  # brilho
+    s.rect(2, 10, 10, 1, shell_d)
+    s.rect(7, 4, 5, 4, (40, 46, 70))             # viseira
+    s.rect(8, 4, 3, 1, (110, 130, 190))
+    s.rect(4, 3, 1, 6, (240, 238, 230))          # faixa
+    return s.finish(), (1, 5)
+
+
 def disquete():
     """Disquete de 3,5": corpo azul, janelinha de metal e etiqueta (gira quando é jogado)."""
     s = Sprite(9, 9)
@@ -593,7 +609,7 @@ WEAPONS = {
     "Besta": besta, "Lança-chamas": lanca_chamas, "Bumerangue": bumerangue, "Cajado do Raio": cajado_raio,
     "Canhão de Mão": canhao, "Virote": virote,
     # Cauanzera, Albeguinio e Borba Jr
-    "Disquete": disquete, "Cabo de Rede": cabo_de_rede, "Pendrive": pendrive, "Notebook": notebook,
+    "Capacete": capacete, "Disquete": disquete, "Cabo de Rede": cabo_de_rede, "Pendrive": pendrive, "Notebook": notebook,
     "Canhão de Pulso": canhao_de_pulso, "Punho Mecânico": punho_mecanico,
 }
 
