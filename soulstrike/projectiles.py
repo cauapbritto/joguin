@@ -827,11 +827,19 @@ class BeamFx(Entity):
     def draw(self, surf, camera):
         pts = [(round(x - camera.x), round(y - camera.y)) for x, y in self.points]
         w = max(1, round(self.width * self.life / self.total))
-        layer = pygame.Surface(surf.get_size(), pygame.SRCALPHA)
-        pygame.draw.lines(layer, (*self.color, 120), False, pts, w + 6)
-        pygame.draw.lines(layer, (*self.color, 230), False, pts, w)
-        pygame.draw.lines(layer, (*self.core, 255), False, pts, max(1, w // 3))
-        surf.blit(layer, (0, 0))
+        # camada só do tamanho do feixe (uma do tamanho da tela por quadro pesava)
+        xs, ys = [x for x, _ in pts], [y for _, y in pts]
+        pad = w + 8
+        box = pygame.Rect(min(xs) - pad, min(ys) - pad, max(xs) - min(xs) + pad * 2, max(ys) - min(ys) + pad * 2)
+        box = box.clip(surf.get_rect())
+        if box.w <= 0 or box.h <= 0:
+            return
+        local = [(x - box.x, y - box.y) for x, y in pts]
+        layer = pygame.Surface(box.size, pygame.SRCALPHA)
+        pygame.draw.lines(layer, (*self.color, 120), False, local, w + 6)
+        pygame.draw.lines(layer, (*self.color, 230), False, local, w)
+        pygame.draw.lines(layer, (*self.core, 255), False, local, max(1, w // 3))
+        surf.blit(layer, box.topleft)
 
 
 def _ray_hits(match, owner, start, direction, length, width):

@@ -296,15 +296,20 @@ class Hack(Entity):
             return
         t = self.age / self.WAVE
         cx, cy = round(self.x - camera.x), round(self.y - 40 - camera.y)
-        alpha = round(220 * (1 - t))
         reach = 80 + 900 * t
+        view = surf.get_rect()
         for k in range(3):                              # arcos de Wi-Fi se abrindo em todas as direções
             r = round(reach - k * 60)
             if r <= 10:
                 continue
-            ring = pygame.Surface((r * 2 + 6, r * 2 + 6), pygame.SRCALPHA)
-            pygame.draw.circle(ring, (*self.GREEN, max(0, alpha - k * 50)), (r + 3, r + 3), r, 3)
-            surf.blit(ring, (cx - r - 3, cy - r - 3))
+            # desenhado direto (sem camada transparente gigante): vai escurecendo e afinando
+            fade = max(0.0, 1 - t - k * 0.2)
+            if fade <= 0.05:
+                continue
+            color = tuple(round(c * (0.35 + 0.65 * fade)) for c in self.GREEN)
+            ring = pygame.Rect(cx - r, cy - r, r * 2, r * 2)
+            if ring.colliderect(view) and not ring.contains(view.inflate(-8, -8)) if r > 0 else False:
+                pygame.draw.circle(surf, color, (cx, cy), r, max(1, round(3 * fade)))
         if t < 0.5:                                     # simbolo de Wi-Fi em cima dele
             for k, rr in enumerate((6, 12, 18)):
                 rect = pygame.Rect(0, 0, rr * 2, rr * 2)
