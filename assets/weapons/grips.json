@@ -209,6 +209,83 @@
    2
   ]
  },
+ "Colmeia": {
+  "file": "colmeia.png",
+  "grip": [
+   5,
+   1
+  ]
+ },
+ "Arco de Espinhos": {
+  "file": "arco_de_espinhos.png",
+  "grip": [
+   5,
+   12
+  ]
+ },
+ "Espinho": {
+  "file": "espinho.png",
+  "grip": [
+   5,
+   2
+  ]
+ },
+ "Machado do Lenhador": {
+  "file": "machado_do_lenhador.png",
+  "grip": [
+   4,
+   6
+  ]
+ },
+ "Lanterna das Almas": {
+  "file": "lanterna_das_almas.png",
+  "grip": [
+   6,
+   1
+  ]
+ },
+ "Crânio Uivante": {
+  "file": "cranio_uivante.png",
+  "grip": [
+   6,
+   10
+  ]
+ },
+ "Foice Espectral": {
+  "file": "foice_espectral.png",
+  "grip": [
+   4,
+   11
+  ]
+ },
+ "Estalactites": {
+  "file": "estalactites.png",
+  "grip": [
+   6,
+   7
+  ]
+ },
+ "Espelho de Cristal": {
+  "file": "espelho_de_cristal.png",
+  "grip": [
+   3,
+   7
+  ]
+ },
+ "Bola de Neve": {
+  "file": "bola_de_neve.png",
+  "grip": [
+   2,
+   6
+  ]
+ },
+ "Cajado do Raio Supremo": {
+  "file": "cajado_do_raio_supremo.png",
+  "grip": [
+   8,
+   8
+  ]
+ },
  "Capacete": {
   "file": "capacete.png",
   "grip": [

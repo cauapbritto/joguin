@@ -68,22 +68,35 @@ Se o `pip` reclamar de certificado (rede com proxy), use
   **Armas raras do baú:** viram a 3ª arma do jogador (TROCAR ARMA passa pelas três) e ficam até o
   fim da campanha. Só dá para ter uma: quando o baú da fase seguinte dá outra, a antiga **fica
   no chão** (com o nome embaixo) e, perto dela, ATACAR **pega de volta** — trocando, e a outra
-  fica no lugar. Qualquer jogador pode pegar a arma do chão. Cada uma tem o seu pente:
+  fica no lugar. Qualquer jogador pode pegar a arma do chão. Cada uma tem o seu pente, e
+  **o baú de cada fase tem as suas armas**, e as do Templo Gelado, a última fase, são roubadas:
 
-  | Arma               | O que faz                                                         |
-  |--------------------|-------------------------------------------------------------------|
-  | Besta              | Virote pesado e rápido que atravessa dois inimigos.               |
-  | Lança-chamas       | Jato de fogo curto que atravessa todo mundo (gasta rápido).       |
-  | Bumerangue         | Vai girando e volta para a mão, acertando na ida e na volta.      |
-  | Cajado do Raio     | Raio na hora no alvo, que pula para mais dois inimigos perto.     |
-  | Canhão de Mão      | Bala de canhão que explode onde bate e dá um coice em quem atira. |
+  | Fase              | Arma                   | O que faz                                                     |
+  |-------------------|------------------------|---------------------------------------------------------------|
+  | Floresta Sombria  | Colmeia                | Estoura num enxame de abelhas que persegue o inimigo por 3 s.  |
+  |                   | Arco de Espinhos       | 3 espinhos em leque; quem leva fica enraizado 1 s.             |
+  |                   | Machado do Lenhador    | De perto: golpe em giro que acerta todo mundo em volta.        |
+  |                   | Bumerangue             | Vai girando e volta para a mão, acertando na ida e na volta.   |
+  |                   | Besta                  | Virote pesado e rápido que atravessa dois inimigos.            |
+  | Calabouço         | Lanterna das Almas     | Feixe verde que suga a vida de quem está na frente.            |
+  |                   | Crânio Uivante         | Caveira que persegue o alvo; quem leva foge com medo.          |
+  |                   | Foice Espectral        | Atravessa paredes, vai e volta para a mão.                     |
+  |                   | Lança-chamas           | Jato de fogo curto que atravessa todo mundo (gasta rápido).    |
+  |                   | Canhão de Mão          | Bala de canhão que explode e dá um coice em quem atira.        |
+  | Templo Gelado     | Estalactites           | 6 estalactites caem em linha e congelam quem pegam.            |
+  | (roubadas)        | Espelho de Cristal     | Raio que reflete até 3 vezes nas paredes e atravessa todos.    |
+  |                   | Bola de Neve           | Rola crescendo, arrasta os inimigos e explode no fim.          |
+  |                   | Cajado do Raio Supremo | Raio que pula em até 5 inimigos, sem enfraquecer, e atordoa.   |
 
   Inimigos novos: o **diabrete** chega rápido e dá um bote; o **esqueleto arqueiro** para,
   mira (brilha) e atira; o **golem** levanta os punhos e esmaga o chão (saia de perto quando
   ele brilhar). As **almas corrompidas** lutam como os heróis, com a mesma habilidade.
-  O chefão alterna **chuva de bombas** (saia dos círculos), **anel de granadas** e **martelada**
-  (pula e cai onde o círculo vermelho marca). Depois de cada sequência ele fica **CANSADO** e
-  leva mais dano. Com metade da vida chama ajuda; com 20% fica furioso.
+  O chefão (bem mais forte que antes) alterna **chuva de bombas** (saia dos círculos), **anel de
+  granadas**, **martelada** (pula e cai onde o círculo vermelho marca) e a **investida sombria**
+  (atravessa a arena, e até as paredes, pelo caminho roxo marcado no chão, largando bombas). Depois
+  de cada sequência ele fica **CANSADO** por pouco tempo e leva mais dano. Com metade da vida chama
+  ajuda, com uma alma corrompida de herói; com 20% fica furioso e ganha a **armadura de sombra**:
+  fora do CANSADO quase não sente os golpes. As armas roubadas do Templo fazem muita diferença.
 
   Quem cair pode ser **levantado**: fique perto do companheiro caído até o anel encher. Se todo
   mundo cair, gasta um dos **3 continues** (TENTAR DE NOVO volta para o acampamento da fase).

@@ -481,6 +481,165 @@ def virote():
     return s.finish(), (6, 1)
 
 
+# ── armas raras de cada fase da campanha ─────
+HIVE, HIVE_D, HONEY = (214, 160, 70), (150, 100, 40), (250, 210, 70)
+THORN_W, THORN_W_D, LEAF = (110, 74, 44), (74, 48, 28), (90, 160, 70)
+SOUL, SOUL_D = (120, 240, 170), (50, 130, 90)
+BONE_C, BONE_D = (232, 228, 210), (170, 164, 146)
+SPECTRAL, SPECTRAL_L = (150, 120, 230), (210, 196, 255)
+SNOW, SNOW_D = (232, 242, 252), (170, 200, 228)
+
+
+def colmeia():
+    """Colmeia de abelhas, com listras e a entradinha escura."""
+    s = Sprite(10, 11)
+    for i, (x, w) in enumerate(((3, 4), (1, 8), (0, 10), (0, 10), (1, 8), (2, 6))):
+        s.rect(x, 1 + i * 2, w, 2, HIVE if i % 2 == 0 else HIVE_D)
+    s.rect(4, 0, 2, 1, HIVE_D)                   # galhinho
+    s.rect(4, 7, 2, 2, (40, 28, 20))             # entrada
+    s.px(2, 3, HONEY)
+    s.px(8, 5, HONEY)
+    return s.finish(), (4, 0)
+
+
+def arco_espinhos():
+    """Arco de galho retorcido com folhas e espinhos."""
+    s = Sprite(10, 22)
+    for y in range(22):
+        bend = round(4 * (1 - ((y - 10.5) / 10.5) ** 2))
+        s.px(1 + bend, y, THORN_W)
+        s.px(2 + bend, y, THORN_W_D)
+        if y % 5 == 2:
+            s.px(3 + bend, y, (220, 214, 190))   # espinho
+    s.rect(0, 0, 1, 22, (200, 200, 190))         # corda
+    s.rect(5, 3, 2, 2, LEAF)
+    s.rect(5, 16, 2, 2, LEAF)
+    return s.finish(), (4, 11)
+
+
+def espinho():
+    """Espinho em voo (projétil)."""
+    s = Sprite(10, 3)
+    s.rect(0, 1, 7, 1, THORN_W)
+    s.rect(7, 0, 2, 3, (220, 214, 190))
+    s.px(9, 1, (240, 236, 220))
+    s.px(1, 0, LEAF)
+    return s.finish(), (4, 1)
+
+
+def machado():
+    """Machado do Lenhador: cabo comprido e lâmina larga."""
+    s = Sprite(22, 12)
+    s.rect(0, 5, 17, 2, WOOD)
+    s.rect(0, 6, 17, 1, WOOD_D)
+    s.rect(15, 0, 6, 9, STEEL_M)                 # lâmina
+    s.rect(15, 0, 6, 2, STEEL)
+    s.rect(20, 0, 2, 11, STEEL)                  # fio
+    s.rect(14, 3, 2, 5, STEEL_D)
+    s.px(17, 5, (60, 60, 70))
+    return s.finish(), (3, 5)
+
+
+def lanterna():
+    """Lanterna das Almas: lampião de ferro com uma chama verde de alma."""
+    s = Sprite(11, 15)
+    s.rect(4, 0, 3, 1, STEEL_D)                  # alça
+    s.rect(3, 1, 1, 2, STEEL_D)
+    s.rect(7, 1, 1, 2, STEEL_D)
+    s.rect(1, 3, 9, 2, (60, 62, 74))
+    s.rect(2, 5, 7, 7, SOUL_D)
+    s.rect(3, 6, 5, 5, SOUL)
+    s.rect(4, 7, 3, 3, (220, 255, 230))
+    s.rect(2, 5, 1, 7, (60, 62, 74))             # grades
+    s.rect(8, 5, 1, 7, (60, 62, 74))
+    s.rect(1, 12, 9, 2, (60, 62, 74))
+    return s.finish(), (5, 0)
+
+
+def cranio():
+    """Crânio Uivante na mão (os olhos brilham verde)."""
+    s = Sprite(10, 10)
+    s.rect(1, 0, 8, 7, BONE_C)
+    s.rect(0, 2, 10, 4, BONE_C)
+    s.rect(2, 7, 6, 2, BONE_C)
+    s.rect(1, 6, 8, 1, BONE_D)
+    s.rect(2, 3, 2, 2, (20, 14, 22))
+    s.rect(6, 3, 2, 2, (20, 14, 22))
+    s.px(2, 3, SOUL)
+    s.px(6, 3, SOUL)
+    s.px(4, 5, (40, 30, 30))
+    for x in (3, 5, 7):
+        s.px(x, 8, (40, 30, 30))
+    return s.finish(), (5, 9)
+
+
+def foice_espectral():
+    """Foice Espectral: cabo escuro e uma lâmina roxa em meia-lua que brilha."""
+    s = Sprite(20, 13)
+    s.rect(0, 10, 15, 2, (60, 44, 76))           # cabo
+    s.rect(0, 11, 15, 1, (40, 28, 52))
+    s.rect(14, 5, 2, 7, (60, 44, 76))            # encaixe da lâmina
+    rows = [(9, 17), (6, 18), (4, 19), (3, 9), (2, 6), (2, 4)]
+    for i, (x0, x1) in enumerate(rows):          # meia-lua
+        s.rect(x0, 1 + i, x1 - x0 + 1, 1, SPECTRAL)
+    s.rect(9, 1, 8, 1, SPECTRAL_L)               # fio brilhando
+    s.rect(6, 2, 4, 1, SPECTRAL_L)
+    s.px(2, 6, SPECTRAL_L)
+    return s.finish(), (3, 10)
+
+
+def estalactites():
+    """Estalactites: cetro de gelo com três pontas penduradas."""
+    s = Sprite(24, 12)
+    s.rect(0, 5, 14, 2, (120, 150, 190))
+    s.rect(0, 6, 14, 1, (80, 104, 140))
+    s.rect(14, 2, 8, 3, ICE)
+    s.rect(14, 2, 8, 1, ICE_L)
+    for x, h in ((15, 8), (18, 9), (21, 7)):
+        for k in range(h):
+            s.rect(x, 5 + k, max(1, 2 - k // 4), 1, ICE if k < h - 2 else ICE_L)
+    return s.finish(), (5, 6)
+
+
+def espelho():
+    """Espelho de Cristal: espelho oval de prata com cristal azul."""
+    s = Sprite(16, 13)
+    s.rect(0, 5, 5, 3, (120, 150, 190))          # cabo
+    s.rect(5, 1, 10, 11, STEEL_M)
+    s.rect(4, 3, 12, 7, STEEL_M)
+    s.rect(6, 2, 8, 9, ICE)
+    s.rect(5, 4, 10, 5, ICE)
+    s.rect(7, 3, 2, 5, (250, 254, 255))          # reflexo
+    s.px(12, 8, ICE_L)
+    return s.finish(), (2, 6)
+
+
+def bola_neve():
+    """Bola de Neve na mão."""
+    s = Sprite(10, 10)
+    s.rect(2, 0, 6, 10, SNOW)
+    s.rect(0, 2, 10, 6, SNOW)
+    s.rect(1, 1, 8, 8, SNOW)
+    s.rect(2, 7, 7, 2, SNOW_D)
+    s.rect(8, 3, 1, 5, SNOW_D)
+    s.rect(2, 2, 2, 2, (255, 255, 255))
+    return s.finish(), (1, 5)
+
+
+def raio_supremo():
+    """Cajado do Raio Supremo: haste dourada, três pedras de raio e faíscas."""
+    s = Sprite(30, 15)
+    s.rect(0, 7, 20, 2, GOLD_D)
+    s.rect(0, 7, 20, 1, GOLD)
+    s.rect(18, 3, 2, 10, GOLD)
+    for cx, cy in ((22, 7), (25, 3), (25, 11)):
+        s.rect(cx - 1, cy - 1, 3, 3, BOLT)
+        s.px(cx, cy - 1, BOLT_L)
+    for x, y in ((28, 0), (29, 7), (28, 14), (21, 1), (21, 13)):
+        s.px(x, y, BOLT_L)
+    return s.finish(), (7, 7)
+
+
 # ── armas do Cauanzera, do Albeguinio e do Borba Jr ──
 NAVY, NAVY_D = (52, 74, 140), (32, 46, 92)
 PAGE = (240, 232, 210)
@@ -609,6 +768,10 @@ WEAPONS = {
     "Besta": besta, "Lança-chamas": lanca_chamas, "Bumerangue": bumerangue, "Cajado do Raio": cajado_raio,
     "Canhão de Mão": canhao, "Virote": virote,
     # Cauanzera, Albeguinio e Borba Jr
+    "Colmeia": colmeia, "Arco de Espinhos": arco_espinhos, "Espinho": espinho,
+    "Machado do Lenhador": machado, "Lanterna das Almas": lanterna, "Crânio Uivante": cranio,
+    "Foice Espectral": foice_espectral, "Estalactites": estalactites, "Espelho de Cristal": espelho,
+    "Bola de Neve": bola_neve, "Cajado do Raio Supremo": raio_supremo,
     "Capacete": capacete, "Disquete": disquete, "Cabo de Rede": cabo_de_rede, "Pendrive": pendrive, "Notebook": notebook,
     "Canhão de Pulso": canhao_de_pulso, "Punho Mecânico": punho_mecanico,
 }

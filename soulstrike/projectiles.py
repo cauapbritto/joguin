@@ -23,7 +23,7 @@ import random
 import pygame
 
 from . import theme, weapon_art
-from .entities import Bullet, Entity, Particle, push_circle_out
+from .entities import Bullet, Entity, GroundMark, Particle, push_circle_out
 
 
 def _angle(vx, vy):
@@ -47,6 +47,7 @@ class Projectile(Bullet):
         self.target = target
         self.power = power
         self.age = 0
+        self.dir = (dx, dy)                  # direção do disparo (as armas instantâneas não têm velocidade)
 
     @classmethod
     def launch(cls, match, owner, weapon, direction, damage, target=None, power=1.0, explosive=False):
@@ -617,6 +618,7 @@ class Lightning(Projectile):
     RANGE = 460
     JUMP = 170
     JUMPS = 2
+    DECAY = 0.7
 
     def can_hit(self, fighter):
         return False                         # o dano sai todo no primeiro quadro
@@ -630,7 +632,7 @@ class Lightning(Projectile):
                                    or match.arena.blocks_segment((owner.x, owner.y), (target.x, target.y))):
             target = None
         if target is None:
-            dx, dy = _unit(self.vx, self.vy) if (self.vx or self.vy) else owner.facing
+            dx, dy = _unit(*self.dir) if any(self.dir) else owner.facing
             points.append((owner.x + dx * 200, owner.y + dy * 200))
             match.add_effect(LightningArc(points))
             self.alive = False
@@ -642,7 +644,7 @@ class Lightning(Projectile):
             points.append((target.x, target.y - 16))
             target.take_damage(damage, owner.x, owner.y, attacker=owner, match=match)
             match.burst(target.x, target.y - 16, (246, 214, 70), 6, speed=3)
-            damage = max(1, round(damage * 0.7))
+            damage = max(1, round(damage * self.DECAY))
             prev = target
             near = [f for f in match.fighters if f.alive_in_match and f not in hit
                     and match.hostile(owner, f) and prev.distance_to(f) < self.JUMP]
@@ -653,6 +655,22 @@ class Lightning(Projectile):
 
     def draw(self, surf, camera):
         pass
+
+
+class SupremeLightning(Lightning):
+    """Cajado do Raio Supremo: alcança longe, pula em até 5 inimigos sem enfraquecer e atordoa."""
+    RANGE = 620
+    JUMP = 280
+    JUMPS = 5
+    STUN = 40
+    DECAY = 0.95
+
+    def update(self, match):
+        before = {f: f.hp for f in match.fighters}
+        super().update(match)
+        for f, hp in before.items():
+            if f.hp < hp and f.stun(self.STUN):
+                match.burst(f.x, f.y - 30, (255, 250, 200), 6, speed=3)
 
 
 class CannonBall(LeadBall):
@@ -677,6 +695,418 @@ class CannonBall(LeadBall):
         pygame.draw.circle(surf, (20, 14, 22), (sx, sy), 8)
         pygame.draw.circle(surf, (64, 66, 80), (sx, sy), 7)
         surf.fill((170, 174, 190), (sx - 3, sy - 3, 3, 3))
+
+
+# ── armas raras da Floresta Sombria ──────────
+class Swarm(Entity):
+    """Enxame da Colmeia: abelhas que perseguem o inimigo mais perto e picam aos pouquinhos."""
+
+    LIFE = 3 * 60
+    SPEED = 4.2
+    STING = 15                                # quadros entre uma picada e outra
+    REACH = 520
+
+    def __init__(self, owner, x, y, damage):
+        super().__init__(x, y)
+        self.owner = owner
+        self.damage = damage
+        self.age = 0
+        self.target = None
+        self.bees = [(random.uniform(0, math.tau), random.uniform(8, 18)) for _ in range(7)]
+
+    def update(self, match):
+        self.age += 1
+        t = self.target
+        if t is None or not t.alive_in_match or self.age % 30 == 0:
+            foes = [f for f in match.fighters if f.alive_in_match and match.hostile(self.owner, f)
+                    and math.hypot(f.x - self.x, f.y - self.y) < self.REACH]
+            t = self.target = min(foes, key=lambda f: math.hypot(f.x - self.x, f.y - self.y)) if foes else None
+        if t is not None:
+            dx, dy = _unit(t.x - self.x, t.y - 24 - self.y)
+            d = math.hypot(t.x - self.x, t.y - 24 - self.y)
+            step = min(self.SPEED, d)
+            self.x += dx * step
+            self.y += dy * step
+            if d < t.radius + 18 and self.age % self.STING == 0:
+                if t.take_damage(self.damage, attacker=self.owner):
+                    match.popup(t.x + 12, t.y - 50, str(self.damage), (250, 210, 70))
+        if self.age >= self.LIFE:
+            self.alive = False
+
+    def draw(self, surf, camera):
+        pass
+
+    def draw_over(self, surf, camera):
+        """As abelhas voam por cima de todo mundo."""
+        cx, cy = self.x - camera.x, self.y - camera.y
+        for i, (a, r) in enumerate(self.bees):
+            ang = a + self.age * (0.25 + i * 0.02)
+            bx, by = round(cx + math.cos(ang) * r * 1.3), round(cy + math.sin(ang * 1.3) * r)
+            surf.fill((20, 14, 22), (bx - 4, by - 3, 8, 6))
+            surf.fill((250, 210, 70), (bx - 3, by - 2, 6, 4))
+            surf.fill((40, 30, 20), (bx - 1, by - 2, 1, 4))           # listras
+            surf.fill((40, 30, 20), (bx + 1, by - 2, 1, 4))
+            if (self.age + i) % 4 < 2:
+                surf.fill((235, 245, 255), (bx - 2, by - 6, 3, 3))      # asinha batendo
+            else:
+                surf.fill((235, 245, 255), (bx - 1, by - 5, 3, 2))
+
+
+class Beehive(Projectile):
+    """Colmeia: voa girando e estoura num enxame (no alvo, na parede ou no fim do voo)."""
+    sprite = "Colmeia"
+    LIFE = 34
+    SWARM_DAMAGE = 2
+
+    def _burst(self, match):
+        self.alive = False
+        match.add_effect(Swarm(self.owner, self.x, self.y, max(1, round(self.SWARM_DAMAGE * self.owner.damage_bonus))))
+        match.burst(self.x, self.y, (200, 150, 60), 10, speed=3)
+        match.assets.play("click", 0.4)
+
+    def update(self, match):
+        super().update(match)
+        if self.age >= self.LIFE:
+            self._burst(match)
+
+    def on_hit(self, target, match):
+        self._burst(match)
+
+    def on_wall(self, wall, match):
+        self.x -= self.vx
+        self.y -= self.vy
+        self._burst(match)
+        return False
+
+    def draw(self, surf, camera):
+        self.draw_sprite(surf, camera, angle=self.age * 20)
+
+
+class Thorn(Projectile):
+    """Arco de Espinhos: três espinhos em leque; quem leva fica enraizado."""
+    sprite = "Espinho"
+    ROOT = 60
+    SPREAD = 0.22
+
+    @classmethod
+    def launch(cls, match, owner, weapon, direction, damage, target=None, power=1.0, explosive=False):
+        base = math.atan2(direction[1], direction[0])
+        shots = []
+        for k in (-1, 0, 1):
+            a = base + k * cls.SPREAD
+            dx, dy = math.cos(a), math.sin(a)
+            shots.append(cls(owner, weapon, owner.x + dx * 16, owner.y + dy * 16 - 4, dx, dy, weapon.bullet_speed,
+                             damage, target, power))
+        return shots
+
+    def on_hit(self, target, match):
+        if target.root(self.ROOT):
+            match.popup(target.x, target.y - 62, "ENRAIZADO", (110, 180, 80))
+
+    def on_wall(self, wall, match):
+        _stick(match, self, self.sprite, depth=4, life=60)
+        return False
+
+
+# ── armas raras do Calabouço das Almas ───────
+class BeamFx(Entity):
+    """Desenho de um feixe (lanterna, espelho): segmentos que brilham e somem."""
+
+    def __init__(self, points, color, core=(255, 255, 255), width=6, life=8):
+        super().__init__(*points[0])
+        self.points = points
+        self.color, self.core = color, core
+        self.width = width
+        self.life = self.total = life
+
+    def update(self, match):
+        self.life -= 1
+        if self.life <= 0:
+            self.alive = False
+
+    def draw(self, surf, camera):
+        pts = [(round(x - camera.x), round(y - camera.y)) for x, y in self.points]
+        w = max(1, round(self.width * self.life / self.total))
+        layer = pygame.Surface(surf.get_size(), pygame.SRCALPHA)
+        pygame.draw.lines(layer, (*self.color, 120), False, pts, w + 6)
+        pygame.draw.lines(layer, (*self.color, 230), False, pts, w)
+        pygame.draw.lines(layer, (*self.core, 255), False, pts, max(1, w // 3))
+        surf.blit(layer, (0, 0))
+
+
+def _ray_hits(match, owner, start, direction, length, width):
+    """Inimigos na frente, ao longo do raio (parando na primeira parede): [(distância, lutador)]."""
+    dx, dy = direction
+    end_len = length
+    for step in range(1, int(length // 8)):
+        px, py = start[0] + dx * step * 8, start[1] + dy * step * 8
+        if any(w.rect.collidepoint(px, py) for w in match.arena.walls):
+            end_len = step * 8
+            break
+    hits = []
+    for f in match.fighters:
+        if not f.alive_in_match or not match.hostile(owner, f):
+            continue
+        rx, ry = f.x - start[0], f.y - 10 - start[1]
+        along = rx * dx + ry * dy
+        side = abs(rx * dy - ry * dx)
+        if 0 < along < end_len and side < width + f.radius:
+            hits.append((along, f))
+    hits.sort(key=lambda h: h[0])
+    return hits, end_len
+
+
+class SoulBeam(Projectile):
+    """Lanterna das Almas: feixe verde curto que suga a vida do primeiro que estiver na frente."""
+    RANGE = 300
+    COLOR = (120, 240, 170)
+
+    def can_hit(self, fighter):
+        return False
+
+    def update(self, match):
+        owner = self.owner
+        dx, dy = _unit(*self.dir) if any(self.dir) else owner.facing
+        start = (owner.x + dx * 18, owner.y - 10 + dy * 18)
+        hits, length = _ray_hits(match, owner, start, (dx, dy), self.RANGE, 14)
+        if hits:
+            along, f = hits[0]
+            length = along
+            if f.take_damage(self.damage, attacker=owner):
+                heal = max(1, self.damage // 2)
+                owner.hp = min(owner.max_hp, owner.hp + heal)
+                if owner.age % 12 == 0:
+                    match.burst(owner.x, owner.y - 30, self.COLOR, 3, speed=1.5)
+            if owner.age % 4 == 0:
+                match.particles.append(Particle(f.x, f.y - 20, -dx * 2, -dy * 2 - 0.3, self.COLOR, 18, 3))
+        match.add_effect(BeamFx([start, (start[0] + dx * length, start[1] + dy * length)], self.COLOR,
+                                width=8, life=7))           # dura mais que o intervalo: o feixe fica contínuo
+        self.alive = False
+
+    def draw(self, surf, camera):
+        pass
+
+
+class Skull(Orb):
+    """Crânio Uivante: caveira que persegue o alvo; quem leva fica com medo e foge."""
+    ghost = False
+    TURN = 0.08
+    FEAR = 90
+
+    def on_hit(self, target, match):
+        if target.scare(self.FEAR, self.owner.x, self.owner.y):
+            match.popup(target.x, target.y - 62, "MEDO!", (180, 255, 200))
+
+    def on_wall(self, wall, match):
+        match.burst(self.x, self.y, (220, 220, 200), 6, speed=2)
+        return False
+
+    def update(self, match):
+        t = self.target
+        if t is not None and getattr(t, "alive_in_match", False) and self.age > 4:
+            speed = math.hypot(self.vx, self.vy)
+            dx, dy = _unit(t.x - self.x, t.y - 6 - self.y)
+            self.vx += (dx * speed - self.vx) * self.TURN
+            self.vy += (dy * speed - self.vy) * self.TURN
+            k = speed / (math.hypot(self.vx, self.vy) or 1)
+            self.vx, self.vy = self.vx * k, self.vy * k
+        Projectile.update(self, match)
+        if self.age % 3 == 0:
+            match.particles.append(Particle(self.x, self.y, -self.vx * 0.1, -self.vy * 0.1 - 0.2,
+                                            random.choice(((120, 240, 170), (60, 140, 100))), 16, 3))
+        if self.age > self.LIFE:
+            self.alive = False
+
+    def draw(self, surf, camera):
+        sx, sy = round(self.x - camera.x), round(self.y - camera.y)
+        glow = _glow((120, 240, 170), 14)
+        surf.blit(glow, glow.get_rect(center=(sx, sy)))
+        pygame.draw.circle(surf, (20, 14, 22), (sx, sy), 7)
+        pygame.draw.circle(surf, (232, 228, 210), (sx, sy - 1), 6)
+        surf.fill((232, 228, 210), (sx - 3, sy + 3, 7, 3))           # queixo
+        surf.fill((20, 14, 22), (sx - 4, sy - 2, 3, 3))              # olhos
+        surf.fill((20, 14, 22), (sx + 1, sy - 2, 3, 3))
+        surf.fill((120, 240, 170), (sx - 3, sy - 1, 1, 1))
+        surf.fill((120, 240, 170), (sx + 2, sy - 1, 1, 1))
+        surf.fill((20, 14, 22), (sx - 2, sy + 4, 1, 2))              # dentes
+        surf.fill((20, 14, 22), (sx + 1, sy + 4, 1, 2))
+
+
+class SpectralScythe(Boomerang):
+    """Foice Espectral: gira atravessando paredes e volta para a mão (acerta na ida e na volta)."""
+    sprite = "Foice Espectral"
+    ghost = True
+    OUT = 30
+
+    def update(self, match):
+        super().update(match)
+        if self.age % 2 == 0:
+            match.particles.append(Particle(self.x, self.y, 0, 0, (150, 120, 230), 12, 3))
+
+
+# ── armas raras do Templo Gelado (roubadas) ──
+class IcicleDrop(GroundMark):
+    """Uma estalactite: marca o chão, cai e congela quem estiver embaixo."""
+
+    def __init__(self, owner, x, y, delay, damage, radius=46):
+        super().__init__(x, y, radius, delay, (150, 212, 240))
+        self.owner = owner
+        self.damage = damage
+
+    def update(self, match):
+        super().update(match)
+        if self.alive:
+            return
+        for f in match.fighters:
+            if f.alive_in_match and match.hostile(self.owner, f) and \
+                    math.hypot(f.x - self.x, f.y - self.y) < self.radius + f.radius:
+                if f.take_damage(self.damage, self.x, self.y, attacker=self.owner, match=match) and f.freeze(60):
+                    match.popup(f.x, f.y - 70, "CONGELADO", (170, 230, 255))
+        match.burst(self.x, self.y, (220, 244, 255), 14, speed=5)
+        match.camera.shake(3)
+        match.assets.play("hit", 0.35)
+
+    def draw(self, surf, camera):
+        super().draw(surf, camera)
+        t = self.progress
+        if t > 0.5:
+            fall = (1 - (t - 0.5) / 0.5) ** 2
+            bx, by = round(self.x - camera.x), round(self.y + 8 - camera.y - fall * 260)
+            pts = [(bx - 7, by - 34), (bx + 7, by - 34), (bx, by)]
+            pygame.draw.polygon(surf, (20, 30, 50), [(px, py + 1) for px, py in pts])
+            pygame.draw.polygon(surf, (170, 225, 250), pts)
+            pygame.draw.line(surf, (240, 252, 255), (bx - 3, by - 32), (bx - 1, by - 8), 2)
+
+
+class Icicles(Projectile):
+    """Estalactites: seis caem em linha na frente, uma atrás da outra."""
+    COUNT = 6
+    GAP = 70
+
+    def can_hit(self, fighter):
+        return False
+
+    def update(self, match):
+        owner = self.owner
+        dx, dy = _unit(*self.dir) if any(self.dir) else owner.facing
+        for i in range(self.COUNT):
+            x, y = owner.x + dx * (90 + i * self.GAP), owner.y + dy * (90 + i * self.GAP)
+            if not (20 < x < match.arena.width - 20 and 20 < y < match.arena.height - 20):
+                break
+            match.add_effect(IcicleDrop(owner, x, y, 22 + i * 5, self.damage))
+        match.assets.play("barrier", 0.4)
+        self.alive = False
+
+    def draw(self, surf, camera):
+        pass
+
+
+class CrystalBeam(Projectile):
+    """Espelho de Cristal: raio de luz que reflete nas paredes (até 3 vezes) e atravessa todo mundo."""
+    BOUNCES = 3
+    LENGTH = 1500
+    COLOR = (150, 230, 255)
+
+    def can_hit(self, fighter):
+        return False
+
+    def update(self, match):
+        owner = self.owner
+        dx, dy = _unit(*self.dir) if any(self.dir) else owner.facing
+        x, y = owner.x + dx * 18, owner.y - 10 + dy * 18
+        points = [(x, y)]
+        hit = set()
+        left, bounces, step = self.LENGTH, self.BOUNCES, 6
+        walls = match.arena.walls
+        arena = match.arena
+
+        def blocked(px, py):
+            return not (2 < px < arena.width - 2 and 2 < py < arena.height - 2) or \
+                any(w.rect.collidepoint(px, py) for w in walls)
+        while left > 0:
+            nx, ny = x + dx * step, y + dy * step
+            if blocked(nx, ny):
+                if bounces <= 0:
+                    break
+                bounces -= 1
+                points.append((x, y))
+                if blocked(x + dx * step, y):        # bateu numa parede "em pé": inverte o x
+                    dx = -dx
+                if blocked(x, y + dy * step):
+                    dy = -dy
+                match.burst(x, y, (240, 250, 255), 4, speed=2)
+                continue
+            x, y = nx, ny
+            left -= step
+            for f in match.fighters:
+                if f in hit or not f.alive_in_match or not match.hostile(owner, f):
+                    continue
+                if math.hypot(f.x - x, f.y - 10 - y) < f.radius + 8:
+                    hit.add(f)
+                    f.take_damage(self.damage, x, y, attacker=owner, match=match)
+                    match.burst(f.x, f.y - 16, self.COLOR, 8, speed=3)
+        points.append((x, y))
+        match.add_effect(BeamFx(points, self.COLOR, width=6, life=12))
+        match.camera.shake(2)
+        self.alive = False
+
+    def draw(self, surf, camera):
+        pass
+
+
+class Snowball(Projectile):
+    """Bola de Neve: rola crescendo, arrasta quem pega e explode no fim (ou na parede)."""
+    LIFE = 80
+    GROW = 0.3
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.size = 6.0
+        self.base = self.damage
+
+    def survives_hit(self):
+        return True                           # passa por todos (e arrasta)
+
+    def update(self, match):
+        super().update(match)
+        self.size = min(30.0, self.size + self.GROW)
+        self.radius = round(self.size)
+        self.damage = round(self.base * (1 + self.size / 12))
+        for f in match.fighters:              # quem já foi pego vai junto
+            if f in self.hit and f.alive_in_match and math.hypot(f.x - self.x, f.y - self.y) < self.size + f.radius + 30:
+                f.knock = [self.vx * 1.1 * (1 - f.knock_resist), self.vy * 1.1 * (1 - f.knock_resist)]
+        if self.age % 2 == 0:
+            match.particles.append(Particle(self.x, self.y + self.size * 0.6, random.uniform(-0.5, 0.5), -0.3,
+                                            (235, 245, 255), 14, 3))
+        if self.age >= self.LIFE:
+            self._blow(match)
+
+    def _blow(self, match):
+        self.alive = False
+        from .entities import Explosion
+        match.add_effect(Explosion(self.owner, self.x, self.y, round(self.base * 2.2), round(self.size * 2.6)))
+        for f in match.fighters:
+            if f.alive_in_match and match.hostile(self.owner, f) and \
+                    math.hypot(f.x - self.x, f.y - self.y) < self.size * 2.6 + f.radius:
+                f.slow(90)
+        match.burst(self.x, self.y, (235, 245, 255), 26, speed=6)
+        match.camera.shake(6)
+        match.assets.play("explosion", 0.5)
+
+    def on_wall(self, wall, match):
+        self._blow(match)
+        return False
+
+    def draw(self, surf, camera):
+        sx, sy = round(self.x - camera.x), round(self.y - camera.y)
+        r = round(self.size)
+        pygame.draw.circle(surf, (20, 30, 50), (sx, sy), r + 1)
+        pygame.draw.circle(surf, (225, 238, 250), (sx, sy), r)
+        pygame.draw.circle(surf, (255, 255, 255), (sx - r // 3, sy - r // 3), max(1, r // 3))
+        a = self.age * 0.3
+        for k in range(3):                    # pedacinhos rolando
+            ang = a + k * 2.1
+            surf.fill((180, 205, 230), (round(sx + math.cos(ang) * r * 0.6) - 1, round(sy + math.sin(ang) * r * 0.6) - 1, 3, 3))
 
 
 # ── armas do Cauanzera, do Albeguinio e do Borba Jr ──
@@ -951,6 +1381,15 @@ PROJECTILES = {
     "bumerangue": Boomerang,
     "raio": Lightning,
     "canhao": CannonBall,
+    "colmeia": Beehive,
+    "espinho": Thorn,
+    "lanterna": SoulBeam,
+    "cranio": Skull,
+    "foice": SpectralScythe,
+    "estalactite": Icicles,
+    "espelho": CrystalBeam,
+    "neve": Snowball,
+    "raio_supremo": SupremeLightning,
 }
 
 

@@ -18,6 +18,8 @@ class WeaponStats:
     note: str = ""          # o que a arma tem de especial (mostrado na seleção e no celular)
     close_bonus: bool = True  # tiro de perto causa mais dano (o lança-chamas não: ele já é de perto)
     rare: bool = False      # arma rara do baú da campanha
+    spin: bool = False      # golpe em giro de 360° (acerta em volta toda)
+    roubada: bool = False   # arma rara da última fase (bem mais forte)
 
     @property
     def is_melee(self):
@@ -43,8 +45,8 @@ def _ranged(name, damage, speed, cooldown, style="", mag=0, reload=0, regen=0, c
                        reload=reload, regen=regen, charge=charge, note=note, **extra)
 
 
-def _melee(name, damage, reach, cooldown=16):
-    return WeaponStats(name, "melee", damage, reach=reach, cooldown=cooldown)
+def _melee(name, damage, reach, cooldown=16, **extra):
+    return WeaponStats(name, "melee", damage, reach=reach, cooldown=cooldown, **extra)
 
 
 CHARACTERS = (
@@ -135,6 +137,35 @@ RARE_WEAPONS = {
                            note="Raio na hora, que pula para mais dois inimigos."),
     "canhao": _ranged("Canhão de Mão", 26, 9, 50, "canhao", mag=2, reload=110, rare=True,
                       note="Bala de canhão que explode e empurra."),
+    # Floresta Sombria
+    "colmeia": _ranged("Colmeia", 6, 9, 40, "colmeia", mag=3, reload=90, rare=True,
+                       note="Estoura num enxame que persegue o inimigo por 3s."),
+    "arco_espinhos": _ranged("Arco de Espinhos", 7, 12, 30, "espinho", mag=5, reload=80, rare=True,
+                             note="3 espinhos em leque: quem leva fica enraizado 1s."),
+    "machado": _melee("Machado do Lenhador", 22, 66, cooldown=24, rare=True, spin=True,
+                      note="Golpe em giro: acerta todo mundo em volta."),
+    # Calabouço das Almas
+    "lanterna": _ranged("Lanterna das Almas", 3, 0, 6, "lanterna", mag=40, reload=100, rare=True,
+                        close_bonus=False, note="Feixe que suga a vida de quem está na frente."),
+    "cranio": _ranged("Crânio Uivante", 14, 8, 36, "cranio", mag=3, regen=80, rare=True,
+                      note="Persegue o alvo; quem leva foge com medo."),
+    "foice_espectral": _ranged("Foice Espectral", 16, 11, 30, "foice", mag=2, reload=70, rare=True,
+                               note="Atravessa paredes, vai e volta para a mão."),
+    # Templo Gelado: as armas roubadas
+    "estalactites": _ranged("Estalactites", 30, 0, 50, "estalactite", mag=3, reload=90, rare=True,
+                            roubada=True, note="6 estalactites caem em linha e congelam."),
+    "espelho": _ranged("Espelho de Cristal", 26, 0, 34, "espelho", mag=4, regen=60, rare=True,
+                       roubada=True, note="Raio que reflete 3 vezes e atravessa todos."),
+    "bola_neve": _ranged("Bola de Neve", 12, 7, 50, "neve", mag=2, reload=90, rare=True, roubada=True,
+                         note="Cresce rolando, arrasta todos e explode."),
+    "raio_supremo": _ranged("Cajado do Raio Supremo", 22, 0, 30, "raio_supremo", mag=6, regen=40, rare=True,
+                            roubada=True, note="Raio que pula em 5 inimigos e atordoa."),
+}
+# o baú de cada fase sorteia destas (as últimas são as roubadas)
+PHASE_RELICS = {
+    "floresta": ("colmeia", "arco_espinhos", "machado", "bumerangue", "besta"),
+    "calabouco": ("lanterna", "cranio", "foice_espectral", "lanca_chamas", "canhao"),
+    "templo": ("estalactites", "espelho", "bola_neve", "raio_supremo"),
 }
 
 UNLOCKABLE = "aryel_corrompido"

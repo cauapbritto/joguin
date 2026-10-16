@@ -202,6 +202,11 @@ class Fighter(Entity):
         self.thrown_timer = 0           # arremessado pelo exoesqueleto: se bater na parede, fica tonto
         self.thrown_by = None
         self.kit = None                 # time do uniforme (futebol)
+        self.ghost_walk = False         # atravessa paredes (investida sombria do chefão)
+        self.root_timer = 0             # enraizado (Arco de Espinhos): não anda, mas ataca
+        self.fear_timer = 0             # com medo (Crânio Uivante): foge e não ataca
+        self.fear_from = (x, y)
+        self.frozen_timer = 0           # congelado (Estalactites): travado no gelo
         self.slow_timer = 0             # lento (Nevasca da Geada)
         self.pull_timer = 0             # sendo puxado (Gancho do Pirata)
         self.pull_to = (x, y)
@@ -490,6 +495,28 @@ class Fighter(Entity):
     def hacked(self):
         return self.hack_timer > 0
 
+    def root(self, frames):
+        """Enraizado: preso no lugar (ainda ataca). Chefão e invulnerável escapam."""
+        if self.invulnerable or self.unstoppable or self.hp <= 0:
+            return False
+        self.root_timer = max(self.root_timer, frames)
+        return True
+
+    def scare(self, frames, x, y):
+        """Medo: foge de (x, y) e não ataca."""
+        if self.invulnerable or self.unstoppable or self.hp <= 0 or self.exo_timer > 0:
+            return False
+        self.fear_timer = max(self.fear_timer, frames)
+        self.fear_from = (x, y)
+        return True
+
+    def freeze(self, frames):
+        """Congelado num bloco de gelo (fica tonto, com o gelo desenhado em volta)."""
+        if not self.stun(frames):
+            return False
+        self.frozen_timer = max(self.frozen_timer, frames)
+        return True
+
     def hack(self, frames):
         """Hackeado (Albeguinio): trava tudo por ``frames``. Pega até quem não fica tonto (exoesqueleto,
         chefão — este por menos tempo); só escapa quem está invulnerável ou no ar."""
@@ -538,7 +565,7 @@ class Fighter(Entity):
     @property
     def busy(self):
         """Não pode atacar nem usar nada (tonto, hackeado ou digitando)."""
-        return self.stunned or self.type_timer > 0
+        return self.stunned or self.type_timer > 0 or self.fear_timer > 0
 
     def reset_round(self, x, y, facing):
         """Volta ao estado inicial para um novo round (mantém as estatísticas da partida)."""
@@ -552,7 +579,7 @@ class Fighter(Entity):
                      "invulnerable_timer", "stun_timer", "fury_timer", "hit_flash", "melee_flash",
                      "shoot_flash", "teleport_flash", "slow_timer", "pull_timer", "windup", "aim_timer",
                      "down_age", "bow_draw", "haste_timer", "idle_shot", "hack_timer", "type_timer",
-                     "virus_timer", "rush_timer", "thrown_timer"):
+                     "virus_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer"):
             setattr(self, name, 0)
         self.end_exo()
         self.clips.clear()                            # pentes cheios de novo
@@ -648,7 +675,7 @@ class Fighter(Entity):
                     continue
                 dx, dy = other.x - self.x, other.y - self.y
                 d = math.hypot(dx, dy)
-                in_front = other is target or d < other.radius + 6 or (dx * fx + dy * fy) > -0.2 * d
+                in_front = weapon.spin or other is target or d < other.radius + 6 or (dx * fx + dy * fy) > -0.2 * d
                 if d <= reach + other.radius and in_front:
                     if other.take_damage(round(weapon.damage * self.damage_mult), self.x, self.y,
                                          attacker=self, match=match) and self.exo_timer > 0:
@@ -776,6 +803,10 @@ class Fighter(Entity):
     def _move(self, match, dx, dy):
         """Anda em passos de no máximo 8 px para não atravessar paredes finas em alta velocidade.
         Devolve True se bateu em alguma parede."""
+        if self.ghost_walk:                          # atravessando paredes (investida do chefão)
+            self.x += dx
+            self.y += dy
+            return False
         steps = max(1, math.ceil(max(abs(dx), abs(dy)) / 8))
         hit = False
         for _ in range(steps):
@@ -791,6 +822,7 @@ class Fighter(Entity):
         for name in ("attack_cd", "ability_cd", "dash_cd", "speed_timer", "invulnerable_timer",
                      "super_cd", "kick_cd", "stun_timer", "fury_timer", "giant_timer", "sprint_timer",
                      "magic_timer", "nose_timer", "hack_timer", "type_timer", "rush_timer", "thrown_timer",
+                     "root_timer", "fear_timer", "frozen_timer",
                      "slow_timer", "windup", "aim_timer", "haste_timer", "dry_click",
                      "hit_flash", "melee_flash", "shoot_flash", "teleport_flash"):
             value = getattr(self, name)
@@ -861,7 +893,11 @@ class Fighter(Entity):
                     self.charge_timer = 0
             moving_fast = True
         else:
-            ix, iy = (0.0, 0.0) if self.stunned or self.type_timer > 0 else self.input
+            ix, iy = (0.0, 0.0) if self.stunned or self.type_timer > 0 or self.root_timer > 0 else self.input
+            if self.fear_timer > 0 and not self.stunned:
+                fx, fy = self.x - self.fear_from[0], self.y - self.fear_from[1]
+                fd = math.hypot(fx, fy) or 1.0
+                ix, iy = fx / fd, fy / fd                # com medo: foge
             if self.rush_timer > 0 and math.hypot(ix, iy) < 0.3 and not self.stunned:
                 ix, iy = self.facing                     # 100 metros: não para de correr
             was_fast = math.hypot(self.vx, self.vy) > self.stats.speed * 0.8
@@ -1131,12 +1167,27 @@ class Fighter(Entity):
             glow.fill((255, 70, 50, 110), special_flags=pygame.BLEND_RGBA_MULT)
             surf.blit(glow, glow.get_rect(midbottom=rect.midbottom))
 
+        if self.root_timer > 0:                        # raízes subindo pelas pernas
+            for k, ox in enumerate((-10, -4, 3, 9)):
+                h = 10 + (k * 5) % 9
+                pygame.draw.line(surf, (70, 52, 30), (sx + ox, feet + 2), (sx + ox + (2 if k % 2 else -2), feet - h), 3)
+                surf.fill((90, 160, 70), (sx + ox - 1, feet - h, 3, 2))
+        if self.frozen_timer > 0:                      # bloco de gelo
+            ice = pygame.Surface((rect.w + 10, rect.h + 6), pygame.SRCALPHA)
+            ice.fill((170, 225, 250, 110))
+            pygame.draw.rect(ice, (230, 248, 255, 200), ice.get_rect(), 2)
+            ice.fill((255, 255, 255, 160), (4, 4, 3, rect.h // 2))
+            surf.blit(ice, (rect.x - 5, rect.y - 4))
+        if self.fear_timer > 0 and (ticks // 6) % 2 == 0:
+            surf.fill((20, 14, 22), (sx + 12, rect.top - 14, 6, 12))   # "!" de medo
+            surf.fill((180, 255, 200), (sx + 13, rect.top - 13, 4, 7))
+            surf.fill((180, 255, 200), (sx + 13, rect.top - 4, 4, 2))
         if self.hack_timer > 0 or self.virus_timer > 0:
             self._draw_glitch(surf, img, rect, ticks, strong=self.hack_timer > 0)
         if self.type_timer > 0:
             draw_laptop(surf, sx + round(self.facing[0] * 8), rect.top + rect.h * 0.8, ticks,
                         self.ability_progress(), back=direction == "costas")
-        if self.stun_timer > 0 and self.hack_timer <= 0:
+        if self.stun_timer > 0 and self.hack_timer <= 0 and self.frozen_timer <= 0:
             for k in range(3):
                 a = ticks * 0.15 + k * math.tau / 3
                 px = sx + math.cos(a) * 14
@@ -1180,8 +1231,14 @@ class Fighter(Entity):
                 pygame.draw.rect(surf, (255, 255, 255), (fx - r // 2, fy - r // 2, r, r))
 
         if swinging:
-            weapon_art.draw_slash(surf, hand, self.facing, weapon_art.weapon_length(self.weapon.name) + 2,
-                                  swing, self.stats.color)
+            if self.weapon.spin:                       # giro: o rastro dá a volta inteira
+                for k in range(4):
+                    a = swing * math.tau + k * math.pi / 2
+                    weapon_art.draw_slash(surf, (sx, sy - 12), (math.cos(a), math.sin(a)),
+                                          weapon_art.weapon_length(self.weapon.name) + 14, swing, self.stats.color)
+            else:
+                weapon_art.draw_slash(surf, hand, self.facing, weapon_art.weapon_length(self.weapon.name) + 2,
+                                      swing, self.stats.color)
 
         if self.teleport_flash > 0:
             r = 14 + (20 - self.teleport_flash) * 2

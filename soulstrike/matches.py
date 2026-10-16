@@ -74,6 +74,9 @@ class Match(ABC):
         """Tiro de uma arma: cada estilo de arma tem sua classe de projétil (flecha, granada...)."""
         proj = projectile_class(weapon.style).launch(self, owner, weapon, direction, damage, target, power,
                                                      explosive)
+        if isinstance(proj, list):          # armas que soltam vários de uma vez (leque de espinhos)
+            self.bullets.extend(proj)
+            return proj[0]
         self.bullets.append(proj)
         return proj
 

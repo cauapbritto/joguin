@@ -18,7 +18,7 @@ from .arena import MAPS_BY_KEY
 from .matches import Match, Result, _separate
 from .net.remote import hub
 from .ui import darken
-from .data import RARE_WEAPONS
+from .data import PHASE_RELICS, RARE_WEAPONS
 from .dungeon import Campfire, Chest, ExitDoor, Gate, GroundWeapon, RelicDrop
 from .lobbies import cells_rect
 from .upgrades import apply_all
@@ -1082,10 +1082,12 @@ class LobbyMatch(CoopMatch):
         """O baú solta uma arma rara para cada jogador: armas diferentes entre si e, se der, que
         ninguém do grupo já tenha (a que cada um tinha fica no chão)."""
         held = {p.relic for p in self.players if p.relic is not None}
-        pool = [w for w in RARE_WEAPONS.values() if w not in held]
+        phase = [RARE_WEAPONS[k] for k in PHASE_RELICS.get(self.run.phase.key, RARE_WEAPONS)]
+        pool = [w for w in phase if w not in held]
         random.shuffle(pool)
         for p in self.players:
             choices = [w for w in pool if w is not p.relic] or \
+                [w for w in phase if w is not p.relic] or \
                 [w for w in RARE_WEAPONS.values() if w is not p.relic]
             weapon = choices[0]
             if weapon in pool:
