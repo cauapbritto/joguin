@@ -77,11 +77,23 @@ def _fighter_block(screen, ui, f, right, frame, wins=0):
     ab_color = theme.BRASS if ready else theme.SKY
     ui.bar(screen, (ab_x, y + 44, ab_w, 8), f.ability_ratio, ab_color, back=(22, 20, 32), flip=right)
     label = f.ability.name.upper() + (" OK" if ready else "")
-    ui.text(screen, label, theme.XS, theme.BRASS if ready else theme.MUTED,
-            (ab_x + ab_w if not right else ab_x, y + 60), anchor="topright" if not right else "topleft")
+    pos = (ab_x + ab_w if not right else ab_x, y + 60)
+    lr = ui.text(screen, label, theme.XS, theme.BRASS if ready else theme.MUTED,
+                 pos, anchor="topright" if not right else "topleft")
+    _sport_icon(screen, f, lr, right)
     _weapon_label(screen, ui, f, (x + bar_w if right else x, y + 64), right)
 
-    if f.invulnerable_timer > 0:
+    if f.hack_timer > 0:
+        status, scolor = "HACKEADO", (110, 240, 130)
+    elif f.type_timer > 0:
+        status, scolor = "HACKEANDO...", (110, 240, 130)
+    elif f.exo_timer > 0:
+        status, scolor = "EXOESQUELETO", (120, 190, 255)
+    elif f.rush_timer > 0:
+        status, scolor = "100 METROS", theme.BONE
+    elif f.virus_timer > 0:
+        status, scolor = "VÍRUS", (110, 240, 130)
+    elif f.invulnerable_timer > 0:
         status, scolor = "INVULNERÁVEL", theme.BRASS
     elif f.fury_timer > 0:
         status, scolor = f"FÚRIA {f.fury_timer // config.FPS + 1}s", theme.EMBER
@@ -396,11 +408,29 @@ def _campaign_block(screen, ui, f, rect, match):
     ready = f.ability_ready
     ui.bar(screen, ab, f.ability_ratio, theme.BRASS if ready else theme.SKY, back=(22, 20, 32))
     label = f.ability.name.upper() + (" OK" if ready else "")
-    ui.text(screen, label, theme.XS, theme.BRASS if ready else theme.MUTED, (ab.right + 6, ab.centery),
-            anchor="midleft", shadow=False)
+    lr = ui.text(screen, label, theme.XS, theme.BRASS if ready else theme.MUTED, (ab.right + 6, ab.centery),
+                 anchor="midleft", shadow=False)
+    _sport_icon(screen, f, lr, False)
     if f.fury_timer > 0:
         ui.text(screen, "FÚRIA", theme.XS, theme.EMBER, (rect.right - 10, ab.centery), anchor="midright", shadow=False)
     _ammo_strip(screen, f, pygame.Rect(x, rect.bottom - 5, rect.w - 22, 3))
+
+
+def _sport_icon(screen, f, label_rect, right):
+    """Multiesportista (Cauanzera): desenhinho do próximo esporte ao lado do nome."""
+    sport = getattr(f.ability, "sport", None)
+    if sport is None or label_rect is None:
+        return
+    cx = label_rect.left - 9 if not right else label_rect.right + 9
+    cy = label_rect.centery
+    if sport == "ATLETISMO":                       # tênis de corrida
+        screen.fill((20, 14, 22), (cx - 6, cy - 3, 12, 7))
+        screen.fill((240, 240, 236), (cx - 5, cy - 2, 10, 4))
+        screen.fill((84, 162, 222), (cx - 5, cy + 1, 10, 2))
+        screen.fill((240, 240, 236), (cx + 3, cy - 4, 2, 2))
+        return
+    from .projectiles import draw_sport_ball
+    draw_sport_ball(screen, cx, cy, 5, "basquete" if sport == "BASQUETE" else "volei", 0)
 
 
 def _ammo_strip(screen, f, area):

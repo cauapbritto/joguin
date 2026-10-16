@@ -208,5 +208,47 @@
    7,
    2
   ]
+ },
+ "Disquete": {
+  "file": "disquete.png",
+  "grip": [
+   2,
+   6
+  ]
+ },
+ "Cabo de Rede": {
+  "file": "cabo_de_rede.png",
+  "grip": [
+   3,
+   4
+  ]
+ },
+ "Pendrive": {
+  "file": "pendrive.png",
+  "grip": [
+   3,
+   3
+  ]
+ },
+ "Notebook": {
+  "file": "notebook.png",
+  "grip": [
+   2,
+   7
+  ]
+ },
+ "Canhão de Pulso": {
+  "file": "canhao_de_pulso.png",
+  "grip": [
+   3,
+   5
+  ]
+ },
+ "Punho Mecânico": {
+  "file": "punho_mecanico.png",
+  "grip": [
+   3,
+   6
+  ]
  }
 }

@@ -23,7 +23,15 @@ BOW_FULL = 26        # quadros segurando o ataque para o arco ficar tenso
 BOW_RECOVER = 12     # pausa depois de soltar a flecha
 BOW_SLOW = 0.6       # tensionando o arco anda mais devagar
 HASTE_MULT = 1.25    # embalo da Estrela
-THROWN = {"lanca", "shuriken", "estrela", "granada", "cristal", "orbe", "bumerangue"}   # sem munição, a mão fica vazia
+THROWN = {"lanca", "shuriken", "estrela", "granada", "cristal", "orbe", "bumerangue",
+          "disquete", "pendrive"}   # sem munição, a mão fica vazia
+BOSS_HACK = 0.4      # o chefão fica hackeado por menos tempo
+EXO_DAMAGE = 0.5     # de exoesqueleto leva metade do dano
+EXO_SCALE = 1.12     # e fica um pouco maior
+EXO_THROW = 22       # golpe de exoesqueleto arremessa longe
+WALL_STUN = 50       # arremessado contra a parede: fica tonto
+VIRUS_TICK = 15      # vírus do pendrive: um pouquinho de dano a cada tantos quadros
+RUSH_MULT = 2.2      # 100 metros (Cauanzera): corre muito
 
 
 def proximity_damage(dist, base):
@@ -45,6 +53,37 @@ def draw_aura(surf, img, rect, color, ticks, k=2):
     edge.set_alpha(round(150 + 70 * math.sin(ticks * 0.12)))
     for dx, dy in ((-k, 0), (k, 0), (0, -k), (0, k)):
         surf.blit(edge, rect.move(dx, dy))
+
+
+def draw_laptop(surf, cx, cy, ticks, progress, back=False):
+    """Notebook aberto na frente do Albeguinio (na altura da cintura, abaixo do rosto), com código
+    correndo na tela e a barra do hack. De costas aparece só a tampa."""
+    cx, cy = round(cx), round(cy)
+    w, h = 24, 14
+    screen = pygame.Rect(cx - w // 2, cy - h, w, h)
+    if back:
+        pygame.draw.rect(surf, (20, 16, 24), screen.inflate(4, 4))
+        surf.fill((150, 154, 166), screen.inflate(2, 2))
+        surf.fill((200, 204, 214), (cx - 2, screen.centery - 2, 4, 4))           # logo
+        if (ticks // 6) % 2:
+            surf.fill((120, 255, 150), (cx - 1, screen.bottom - 3, 2, 1))        # luzinha
+        return
+    pygame.draw.rect(surf, (20, 16, 24), screen.inflate(4, 4))
+    surf.fill((52, 56, 66), screen.inflate(2, 2))
+    surf.fill((10, 26, 16), screen)
+    rng = random.Random(ticks // 4)
+    for row in range(3):                                   # linhas de código
+        lw = rng.randint(5, w - 6)
+        surf.fill((90, 230, 120) if row % 2 else (170, 250, 190), (screen.x + 3, screen.y + 2 + row * 3, lw, 1))
+    bar = pygame.Rect(screen.x + 3, screen.bottom - 4, w - 6, 2)
+    surf.fill((30, 60, 40), bar)
+    surf.fill((120, 255, 150), (bar.x, bar.y, round(bar.w * max(0.0, min(1.0, progress))), bar.h))
+    base = pygame.Rect(cx - w // 2 - 4, cy + 1, w + 8, 4)          # teclado
+    pygame.draw.rect(surf, (20, 16, 24), base.inflate(2, 2))
+    surf.fill((150, 154, 166), base)
+    surf.fill((96, 100, 112), (base.x, base.bottom - 1, base.w, 1))
+    if (ticks // 3) % 2:
+        surf.fill((230, 230, 236), (cx - 6 + (ticks * 5) % 12, base.y + 1, 2, 1))    # dedos digitando
 
 
 class Clip:
@@ -102,6 +141,21 @@ class Fighter(Entity):
         self.giant_timer = 0
         self.tackle_timer = 0
         self.sprint_timer = 0
+        self.magic_timer = 0            # drible mágico (Faísca) e o instante da caneta (Ginga)
+        self.nose_timer = 0             # faro de gol (Matador)
+        self.hack_timer = 0             # hackeado (Albeguinio): travado, sem andar, atirar nem usar nada
+        self.type_timer = 0             # digitando no notebook (Albeguinio): parado
+        self.virus_timer = 0            # vírus do pendrive: perde vida aos poucos
+        self.virus_damage = 0
+        self.virus_owner = None
+        self.exo_timer = 0              # exoesqueleto (Borba Jr)
+        self.exo_base = None            # sprites de antes da armadura
+        self.rush_timer = 0             # 100 metros (Cauanzera): corre muito e atropela
+        self.rush_damage = 0
+        self.rush_hit = set()
+        self.thrown_timer = 0           # arremessado pelo exoesqueleto: se bater na parede, fica tonto
+        self.thrown_by = None
+        self.kit = None                 # time do uniforme (futebol)
         self.slow_timer = 0             # lento (Nevasca da Geada)
         self.pull_timer = 0             # sendo puxado (Gancho do Pirata)
         self.pull_to = (x, y)
@@ -306,7 +360,7 @@ class Fighter(Entity):
 
     @property
     def ability_cooldown(self):
-        return max(1, round(config.ABILITY_COOLDOWN * self.cd_mult))
+        return max(1, round(config.ABILITY_COOLDOWN * self.cd_mult * self.ability.cooldown_mult))
 
     @property
     def ability_ratio(self):
@@ -324,14 +378,20 @@ class Fighter(Entity):
             return base * 1.8
         if self.sprinting:
             base *= config.SPRINT_MULT
-        elif self.carrying_close:
-            base *= 0.9            # conduzir colado custa um pouco de velocidade
+        elif self.carrying_close and not (self.power is not None and self.power.glued_carry):
+            base *= 0.9            # conduzir colado custa um pouco de velocidade (menos para o Ginga)
+        if self.magic_timer > 0:
+            base *= 1.15           # drible mágico
+        if self.nose_timer > 0:
+            base *= 1.2            # faro de gol
         if self.slow_timer > 0:
             base *= config.SLOW_MULT
         if self.bow_draw > 0:
             base *= BOW_SLOW
         if self.haste_timer > 0:
             base *= HASTE_MULT
+        if self.rush_timer > 0:
+            base *= RUSH_MULT
         return base * (2 if self.speed_timer > 0 else 1) * self.speed_mult
 
     def slow(self, frames):
@@ -343,7 +403,7 @@ class Fighter(Entity):
 
     def pull(self, x, y, frames=10):
         """É puxado até (x, y) em alguns quadros (gancho)."""
-        if self.invulnerable or self.unstoppable:
+        if self.invulnerable or self.unstoppable or self.exo_timer > 0:
             return False
         self.pull_to = (x, y)
         self.pull_timer = frames
@@ -370,12 +430,66 @@ class Fighter(Entity):
         return (config.FURY_MULT if self.fury_timer > 0 else 1.0) * self.damage_bonus
 
     def stun(self, frames=config.STUN_FRAMES):
-        if self.invulnerable or self.unstoppable:
+        if self.invulnerable or self.unstoppable or self.magic_timer > 0 or self.exo_timer > 0 or self.lift > 0:
             return False
         self.stun_timer = max(self.stun_timer, frames)
         self.charge_timer = 0
         self.kick_charge = self.pass_charge = 0
         return True
+
+    @property
+    def hacked(self):
+        return self.hack_timer > 0
+
+    def hack(self, frames):
+        """Hackeado (Albeguinio): trava tudo por ``frames``. Pega até quem não fica tonto (exoesqueleto,
+        chefão — este por menos tempo); só escapa quem está invulnerável ou no ar."""
+        if self.hp <= 0 or self.invulnerable_timer > 0 or self.lift > 0 or self.magic_timer > 0:
+            return False
+        if self.unstoppable:
+            frames = round(frames * BOSS_HACK)
+        self.hack_timer = max(self.hack_timer, frames)
+        self.stun_timer = max(self.stun_timer, frames)
+        self.charge_timer = self.dash_timer = self.rush_timer = self.type_timer = 0
+        self.kick_charge = self.pass_charge = self.bow_draw = 0
+        return True
+
+    def infect(self, owner, damage, frames):
+        """Vírus do pendrive: perde ``damage`` de vida a cada VIRUS_TICK quadros, por ``frames``."""
+        if self.invulnerable or self.hp <= 0:
+            return False
+        self.virus_timer = max(self.virus_timer, frames)
+        self.virus_damage = damage
+        self.virus_owner = owner
+        return True
+
+    def start_exo(self, frames, sprites=None):
+        """Monta o exoesqueleto (Borba Jr)."""
+        if self.exo_base is None:
+            self.exo_base = self.sprites
+        if sprites is not None:
+            self.sprites = sprites
+        self.exo_timer = frames
+        self.radius = round(self.base_radius * 1.15)
+        self.knock = [0.0, 0.0]
+
+    def end_exo(self):
+        self.exo_timer = 0
+        if self.exo_base is not None:
+            self.sprites = self.exo_base
+            self.exo_base = None
+        if self.giant_timer == 0:
+            self.radius = self.base_radius
+
+    def melee_reach(self, weapon=None):
+        """Alcance do golpe (o Cauanzera, alto, alcança mais)."""
+        weapon = weapon or self.weapon
+        return weapon.reach * self.ability.reach_mult
+
+    @property
+    def busy(self):
+        """Não pode atacar nem usar nada (tonto, hackeado ou digitando)."""
+        return self.stunned or self.type_timer > 0
 
     def reset_round(self, x, y, facing):
         """Volta ao estado inicial para um novo round (mantém as estatísticas da partida)."""
@@ -388,10 +502,13 @@ class Fighter(Entity):
         for name in ("attack_cd", "ability_cd", "dash_timer", "dash_cd", "charge_timer", "speed_timer",
                      "invulnerable_timer", "stun_timer", "fury_timer", "hit_flash", "melee_flash",
                      "shoot_flash", "teleport_flash", "slow_timer", "pull_timer", "windup", "aim_timer",
-                     "down_age", "bow_draw", "haste_timer", "idle_shot"):
+                     "down_age", "bow_draw", "haste_timer", "idle_shot", "hack_timer", "type_timer",
+                     "virus_timer", "rush_timer", "thrown_timer"):
             setattr(self, name, 0)
+        self.end_exo()
         self.clips.clear()                            # pentes cheios de novo
         self.chain_ball = None
+        self.ability.reset()
         self.trail.clear()
 
     # ── comandos ─────────────────────────────
@@ -409,7 +526,7 @@ class Fighter(Entity):
             self.facing = d
 
     def dash(self, direction=None, frames=config.DASH_FRAMES, cooldown=config.DASH_COOLDOWN):
-        if self.dash_cd > 0 or self.charge_timer > 0:
+        if self.dash_cd > 0 or self.charge_timer > 0 or self.busy:
             return False
         dx, dy = direction or self.input
         if not (dx or dy):
@@ -443,7 +560,7 @@ class Fighter(Entity):
 
     def attack(self, match, target):
         self._attack_held = True
-        if self.attack_cd > 0 or target is None or self.stunned:
+        if self.attack_cd > 0 or target is None or self.busy:
             return False
         weapon = self.weapon
         if not weapon.is_melee and self.mag:
@@ -473,15 +590,17 @@ class Fighter(Entity):
             self._deflect_bullets(match)
             # acerta todos os adversários ao alcance na frente (no duelo, só existe um)
             fx, fy = self.facing
+            reach = self.melee_reach(weapon)
             for other in match.opponents_of(self):
                 if not other.alive_in_match:
                     continue
                 dx, dy = other.x - self.x, other.y - self.y
                 d = math.hypot(dx, dy)
                 in_front = other is target or d < other.radius + 6 or (dx * fx + dy * fy) > -0.2 * d
-                if d <= weapon.reach + other.radius and in_front:
-                    other.take_damage(round(weapon.damage * self.damage_mult), self.x, self.y,
-                                      attacker=self, match=match)
+                if d <= reach + other.radius and in_front:
+                    if other.take_damage(round(weapon.damage * self.damage_mult), self.x, self.y,
+                                         attacker=self, match=match) and self.exo_timer > 0:
+                        other.throw_from(self, match)
             return True
         base = proximity_damage(dist, weapon.damage) if weapon.close_bonus else weapon.damage
         damage = round(base * self.damage_mult)
@@ -519,9 +638,23 @@ class Fighter(Entity):
         self.aim_timer = max(self.aim_timer, AIM_HOLD)
         match.assets.play("dash" if power >= 1 else "shoot", 0.35)
 
+    def throw_from(self, attacker, match):
+        """Golpe do exoesqueleto: voa longe (e se bater na parede fica tonto)."""
+        force = EXO_THROW * (1 - self.knock_resist)
+        if force < 2 or self.exo_timer > 0:
+            return
+        ux, uy = attacker.direction_to(self)
+        if not (ux or uy):
+            ux, uy = attacker.facing
+        self.knock = [ux * force, uy * force]
+        self.thrown_timer = 18
+        self.thrown_by = attacker
+        match.popup(self.x, self.y - 62, "ARREMESSADO", (120, 190, 255))
+        match.camera.shake(5)
+
     def _deflect_bullets(self, match):
         """O golpe corpo a corpo rebate os tiros que chegam pela frente."""
-        reach = self.weapon.reach + 14
+        reach = self.weapon.reach + 14                 # (a passiva de alto não aumenta a defesa)
         fx, fy = self.facing
         blocked = 0
         for b in match.bullets:
@@ -539,7 +672,7 @@ class Fighter(Entity):
             match.assets.play("barrier", 0.35)
 
     def use_ability(self, match, target):
-        if not self.ability_ready or self.stunned:
+        if not self.ability_ready or self.busy:
             return False
         self.ability_cd = self.ability_cooldown
         self.ability.use(self, match, target)
@@ -550,6 +683,8 @@ class Fighter(Entity):
             return False
         if self.vulnerability != 1.0:
             amount = max(1, round(amount * self.vulnerability))
+        if self.exo_timer > 0:
+            amount = max(1, round(amount * EXO_DAMAGE))         # a armadura segura metade
         if self.shield > 0:
             absorbed = min(self.shield, amount)
             self.shield -= absorbed
@@ -569,6 +704,8 @@ class Fighter(Entity):
             mag = math.hypot(dx, dy)
             if mag:
                 force = min(11.0, 3 + amount * 0.22) * (1 - self.knock_resist)    # golpe forte empurra mais
+                if self.exo_timer > 0 or self.rush_timer > 0:
+                    force = 0.0                                  # armadura / correndo os 100 metros
                 self.knock = [dx / mag * force, dy / mag * force]
         if attacker is not None:
             attacker.damage_dealt += dealt
@@ -598,15 +735,23 @@ class Fighter(Entity):
 
     def update(self, match):
         self.age += 1
+        self.ability.tick(self)
         for name in ("attack_cd", "ability_cd", "dash_cd", "speed_timer", "invulnerable_timer",
                      "super_cd", "kick_cd", "stun_timer", "fury_timer", "giant_timer", "sprint_timer",
+                     "magic_timer", "nose_timer", "hack_timer", "type_timer", "rush_timer", "thrown_timer",
                      "slow_timer", "windup", "aim_timer", "haste_timer", "dry_click",
                      "hit_flash", "melee_flash", "shoot_flash", "teleport_flash"):
             value = getattr(self, name)
             if value > 0:
                 setattr(self, name, value - 1)
-        if self.giant_timer == 0 and self.radius != self.base_radius:
+        if self.exo_timer > 0:
+            self.exo_timer -= 1
+            if self.exo_timer == 0:
+                self.end_exo()
+        if self.giant_timer == 0 and self.exo_timer == 0 and self.radius != self.base_radius:
             self.radius = self.base_radius
+        if self.virus_timer > 0:
+            self._virus(match)
         if self.kicked_dust:
             self.kicked_dust = False
             match.dust(self.x, self.y + FEET, 6)
@@ -656,7 +801,9 @@ class Fighter(Entity):
                     self.charge_timer = 0
             moving_fast = True
         else:
-            ix, iy = (0.0, 0.0) if self.stunned else self.input
+            ix, iy = (0.0, 0.0) if self.stunned or self.type_timer > 0 else self.input
+            if self.rush_timer > 0 and math.hypot(ix, iy) < 0.3 and not self.stunned:
+                ix, iy = self.facing                     # 100 metros: não para de correr
             was_fast = math.hypot(self.vx, self.vy) > self.stats.speed * 0.8
             self.moving = abs(ix) > 0.05 or abs(iy) > 0.05
             if self.moving:
@@ -675,10 +822,18 @@ class Fighter(Entity):
                     self.vy = 0.0
             if was_fast and not self.moving and match.frame % 3 == 0:
                 match.dust(self.x, self.y + FEET, 1)       # derrapada
-            self._move(match, self.vx + self.knock[0], self.vy + self.knock[1])
-            self.knock[0] *= 0.8
-            self.knock[1] *= 0.8
-            moving_fast = (self.speed_timer > 0 or self.sprint_timer > 0) and self.moving
+            hit_wall = self._move(match, self.vx + self.knock[0], self.vy + self.knock[1])
+            if self.thrown_timer > 0:
+                if hit_wall and math.hypot(*self.knock) > 4:
+                    self._hit_wall(match)
+                self.knock[0] *= 0.9                     # arremessado voa mais longe
+                self.knock[1] *= 0.9
+            else:
+                self.knock[0] *= 0.8
+                self.knock[1] *= 0.8
+            moving_fast = (self.speed_timer > 0 or self.sprint_timer > 0 or self.rush_timer > 0) and self.moving
+            if self.rush_timer > 0:
+                self._rush_over(match)
 
         # rastro (turbo / esquiva / investida)
         if moving_fast and match.frame % 2 == 0:
@@ -697,6 +852,39 @@ class Fighter(Entity):
         else:
             self.anim_frame = 0
             self.anim_timer = 0
+
+    def _hit_wall(self, match):
+        """Arremessado pelo exoesqueleto bateu na parede: tonto e machucado."""
+        self.thrown_timer = 0
+        self.knock = [0.0, 0.0]
+        self.take_damage(6, attacker=self.thrown_by, match=match)
+        self.stun(WALL_STUN)
+        match.popup(self.x, self.y - 74, "NA PAREDE!", theme.BRASS)
+        match.burst(self.x, self.y - 10, (220, 220, 230), 12, speed=4)
+        match.camera.shake(6)
+
+    def _rush_over(self, match):
+        """100 metros: quem estiver no caminho é atropelado (uma vez por corrida)."""
+        for other in match.opponents_of(self):
+            if other in self.rush_hit or not other.alive_in_match:
+                continue
+            if self.distance_to(other) < self.radius + other.radius + 6:
+                self.rush_hit.add(other)
+                if other.take_damage(self.rush_damage, self.x, self.y, attacker=self, match=match):
+                    ux, uy = self.direction_to(other)
+                    if other.stun(30):
+                        other.knock = [ux * 9 * (1 - other.knock_resist), uy * 9 * (1 - other.knock_resist)]
+                    match.popup(other.x, other.y - 74, "ATROPELOU", theme.BONE)
+
+    def _virus(self, match):
+        """Vírus do pendrive: dano pequeno de tempos em tempos (sem empurrão nem pausa)."""
+        self.virus_timer -= 1
+        if self.hp <= 0:
+            self.virus_timer = 0
+            return
+        if self.virus_timer % VIRUS_TICK == 0 and self.take_damage(self.virus_damage, attacker=self.virus_owner):
+            match.popup(self.x + 14, self.y - 46, str(self.virus_damage), (110, 230, 120))
+            match.burst(self.x, self.y - 20, (110, 230, 120), 3, speed=2, size=3)
 
     def _update_ammo(self, match):
         """Arco (soltar ao largar o botão), recarga do pente e carga que volta nas armas mágicas."""
@@ -803,7 +991,7 @@ class Fighter(Entity):
     def draw(self, surf, camera):
         ticks = self.age
         art = self.weapon_art_name()
-        show_weapon = self.armed and art is not None
+        show_weapon = self.armed and art is not None and self.type_timer <= 0    # digitando: mãos no notebook
         sx, sy = round(self.x - camera.x), round(self.y - camera.y)
         feet = sy + FEET
         direction = self._direction()
@@ -827,7 +1015,7 @@ class Fighter(Entity):
             surf.blit(ghost, ghost.get_rect(midbottom=(round(tx - camera.x), round(ty - camera.y) + FEET + 2)))
 
         flash = self.hit_flash > 0 and self.hit_flash % 2 == 0
-        scale = self.draw_scale * (1.5 if self.giant_timer > 0 else 1.0)
+        scale = self.draw_scale * (1.5 if self.giant_timer > 0 else 1.0) * (EXO_SCALE if self.exo_timer > 0 else 1.0)
         kind, index = self._pose()
         base = (sx, feet + 2 - round(self.lift))         # meio de baixo do sprite
         spot = self.sprites.hand(direction, kind, index)
@@ -876,7 +1064,12 @@ class Fighter(Entity):
             glow.fill((255, 70, 50, 110), special_flags=pygame.BLEND_RGBA_MULT)
             surf.blit(glow, glow.get_rect(midbottom=rect.midbottom))
 
-        if self.stun_timer > 0:
+        if self.hack_timer > 0 or self.virus_timer > 0:
+            self._draw_glitch(surf, img, rect, ticks, strong=self.hack_timer > 0)
+        if self.type_timer > 0:
+            draw_laptop(surf, sx + round(self.facing[0] * 8), rect.top + rect.h * 0.8, ticks,
+                        self.ability_progress(), back=direction == "costas")
+        if self.stun_timer > 0 and self.hack_timer <= 0:
             for k in range(3):
                 a = ticks * 0.15 + k * math.tau / 3
                 px = sx + math.cos(a) * 14
@@ -901,7 +1094,15 @@ class Fighter(Entity):
         if show_weapon and (direction != "costas" or swinging):
             tip = weapon_art.draw_weapon(surf, art, hand, direction, self.facing,
                                          swing=swing, recoil=recoil)
-            if self.bow_draw >= BOW_FULL * 0.75 and (ticks // 3) % 2 == 0:
+            if self.weapon.style == "pulso" and self.bow_draw > 0:
+                # carregando: a energia cresce na boca do canhão
+                t = min(1.0, self.bow_draw / BOW_FULL)
+                r = 2 + round(6 * t) + ((ticks // 2) % 2 if t >= 1 else 0)
+                tx, ty = round(tip[0]), round(tip[1])
+                pygame.draw.circle(surf, (40, 90, 170), (tx, ty), r + 2)
+                pygame.draw.circle(surf, (90, 170, 255), (tx, ty), r)
+                pygame.draw.circle(surf, (220, 245, 255), (tx, ty), max(1, r - 3))
+            elif self.bow_draw >= BOW_FULL * 0.75 and (ticks // 3) % 2 == 0:
                 # flecha tensa: a ponta (encostada no arco) brilha
                 vx, vy = weapon_art.DIRECTION_VECTORS[direction]
                 surf.fill((255, 236, 170), (round(hand[0] + vx * 5) - 2, round(hand[1] + vy * 5) - 2, 4, 4))
@@ -918,6 +1119,34 @@ class Fighter(Entity):
         if self.teleport_flash > 0:
             r = 14 + (20 - self.teleport_flash) * 2
             pygame.draw.circle(surf, self.stats.color, (sx, sy - 14), r, 2)
+
+    def ability_progress(self):
+        """Quanto da digitação (Hack) já foi (0..1)."""
+        total = getattr(self.ability, "TYPING", 0) or 1
+        if self.power is not None and hasattr(self.power, "TYPING"):
+            total = self.power.TYPING
+        return 1 - self.type_timer / total
+
+    def _draw_glitch(self, surf, img, rect, ticks, strong):
+        """Hackeado (verde, com faixas da imagem deslocadas) ou com vírus (só piscando verde)."""
+        if not strong and (ticks // 4) % 3:
+            return
+        tint = pygame.mask.from_surface(img).to_surface(setcolor=(90, 240, 120, 255), unsetcolor=(0, 0, 0, 0))
+        tint.set_alpha(110 if strong else 70)
+        surf.blit(tint, rect)
+        if not strong:
+            return
+        rng = random.Random(ticks // 3 + id(self) % 97)
+        for _ in range(3):                                # faixas "pixeladas" fora do lugar
+            y = rng.randrange(0, max(1, rect.h - 4))
+            h = rng.randint(2, 5)
+            off = rng.choice((-5, -3, 3, 5))
+            band = img.subsurface((0, y, rect.w, min(h, rect.h - y)))
+            surf.blit(band, (rect.x + off, rect.y + y))
+        for k in range(2):                                # bits subindo
+            bx = rect.centerx - 14 + ((ticks * 3 + k * 17) % 28)
+            by = rect.top - 4 - ((ticks + k * 9) % 14)
+            surf.fill((120, 255, 150), (bx, by, 2, 3 if (ticks + k) % 2 else 2))
 
     def _draw_aura(self, surf, img, rect, ticks):
         """Contorno brilhante que pulsa (almas corrompidas e o chefão)."""
@@ -949,7 +1178,7 @@ class Fighter(Entity):
         """Etiqueta e vida acima da cabeça, desenhadas na tela (fora do zoom)."""
         if self.hp <= 0 or self.overlay == "none":
             return
-        sx, sy = camera.to_screen(self.x, self.y - 50 * self.draw_scale)
+        sx, sy = camera.to_screen(self.x, self.y - 50 * self.draw_scale - self.lift)
         sx, sy = round(sx), round(sy)
         if self.overlay == "hp":
             # inimigo comum: só uma barrinha, e só depois de levar dano

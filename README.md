@@ -66,7 +66,9 @@ Se o `pip` reclamar de certificado (rede com proxy), use
   Cristal, com o chefão **Aryel Corrompido**).
 
   **Armas raras do baú:** viram a 3ª arma do jogador (TROCAR ARMA passa pelas três) e ficam até o
-  fim da campanha; o baú da fase seguinte troca por outra. Cada uma tem o seu pente:
+  fim da campanha. Só dá para ter uma: quando o baú da fase seguinte dá outra, a antiga **fica
+  no chão** (com o nome embaixo) e, perto dela, ATACAR **pega de volta** — trocando, e a outra
+  fica no lugar. Qualquer jogador pode pegar a arma do chão. Cada uma tem o seu pente:
 
   | Arma               | O que faz                                                         |
   |--------------------|-------------------------------------------------------------------|
@@ -137,9 +139,45 @@ Se o `pip` reclamar de certificado (rede com proxy), use
 | Titã       | 180  | Invulnerável por 3 s                                      | Gigante: fica enorme e empurra todo mundo        |
 | Pirata     | 140  | Gancho: puxa o inimigo para a frente do sabre e o atordoa | Gancho: puxa a bola, até do pé do adversário     |
 | Geada      | 100  | Nevasca: onda de gelo, dano em volta e inimigo lento      | Congelar: adversários perto ficam lentos         |
+| Cauanzera  | 100  | Multiesportista: basquete, vôlei e 100 metros, nessa ordem (veja abaixo) | Enterrada: perto da área, pula todo mundo e crava a bola no gol |
+| Albeguinio | 140  | Hacker: digita 1 s no notebook e trava todos os adversários por 5 s | Hack: digita e trava os adversários por 2,5 s |
+| Borba Jr   | 125  | Exoesqueleto: 6 s de armadura (veja abaixo)               | Exoesqueleto: 4 s em que ninguém toma a bola dele |
 | Aryel Corrompido* | 135 | Chuva Sombria: 5 bombas caem em cima e em volta do inimigo | Bomba sombria: maior, atordoa e deixa lento |
 
 \* Liberado ao zerar a campanha.
+
+### Cauanzera, Albeguinio e Borba Jr
+
+- **Cauanzera — Multiesportista.** Cada vez que usa, é um esporte, sempre na ordem; o próximo aparece
+  no HUD. **Basquete:** arremesso alto que passa por cima das paredes e cai em cima do inimigo (não
+  erra, mesmo que ele corra). **Vôlei:** saque rápido que quica de um adversário para o outro; no 1 x 1
+  sai dele, bate na parede e volta nele. **100 metros:** corre muito por 2 s e atropela quem estiver
+  no caminho. Passiva de **alto**: o golpe corpo a corpo alcança mais longe e, no futebol, cabeceia
+  bolas mais altas. No futebol, a **Enterrada** (com a bola, perto da área adversária) pula por cima
+  de todo mundo — ninguém toca nele no ar — e crava a bola no gol: não dá para defender, por isso a
+  recarga é de 25 s.
+- **Albeguinio — Hacker.** Abre o notebook e digita por 1 s, parado. Se apanhar enquanto digita, o
+  hack falha. Terminando, o sinal de Wi-Fi sai dele e **todos** os adversários em jogo ficam
+  HACKEADOS por 5 s: não andam, não atiram e não usam nada (pega até o exoesqueleto; o chefão da
+  campanha fica menos tempo). Recarga de 20 s.
+- **Borba Jr — Exoesqueleto.** As placas de metal se montam nele (faíscas e vapor) e por 6 s ele fica
+  um pouco maior, leva metade do dano, não é empurrado nem fica tonto, e o golpe corpo a corpo
+  arremessa longe — quem bate na parede fica tonto. Velocidade normal. No futebol (4 s): ninguém
+  toma a bola dele, quem tromba nele cai e o corpo blindado segura qualquer chute.
+
+### Craques do futebol
+
+Quatro personagens que só aparecem na escolha do futebol (quadradinho com fundo de gramado).
+Além do SUPER, cada um tem uma habilidade que vale o jogo todo:
+
+| Craque  | Sempre                                                   | Super                                                                 |
+|---------|----------------------------------------------------------|-----------------------------------------------------------------------|
+| Faísca  | Bola protegida: tomar a bola dele demora bem mais         | Drible mágico: por 3 s ninguém toma a bola e ele atravessa os marcadores |
+| Trovão  | Cabeça de aço: cabeceia bola mais alta e com mais força   | Chute trovão: bomba reta que derruba quem entra na frente e segue      |
+| Ginga   | Condução veloz: bola colada no pé até correndo, sem frear (como na arrancada do Velocista) | Caneta: a bola passa entre as pernas do marcador, que fica tonto, e ele sai com ela |
+| Matador | Faro na área: dentro da área o chute vai no gol e sai mais forte | Faro de gol: por 5 s corre mais e a bola solta perto dele vem para o pé |
+
+Eles jogam de uniforme como todo mundo (número nas costas) e a CPU também usa os poderes.
 
 ### Armas de tiro
 
@@ -157,6 +195,13 @@ Cada arma de tiro tem o seu projétil, com efeito e animação próprios:
 | Corrente (Titã)      | 3                | Bola de ferro presa na corrente: vai, **atordoa** quem acertar e volta.  |
 | Pistola (Pirata)     | 2                | Dois tiros fortes com nuvem de pólvora e empurrão; recarga lenta.        |
 | Cristal (Geada)      | 8 (volta sozinha)| Deixa o alvo **lento** e estilhaça na parede.                            |
+| Disquete (Cauanzera) | 6               | Gira e quica uma vez na parede.                                          |
+| Pendrive (Albeguinio) | 4              | Gira no ar e passa um **vírus**: o alvo pisca verde e perde vida aos poucos por 2 s. |
+| Canhão de Pulso (Borba Jr) | 3         | Bola de energia azul. **Segure ATACAR para carregar**: sai maior, mais forte e empurra muito. |
+
+Armas de perto da turma: **Cabo de Rede** (Cauanzera, chicote com o maior alcance do jogo),
+**Notebook** (Albeguinio, fechado, bate com a tampa) e **Punho Mecânico** (Borba Jr; de
+exoesqueleto, arremessa o inimigo).
 
 ## Controles
 
@@ -229,7 +274,7 @@ soulstrike/
   projectiles.py        um projétil por arma de tiro (flecha, granada, corrente...)
   campaign.py           CampaignRun (a campanha toda), LobbyMatch (acampamento), CampaignMatch
                         (masmorra), as fases e a história
-  dungeon.py            entradas com grade, fogueira, baú escondido e a porta de volta
+  dungeon.py            entradas com grade, fogueira, baú escondido, arma no chão e a porta de volta
   lobbies.py            os acampamentos desenhados como texto (# parede, . chão, F fogueira...)
   enemies.py            inimigos da campanha e o cérebro de cada um
   boss.py               o chefão Aryel Corrompido
@@ -268,7 +313,7 @@ respirando (2), ataque (3), dano (1) e esquiva (1). O `<nome>.json` ao lado guar
 a mão que segura a arma em cada quadro e a cor dos olhos. As almas corrompidas são os
 próprios heróis escurecidos pelo jogo, com os olhos (e os óculos do Aryel) acesos. O mesmo
 script gera os uniformes do futebol em `assets/characters/uniformes/<nome>_azul.png` e
-`<nome>_vermelho.png` (só a roupa troca de cor; o `.json` é o da folha normal). As 20 armas são geradas por
+`<nome>_vermelho.png` (só a roupa troca de cor; o `.json` é o da folha normal). As armas são geradas por
 `tools/gerar_armas.py` (saem em `assets/weapons/`, com o ponto da mão em `grips.json`), junto com
 os 4 estágios do arco (vazio, flecha encaixada, meio puxado e tenso) e a flecha em voo. As armas
 de arremesso (lança, shuriken, estrela, granada, cristal) usam o próprio sprite da arma girando

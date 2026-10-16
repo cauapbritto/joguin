@@ -35,6 +35,7 @@ class CharacterStats:
     ability_desc: str
     weapons: tuple
     sprite: str             # prefixo dos arquivos em assets/characters
+    soccer_only: bool = False   # craque do futebol: só aparece na escolha do futebol
 
 
 def _ranged(name, damage, speed, cooldown, style="", mag=0, reload=0, regen=0, charge=False, note="", **extra):
@@ -42,8 +43,8 @@ def _ranged(name, damage, speed, cooldown, style="", mag=0, reload=0, regen=0, c
                        reload=reload, regen=regen, charge=charge, note=note, **extra)
 
 
-def _melee(name, damage, reach):
-    return WeaponStats(name, "melee", damage, reach=reach)
+def _melee(name, damage, reach, cooldown=16):
+    return WeaponStats(name, "melee", damage, reach=reach, cooldown=cooldown)
 
 
 CHARACTERS = (
@@ -87,12 +88,41 @@ CHARACTERS = (
                    "Nevasca", "Onda de gelo: dano em volta e o inimigo fica lento por 2,5s.",
                    (_ranged("Cristal", 9, 12, 16, "cristal", mag=8, regen=32,
                             note="Deixa o alvo lento."), _melee("Cajado", 17, 72)), "geada"),
-    # liberado ao zerar a campanha (fica sempre por último, para os índices não mudarem)
+    # liberado ao zerar a campanha (os índices de quem veio antes nunca mudam: novos entram no fim)
     CharacterStats("aryel_corrompido", "Aryel Corrompido", 135, 3.2, (150, 70, 210),
                    "Chuva Sombria", "Faz chover 5 bombas sombrias em cima e em volta do inimigo.",
                    (_ranged("Granada", 12, 9, 24, "granada", mag=5, reload=90,
                             note="Vai por cima das paredes e explode."), _melee("Martelo", 24, 55)), "aryel"),
+    # craques do futebol: só jogam futebol (a habilidade daqui é a passiva; o SUPER fica em soccer_powers)
+    CharacterStats("faisca", "Faísca", 100, 4.2, (126, 204, 84),
+                   "Bola protegida", "Tomar a bola dele demora bem mais.",
+                   (_melee("Chute", 10, 50),), "faisca", soccer_only=True),
+    CharacterStats("trovao", "Trovão", 150, 3.6, (148, 92, 214),
+                   "Cabeça de aço", "Cabeceia mais alto e com mais força.",
+                   (_melee("Chute", 10, 50),), "trovao", soccer_only=True),
+    CharacterStats("ginga", "Ginga", 110, 4.1, (240, 140, 52),
+                   "Condução veloz", "Bola colada no pé até correndo, sem frear.",
+                   (_melee("Chute", 10, 50),), "ginga", soccer_only=True),
+    CharacterStats("matador", "Matador", 125, 3.9, (204, 64, 60),
+                   "Faro na área", "Chute na área vai no gol e mais forte.",
+                   (_melee("Chute", 10, 50),), "matador", soccer_only=True),
+    # a turma do Aryel (a ideia do jogo também é deles): lutam em todos os modos
+    CharacterStats("cauanzera", "Cauanzera", 100, 3.6, (84, 162, 222),
+                   "Multiesportista", "Basquete, vôlei e 100 metros, em ordem. Alto: alcança mais.",
+                   (_ranged("Disquete", 10, 11, 18, "disquete", mag=6, reload=80,
+                            note="Gira e quica uma vez na parede."), _melee("Cabo de Rede", 12, 73, cooldown=24)), "cauanzera"),
+    CharacterStats("albeguinio", "Albeguinio", 140, 3.2, (222, 204, 160),
+                   "Hacker", "Digita 1s e trava todos os adversários por 5s.",
+                   (_ranged("Pendrive", 7, 12, 26, "pendrive", mag=4, reload=80,
+                            note="Passa vírus: o alvo perde vida aos poucos."), _melee("Notebook", 26, 60)), "albeguinio"),
+    CharacterStats("borba", "Borba Jr", 125, 3.9, (236, 118, 84),
+                   "Exoesqueleto", "6s de armadura: metade do dano e golpe que arremessa.",
+                   (_ranged("Canhão de Pulso", 12, 11, 26, "pulso", mag=4, reload=70, charge=True,
+                            note="Segure para carregar: tiro maior que empurra."),
+                    _melee("Punho Mecânico", 25, 58)), "borba"),
 )
+SOCCER_STARS = tuple(c.key for c in CHARACTERS if c.soccer_only)
+FIGHTERS = tuple(c for c in CHARACTERS if not c.soccer_only)     # quem luta (duelo e campanha)
 # Armas raras: o baú escondido no acampamento da campanha dá uma para cada jogador (vira a 3ª arma)
 RARE_WEAPONS = {
     "besta": _ranged("Besta", 22, 15, 40, "virote", mag=4, reload=90, rare=True,
@@ -111,20 +141,27 @@ UNLOCKABLE = "aryel_corrompido"
 SHADOW_CHARACTERS = {"aryel_corrompido"}     # usam a versão sombria do sprite (campo "sprite")
 
 
-def roster():
-    """Personagens que dá para escolher agora (o Aryel Corrompido só depois de zerar a campanha)."""
+def roster(soccer=False):
+    """Personagens que dá para escolher agora: os craques só no futebol, e o Aryel Corrompido só
+    depois de zerar a campanha. A posição de cada um em CHARACTERS é o índice usado em todo lugar."""
     from . import progress
-    if progress.campaign_cleared():
-        return CHARACTERS
-    return tuple(c for c in CHARACTERS if c.key != UNLOCKABLE)
+    unlocked = progress.campaign_cleared()
+    chosen = [c for c in CHARACTERS if (soccer or not c.soccer_only) and (unlocked or c.key != UNLOCKABLE)]
+    # na tela: os lutadores, o Aryel Corrompido (segredo) e por último os craques do futebol
+    return tuple(sorted(chosen, key=lambda c: (c.soccer_only, c.key == UNLOCKABLE)))
 
-MAX_HP = max(c.max_hp for c in CHARACTERS)
+
+def roster_indices(soccer=False):
+    """Índices (em CHARACTERS) de quem dá para escolher agora, na ordem da tela."""
+    return [CHARACTERS.index(c) for c in roster(soccer)]
+
+MAX_HP = max(c.max_hp for c in FIGHTERS)
 MAX_SPEED = max(c.speed for c in CHARACTERS)
-MAX_DAMAGE = max(w.damage for c in CHARACTERS for w in c.weapons)
+MAX_DAMAGE = max(w.damage for c in FIGHTERS for w in c.weapons)
 
 
 def roster_for_web():
-    """Resumo dos personagens enviado ao controle do celular."""
+    """Resumo de todos os personagens, na ordem de CHARACTERS (o celular acha o escolhido pelo índice)."""
     return [
         {
             "name": c.name,
@@ -135,6 +172,7 @@ def roster_for_web():
             "ability_desc": c.ability_desc,
             "weapons": [{"name": w.name, "melee": w.is_melee, "damage": w.damage, "mag": w.mag,
                          "note": w.note} for w in c.weapons],
+            "soccer_only": c.soccer_only,
         }
-        for c in roster()
+        for c in CHARACTERS
     ]

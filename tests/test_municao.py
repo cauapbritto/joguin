@@ -6,7 +6,7 @@ from apoio import FakeInput, game
 
 from soulstrike import config, projectiles as P
 from soulstrike.ai import FighterAI
-from soulstrike.data import CHARACTERS
+from soulstrike.data import CHARACTERS, FIGHTERS
 from soulstrike.entities import Explosion, Pickup
 from soulstrike.fighter import BOW_FULL, IDLE_RELOAD
 from soulstrike.matches import BattleMatch
@@ -128,7 +128,7 @@ class PenteTest(unittest.TestCase):
         self.assertEqual(p1.ammo, p1.mag)
 
     def test_todos_os_herois_tem_pente(self):
-        for c in CHARACTERS:
+        for c in FIGHTERS:
             gun = next(w for w in c.weapons if not w.is_melee)
             self.assertGreater(gun.mag, 0, c.name)
             self.assertTrue(gun.reload > 0 or gun.regen > 0, c.name)
@@ -319,7 +319,7 @@ class CampanhaTest(unittest.TestCase):
     def test_todas_as_armas_atiram_sem_inimigo_por_perto(self):
         """Na campanha, sem alvo o tiro vai para onde o jogador olha (o alvo é só um ponto)."""
         from test_campanha import campanha, pular_intro
-        keys = [c.key for c in CHARACTERS if c.key != "aryel_corrompido"]
+        keys = [c.key for c in FIGHTERS if c.key != "aryel_corrompido"]
         for i in range(0, len(keys), 2):
             match, inputs = campanha(tuple(keys[i:i + 2]))
             pular_intro(match)

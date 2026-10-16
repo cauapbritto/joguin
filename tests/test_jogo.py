@@ -84,6 +84,8 @@ class PartidaTest(unittest.TestCase):
     def test_todos_os_personagens_lutam(self):
         g = game()
         for i, stats in enumerate(CHARACTERS):
+            if stats.soccer_only:
+                continue                                  # craque do futebol não luta
             g.session = Session("cpu", [SlotSetup(1, char=i, cpu=True), SlotSetup(2, char=(i + 3) % 8, cpu=True)],
                                 difficulty="dificil")
             match = BattleMatch(g, g.session)
@@ -241,9 +243,16 @@ class FutebolTest(unittest.TestCase):
             p1 = match.fighters[0]
             # o gancho do Pirata é para buscar a bola longe; os outros, com a bola no pé
             gap = 200 if SOCCER_POWERS[stats.key].__name__ == "GanchoNaBola" else 25
+            if SOCCER_POWERS[stats.key].__name__ == "Enterrada":
+                gx = match.goal_x(1 - p1.team)                # enterrada: perto da área adversária
+                p1.x = gx - 400 if gx > p1.x else gx + 400
             match.ball.x, match.ball.y = p1.x + gap, p1.y
+            if SOCCER_POWERS[stats.key].__name__ in ("Caneta",):
+                p2 = match.fighters[1]
+                p2.x, p2.y = p1.x + 110, p1.y            # caneta e cartão precisam de um adversário perto
             for _ in range(2):
                 match.update()
+            p1.facing = (1.0, 0.0)
             self.assertTrue(match.use_power(p1), SOCCER_POWERS[stats.key].name)
             for _ in range(60):
                 match.update()
@@ -256,7 +265,7 @@ class ServidorTest(unittest.TestCase):
         client = server.app.test_client()
         self.assertEqual(client.get("/").status_code, 200)
         from soulstrike.data import roster
-        self.assertEqual(len(client.get("/api/roster").get_json()), len(roster()))
+        self.assertEqual(len(client.get("/api/roster").get_json()), len(CHARACTERS))   # o celular acha pelo índice
         self.assertTrue(client.post("/api/join", json={"slot": 4, "token": "t"}).get_json()["ok"])
         self.assertEqual(client.post("/api/join", json={"slot": 4, "token": "x"}).status_code, 409)
         client.post("/press/p4_attack")

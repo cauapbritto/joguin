@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, unquote_to_bytes
 from flask import Flask, Response, abort, jsonify, render_template, request, send_from_directory
 
 from .. import config
-from ..data import roster as available_characters, roster_for_web
+from ..data import CHARACTERS, roster_for_web
 from ..soccer_powers import SOCCER_POWERS
 from .remote import hub
 
@@ -136,10 +136,13 @@ def release_all():
 @app.get("/api/roster")
 def roster():
     data = roster_for_web()
-    for entry, stats in zip(data, available_characters()):
+    for entry, stats in zip(data, CHARACTERS):
         power = SOCCER_POWERS[stats.key]
         entry["soccer_power"] = power.name
         entry["soccer_desc"] = power.description
+        if stats.soccer_only:                    # craque do futebol: passiva além do SUPER
+            entry["soccer_passive"] = stats.ability_name
+            entry["soccer_passive_desc"] = stats.ability_desc
     return jsonify(data)
 
 

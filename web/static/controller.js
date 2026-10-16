@@ -435,7 +435,8 @@
     var weapon = ch.weapons[me.weapon] || ch.weapons[0];
     var gun = ch.weapons.filter(function (w) { return !w.melee; })[0];
     $("ability").innerHTML = mode === "soccer"
-      ? "<b>SUPER: " + (ch.soccer_power || "") + "</b>" + (ch.soccer_desc || "")
+      ? "<b>SUPER: " + (ch.soccer_power || "") + "</b>" + (ch.soccer_desc || "") +
+        (ch.soccer_passive ? "<br><b>SEMPRE: " + ch.soccer_passive.toUpperCase() + "</b>" + ch.soccer_passive_desc : "")
       : "<b>" + ch.ability.toUpperCase() + "</b>" + ch.ability_desc +
         (gun && gun.note ? "<br><b>" + gun.name.toUpperCase() + " (" + gun.mag + " TIROS)</b>" + gun.note : "");
     $("weapon").style.display = mode === "soccer" ? "none" : "";

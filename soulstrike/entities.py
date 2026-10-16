@@ -1,5 +1,6 @@
 """Classe base das entidades e os objetos mais simples do mundo."""
 import math
+import random
 from abc import ABC, abstractmethod
 
 import pygame
@@ -237,6 +238,131 @@ class Hook(Bullet):
         pygame.draw.line(surf, (214, 218, 228), tip, back, 3)
         pygame.draw.circle(surf, (20, 14, 22), tip, 4)
         pygame.draw.circle(surf, (214, 218, 228), tip, 3)
+
+
+class Hack(Entity):
+    """Hacker do Albeguinio: abre o notebook e digita (parado). Se apanhar ou ficar tonto enquanto
+    digita, o hack falha. Terminando, o sinal de Wi-Fi sai dele e todos os adversários em jogo
+    ficam HACKEADOS (travados)."""
+
+    WAVE = 34                       # quadros da onda de Wi-Fi se espalhando
+    GREEN = (110, 240, 130)
+
+    def __init__(self, owner, typing, freeze):
+        super().__init__(owner.x, owner.y)
+        self.owner = owner
+        self.typing = typing
+        self.freeze = freeze
+        self.age = 0
+        self.hp = owner.hp
+        self.state = "typing"
+        owner.type_timer = typing
+        owner.steer(0, 0)
+        owner.vx = owner.vy = 0.0
+
+    def update(self, match):
+        owner = self.owner
+        self.age += 1
+        if self.state == "typing":
+            self.x, self.y = owner.x, owner.y
+            if owner.hp < self.hp or owner.stunned or not owner.alive_in_match:
+                owner.type_timer = 0
+                self.alive = False
+                match.popup(owner.x, owner.y - 80, "HACK FALHOU", (230, 110, 90))
+                match.burst(owner.x, owner.y - 30, (230, 110, 90), 8, speed=3)
+                match.assets.play("cancel", 0.4)
+                return
+            if self.age % 6 == 0:
+                match.assets.play("click", 0.15)          # teclas
+            if self.age >= self.typing:
+                owner.type_timer = 0
+                self.state = "wave"
+                self.age = 0
+                hit = 0
+                for f in match.opponents_of(owner):
+                    if f.alive_in_match and f.hack(self.freeze):
+                        hit += 1
+                        match.popup(f.x, f.y - 80, "HACKEADO", self.GREEN)
+                        match.burst(f.x, f.y - 30, self.GREEN, 10, speed=3, size=3)
+                if hit:
+                    match.camera.shake(4)
+                match.assets.play("barrier", 0.5)
+            return
+        if self.age >= self.WAVE:
+            self.alive = False
+
+    def draw(self, surf, camera):
+        if self.state != "wave":
+            return
+        t = self.age / self.WAVE
+        cx, cy = round(self.x - camera.x), round(self.y - 40 - camera.y)
+        alpha = round(220 * (1 - t))
+        reach = 80 + 900 * t
+        for k in range(3):                              # arcos de Wi-Fi se abrindo em todas as direções
+            r = round(reach - k * 60)
+            if r <= 10:
+                continue
+            ring = pygame.Surface((r * 2 + 6, r * 2 + 6), pygame.SRCALPHA)
+            pygame.draw.circle(ring, (*self.GREEN, max(0, alpha - k * 50)), (r + 3, r + 3), r, 3)
+            surf.blit(ring, (cx - r - 3, cy - r - 3))
+        if t < 0.5:                                     # simbolo de Wi-Fi em cima dele
+            for k, rr in enumerate((6, 12, 18)):
+                rect = pygame.Rect(0, 0, rr * 2, rr * 2)
+                rect.center = (cx, cy - 20 + rr)
+                pygame.draw.arc(surf, self.GREEN, rect, math.radians(45), math.radians(135), 3)
+            surf.fill(self.GREEN, (cx - 2, cy - 2 + 18, 4, 4))
+
+
+class ExoSuit(Entity):
+    """Exoesqueleto do Borba Jr: placas de metal voam e se encaixam nele com faíscas e vapor;
+    enquanto dura, solta vapor de vez em quando; no fim, as placas se soltam."""
+
+    ASSEMBLE = 16
+    METAL = ((150, 160, 178), (200, 208, 222), (96, 104, 122))
+
+    def __init__(self, owner, frames):
+        super().__init__(owner.x, owner.y)
+        self.owner = owner
+        self.frames = frames
+        self.age = 0
+        rng = random.Random(id(owner) + frames)
+        self.plates = [(rng.uniform(0, math.tau), rng.uniform(70, 110), rng.choice(self.METAL)) for _ in range(7)]
+
+    def update(self, match):
+        owner = self.owner
+        self.age += 1
+        self.x, self.y = owner.x, owner.y
+        if self.age == self.ASSEMBLE:
+            match.burst(owner.x, owner.y - 24, (255, 220, 120), 14, speed=5, size=3)     # faíscas
+            match.burst(owner.x, owner.y - 24, (120, 190, 255), 8, speed=3, size=3)
+            match.camera.shake(4)
+            match.assets.play("barrier", 0.45)
+        if self.age % 24 == 0 and owner.exo_timer > 0:                                  # vapor
+            for side in (-1, 1):
+                match.particles.append(Particle(owner.x + side * 16, owner.y - 34, side * 0.6, -0.9,
+                                                (220, 224, 230), 26, 5, -0.01))
+        if self.age % 9 == 0 and owner.exo_timer > 0 and random.random() < 0.5:
+            match.particles.append(Particle(owner.x + random.uniform(-14, 14), owner.y - random.uniform(10, 40),
+                                            random.uniform(-1, 1), random.uniform(-1.5, -0.5),
+                                            (255, 220, 120), 10, 2, 0.1))
+        if owner.exo_timer <= 0 or self.age >= self.frames or not owner.alive_in_match:
+            self.alive = False
+            match.burst(owner.x, owner.y - 24, (200, 208, 222), 10, speed=4, gravity=0.2, size=4)
+            for side in (-1, 1):
+                match.particles.append(Particle(owner.x + side * 12, owner.y - 30, side * 1.2, -1.2,
+                                                (220, 224, 230), 30, 6, -0.01))
+
+    def draw(self, surf, camera):
+        if self.age >= self.ASSEMBLE:
+            return
+        t = self.age / self.ASSEMBLE
+        ox, oy = self.owner.x - camera.x, self.owner.y - 26 - camera.y
+        for a, dist, color in self.plates:              # placas voando até o corpo
+            d = dist * (1 - t) ** 2
+            px, py = round(ox + math.cos(a) * d), round(oy + math.sin(a) * d * 0.8)
+            surf.fill((20, 14, 22), (px - 5, py - 4, 10, 8))
+            surf.fill(color, (px - 4, py - 3, 8, 6))
+            surf.fill((236, 240, 248), (px - 4, py - 3, 8, 1))
 
 
 class FrostNova(Entity):

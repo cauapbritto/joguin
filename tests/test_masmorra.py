@@ -171,6 +171,78 @@ class BauTest(unittest.TestCase):
         self.assertFalse(run.chest_open)
 
 
+class ArmaNoChaoTest(unittest.TestCase):
+    """Só dá para ter uma arma rara: pegando outra, a antiga fica no chão e dá para pegar de volta."""
+
+    def _bau_com_besta(self):
+        g, run = corrida(chars=("guerreiro", "atirador"), stage=LOBBY_BACK)
+        run.relics[1] = "besta"                            # já tinha uma arma rara da fase anterior
+        match = LobbyMatch(g, run)
+        inputs = {}
+        for f in match.players:
+            inputs[f.slot] = match.controllers[f] = _Input()
+        p1 = match.players[0]
+        self.assertIs(p1.relic, RARE_WEAPONS["besta"])
+        chest = match.chest
+        juntar(match, chest.x - 40, chest.y + 10)
+        passo(match, inputs, 3)
+        inputs[1].tap("attack")
+        passo(match, inputs, DONE_AT + 40)                 # abre, as armas voam e a antiga cai
+        return match, inputs, p1
+
+    def test_quarta_arma_deixa_a_antiga_no_chao(self):
+        match, inputs, p1 = self._bau_com_besta()
+        self.assertIsNot(p1.relic, RARE_WEAPONS["besta"])
+        self.assertEqual(len(p1.weapons), 3)                   # continua com 3 armas
+        self.assertEqual(len(match.ground), 1)
+        item = match.ground[0]
+        self.assertIs(item.weapon, RARE_WEAPONS["besta"])
+        self.assertTrue(item.landed)
+
+    def test_pega_de_volta_trocando(self):
+        match, inputs, p1 = self._bau_com_besta()
+        new = p1.relic
+        item = match.ground[0]
+        spot = (item.x, item.y)
+        p1.x, p1.y = item.x + 20, item.y
+        match.players[1].x += 300                              # o companheiro longe
+        inputs[1].tap("attack")
+        passo(match, inputs, 1)
+        self.assertIs(p1.relic, RARE_WEAPONS["besta"])
+        self.assertIs(p1.weapon, p1.relic)                     # volta para a mão
+        self.assertEqual(match.run.relics[1], "besta")
+        self.assertEqual(match.bullets, [])                    # o ATACAR pegou a arma (não atirou)
+        self.assertEqual(len(match.ground), 1)
+        swapped = match.ground[0]
+        self.assertIs(swapped.weapon, new)                     # a outra ficou no lugar
+        passo(match, inputs, swapped.TOSS + 2)
+        self.assertLess(abs(swapped.x - spot[0]) + abs(swapped.y - spot[1]), 40)
+
+    def test_companheiro_pode_pegar(self):
+        match, inputs, p1 = self._bau_com_besta()
+        p2 = match.players[1]
+        mine = p2.relic
+        item = match.ground[0]
+        p1.x += 300
+        p2.x, p2.y = item.x - 20, item.y
+        inputs[2].tap("attack")
+        passo(match, inputs, 1)
+        self.assertIs(p2.relic, RARE_WEAPONS["besta"])
+        self.assertIs(match.ground[0].weapon, mine)
+
+    def test_nao_pega_enquanto_cai(self):
+        match, inputs = acampamento(back=True)
+        p1 = match.players[0]
+        match.give_relic(p1, RARE_WEAPONS["canhao"])
+        match.give_relic(p1, RARE_WEAPONS["bumerangue"])
+        item = match.ground[0]
+        self.assertFalse(item.can_pick(p1))
+        passo(match, inputs, item.TOSS + 1)
+        p1.x, p1.y = item.x, item.y
+        self.assertTrue(item.can_pick(p1))
+        match.draw(match.game.screen, match.game.ui)           # nome e "ATACAR: PEGAR" na tela
+
+
 class ArmasRarasTest(unittest.TestCase):
     EXPECTED = {"besta": P.Bolt, "lanca_chamas": P.Flame, "bumerangue": P.Boomerang,
                 "cajado_raio": P.Lightning, "canhao": P.CannonBall}

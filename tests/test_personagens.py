@@ -116,6 +116,8 @@ class ArquivosTest(unittest.TestCase):
         for c in CHARACTERS:
             for ext in ("png", "json"):
                 self.assertTrue((config.CHAR_DIR / f"{c.sprite}.{ext}").is_file(), (c.name, ext))
+            if c.soccer_only:
+                continue                                  # craque do futebol não usa arma
             for w in c.weapons:
                 self.assertIn(w.name, grips, (c.name, w.name))
 
@@ -125,8 +127,8 @@ class ArquivosTest(unittest.TestCase):
         names = [r["name"] for r in roster]
         self.assertIn("Pirata", names)
         self.assertIn("Geada", names)
-        from soulstrike.data import roster as available
-        self.assertEqual(len(roster), len(available()))
+        self.assertEqual(len(roster), len(CHARACTERS))   # todos, na ordem: o celular acha pelo índice
+        self.assertIn("Ginga", names)
 
 
 if __name__ == "__main__":

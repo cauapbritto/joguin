@@ -706,9 +706,13 @@ class Ball(Entity):
         self.hook_owner = None
         self.receiver = None        # lançamento: o companheiro que vai receber domina mesmo a bola rápida
         self.receiver_timer = 0
+        self.thunder_timer = 0      # chute trovão: quase não perde força e derruba quem entra na frente
+        self.thunder_owner = None
+        self.thunder_hit = set()    # quem o trovão já derrubou (um tombo por chute)
         self.z = 0.0                # altura
         self.vz = 0.0
         self.squash = 0
+        self.held = False           # nas mãos (enterrada): desenha no tamanho normal
 
     @property
     def airborne(self):
@@ -760,6 +764,8 @@ class Ball(Entity):
                 else:
                     self.vz = 0.0
         friction = 0.996 if self.airborne else config.BALL_FRICTION
+        if self.thunder_timer > 0:
+            friction = 0.998
         if self.squash:
             self.squash -= 1
         self.vx *= friction
@@ -770,6 +776,8 @@ class Ball(Entity):
             self.vy = 0.0
         speed = math.hypot(self.vx, self.vy)
         limit = config.BALL_AIR_MAX_SPEED if self.airborne else config.BALL_MAX_SPEED
+        if self.thunder_timer > 0:
+            limit = config.THUNDER_SPEED
         if speed > limit:
             self.vx *= limit / speed
             self.vy *= limit / speed
@@ -792,6 +800,10 @@ class Ball(Entity):
             self.receiver_timer -= 1
             if self.receiver_timer == 0:
                 self.receiver = None
+        if self.thunder_timer > 0:
+            self.thunder_timer -= 1
+            if self.thunder_timer == 0:
+                self.thunder_owner = None
         self.x += self.vx
         self.y += self.vy
         self.spin += math.hypot(self.vx, self.vy) * 0.15
@@ -803,7 +815,7 @@ class Ball(Entity):
         sw, sh = round(24 * shrink), max(4, round(9 * shrink))
         pygame.draw.ellipse(surf, (12, 30, 16), (gx - sw // 2, gy + 10 - sh // 2, sw, sh))
         sx, sy = gx, gy - round(self.z)
-        r = round(self.radius * (1 + self.z / 220))
+        r = self.radius if self.held else round(self.radius * (1 + self.z / 220))
         if self.squash:
             rect = pygame.Rect(0, 0, r * 2 + 4, r * 2 - 4)
             rect.center = (sx, sy + 2)
@@ -823,6 +835,8 @@ class Ball(Entity):
         pygame.draw.circle(surf, (255, 255, 255), (sx - 4, sy - 4), 2)
         if self.homing_timer > 0:
             pygame.draw.circle(surf, theme.BRASS, (sx, sy), r + 4, 2)
+        if self.thunder_timer > 0:
+            pygame.draw.circle(surf, (255, 236, 120), (sx, sy), r + 3, 2)
 
 
 class Goal(Entity):
@@ -865,6 +879,7 @@ class SoccerMatch(Match):
             fighter = self._add_fighter(setup, pos, team=team, color=theme.TEAM_COLORS[team] if setup.cpu else None)
             fighter.ring_color = theme.TEAM_COLORS[team]
             fighter.sprites = self.assets.kit_sprites(fighter.stats.key, team)    # uniforme do time
+            fighter.kit = team
             fighter.armed = False
             fighter.power = create_power(fighter.stats)
             self.spawn_of[fighter] = pos
@@ -887,6 +902,7 @@ class SoccerMatch(Match):
         self.possessor = None       # quem está com a bola no pé
         self.no_trap = {}
         self.contest = {}
+        self.dunk = None            # enterrada do Cauanzera em andamento (ela segura a bola)
         self.assist = ASSIST_LEVELS.get(getattr(session, "assist", "media"), ASSIST_LEVELS["media"])
 
     @staticmethod
@@ -957,11 +973,13 @@ class SoccerMatch(Match):
 
     def can_head(self, f):
         lo, hi = config.HEAD_RANGE
+        if f.power is not None:
+            hi += f.power.head_reach                # Trovão: alcança bola mais alta
         return lo <= self.ball.z <= hi and self.touching(f, 10, max_z=hi)
 
     def header(self, f, direction=None):
         """Cabeçada: desvia a bola alta na direção em que o jogador olha."""
-        if self.freeze or f.stunned or f.kick_cd > 0 or not self.can_head(f):
+        if self.freeze or f.busy or f.kick_cd > 0 or not self.can_head(f):
             return False
         self._release(f, 8)
         if direction is None and self.in_own_half(f):
@@ -973,7 +991,8 @@ class SoccerMatch(Match):
             direction = unit(gx - self.ball.x, far - self.ball.y)
         dx, dy = direction or f.facing
         ball = self.ball
-        ball.vx, ball.vy = dx * 8, dy * 8
+        force = 8 * (f.power.head_power if f.power is not None else 1.0)
+        ball.vx, ball.vy = dx * force, dy * force
         gx = self.goal_x(1 - f.team)
         if abs(gx - f.x) < self.HEADER_RANGE and (gx - f.x) * dx > 0:
             ball.vz = -0.5          # cabeçada para o gol: para baixo, por baixo do travessão
@@ -986,18 +1005,20 @@ class SoccerMatch(Match):
         self.assets.play("hit", 0.35)
         return True
 
-    def _release(self, f, frames=config.NO_TRAP_FRAMES):
+    def _release(self, f, frames=config.NO_TRAP_FRAMES, keep_receiver=False):
         """O jogador soltou a bola (chute, passe, poder): não a domina de novo na hora."""
         if self.possessor is f:
             self.possessor = None
-        self.no_trap[f] = frames
+        if frames > 0:
+            self.no_trap[f] = frames
         self.contest.clear()
-        self.ball.receiver, self.ball.receiver_timer = None, 0
+        if not keep_receiver:
+            self.ball.receiver, self.ball.receiver_timer = None, 0
 
     def kick(self, f, direction=None, loft=0.0, assist=False):
         """Chute rasteiro (loft=0) ou pelo alto (loft de 0 a 1 = força e altura).
         Com assist, um chute que sairia um pouco para fora é corrigido para o gol."""
-        if self.freeze or f.kick_cd > 0 or f.stunned:
+        if self.freeze or f.kick_cd > 0 or f.busy:
             return False
         if self.can_head(f):
             return self.header(f, direction)
@@ -1015,6 +1036,12 @@ class SoccerMatch(Match):
             ball.lift(5 + 4 * loft)
         else:
             power = config.KICK_POWER
+            if f.power is not None and f.power.finisher and self.in_cross_zone(f.team, f.x, f.y):
+                # Matador na área: o chute vai no gol (com ou sem assistência) e sai mais forte
+                dx, dy = shot_assist(ball.x, ball.y, (dx, dy), self.goal_x(1 - f.team),
+                                     self.GOAL_TOP, self.GOAL_BOTTOM, config.FINISHER_CONE)
+                f.facing = (dx, dy)
+                power *= config.FINISHER_POWER
         ball.vx, ball.vy = dx * power, dy * power
         ball.homing_timer = 0
         f.kick_cd = 14
@@ -1097,7 +1124,7 @@ class SoccerMatch(Match):
 
     def clear_ball(self, f, direction=None):
         """Chutão: tira a bola de perto do próprio gol, pelo alto, com alcance maior que o chute."""
-        if self.freeze or f.kick_cd > 0 or f.stunned or not self.can_clear(f):
+        if self.freeze or f.kick_cd > 0 or f.busy or not self.can_clear(f):
             return False
         if not self.touching(f, config.CLEAR_REACH, max_z=config.HEAD_RANGE[1]):
             return False
@@ -1146,6 +1173,35 @@ class SoccerMatch(Match):
         self.dust(f.x, f.y + 20, 6)
         return True
 
+    def _thunder_hit(self, f):
+        """O chute trovão passou por alguém: derruba (uma vez por chute) e perde um pouco de força."""
+        ball = self.ball
+        if f in ball.thunder_hit:
+            return
+        ball.thunder_hit.add(f)
+        ball.vx *= 0.85
+        ball.vy *= 0.85
+        ux, uy = unit(ball.vx, ball.vy)
+        if f.stun(50):
+            f.knock = [ux * 7, uy * 7]
+            self.popup(f.x, f.y - 74, "DERRUBADO", theme.BONE)
+        self.burst(f.x, f.y - 10, (255, 236, 120), 12, speed=5)
+        self.camera.shake(4)
+        self.assets.play("hit", 0.5)
+
+    def _nose_pull(self):
+        """Faro de gol (Matador): a bola solta perto dele faz a curva e vem para o pé."""
+        ball = self.ball
+        for f in self.fighters:
+            if f.nose_timer <= 0 or not self._can_touch(f):
+                continue
+            d = f.distance_to(ball)
+            if 20 < d < config.NOSE_RANGE:
+                ux, uy = unit(f.x - ball.x, f.y - ball.y)
+                ball.vx += ux * config.NOSE_PULL
+                ball.vy += uy * config.NOSE_PULL
+                return
+
     def _body_block(self, f, reach):
         """A bola bateu no corpo de quem não está com ela."""
         ball = self.ball
@@ -1187,6 +1243,18 @@ class SoccerMatch(Match):
             ball.vx += nx * 0.8
             ball.vy += ny * 0.8
         self.last_touch = f
+
+    def _exo_block(self, f):
+        """O corpo blindado do exoesqueleto segura o chute: a bola morre na frente dele."""
+        ball = self.ball
+        speed = math.hypot(ball.vx, ball.vy)
+        if speed > 3:
+            ux, uy = unit(ball.vx, ball.vy)
+            ball.vx, ball.vy = ux * 1.5, uy * 1.5
+            ball.thunder_timer = 0
+            if speed > 8:
+                self.popup(f.x, f.y - 74, "BLINDADO", (120, 190, 255))
+                self.burst(ball.x, ball.y, (120, 190, 255), 8, speed=3)
 
     # ── cruzamento ───────────────────────────
     def in_cross_position(self, f):
@@ -1268,7 +1336,7 @@ class SoccerMatch(Match):
         estiver para lá, a bola vai para o espaço. Com a assistência desligada, vai reto.
         Passe alto (``high``): lançamento por cima, que alcança o companheiro mesmo do outro lado
         do campo; para o espaço, vai mais longe quanto mais tempo segurou (``power`` de 0 a 1)."""
-        if self.freeze or f.stunned or not self.touching(f):
+        if self.freeze or f.busy or not self.touching(f):
             return False
         self._release(f)
         mates = [m for m in self.fighters if m.team == f.team and m is not f]
@@ -1333,7 +1401,7 @@ class SoccerMatch(Match):
             return False
         used = f.power.use(f, self)
         if used and f.power.needs_ball:
-            self._release(f, 20)
+            self._release(f, f.power.release_frames, keep_receiver=f.power.keeps_receiver)
         return used
 
     def cut(self, f, direction=None):
@@ -1347,7 +1415,8 @@ class SoccerMatch(Match):
             return
         self.assets.play("dash", 0.3)
         owner = self.possessor
-        if not self.freeze and owner is not None and owner.team != f.team and self.touching(f, 12):
+        if (not self.freeze and owner is not None and owner.team != f.team and self.touching(f, 12)
+                and not self._shielded(owner)):
             # corte em cima de quem está com a bola: cutuca a bola para longe
             self._release(owner, 24)
             self.ball.vx, self.ball.vy = lx * 7, ly * 7
@@ -1395,9 +1464,17 @@ class SoccerMatch(Match):
 
         for i, a in enumerate(self.fighters):
             for b in self.fighters[i + 1:]:
+                if a.team != b.team and (a.magic_timer > 0 or b.magic_timer > 0):
+                    continue            # drible mágico: passa por dentro do marcador
+                if a.team != b.team and (a.exo_timer > 0) != (b.exo_timer > 0):
+                    self._exo_bump(a if a.exo_timer > 0 else b, b if a.exo_timer > 0 else a)
                 _separate(a, b)
                 self.arena.resolve(a)
                 self.arena.resolve(b)
+
+        for effect in self.effects:
+            effect.update(self)
+        self.effects = [e for e in self.effects if e.alive]
 
         if not self.freeze and not self.ending:
             self._update_ball()
@@ -1406,10 +1483,45 @@ class SoccerMatch(Match):
             if self.freeze == 0:
                 self._kickoff()
 
+        self._star_effects()
         for f in self.fighters:
             if not f.is_cpu:
                 hub.publish_slot(f.slot, cooldown=f.super_cd / f.power.cooldown,
                                  stamina=f.stamina, tired=f.exhausted)
+
+    def _exo_bump(self, exo, foe):
+        """Exoesqueleto (Borba Jr): quem tromba nele cai."""
+        if foe.stunned or exo.distance_to(foe) > exo.radius + foe.radius + 4:
+            return
+        ux, uy = exo.direction_to(foe)
+        if foe.stun(45):
+            foe.knock = [ux * 8, uy * 8]
+            if self.possessor is foe:
+                self._release(foe, 30)
+            self.popup(foe.x, foe.y - 74, "CAIU", theme.BONE)
+            self.burst(foe.x, foe.y, (200, 208, 222), 8, speed=3)
+            self.camera.shake(4)
+            self.assets.play("hit", 0.45)
+
+    @staticmethod
+    def _shielded(owner):
+        """Com a bola protegida: drible mágico (Faísca) ou exoesqueleto (Borba Jr)."""
+        return owner is not None and (owner.magic_timer > 0 or owner.exo_timer > 0)
+
+    def _star_effects(self):
+        """Brilho dos poderes dos craques: drible mágico (dourado), faro de gol (verde) e o rastro
+        do chute trovão."""
+        if self.frame % 3 == 0:
+            for f in self.fighters:
+                if f.magic_timer > 0:
+                    self.burst(f.x + random.uniform(-10, 10), f.y - random.uniform(0, 40), (255, 226, 120), 1, speed=1)
+                if f.nose_timer > 0:
+                    self.burst(f.x + random.uniform(-12, 12), f.y + 18, (150, 236, 150), 1, speed=0.8)
+        ball = self.ball
+        if ball.thunder_timer > 0:
+            self.burst(ball.x, ball.y - ball.z, (255, 236, 120), 2, speed=1.5)
+            if self.frame % 2 == 0:
+                self.burst(ball.x, ball.y - ball.z, (255, 255, 255), 1, speed=2.5)
 
     def _tackle(self, f):
         """Carrinho do Guerreiro: derruba adversários e leva a bola."""
@@ -1419,7 +1531,8 @@ class SoccerMatch(Match):
                 self.burst(foe.x, foe.y, (236, 230, 220), 8, speed=3)
                 self.camera.shake(5)
                 self.assets.play("hit", 0.5)
-        if not self.freeze and self.touching(f, 4) and self.possessor is not f:
+        if (not self.freeze and self.touching(f, 4) and self.possessor is not f
+                and not self._shielded(self.possessor)):
             if self.possessor is not None:
                 self._release(self.possessor, 30)
             self._take(f)
@@ -1498,13 +1611,19 @@ class SoccerMatch(Match):
                 self.possessor = None
                 self.contest.clear()
                 return
+            if self._shielded(owner):
+                self.contest.clear()
+                return                      # drible mágico / exoesqueleto: ninguém toma
+            glued = owner.power is not None and owner.power.glued_carry
+            steal_mult = owner.power.steal_mult if owner.power is not None else 1.0
             # disputa: o adversário que fica mais perto da bola por um tempo toma a posse
             for foe in self.foes_of(owner):
                 fd = foe.distance_to(ball)
                 if self._can_touch(foe) and fd < foe.radius + ball.radius + 6 and fd < d:
                     # MARCAR ajuda a chegar, mas não rouba sozinho: disputa conta pela metade
                     self.contest[foe] = self.contest.get(foe, 0) + (0.5 if foe.marking else 1)
-                    needed = config.SPRINT_STEAL_FRAMES if owner.sprinting else config.STEAL_FRAMES
+                    needed = config.SPRINT_STEAL_FRAMES if owner.sprinting and not glued else config.STEAL_FRAMES
+                    needed *= steal_mult            # Faísca: bola protegida
                     if self.contest[foe] >= needed:
                         self._take(foe)
                         self.burst(ball.x, ball.y, (236, 230, 220), 6, speed=3)
@@ -1533,7 +1652,8 @@ class SoccerMatch(Match):
                 rel = math.hypot(ball.vx - (f.x - f.prev_pos[0]), ball.vy - (f.y - f.prev_pos[1]))
                 limit = config.TRAP_SPEED + (3 if ball.airborne else 0) + (lvl.trap_bonus if human else 0)
                 hooked = ((ball.hook_timer > 0 and ball.hook_owner is f)
-                          or (ball.receiver_timer > 0 and ball.receiver is f))
+                          or (ball.receiver_timer > 0 and ball.receiver is f)
+                          or f.nose_timer > 0)      # faro de gol: domina até bola rápida
                 if ball.hook_timer > 0 and not hooked:
                     continue        # só quem puxou com o gancho domina
                 if d < reach:
@@ -1566,7 +1686,8 @@ class SoccerMatch(Match):
     def _carry(self, f):
         """A bola acompanha o pé: amortecida, sem quicar, e vira junto aos poucos."""
         ball = self.ball
-        close = f.dribbling and not f.sprinting      # correndo, não dá para conduzir colado
+        glued = f.power is not None and f.power.glued_carry
+        close = (f.dribbling and not f.sprinting) or glued     # correndo, só o Ginga conduz colado
         f.carrying_close = close
         turn = config.CLOSE_TURN if close else config.CARRY_TURN
         fx, fy = f.facing
@@ -1579,7 +1700,7 @@ class SoccerMatch(Match):
         speed = math.hypot(vx, vy)
         ahead = f.radius + ball.radius + (2 if close else 4 + speed * 1.6)
         gain = config.CLOSE_GAIN if close else config.CARRY_GAIN
-        if f.sprinting:
+        if f.sprinting and not glued:
             ahead += config.SPRINT_CARRY_AHEAD       # bola mais solta à frente
             gain *= 0.7
         tx, ty = f.x + f.carry_dir[0] * ahead, f.y + f.carry_dir[1] * ahead
@@ -1589,12 +1710,16 @@ class SoccerMatch(Match):
 
     def _update_ball(self):
         ball = self.ball
+        if self.dunk is not None:
+            return                          # a enterrada leva a bola nas mãos
         self._update_possession()
         for f in self.fighters:
             if f is not self.possessor:
                 f.carrying_close = False
         if self.possessor is not None:
             self._carry(self.possessor)
+        elif ball.z < 30:
+            self._nose_pull()
         x0, y0 = ball.x, ball.y
         ball.update(self)
         _bounce_off_walls(ball, self.arena.walls + self.ball_walls)
@@ -1605,6 +1730,9 @@ class SoccerMatch(Match):
                 continue        # a bola vem presa à corrente do gancho: não bate em ninguém
             if ball.receiver_timer > 0 and f is ball.receiver:
                 continue        # o lançamento é para ele: domina em vez de rebater
+            owner = self.possessor
+            if owner is not None and owner.magic_timer > 0 and f.team != owner.team:
+                continue        # drible mágico: a bola passa pelo marcador como se ele não estivesse lá
             if ball.z > config.BODY_HEIGHT:
                 continue        # bola alta passa por cima
             # corpo de quem não está com a bola funciona como obstáculo; o caminho inteiro da
@@ -1613,9 +1741,14 @@ class SoccerMatch(Match):
             t = segment_contact(x0, y0, ball.x, ball.y, f.x, f.y, reach)
             if t is None:
                 continue
+            if ball.thunder_timer > 0 and f is not ball.thunder_owner and f.exo_timer <= 0:
+                self._thunder_hit(f)            # chute trovão: derruba e segue
+                continue
             if t > 0:
                 ball.x, ball.y = x0 + (ball.x - x0) * t, y0 + (ball.y - y0) * t
             self._body_block(f, reach)
+            if f.exo_timer > 0:
+                self._exo_block(f)
             x0, y0 = ball.x, ball.y
         # bola presa entre jogadores (só quando ninguém domina)
         self._ball_trail.append((ball.x, ball.y))
@@ -1678,6 +1811,8 @@ class SoccerMatch(Match):
         self.ball.reset(self.arena.width / 2, self.arena.height / 2)
         self.last_touch = None
         self.ball_walls.clear()
+        self.effects.clear()
+        self.dunk = None
         self.possessor = None
         self.no_trap.clear()
         self.contest.clear()
@@ -1688,6 +1823,10 @@ class SoccerMatch(Match):
             f.stun_timer = f.tackle_timer = f.sprint_timer = f.dash_timer = 0
             f.block_timer = f.clear_timer = 0
             f.slow_timer = f.pull_timer = 0
+            f.magic_timer = f.nose_timer = 0
+            f.hack_timer = f.type_timer = f.rush_timer = f.virus_timer = 0
+            f.lift = 0
+            f.end_exo()
             f.clear_lock = False
             f.stamina, f.exhausted = 1.0, False
             f.facing = (1.0, 0.0) if f.team == 0 else (-1.0, 0.0)

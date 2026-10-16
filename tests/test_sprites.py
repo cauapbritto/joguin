@@ -138,6 +138,8 @@ class SombraTest(unittest.TestCase):
     def test_olhos_vermelhos_so_na_cabeca(self):
         assets = game().assets
         for c in HEROES:
+            if c.soccer_only:
+                continue                                  # craque do futebol não vira alma corrompida
             img = assets.shadow_sprites(c.sprite).pose("frente", "parado", 0)
             w, h = img.get_size()
             red = [(x, y) for y in range(h) for x in range(w) if tuple(img.get_at((x, y)))[:3] == SHADOW_EYES]

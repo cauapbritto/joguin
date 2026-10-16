@@ -9,7 +9,7 @@ from soulstrike.boss import BossAI
 from soulstrike.campaign import (DOWN_FRAMES, DUNGEON_1, DUNGEON_2, EXIT_DELAY, GAMEOVER_FRAMES, LEAVE_FRAMES,
                                  PHASE_HEAL, PHASES, REVIVE_FRAMES, CampaignMatch, CampaignRun, elite_hp_scale,
                                  scaled_count)
-from soulstrike.data import CHARACTERS, UNLOCKABLE, roster
+from soulstrike.data import CHARACTERS, UNLOCKABLE, roster, roster_indices
 from soulstrike.entities import Barrier, Bullet, Explosion, ShadowBomb
 from soulstrike.session import Session, SlotSetup
 from soulstrike.upgrades import UPGRADES, apply_all, choices
@@ -462,14 +462,17 @@ class DesbloqueioTest(unittest.TestCase):
         self.assertEqual(progress.best_time("normal"), 400)
 
     def test_celular_ve_o_personagem_novo(self):
+        # o celular sempre recebe todos (acha o escolhido pelo índice); quem libera é a escolha
         from soulstrike.net import server
         client = server.app.test_client()
-        before = len(client.get("/api/roster").get_json())
+        before = client.get("/api/roster").get_json()
         progress.record_campaign(500, "normal", 1)
         after = client.get("/api/roster").get_json()
-        self.assertEqual(len(after), before + 1)
-        self.assertEqual(after[-1]["name"], "Aryel Corrompido")
-        self.assertEqual(after[-1]["soccer_power"], "BOMBA SOMBRIA")
+        self.assertEqual(len(after), len(before))
+        i = KEYS.index(UNLOCKABLE)
+        self.assertEqual(after[i]["name"], "Aryel Corrompido")
+        self.assertEqual(after[i]["soccer_power"], "BOMBA SOMBRIA")
+        self.assertIn(i, roster_indices())
 
     def test_chuva_sombria_no_duelo(self):
         from soulstrike.matches import BattleMatch

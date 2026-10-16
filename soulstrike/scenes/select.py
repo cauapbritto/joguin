@@ -6,7 +6,7 @@ import pygame
 from .. import config, theme
 from ..ai import DIFFICULTIES, DIFFICULTY_ORDER
 from ..arena import BATTLE_MAPS, MAPS_BY_KEY
-from ..data import CHARACTERS, MAX_DAMAGE, MAX_HP, MAX_SPEED, roster
+from ..data import CHARACTERS, MAX_DAMAGE, MAX_HP, MAX_SPEED, roster_indices
 from ..soccer_assist import ASSIST_LEVELS, ASSIST_ORDER
 from ..soccer_powers import SOCCER_POWERS
 from .. import weapon_art
@@ -202,14 +202,17 @@ class LobbyScene(_MenuScene):
 
 
 class _Card:
-    def __init__(self, setup):
+    def __init__(self, setup, choices):
         self.setup = setup
+        self.choices = choices          # índices (em CHARACTERS) que dá para escolher neste modo
         self.ready = setup.cpu
+        if setup.char not in choices:
+            setup.char = choices[0]
         if setup.cpu:
             self.randomize()
 
     def randomize(self):
-        self.setup.char = random.randrange(len(roster()))
+        self.setup.char = random.choice(self.choices)
         self.setup.weapon = random.randrange(2)
 
     @property
@@ -232,19 +235,21 @@ class CharSelectScene(_MenuScene):
         if self.teams:
             # 2 x 2: os dois de cada time lado a lado (azul à esquerda)
             slots = sorted(slots, key=lambda s: (session.team_of(s.slot), s.slot))
-        self.cards = [_Card(s) for s in slots]
+        # no futebol entram também os craques (só do futebol); o índice é sempre o de CHARACTERS
+        self.choices = roster_indices(soccer=self.soccer)
+        self.roster = [CHARACTERS[i] for i in self.choices]
+        self.cards = [_Card(s, self.choices) for s in slots]
         self.countdown = 0
         keys = [m.key for m in BATTLE_MAPS]
         self.map_index = keys.index(session.map_key) if session.map_key in keys else 0
         n = len(self.cards)
-        self.roster = roster()
         count = len(self.roster)
-        for card in self.cards:
-            if card.setup.char >= count:
-                card.setup.char = 0
-        total = count * self.TILE + (count - 1) * self.TILE_GAP
+        # muitos personagens (futebol): os quadradinhos encolhem para caber na tela
+        gap = self.TILE_GAP
+        size = min(self.TILE, (config.SCREEN_W - 32 - (count - 1) * gap) // count)
+        total = count * size + (count - 1) * gap
         x0 = (config.SCREEN_W - total) // 2
-        self.tiles = [pygame.Rect(x0 + i * (self.TILE + self.TILE_GAP), self.TILE_Y, self.TILE, self.TILE)
+        self.tiles = [pygame.Rect(x0 + i * (size + gap), self.TILE_Y + (self.TILE - size), size, size)
                       for i in range(count)]
         self.campaign = session.campaign
         self.center = pygame.Rect(356, 158, 248, 328)
@@ -321,7 +326,8 @@ class CharSelectScene(_MenuScene):
             hub.set_phase(self.phase, active=self.active_slots())
 
     def _change_char(self, card, step):
-        card.setup.char = (card.setup.char + step) % len(self.roster)
+        pos = self.choices.index(card.setup.char) if card.setup.char in self.choices else 0
+        card.setup.char = self.choices[(pos + step) % len(self.choices)]
         card.setup.weapon = 0
         self.sfx("select", 0.3)
 
@@ -383,10 +389,10 @@ class CharSelectScene(_MenuScene):
                     card = self._first_open()
                     if card is None:
                         return
-                    if card.setup.char == i:
+                    if card.setup.char == self.choices[i]:
                         self._confirm(card)
                     else:
-                        card.setup.char, card.setup.weapon = i, 0
+                        card.setup.char, card.setup.weapon = self.choices[i], 0
                         self.sfx("select", 0.3)
                     return
             for card, rect in zip(self.cards, self.card_rects):
@@ -488,9 +494,12 @@ class CharSelectScene(_MenuScene):
 
     def _draw_roster(self, screen):
         for i, (tile, stats) in enumerate(zip(self.tiles, self.roster)):
-            pickers = [c for c in self.cards if c.setup.char == i]
+            pickers = [c for c in self.cards if c.setup.char == self.choices[i]]
             screen.fill(theme.SHADOW, tile.move(3, 3))
-            screen.fill(theme.INK_3 if pickers else theme.INK_2, tile)
+            fill = theme.INK_3 if pickers else theme.INK_2
+            if stats.soccer_only:
+                fill = mix(fill, theme.MOSS, 0.22)      # craques do futebol: fundo de gramado
+            screen.fill(fill, tile)
             img = self.assets.sprites[stats.key].portrait
             clip = screen.get_clip()
             screen.set_clip(tile.inflate(-4, -4))
@@ -575,9 +584,17 @@ class CharSelectScene(_MenuScene):
             power = SOCCER_POWERS[stats.key]
             y += 4
             ui.text(screen, "SUPER: " + power.name, theme.XS, theme.BRASS, (rect.x + 14, y), anchor="midleft")
-            for line in ui.wrap(power.description, theme.XS, rect.w - 28)[:3]:
+            for line in ui.wrap(power.description, theme.XS, rect.w - 28)[:2 if stats.soccer_only else 3]:
                 y += 12
                 ui.text(screen, line, theme.XS, theme.MUTED, (rect.x + 14, y), anchor="midleft", shadow=False)
+            if stats.soccer_only:
+                # craque: além do SUPER, uma habilidade que vale o jogo todo
+                y += 15
+                ui.text(screen, "SEMPRE: " + stats.ability_name.upper(), theme.XS, theme.MOSS,
+                        (rect.x + 14, y), anchor="midleft")
+                for line in ui.wrap(stats.ability_desc, theme.XS, rect.w - 28)[:2]:
+                    y += 12
+                    ui.text(screen, line, theme.XS, theme.MUTED, (rect.x + 14, y), anchor="midleft", shadow=False)
         else:
             y += 4
             ui.text(screen, stats.ability_name.upper(), theme.XS, theme.BRASS, (rect.x + 14, y), anchor="midleft")

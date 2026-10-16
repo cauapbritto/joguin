@@ -19,7 +19,7 @@ from .matches import Match, Result, _separate
 from .net.remote import hub
 from .ui import darken
 from .data import RARE_WEAPONS
-from .dungeon import Campfire, Chest, ExitDoor, Gate, RelicDrop
+from .dungeon import Campfire, Chest, ExitDoor, Gate, GroundWeapon, RelicDrop
 from .lobbies import cells_rect
 from .upgrades import apply_all
 
@@ -1025,6 +1025,7 @@ class LobbyMatch(CoopMatch):
             self.arena.walls.append(self.chest.wall)
             self.props.append(self.chest)
         self.target_gate = 2 if self.back else 1
+        self.ground = []                    # armas raras largadas no chão (dá para pegar de volta)
         hub_vote(self, 0)
         for p in self.players:              # chegando (teletransporte ou saindo da masmorra)
             self.burst(p.x, p.y - 20, (200, 180, 255), 14, speed=3)
@@ -1068,25 +1069,48 @@ class LobbyMatch(CoopMatch):
             self.chest.open(self)
             self.run.chest_open = True
             return True
+        near = [g for g in self.ground if g.alive and g.can_pick(f)]
+        if near:
+            item = min(near, key=f.distance_to)
+            item.alive = False
+            self.ground.remove(item)
+            self.give_relic(f, item.weapon, drop_at=(item.x, item.y))     # troca: a dele fica ali
+            return True
         return False
 
     def launch_relics(self, chest):
-        """O baú solta uma arma rara para cada jogador (armas diferentes, e diferente da que já tem)."""
-        pool = list(RARE_WEAPONS.values())
+        """O baú solta uma arma rara para cada jogador: armas diferentes entre si e, se der, que
+        ninguém do grupo já tenha (a que cada um tinha fica no chão)."""
+        held = {p.relic for p in self.players if p.relic is not None}
+        pool = [w for w in RARE_WEAPONS.values() if w not in held]
         random.shuffle(pool)
         for p in self.players:
-            choices = [w for w in pool if w is not p.relic] or list(RARE_WEAPONS.values())
+            choices = [w for w in pool if w is not p.relic] or \
+                [w for w in RARE_WEAPONS.values() if w is not p.relic]
             weapon = choices[0]
             if weapon in pool:
                 pool.remove(weapon)
             self.props.append(RelicDrop(chest, p, weapon))
 
-    def give_relic(self, fighter, weapon):
-        fighter.give_relic(weapon)
+    def give_relic(self, fighter, weapon, drop_at=None):
+        """Arma rara na mão. Só dá para ter uma: a que ele tinha cai no chão (ATACAR pega de volta)."""
+        old = fighter.give_relic(weapon)
         self.run.relics[fighter.slot] = relic_key(weapon)
+        if old is not None and old is not weapon:
+            self.drop_weapon(fighter, old, drop_at)
         self.popup(fighter.x, fighter.y - 80, weapon.name.upper(), (255, 220, 120))
         self.burst(fighter.x, fighter.y - 20, (255, 220, 120), 18, speed=4)
         self.assets.play("select", 0.5)
+
+    def drop_weapon(self, fighter, weapon, at=None):
+        """Joga a arma no chão: atrás de quem largou, ou no lugar da que ele pegou (troca)."""
+        if at is None:
+            fx, fy = fighter.facing
+            at = (fighter.x - fx * 52, fighter.y - fy * 52 + 10)
+        x, y = self.arena.free_spot(at[0], at[1], 16)
+        item = GroundWeapon(weapon, (fighter.x, fighter.y - 20), (x, y))
+        self.ground.append(item)
+        self.props.append(item)
 
     def next_scene(self):
         from .scenes.campaign import next_stage
@@ -1099,6 +1123,13 @@ class LobbyMatch(CoopMatch):
         if self.chest is not None:
             near = any(self.chest.can_open(p) for p in self.alive_players)
             self.chest.draw_prompt(screen, cam, ui, self.frame, near)
+        nearest = set()                     # "ATACAR: PEGAR" só na arma mais perto de cada um
+        for p in self.alive_players:
+            items = [g for g in self.ground if g.can_pick(p)]
+            if items:
+                nearest.add(min(items, key=p.distance_to))
+        for item in self.ground:
+            item.draw_prompt(screen, cam, ui, self.frame, item in nearest)
         gate = self.gates[self.target_gate]
         alive = self.alive_players
         inside = [p for p in alive if gate.rect.inflate(20, 30).collidepoint(p.x, p.y)]

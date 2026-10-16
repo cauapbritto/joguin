@@ -107,5 +107,11 @@ CLEAR_POWER = 13.5
 CLEAR_LIFT = 9.0
 CLEAR_WINDOW = 10           # apertou CHUTE um pouco antes da bola chegar: ainda vale
 SUPER_SHOT_POWER = 16
+# craques do futebol
+THUNDER_SPEED = 16          # chute trovão (Trovão)
+FINISHER_CONE = 45          # Matador na área: chute até tanto fora do gol é corrigido para o gol
+FINISHER_POWER = 1.15
+NOSE_RANGE = 280            # faro de gol: puxa a bola solta até essa distância
+NOSE_PULL = 0.45
 SUPER_HOMING_FORCE = 0.35
 SUPER_HOMING_FRAMES = 120

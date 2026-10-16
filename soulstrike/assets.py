@@ -132,6 +132,17 @@ class Assets:
             self.sprites[name] = sheet or self.sprites[key]
         return self.sprites[name]
 
+    def exo_sprites(self, fighter):
+        """Sprites do Borba Jr de exoesqueleto (com o uniforme do time no futebol). None se não houver."""
+        kit = getattr(fighter, "kit", None)
+        suffix = f"_{TEAM_KITS[kit]}" if kit is not None else ""
+        name = f"exo{suffix}:{fighter.stats.key}"
+        if name not in self.sprites:
+            base = f"{fighter.stats.sprite}_exo"
+            folder = config.CHAR_DIR / "uniformes" if kit is not None else config.CHAR_DIR
+            self.sprites[name] = load_sheet(base, image=folder / f"{base}{suffix}.png")
+        return self.sprites[name]
+
     def _load_character(self, stats, factor=None):
         if stats.key in SHADOW_CHARACTERS:
             self.sprites[stats.key] = self.shadow_sprites(stats.sprite)

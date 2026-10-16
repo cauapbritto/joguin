@@ -1041,6 +1041,572 @@ def geada(p):
     return c
 
 
+# ── a turma do Aryel: Cauanzera, Albeguinio e Borba Jr ──
+
+LENS, LENS_L = (176, 206, 228), (226, 240, 250)
+
+
+def feet(p, wide=False):
+    """Onde ficam os pés nesta pose (x, linha do chão, largura) — as mesmas contas do legs()."""
+    if p.side:
+        return [(p.hip_x + off, 30 - lift, 4) for off, lift in ((p.stride, p.lift_a), (-p.stride, p.lift_b))]
+    gap = 4 if wide else 2
+    spread = 1 if p.dash else 0
+    lx, rx = 12 - gap // 2 - 3 - spread, 12 + gap // 2 + spread
+    return [(lx, 30 - p.lift_a, 3), (rx, 30 - p.lift_b, 3)]
+
+
+def curly_hair(c, p, color, puff=2, wide=False, fade=False, fringe=False):
+    """Cabelo cacheado e volumoso: mais alto que a cabeça, cantos redondos, bolinhas de cacho na
+    borda e uma textura de cachos (pontos claros e escuros). ``wide`` = ainda mais volume dos lados;
+    ``fade`` = lados raspados (o volume fica só em cima); ``fringe`` = franja de cachos até a sobrancelha."""
+    x, y, w, h = p.head
+    hi, lo = shade(color, 44), shade(color, -16)
+    g = 1 if wide else 0
+    top = y - puff
+    cells = set()
+
+    def fill(x0, y0, ww, hh):
+        for yy in range(y0, y0 + hh):
+            for xx in range(x0, x0 + ww):
+                cells.add((xx, yy))
+
+    if p.dir == "costas":
+        fill(x - 1 - g, top, w + 2 + 2 * g, (y + (3 if fade else h - 2)) - top)
+        if fade:                                                   # nuca raspada (cabelo bem curtinho)
+            c.rect(x, y + 3, w, h - 5, shade(color, 26))
+    elif p.side:
+        if not fade:
+            fill(x - 1 - g, top, w - 1 + g, y + 3 - top)           # topo
+            fill(x - 1 - g, y + 3, 4 + g, 3 + 2 * g)               # nuca
+        else:
+            fill(x - 1 - g, top, w + g, y + 3 - top)               # topo até a frente da cabeça
+            fill(x + w - 4, y + 3, 3, 1)                           # cachos caindo na testa
+            cells.add((x + w - 3, y + 4))
+            fill(x - 1, y + 3, 2, 3)                               # volume atrás, na nuca
+            short = shade(color, 12)                               # lado no degradê: cabelo bem curto
+            c.rect(x + 1, y + 3, 4, 2, short)
+            c.rect(x, y + 5, 2, 2, short)                          # nuca
+            c.rect(x + 5, y + 3, 1, 2, short)                      # costeleta
+            for sx in range(x, x + 5):
+                for sy in range(y + 3, y + 7):
+                    if (sx + sy) % 2 == 0 and c.surf.get_at((sx, sy)) == (*short, 255):
+                        c.px(sx, sy, shade(color, 26))
+            ear = shade(tuple(c.surf.get_at((x + 6, y + 6))[:3]), -18)    # orelha, num tom de pele mais escuro
+            c.rect(x + 3, y + 5, 2, 2, ear)
+        cells.add((x + w - 2, y + 3))                              # cacho caindo na testa
+        if fringe:
+            fill(x + 4, y + 3, w - 5, 1)
+    else:
+        fill(x - 1 - g, top, w + 2 + 2 * g, y + 3 - top)           # topo até a testa
+        if not fade:
+            fill(x - 1 - g, y + 3, 1 + g, 2 + 3 * g)               # lados
+            fill(x + w, y + 3, 1 + g, 2 + 3 * g)
+        if fringe:
+            fill(x + 1, y + 3, w - 2, 1)                           # franja de cachos
+            for fx in range(x + 1, x + w - 1, 3):
+                cells.add((fx, y + 4))
+        else:
+            cells.add((x + 2, y + 3))                              # cachinhos na testa
+            cells.add((x + w - 3, y + 3))
+    xs = [cx for cx, _ in cells]
+    left, right = min(xs), max(xs)
+    cells.discard((left, top))                                     # cantos redondos
+    cells.discard((right, top))
+    for bx in range(left + 1, right, 2):                           # bolinhas de cacho em cima
+        cells.add((bx, top - 1))
+    if not fade:
+        for by in range(top + 1, top + 4 + g, 2):                  # e dos lados
+            cells.add((left - 1, by))
+            if not p.side:
+                cells.add((right + 1, by))
+    for cx, cy in cells:
+        col = color
+        if (cx * 2 + cy * 3) % 7 == 0:
+            col = hi
+        elif (cx * 3 + cy) % 6 == 0:
+            col = lo
+        c.px(cx, cy, col)
+
+
+def glasses(c, p, frame=(36, 30, 40), thick=False):
+    """Óculos (as lentes acendem de vermelho na alma corrompida, como as do Aryel).
+    ``thick`` = armação grossa (com as laterais e a ponte marcadas)."""
+    hx, hy, hw, hh = p.head
+    if p.dir == "frente":
+        c.rect(hx + 1, hy + 4, hw - 2, 1, frame)
+        if thick:
+            c.rect(hx, hy + 4, 1, 3, frame)
+            c.rect(hx + hw - 1, hy + 4, 1, 3, frame)
+            c.rect(hx + 4, hy + 5, 2, 1, frame)                    # ponte
+        for lx in (hx + 1, hx + hw - 4):
+            c.rect(lx, hy + 5, 3, 2, LENS)
+            c.px(lx, hy + 5, LENS_L)
+            if p.hurt:
+                c.rect(lx, hy + 6, 3, 1, EYE)
+            else:
+                c.rect(lx + 1, hy + 5, 1, 2, EYE)
+        c.rect(hx + 1, hy + 7, 3, 1, frame)
+        c.rect(hx + hw - 4, hy + 7, 3, 1, frame)
+        c.px(hx, hy + 5, frame)
+        c.px(hx + hw - 1, hy + 5, frame)
+    elif p.side:
+        c.rect(hx + 5, hy + 4, 5, 1, frame)
+        if thick:
+            c.rect(hx + 9, hy + 4, 1, 4, frame)
+        c.rect(hx + 6, hy + 5, 3, 2, LENS)
+        c.px(hx + 6, hy + 5, LENS_L)
+        c.px(hx + 7, hy + 6, EYE)
+        c.rect(hx + 6, hy + 7, 3, 1, frame)
+        c.rect(hx + 3, hy + 4, 2, 1, frame)
+
+
+def cacheado_degrade(c, p, color):
+    """Cabelo do Cauanzera: cachos arredondados em cima (com brilho, para não virar um bloco preto),
+    franja de cachos na testa e degradê bem curto nos lados e na nuca."""
+    x, y, w, h = p.head
+    hi, mid, lo = shade(color, 58), shade(color, 26), shade(color, -12)
+    short, short_d = shade(color, 22), shade(color, 8)              # degradê (cabelo raspado curtinho)
+    top = y - 3
+    cells = set()
+
+    def fill(x0, y0, ww, hh):
+        for yy in range(y0, y0 + hh):
+            for xx in range(x0, x0 + ww):
+                cells.add((xx, yy))
+
+    if p.side:
+        fill(x, top + 1, w - 1, y + 3 - top - 1)                    # volume em cima, até a testa
+        fill(x + 1, top, w - 3, 1)
+        fill(x + w - 4, y + 3, 3, 1)                                # cachos caindo na testa
+        cells.add((x + w - 3, y + 4))
+        fill(x - 1, top + 2, 1, y + 3 - top - 2)                    # volume de trás
+    else:
+        fill(x - 1, top + 1, w + 2, y + 3 - top - 1)
+        fill(x + 1, top, w - 2, 1)
+        if p.dir == "frente":
+            for fx in range(x + 1, x + w - 1):                      # franja de cachos
+                if fx % 3 != 0:
+                    cells.add((fx, y + 3))
+        else:
+            fill(x, y + 3, w, 1)
+    # contorno de cima ondulado (bolinhas de cacho)
+    xs = [cx for cx, _ in cells]
+    left, right = min(xs), max(xs)
+    for bx in range(left + 1, right, 2):
+        cells.add((bx, top - 1))
+    for cx, cy in ((left, top + 1), (right, top + 1)):
+        cells.discard((cx, cy))
+    # degradê: lados/nuca curtinhos (antes dos cachos, que ficam por cima)
+    if p.side:
+        c.rect(x + 1, y + 3, 4, 2, short)
+        c.rect(x, y + 5, 2, 2, short_d)
+        c.rect(x + 5, y + 3, 1, 2, short)                           # costeleta
+        ear = shade(tuple(c.surf.get_at((x + 6, y + 6))[:3]), -18)
+        c.rect(x + 3, y + 5, 2, 2, ear)                             # orelha
+    elif p.dir == "frente":
+        for sx in (x, x + w - 1):                                   # costeletas curtinhas
+            c.rect(sx, y + 3, 1, 2, short)
+    else:
+        c.rect(x, y + 4, w, 3, short)                               # nuca no degradê
+        c.rect(x + 1, y + 7, w - 2, 1, short_d)
+        for sx in range(x, x + w, 2):
+            c.px(sx + (1 if (sx // 2) % 2 else 0), y + 5, short_d)
+    for cx, cy in cells:
+        col = color
+        k = (cx * 5 + cy * 3) % 7
+        if k == 0:
+            col = hi                                                # brilho no alto do cacho
+        elif k in (1, 4):
+            col = mid
+        elif (cx + cy * 2) % 5 == 0:
+            col = lo
+        c.px(cx, cy, col)
+    for bx in range(left + 1, right, 2):                            # as bolinhas de cima pegam luz
+        c.px(bx, top - 1, mid)
+
+
+def cauanzera(p):
+    """Cauanzera: o mais alto da turma — cabelo cacheado, óculos, jaqueta preta aberta sobre a
+    camiseta cinza, calça preta e tênis branco de listras pretas."""
+    c = Canvas()
+    skin, hair_c = (196, 142, 104), (30, 26, 30)
+    jacket, jacket_d, jacket_l = uni(p, (46, 46, 56)), uni(p, (28, 28, 36), "dark"), uni(p, (78, 78, 92), "light")
+    tee, pants, shoes = (156, 158, 166), (34, 34, 42), (240, 240, 236)
+    x, y, w, h = p.torso
+    hx, hy, hw, hh = p.head
+    legs(c, p, pants, shoes)
+    for fx, fy, fw in feet(p):                                # listras pretas no tênis branco
+        if p.side:
+            c.px(fx + 1, fy + 1, (40, 40, 48))
+            c.px(fx + 2, fy, (40, 40, 48))
+        else:
+            c.px(fx + 1, fy, (40, 40, 48))
+    far_arm(c, p, jacket, skin)
+    torso(c, p, jacket)
+    if p.dir == "frente":
+        c.rect(x + 3, y, w - 6, h - 1, tee)                     # jaqueta aberta: a camiseta aparece
+        c.rect(x + 2, y + 1, 1, h - 2, jacket_l)                # zíper
+        c.rect(x + w - 3, y + 1, 1, h - 2, jacket_l)
+        c.rect(x + 1, y, 1, 2, jacket_d)                        # gola
+        c.rect(x + w - 2, y, 1, 2, jacket_d)
+    elif p.side:
+        c.rect(x + w - 2, y, 1, h - 2, tee)
+        c.rect(x, y, w - 2, 1, jacket_d)
+    else:
+        c.rect(x + 1, y, w - 2, 2, jacket_d)
+        c.rect(x + w // 2, y + 2, 1, h - 3, jacket_d)           # costura das costas
+    arms(c, p, jacket, skin, cuff=jacket_d)
+    if not p.side:                                             # smartwatch no pulso da mão livre
+        wy = y + 1 + max(2, 5 + p.arm_a) - 1
+        wx = x - 2 - (1 if p.dash else 0)
+        c.rect(wx, wy, 2, 1, (24, 24, 30))
+        c.px(wx + (1 if p.dir == "frente" else 0), wy, (90, 220, 200))
+    head(c, p, skin)
+    cacheado_degrade(c, p, hair_c)                             # cachos em cima, degradê nos lados
+    glasses(c, p, frame=(150, 152, 164))
+    if p.dir != "costas":
+        mouth(c, p, skin)
+    return c
+
+
+def albeguinio(p):
+    """Albeguinio: cabelo curto castanho com topete, barba rala, terno claro com camiseta preta."""
+    c = Canvas()
+    skin, hair_c = (238, 198, 168), (118, 78, 48)
+    stubble = shade(skin, -34)
+    blazer, blazer_d, blazer_l = uni(p, (226, 212, 182)), uni(p, (184, 166, 132), "dark"), uni(p, (246, 238, 216), "light")
+    tee, pants, shoes = (36, 34, 42), (218, 204, 172), (62, 44, 34)
+    x, y, w, h = p.torso
+    hx, hy, hw, hh = p.head
+    legs(c, p, pants, shoes)
+    far_arm(c, p, blazer, skin)
+    torso(c, p, blazer)
+    if p.dir == "frente":
+        c.rect(x + 3, y, w - 6, h - 1, tee)                     # camiseta preta no meio do terno
+        c.px(x + 3, y + 3, (226, 226, 226))                     # estampa
+        c.px(x + 4, y + 4, (226, 226, 226))
+        c.px(x + 2, y, blazer_l)                                # lapelas
+        c.px(x + w - 3, y, blazer_l)
+        c.px(x + 2, y + 1, blazer_d)
+        c.px(x + w - 3, y + 1, blazer_d)
+        c.px(x + 2, y + 5, blazer_d)                            # botão
+    elif p.side:
+        c.rect(x + w - 2, y, 1, h - 3, tee)
+        c.px(x + w - 3, y + 1, blazer_l)
+    else:
+        c.rect(x + 1, y, w - 2, 1, blazer_d)
+        c.rect(x + w // 2, y + 4, 1, h - 5, blazer_d)           # abertura do paletó
+    arms(c, p, blazer, skin, cuff=blazer_d)
+    head(c, p, skin)
+    hair(c, p, hair_c)
+    if p.dir != "costas":                                        # topete
+        c.rect(hx + 2, hy - 1, 5, 1, hair_c)
+        c.px(hx + 3, hy - 2, hair_c)
+        c.px(hx + 4, hy - 1, shade(hair_c, 30))
+        eyes(c, p)
+        if p.dir == "frente":
+            c.rect(hx + 1, hy + 8, hw - 2, 1, stubble)          # barba rala
+            c.rect(hx + 2, hy + 9, hw - 4, 1, stubble)
+            c.rect(hx + 3, hy + 7, 4, 1, stubble)
+        else:
+            c.rect(hx + 4, hy + 8, hw - 5, 1, stubble)
+            c.rect(hx + 5, hy + 9, hw - 6, 1, stubble)
+        mouth(c, p, skin)
+    else:
+        c.rect(hx, hy + 1, hw, 2, hair_c)
+    return c
+
+
+def borba(p):
+    """Borba Jr: o cabeludinho e o mais forte da turma — corpo largo (ombros e braços grossos),
+    cacheado castanho bem volumoso em "cogumelo" com franja, óculos de armação grossa e camisa
+    preta de zíper com gola branca."""
+    c = Canvas()
+    skin, hair_c = (214, 164, 124), (78, 50, 34)
+    polo, polo_d, polo_l = uni(p, (40, 40, 48)), uni(p, (24, 24, 30), "dark"), uni(p, (74, 74, 88), "light")
+    trim, pants, shoes = (232, 232, 226), (32, 32, 40), (34, 34, 40)
+    x, y, w, h = p.torso
+    hx, hy, hw, hh = p.head
+    legs(c, p, pants, shoes, wide=True)
+    for fx, fy, fw in feet(p, wide=True):                     # tênis preto de sola branca
+        c.rect(fx, fy + 2, fw, 1, trim)
+        c.px(fx + 1, fy, (220, 220, 220))
+    far_arm(c, p, polo, skin, thick=3)
+    torso(c, p, polo)
+    if p.dir == "frente":
+        c.rect(x + 2, y, w - 4, 1, trim)                        # gola com friso branco
+        c.rect(x + w // 2, y + 1, 1, h - 2, trim)               # zíper até embaixo
+        c.px(x + w // 2 - 1, y + 1, trim)
+        c.rect(x + 2, y + 3, 3, 1, polo_l)                      # peitoral
+        c.rect(x + w - 5, y + 3, 3, 1, polo_l)
+    else:
+        c.rect(x + 1, y, w - 2, 1, trim)
+    if not p.side:                                             # ombros largos
+        for sx in (x - 1, x + w - 1):
+            c.rect(sx, y, 2, 2, polo)
+            c.px(sx + (0 if sx < x else 1), y, polo_l)
+    arms(c, p, polo, skin, thick=3, cuff=trim)
+    head(c, p, skin)
+    curly_hair(c, p, hair_c, puff=3, wide=True, fringe=True)
+    glasses(c, p, frame=(20, 16, 22), thick=True)
+    if p.dir != "costas":
+        mouth(c, p, skin)
+    return c
+
+
+METAL, METAL_L, METAL_D = (150, 160, 178), (206, 214, 228), (92, 100, 120)
+EXO_GLOW, EXO_GLOW_L = (80, 170, 255), (210, 244, 255)
+
+
+def borba_exo(p):
+    """Borba Jr de exoesqueleto: placa no peito com a luz azul, ombreiras, cinta de metal,
+    manoplas e caneleiras por cima da roupa de sempre (ou do uniforme)."""
+    c = borba(p)
+    x, y, w, h = p.torso
+    if p.dir == "frente":
+        c.rect(x + 1, y + 1, w - 2, h - 3, METAL)
+        c.rect(x + 1, y + 1, w - 2, 1, METAL_L)
+        c.rect(x + 1, y + h - 3, w - 2, 1, METAL_D)
+        c.rect(x + w // 2 - 1, y + 3, 2, 2, EXO_GLOW)              # luz azul no peito
+        c.px(x + w // 2 - 1, y + 3, EXO_GLOW_L)
+        c.rect(x + 2, y + 6, 2, 1, METAL_D)
+        c.rect(x + w - 4, y + 6, 2, 1, METAL_D)
+    elif p.dir == "costas":
+        c.rect(x + 1, y + 1, w - 2, h - 3, METAL)
+        c.rect(x + 1, y + 1, w - 2, 1, METAL_L)
+        for vx in (x + 3, x + w - 4):                              # saídas de vapor
+            c.rect(vx, y + 2, 1, 4, METAL_D)
+        c.rect(x + w // 2 - 1, y + 2, 2, 1, EXO_GLOW)
+    else:
+        c.rect(x, y + 1, w, h - 3, METAL)
+        c.rect(x, y + 1, w, 1, METAL_L)
+        c.rect(x + w - 2, y + 3, 2, 2, EXO_GLOW)
+        c.px(x + w - 2, y + 3, EXO_GLOW_L)
+    if p.side:                                                     # ombreira
+        sx = x + w // 2 - 3
+        c.rect(sx, y - 1, 5, 3, METAL)
+        c.rect(sx, y - 1, 5, 1, METAL_L)
+        c.rect(sx, y + 1, 5, 1, METAL_D)
+    else:
+        for sx in (x - 3, x + w - 1):
+            c.rect(sx, y - 1, 4, 3, METAL)
+            c.rect(sx, y - 1, 4, 1, METAL_L)
+            c.rect(sx, y + 1, 4, 1, METAL_D)
+    bx, by, bw, bh = p.belt                                        # cinta
+    c.rect(bx - 1, by - 1, bw + 2, 2, METAL_D)
+    if p.dir == "frente":
+        c.px(bx + bw // 2, by - 1, EXO_GLOW)
+    if c.hand is not None:                                         # manopla da mão da arma
+        hx, hy = round(c.hand[0]), round(c.hand[1])
+        c.rect(hx - 2, hy - 2, 4, 3, METAL)
+        c.rect(hx - 2, hy - 2, 4, 1, METAL_L)
+    if not p.side:                                                 # manopla da outra mão
+        length = max(2, 5 + p.arm_a)
+        c.rect(x - 3 - (1 if p.dash else 0), y + length - 1, 3, 3, METAL)
+    for fx, fy, fw in feet(p, wide=True):                          # caneleiras
+        c.rect(fx, fy - 3, fw, 2, METAL)
+        c.px(fx, fy - 3, METAL_L)
+    return c
+
+
+# ── craques do futebol ────────────────────────
+
+NUMBER = (244, 242, 236)            # número nas costas
+DIGITS = {                          # algarismos 3x5
+    "3": ("###", "..#", ".##", "..#", "###"),
+    "5": ("###", "#..", "###", "..#", "###"),
+    "6": ("###", "#..", "###", "#.#", "###"),
+    "8": ("###", "#.#", "###", "#.#", "###"),
+}
+
+
+def digit(c, x, y, ch, color):
+    for row, line in enumerate(DIGITS[ch]):
+        for col, mark in enumerate(line):
+            if mark == "#":
+                c.px(x + col, y + row, color)
+
+
+def soccer_legs(c, p, skin, sock, boots, wide=False):
+    """Pernas de jogador: joelho de fora e meião até a chuteira."""
+    top = 25 + p.bob
+    if p.side:
+        for off, lift, dark in ((p.stride, p.lift_a, True), (-p.stride, p.lift_b, False)):
+            sk = shade(skin, -30) if dark else skin
+            so = shade(sock, -30) if dark else sock
+            bcol = shade(boots, -26) if dark else boots
+            bottom = 30 - lift
+            n = bottom - top
+            for i in range(n):
+                col = sk if i < n // 2 else so
+                x = p.hip_x + round(off * (i + 1) / n)
+                c.rect(x, top + i, 3, 1, col)
+                c.px(x, top + i, shade(col, -20))
+            fx = p.hip_x + off
+            c.rect(fx, bottom, 4, 2, bcol)
+            c.px(fx + 3, bottom, shade(bcol, 22))
+            c.rect(fx, bottom + 2, 4, 1, shade(bcol, -34))
+        return
+    gap = 4 if wide else 2
+    spread = 1 if p.dash else 0
+    lx, rx = 12 - gap // 2 - 3 - spread, 12 + gap // 2 + spread
+    for x, lift in ((lx, p.lift_a), (rx, p.lift_b)):
+        bottom = 30 - lift
+        mid = top + (bottom - top) // 2
+        c.rect(x, top, 3, mid - top, skin)
+        c.rect(x + 2, top, 1, mid - top, shade(skin, -24))
+        c.rect(x, mid, 3, bottom - mid, sock)
+        c.rect(x + 2, mid, 1, bottom - mid, shade(sock, -24))
+        c.px(x, mid, shade(sock, 22))                          # dobra do meião
+        c.rect(x, bottom, 3, 2, boots)
+        c.px(x, bottom, shade(boots, 26))
+        c.rect(x, bottom + 2, 3, 1, shade(boots, -38))
+
+
+def footballer(c, p, skin, shirt, shirt_d, shirt_l, shorts, sock, boots, number, wide=False, stripes=None):
+    """Corpo de jogador: chuteira, meião, calção e camisa (número nas costas, escudo no peito)."""
+    x, y, w, h = p.torso
+    soccer_legs(c, p, skin, sock, boots, wide)
+    c.rect(x, y + h, w, 3, shorts)                               # calção
+    c.rect(x, y + h + 2, w, 1, shade(shorts, -24))
+    if not p.side:
+        c.rect(x + w // 2, y + h + 1, 1, 2, shade(shorts, -30))  # entre as pernas
+    far_arm(c, p, shirt, skin)
+    torso(c, p, shirt)
+    if stripes is not None and not p.side:
+        for sx in range(x + 1, x + w - 1, 3):
+            c.rect(sx, y + 1, 1, h - 2, stripes)
+    elif stripes is not None:
+        c.rect(x + w // 2, y + 1, 1, h - 2, stripes)
+    c.rect(x, y + h - 1, w, 1, shirt_d)                          # barra da camisa
+    if p.dir == "frente":
+        c.rect(x + 2, y, w - 4, 1, shirt_l)                      # gola
+        c.px(x + w // 2 - 1, y, shade(skin, -10))
+        c.px(x + w // 2, y, shade(skin, -10))
+        c.rect(x + 1, y + 2, 2, 2, shirt_l)                      # escudo
+        c.px(x + 1, y + 2, NUMBER)
+    elif p.dir == "costas":
+        c.rect(x + 1, y, w - 2, 1, shirt_l)
+        digit(c, x + (w - 3) // 2, y + 1, number, NUMBER)
+    else:
+        c.rect(x + 1, y, w - 2, 1, shirt_l)
+    arms(c, p, shirt, skin, thick=3 if wide else 2, cuff=skin)  # manga curta
+
+
+def faisca(p):
+    """Faísca: baixinho driblador, cabelo ruivo espetado, bandana vermelha e sardas."""
+    c = Canvas()
+    skin, hair_c, band = (232, 182, 140), (214, 96, 52), (206, 44, 52)
+    shirt, shirt_d, shirt_l = uni(p, (92, 176, 70)), uni(p, (52, 118, 44), "dark"), uni(p, (150, 214, 110), "light")
+    hx, hy, hw, hh = p.head
+    footballer(c, p, skin, shirt, shirt_d, shirt_l, (236, 234, 226), shirt_d, (236, 128, 40), "8")
+    head(c, p, skin)
+    hair(c, p, hair_c, style="spiky")
+    eyes(c, p)
+    mouth(c, p, skin)
+    if p.dir == "frente":
+        for fx in (hx + 1, hx + 2, hx + hw - 3, hx + hw - 2):  # sardas
+            c.px(fx, hy + 7, shade(skin, -36))
+    elif p.side:
+        c.px(hx + hw - 4, hy + 7, shade(skin, -36))
+        c.px(hx + hw - 5, hy + 8, shade(skin, -36))
+    # bandana na testa, com o nó balançando atrás
+    c.rect(hx, hy + 2, hw, 2, band)
+    c.rect(hx, hy + 3, hw, 1, shade(band, -40))
+    c.px(hx + 1, hy + 2, shade(band, 40))
+    if p.side:
+        back = 1 if p.dash else 0
+        c.line(hx - 1, hy + 2, hx - 3 - back, hy + 3 + p.wave, band, 1)
+        c.px(hx - 2 - back, hy + 4, shade(band, -30))
+    elif p.dir == "costas":
+        c.rect(hx + 4, hy + 4, 2, 2, band)
+        c.px(hx + 3 + p.wave, hy + 6, band)
+    return c
+
+
+def trovao(p):
+    """Trovão: grandão, cabeça raspada com um raio desenhado, sobrancelha grossa."""
+    c = Canvas()
+    skin, brow = (122, 78, 54), (52, 34, 28)
+    shaved = (168, 120, 92)
+    shirt, shirt_d, shirt_l = uni(p, (120, 72, 190)), uni(p, (78, 44, 132), "dark"), uni(p, (168, 124, 226), "light")
+    hx, hy, hw, hh = p.head
+    footballer(c, p, skin, shirt, shirt_d, shirt_l, (40, 36, 48), shirt_d, (240, 206, 60), "5", wide=True)
+    head(c, p, skin)
+    c.rect(hx + 1, hy, hw - 3, 1, shade(skin, 18))               # brilho da careca
+    if p.dir == "costas":
+        for bx, by in ((5, 1), (4, 2), (5, 2), (5, 3), (4, 4)):  # raio raspado na nuca
+            c.px(hx + bx, hy + by, shaved)
+    else:
+        bolt = ((3, 1), (4, 1), (4, 2), (3, 2)) if p.dir == "frente" else ((1, 1), (2, 1), (2, 2), (1, 3))
+        for bx, by in bolt:
+            c.px(hx + bx, hy + by, shaved)
+        eyes(c, p)
+        mouth(c, p, skin)
+        if p.dir == "frente":
+            c.rect(hx + 1, hy + 4, 3, 1, brow)
+            c.rect(hx + hw - 4, hy + 4, 3, 1, brow)
+        else:
+            c.rect(hx + hw - 5, hy + 4, 3, 1, brow)
+            c.px(hx + 3, hy + 5, shade(skin, -24))               # orelha
+    return c
+
+
+def ginga(p):
+    """Ginga: tranças presas num coque alto com miçangas amarelas."""
+    c = Canvas()
+    skin, hair_c, bead = (176, 116, 78), (40, 30, 34), (246, 206, 70)
+    shirt, shirt_d, shirt_l = uni(p, (236, 132, 48)), uni(p, (186, 88, 30), "dark"), uni(p, (250, 180, 110), "light")
+    hx, hy, hw, hh = p.head
+    footballer(c, p, skin, shirt, shirt_d, shirt_l, (40, 52, 96), shirt, (240, 240, 236), "6")
+    head(c, p, skin)
+    hair(c, p, hair_c)
+    # tranças: risquinhos no cabelo e o coque no alto
+    if p.dir != "costas":
+        for tx in range(hx + 1, hx + hw - 1, 2):
+            c.px(tx, hy + 1, shade(hair_c, 30))
+    else:
+        for tx in range(hx + 1, hx + hw - 1, 2):
+            c.rect(tx, hy + 1, 1, hh - 4, shade(hair_c, 26))
+    bun = hx + hw // 2 - 2 - (1 if p.side else 0)
+    sway = 1 if p.side and (p.wave < 0 or p.dash) else 0
+    c.rect(bun - sway, hy - 3, 4, 3, hair_c)
+    c.rect(bun + 1 - sway, hy - 4, 2, 1, hair_c)
+    c.px(bun - sway, hy - 2, bead)
+    c.px(bun + 3 - sway, hy - 3, bead)
+    c.px(bun + 1 - sway, hy - 4, shade(bead, 30))
+    if p.dir != "costas":
+        eyes(c, p)
+        mouth(c, p, skin)
+    return c
+
+
+def matador(p):
+    """Matador: ruivo de bigodão, camisa listrada e munhequeira."""
+    c = Canvas()
+    skin, hair_c, stache = (240, 200, 170), (196, 98, 48), (170, 80, 40)
+    shirt, shirt_d, shirt_l = uni(p, (196, 52, 52)), uni(p, (120, 30, 34), "dark"), uni(p, (232, 110, 100), "light")
+    stripes = uni(p, (60, 36, 40), "dark")
+    hx, hy, hw, hh = p.head
+    footballer(c, p, skin, shirt, shirt_d, shirt_l, (36, 32, 40), shirt, (36, 30, 34), "3", stripes=stripes)
+    head(c, p, skin)
+    hair(c, p, hair_c)
+    if p.dir == "frente":
+        c.rect(hx + 1, hy + 3, 4, 1, hair_c)                     # repartido de lado
+        eyes(c, p)
+        c.rect(hx + 2, hy + 7, hw - 4, 1, stache)                # bigodão
+        c.px(hx + 2, hy + 8, stache)
+        c.px(hx + hw - 3, hy + 8, stache)
+        if p.hurt:
+            c.rect(hx + 4, hy + 8, 2, 1, shade(skin, -90))
+    elif p.side:
+        eyes(c, p)
+        c.rect(hx + hw - 5, hy + 7, 4, 1, stache)
+        c.px(hx + hw - 5, hy + 8, stache)
+    return c
+
+
 # ── criaturas da campanha ─────────────────────
 
 def diabrete(p):
@@ -1329,12 +1895,22 @@ CHARACTERS = {
     "tita": (tita, True, [EYE, WHITE]),
     "pirata": (pirata, False, [EYE, WHITE]),
     "geada": (geada, False, [(40, 84, 150), (200, 244, 255)]),
+    "faisca": (faisca, False, [EYE, WHITE]),
+    "trovao": (trovao, True, [EYE, WHITE]),
+    "ginga": (ginga, False, [EYE, WHITE]),
+    "matador": (matador, False, [EYE, WHITE]),
+    "cauanzera": (cauanzera, False, [EYE, LENS, LENS_L]),
+    "albeguinio": (albeguinio, False, [EYE, WHITE]),
+    "borba": (borba, True, [EYE, LENS, LENS_L]),             # corpo largo: o mais forte da turma
+    "borba_exo": (borba_exo, True, [EYE, LENS, LENS_L, EXO_GLOW]),     # Borba Jr de exoesqueleto
     "diabrete": (diabrete, False, []),
     "esqueleto": (esqueleto, False, []),
     "golem": (golem, False, []),
 }
-HEROES = ("guerreiro", "atirador", "tanque", "ninja", "velocista", "aryel", "fantasma", "tita", "pirata", "geada")
+HEROES = ("guerreiro", "atirador", "tanque", "ninja", "velocista", "aryel", "fantasma", "tita", "pirata", "geada",
+          "faisca", "trovao", "ginga", "matador", "cauanzera", "albeguinio", "borba")
 KIT_DIR = OUT / "uniformes"
+VARIANTS = ("borba_exo",)            # não são personagens, mas também ganham uniforme (futebol)
 
 
 def build_sheet(name, kit=None):
@@ -1373,7 +1949,7 @@ def main():
         sheet, info = build_sheet(name)
         pygame.image.save(sheet, str(OUT / f"{name}.png"))
         (OUT / f"{name}.json").write_text(json.dumps(info, ensure_ascii=False), encoding="utf-8")
-        if name in HEROES:
+        if name in HEROES or name in VARIANTS:
             KIT_DIR.mkdir(parents=True, exist_ok=True)
             for team, kit in KITS.items():
                 kit_sheet, _ = build_sheet(name, kit)

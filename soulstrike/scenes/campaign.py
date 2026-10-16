@@ -454,8 +454,6 @@ class CampaignEndScene(_RunMenuScene):
         secs = run.frames // config.FPS
         self.best_before = progress.best_time(run.session.difficulty)
         self.record, self.unlocked = progress.record_campaign(secs, run.session.difficulty, run.players)
-        from ..data import roster
-        hub.roster_size = len(roster())        # o celular passa a mostrar o Aryel Corrompido
         self.menu = MenuList([("MENU PRINCIPAL", "menu"), ("JOGAR DE NOVO", "again")],
                              topleft=(64, 356), width=300)
         self.banner = "CAMPANHA CONCLUÍDA"

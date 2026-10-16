@@ -14,6 +14,8 @@ survives_hit() e on_wall(); cada classe responde do seu jeito (polimorfismo):
 - ChainBall (corrente): bola de ferro presa na corrente; vai, acerta, atordoa e volta.
 - LeadBall (pistola): bala de chumbo, fumaça na saída e empurrão forte.
 - IceShard (cristal): deixa o alvo lento e estilhaça na parede.
+- FloppyDisk (disquete), Pendrive (vírus que tira vida aos poucos) e PulseShot (Canhão de Pulso:
+  segurar carrega um tiro maior que empurra).
 """
 import math
 import random
@@ -677,6 +679,259 @@ class CannonBall(LeadBall):
         surf.fill((170, 174, 190), (sx - 3, sy - 3, 3, 3))
 
 
+# ── armas do Cauanzera, do Albeguinio e do Borba Jr ──
+class FloppyDisk(ShurikenStar):
+    """Disquete do Cauanzera: gira como shuriken e quica uma vez na parede."""
+    sprite = "Disquete"
+
+
+class Pendrive(Projectile):
+    """Pendrive do Albeguinio: gira no ar e passa um vírus — o alvo pisca verde e perde vida aos
+    poucos por 2s."""
+    sprite = "Pendrive"
+    VIRUS = 2 * 60
+    VIRUS_DAMAGE = 1
+
+    def update(self, match):
+        super().update(match)
+        if self.age % 3 == 0:
+            match.particles.append(Particle(self.x, self.y, random.uniform(-0.4, 0.4), random.uniform(-0.4, 0.4),
+                                            random.choice(((110, 240, 130), (190, 255, 200))), 12, 2))
+
+    def on_hit(self, target, match):
+        was = target.virus_timer > 0
+        if target.infect(self.owner, max(1, round(self.VIRUS_DAMAGE * self.owner.damage_bonus)), self.VIRUS) and not was:
+            match.popup(target.x, target.y - 62, "VÍRUS", (110, 240, 130))
+
+    def on_wall(self, wall, match):
+        match.burst(self.x, self.y, (110, 240, 130), 5, speed=2)
+        return False
+
+    def draw(self, surf, camera):
+        self.draw_sprite(surf, camera, angle=self.age * 30)
+
+
+class PulseShot(Projectile):
+    """Canhão de Pulso do Borba Jr: bola de energia azul. Segurando, carrega: sai maior, mais forte
+    e empurra muito."""
+    muzzle = 20
+    CORE, GLOW = (210, 240, 255), (90, 170, 255)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.radius = 5 + round(5 * self.power)
+
+    @staticmethod
+    def speed_for(weapon, power):
+        return weapon.bullet_speed * (0.9 + 0.3 * power)
+
+    def on_launch(self, match):
+        match.burst(self.x, self.y, self.GLOW, 4 + round(8 * self.power), speed=3)
+        if self.power >= 0.99:
+            match.camera.shake(3)
+            self.owner.knock = [-self.vx * 0.25, -self.vy * 0.25]          # coice do tiro carregado
+
+    def on_hit(self, target, match):
+        target.knock = [k * (1.2 + 1.3 * self.power) for k in target.knock]
+        match.burst(target.x, target.y - 16, self.GLOW, 6 + round(8 * self.power), speed=4)
+
+    def on_wall(self, wall, match):
+        match.burst(self.x, self.y, self.GLOW, 6, speed=3)
+        return False
+
+    def update(self, match):
+        super().update(match)
+        if self.age % 2 == 0:
+            match.particles.append(Particle(self.x, self.y, -self.vx * 0.05, -self.vy * 0.05, self.GLOW, 10,
+                                            2 + round(2 * self.power)))
+
+    def draw(self, surf, camera):
+        sx, sy = round(self.x - camera.x), round(self.y - camera.y)
+        r = self.radius
+        glow = _glow(self.GLOW, r * 3)
+        surf.blit(glow, glow.get_rect(center=(sx, sy)))
+        pygame.draw.circle(surf, (20, 30, 60), (sx, sy), r + 1)
+        pygame.draw.circle(surf, self.GLOW, (sx, sy), r)
+        pygame.draw.circle(surf, self.CORE, (sx - 1, sy - 1), max(1, r - 3))
+
+
+# ── habilidade do Cauanzera (Multiesportista) ──
+class Basketball(Bullet):
+    """Basquete: arremesso alto que passa por cima das paredes e cai em cima do alvo (não erra)."""
+
+    lobbed = True
+    DAMAGE = 15
+    FLIGHT = 38
+    PEAK = 130
+    color = (236, 128, 50)
+
+    @classmethod
+    def throw(cls, owner, target, damage):
+        ball = cls(owner, owner.x, owner.y - 10, 0, 0, 0, damage, cls.color)
+        ball.target = target
+        ball.age = 0
+        ball.radius = 7
+        ball.start = (owner.x, owner.y - 10)
+        if target is None:
+            fx, fy = owner.facing
+            ball.end = (owner.x + fx * 300, owner.y + fy * 300)
+        else:
+            ball.end = (target.x, target.y)
+        ball.z = 0.0
+        return ball
+
+    def can_hit(self, fighter):
+        return False                          # no ar não bate em ninguém: cai na cabeça do alvo
+
+    def update(self, match):
+        self.age += 1
+        t = self.target
+        if t is not None and t.alive_in_match:
+            self.end = (t.x, t.y)             # segue o alvo: cesta garantida
+        k = min(1.0, self.age / self.FLIGHT)
+        (x0, y0), (x1, y1) = self.start, self.end
+        self.x, self.y = x0 + (x1 - x0) * k, y0 + (y1 - y0) * k
+        self.z = 4 * self.PEAK * k * (1 - k)
+        if k < 1:
+            return
+        self.alive = False
+        match.burst(self.x, self.y, self.color, 10, speed=4)
+        if t is not None and t.alive_in_match and t.distance_to(self) < t.radius + 30:
+            if t.take_damage(self.damage, self.x, self.y - 30, attacker=self.owner, match=match):
+                match.popup(t.x, t.y - 80, "CESTA!", (240, 150, 60))
+                match.camera.shake(4)
+
+    def draw(self, surf, camera):
+        sx, sy = round(self.x - camera.x), round(self.y - camera.y)
+        shrink = max(4, 14 - round(self.z / 12))
+        pygame.draw.ellipse(surf, (10, 8, 14), (sx - shrink // 2, sy + 12, shrink, max(2, shrink // 3)))
+        draw_sport_ball(surf, sx, round(sy - self.z), 7, "basquete", self.age)
+
+
+class Volleyball(Bullet):
+    """Vôlei: saque rápido que quica de um adversário para o outro. Sozinho contra um, a bola
+    sai dele, bate na parede e volta nele."""
+
+    DAMAGE = 8
+    SPEED = 14
+    HITS = 3
+    LIFE = 160
+    TURN = 0.28
+
+    def __init__(self, owner, target, dx, dy, damage):
+        super().__init__(owner, owner.x + dx * 18, owner.y + dy * 18 - 4, dx, dy, self.SPEED, damage, (250, 230, 120))
+        self.radius = 7
+        self.target = target
+        self.hits_left = self.HITS
+        self.seeking = target is not None
+        self.age = 0
+
+    def update(self, match):
+        self.age += 1
+        t = self.target
+        if self.seeking and t is not None and t.alive_in_match:
+            dx, dy = _unit(t.x - self.x, t.y - 6 - self.y)
+            self.vx += (dx * self.SPEED - self.vx) * self.TURN
+            self.vy += (dy * self.SPEED - self.vy) * self.TURN
+            k = self.SPEED / (math.hypot(self.vx, self.vy) or 1)
+            self.vx, self.vy = self.vx * k, self.vy * k
+        self.trail.append((self.x, self.y))
+        if len(self.trail) > 5:
+            self.trail.pop(0)
+        self.x += self.vx
+        self.y += self.vy
+        w, h = match.arena.width, match.arena.height
+        if not (10 < self.x < w - 10):                # borda da arena também é "parede"
+            self.vx = -self.vx
+            self.x = min(max(self.x, 11), w - 11)
+            self._rebound()
+        if not (10 < self.y < h - 10):
+            self.vy = -self.vy
+            self.y = min(max(self.y, 11), h - 11)
+            self._rebound()
+        if self.age > self.LIFE:
+            self.alive = False
+
+    def _rebound(self):
+        if not self.seeking:
+            self.seeking = True
+            self.hit = set()                          # volta para quem já tinha levado
+
+    def survives_hit(self):
+        self.hits_left -= 1
+        return self.hits_left > 0
+
+    def on_hit(self, target, match):
+        match.burst(self.x, self.y, (250, 230, 120), 8, speed=3)
+        others = [f for f in match.opponents_of(self.owner) if f.alive_in_match and f not in self.hit]
+        if others:
+            self.target = min(others, key=lambda f: math.hypot(f.x - self.x, f.y - self.y))
+            self.seeking = True
+            return
+        # ninguém mais: quica na parede mais perto e volta nele
+        dx, dy = self._nearest_wall(match, target)
+        self.vx, self.vy = dx * self.SPEED, dy * self.SPEED
+        self.target = target
+        self.seeking = False
+
+    def _nearest_wall(self, match, target):
+        """Direção (saindo do alvo, não por cima dele) da parede ou borda mais perto."""
+        away = _unit(self.x - target.x, self.y - target.y)
+        if away == (0.0, 0.0):
+            away = _unit(-self.vx, -self.vy)
+        arena = match.arena
+        best = (1e9, away[0], away[1])
+        for k in range(16):
+            a = k * math.tau / 16
+            dx, dy = math.cos(a), math.sin(a)
+            if dx * away[0] + dy * away[1] < 0.1:
+                continue
+            dist = 1e9
+            for step in range(2, 60):
+                px, py = self.x + dx * step * 14, self.y + dy * step * 14
+                if not (10 < px < arena.width - 10 and 10 < py < arena.height - 10) or \
+                        any(w.rect.collidepoint(px, py) for w in arena.walls):
+                    dist = step * 14
+                    break
+            if dist < best[0]:
+                best = (dist, dx, dy)
+        return best[1], best[2]
+
+    def on_wall(self, wall, match):
+        res = push_circle_out(self.x, self.y, self.radius + 1, wall.rect)
+        if res is not None:
+            self.x, self.y, nx, ny = res
+            dot = self.vx * nx + self.vy * ny
+            if dot < 0:
+                self.vx -= 2 * dot * nx
+                self.vy -= 2 * dot * ny
+        match.burst(self.x, self.y, (250, 230, 120), 4, speed=2)
+        self._rebound()
+        return True
+
+    def draw(self, surf, camera):
+        for i, (tx, ty) in enumerate(self.trail):
+            surf.fill((200, 180, 90), (round(tx - camera.x) - 1, round(ty - camera.y) - 1, 2 + i // 2, 2 + i // 2))
+        draw_sport_ball(surf, round(self.x - camera.x), round(self.y - camera.y), 7, "volei", self.age)
+
+
+def draw_sport_ball(surf, x, y, r, kind, age):
+    """Bola de basquete (laranja com gomos pretos) ou de vôlei (branca com faixas azul e amarela)."""
+    pygame.draw.circle(surf, (20, 14, 22), (x, y), r + 1)
+    if kind == "basquete":
+        pygame.draw.circle(surf, (236, 128, 50), (x, y), r)
+        pygame.draw.line(surf, (40, 24, 20), (x - r, y), (x + r, y), 1)
+        pygame.draw.line(surf, (40, 24, 20), (x, y - r), (x, y + r), 1)
+        surf.fill((255, 190, 130), (x - r // 2, y - r // 2, 2, 2))
+        return
+    pygame.draw.circle(surf, (244, 242, 232), (x, y), r)
+    a = age * 0.4
+    for k, color in enumerate(((60, 110, 200), (240, 200, 60))):
+        ang = a + k * math.pi / 1.5
+        pygame.draw.line(surf, color, (round(x + math.cos(ang) * r), round(y + math.sin(ang) * r)),
+                         (round(x - math.cos(ang + 0.6) * r), round(y - math.sin(ang + 0.6) * r)), 2)
+
+
 PROJECTILES = {
     "flecha": Arrow,
     "bala": Tracer,
@@ -689,6 +944,9 @@ PROJECTILES = {
     "pistola": LeadBall,
     "cristal": IceShard,
     "virote": Bolt,
+    "disquete": FloppyDisk,
+    "pendrive": Pendrive,
+    "pulso": PulseShot,
     "chama": Flame,
     "bumerangue": Boomerang,
     "raio": Lightning,

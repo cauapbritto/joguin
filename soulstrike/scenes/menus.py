@@ -30,7 +30,7 @@ class LoadingScene(Scene):
         except StopIteration:
             server.set_previews(self.assets.portrait_pngs())
             from ..net.remote import hub
-            hub.roster_size = len(roster())
+            hub.roster_size = len(CHARACTERS)          # o celular recebe todos (acha o escolhido pelo índice)
             if not self.game.headless:
                 server.start_in_background()
             self.game.change(TitleScene(self.game))
@@ -52,7 +52,7 @@ class LoadingScene(Scene):
                 yield
         # e as almas corrompidas de cada herói (campanha)
         for stats in CHARACTERS:
-            if stats.key not in SHADOW_CHARACTERS:
+            if stats.key not in SHADOW_CHARACTERS and not stats.soccer_only:
                 self.assets.shadow_sprites(stats.sprite)
                 yield
 

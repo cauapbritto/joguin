@@ -481,6 +481,106 @@ def virote():
     return s.finish(), (6, 1)
 
 
+# ── armas do Cauanzera, do Albeguinio e do Borba Jr ──
+NAVY, NAVY_D = (52, 74, 140), (32, 46, 92)
+PAGE = (240, 232, 210)
+LAPTOP, LAPTOP_D, LAPTOP_L = (150, 154, 166), (96, 100, 112), (200, 204, 214)
+SCREEN_G = (90, 230, 120)
+PLASTIC, PLASTIC_D = (60, 62, 74), (36, 36, 46)
+CABLE, CABLE_D = (64, 150, 220), (34, 92, 150)
+EXO, EXO_L, EXO_D = (150, 160, 178), (206, 214, 228), (92, 100, 120)
+PULSE, PULSE_L = (80, 170, 255), (210, 244, 255)
+
+
+def disquete():
+    """Disquete de 3,5": corpo azul, janelinha de metal e etiqueta (gira quando é jogado)."""
+    s = Sprite(9, 9)
+    s.rect(0, 0, 9, 9, NAVY)
+    s.rect(0, 8, 9, 1, NAVY_D)
+    s.rect(8, 0, 1, 9, NAVY_D)
+    s.rect(2, 0, 5, 3, STEEL_M)                  # tampa de metal
+    s.rect(5, 1, 1, 2, NAVY_D)
+    s.px(2, 0, STEEL)
+    s.rect(1, 5, 7, 3, PAGE)                     # etiqueta
+    s.rect(2, 6, 4, 1, (120, 120, 140))
+    s.px(0, 8, NAVY_D)
+    return s.finish(), (1, 5)
+
+
+def cabo_de_rede():
+    """Cabo de rede azul enrolado na mão, com o conector RJ45 transparente na ponta (chicote)."""
+    s = Sprite(30, 7)
+    s.rect(0, 2, 4, 3, CABLE_D)                  # voltas na mão
+    s.rect(1, 1, 2, 5, CABLE)
+    for x in range(4, 26):                       # o cabo ondulando
+        y = 3 + (1 if (x // 3) % 2 else -1 if (x // 3) % 4 == 2 else 0)
+        s.rect(x, y, 1, 2, CABLE)
+        s.px(x, y + 1, CABLE_D)
+    s.rect(26, 2, 4, 3, (210, 226, 236))         # conector
+    s.rect(26, 2, 4, 1, (244, 250, 255))
+    s.rect(27, 4, 3, 1, GOLD)                    # pinos
+    s.px(25, 3, CABLE_D)
+    return s.finish(), (2, 3)
+
+
+def pendrive():
+    """Pendrive preto com a ponta USB de metal e uma luzinha verde."""
+    s = Sprite(11, 5)
+    s.rect(0, 0, 7, 5, PLASTIC)
+    s.rect(0, 0, 7, 1, (92, 94, 110))
+    s.rect(0, 4, 7, 1, PLASTIC_D)
+    s.px(1, 2, SCREEN_G)                         # luzinha
+    s.rect(7, 1, 4, 3, STEEL_M)                  # ponta USB
+    s.rect(7, 1, 4, 1, STEEL)
+    s.px(8, 2, STEEL_D)
+    s.px(10, 2, STEEL_D)
+    return s.finish(), (2, 2)
+
+
+def notebook():
+    """Notebook fechado, segurado pela beirada (bate com a tampa)."""
+    s = Sprite(16, 12)
+    s.rect(0, 0, 16, 12, LAPTOP)
+    s.rect(0, 0, 16, 1, LAPTOP_L)
+    s.rect(0, 11, 16, 1, LAPTOP_D)
+    s.rect(15, 0, 1, 12, LAPTOP_D)
+    s.rect(0, 9, 16, 1, LAPTOP_D)                # junção da tampa
+    s.rect(6, 4, 4, 3, (220, 224, 232))          # logo
+    s.px(7, 5, LAPTOP_D)
+    return s.finish(), (1, 6)
+
+
+def canhao_de_pulso():
+    """Canhão de Pulso: canhão de metal preso no antebraço, com a boca azul acesa."""
+    s = Sprite(18, 9)
+    s.rect(0, 1, 6, 7, EXO_D)                    # braçadeira
+    s.rect(1, 2, 4, 5, EXO)
+    s.rect(5, 0, 9, 9, EXO)
+    s.rect(5, 0, 9, 2, EXO_L)
+    s.rect(5, 7, 9, 2, EXO_D)
+    for x in (7, 10):                            # aletas
+        s.rect(x, 2, 1, 5, EXO_D)
+    s.rect(14, 1, 4, 7, (40, 46, 70))            # boca
+    s.rect(15, 2, 3, 5, PULSE)
+    s.rect(16, 3, 2, 3, PULSE_L)
+    return s.finish(), (2, 4)
+
+
+def punho_mecanico():
+    """Punho Mecânico: luva robótica grande, com dedos de placas e a junta azul."""
+    s = Sprite(13, 11)
+    s.rect(0, 3, 4, 5, EXO_D)                    # punho
+    s.rect(3, 1, 8, 9, EXO)
+    s.rect(3, 1, 8, 1, EXO_L)
+    s.rect(3, 9, 8, 1, EXO_D)
+    for y in (2, 4, 6, 8):                       # dedos
+        s.rect(10, y, 3, 1, EXO_L)
+        s.rect(10, y + 1, 3, 1, EXO_D) if y < 8 else None
+    s.rect(5, 4, 2, 2, PULSE)                    # junta acesa
+    s.px(5, 4, PULSE_L)
+    return s.finish(), (2, 5)
+
+
 WEAPONS = {
     "Espada": espada, "Faca": faca, "Katana": katana, "Espadão": espadao,
     "Maça": maca, "Martelo": martelo, "Foice": foice, "Lança": lanca,
@@ -492,6 +592,9 @@ WEAPONS = {
     # armas raras do baú da campanha e o virote da besta
     "Besta": besta, "Lança-chamas": lanca_chamas, "Bumerangue": bumerangue, "Cajado do Raio": cajado_raio,
     "Canhão de Mão": canhao, "Virote": virote,
+    # Cauanzera, Albeguinio e Borba Jr
+    "Disquete": disquete, "Cabo de Rede": cabo_de_rede, "Pendrive": pendrive, "Notebook": notebook,
+    "Canhão de Pulso": canhao_de_pulso, "Punho Mecânico": punho_mecanico,
 }
 
 

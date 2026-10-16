@@ -378,6 +378,69 @@ class RelicDrop(Entity):
             surf.blit(img, img.get_rect(center=(sx, sy)))
 
 
+class GroundWeapon(Entity):
+    """Arma rara no chão: quem pegou outra arma rara solta a que tinha (só dá para ter uma).
+    Perto dela, ATACAR pega de volta — e quem pega solta a dele no lugar (troca)."""
+
+    REACH = 58
+    TOSS = 22                    # quadros do arremesso até o chão
+
+    def __init__(self, weapon, start, end):
+        super().__init__(*end)
+        self.weapon = weapon
+        self.start = start
+        self.end = end
+        self.t = 0
+        self.z = 0.0
+        self.x, self.y = start
+
+    @property
+    def landed(self):
+        return self.t >= self.TOSS
+
+    @property
+    def sort_y(self):
+        return self.y - 30 if self.landed else 1e9      # no chão fica embaixo de quem pisa
+
+    def can_pick(self, fighter):
+        return self.landed and fighter.alive_in_match and fighter.distance_to(self) < self.REACH
+
+    def update(self, match):
+        self.t += 1
+        if not self.landed:
+            k = self.t / self.TOSS
+            (x0, y0), (x1, y1) = self.start, self.end
+            self.x, self.y = x0 + (x1 - x0) * k, y0 + (y1 - y0) * k
+            self.z = 46 * 4 * k * (1 - k)
+            if self.landed:
+                self.z = 0.0
+                match.dust(self.x, self.y + 6, 5)
+                match.assets.play("click", 0.4)
+        elif self.t % 24 == 0:
+            match.particles.append(Particle(self.x + random.uniform(-14, 14), self.y - 4, 0, -0.5, GOLD_L, 22, 2))
+
+    def draw(self, surf, camera):
+        sx, sy = round(self.x - camera.x), round(self.y - camera.y)
+        pygame.draw.ellipse(surf, (0, 0, 0), (sx - 18, sy + 2, 36, 10))
+        bob = 0 if not self.landed else round(math.sin(self.t * 0.08) * 2) - 6
+        g = glow(20, (255, 210, 120), 0.45 + 0.15 * math.sin(self.t * 0.1))
+        surf.blit(g, g.get_rect(center=(sx, sy - 8 + bob)), special_flags=pygame.BLEND_ADD)
+        angle = self.t * 24 if not self.landed else -25
+        img = weapon_art.rotated(self.weapon.name, angle)
+        if img is not None:
+            surf.blit(img, img.get_rect(center=(sx, sy - round(self.z) + bob)))
+
+    def draw_prompt(self, screen, camera, ui, frame, near):
+        if not self.landed:
+            return
+        # embaixo da arma (em cima ficam os nomes dos jogadores)
+        sx, sy = camera.to_screen(self.x, self.y + 14)
+        ui.text(screen, self.weapon.name.upper(), theme.XS, (255, 220, 120), (round(sx), round(sy)))
+        if near:
+            color = theme.BRASS if (frame // 15) % 2 else theme.BONE
+            ui.text(screen, "ATACAR: PEGAR", theme.XS, color, (round(sx), round(sy) + 12))
+
+
 # ─────────────────────────────────────────────
 #  Saída da masmorra 1 (a fase acaba com o botão TELETRANSPORTE DE FASE)
 # ─────────────────────────────────────────────

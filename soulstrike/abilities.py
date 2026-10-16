@@ -5,11 +5,14 @@ import random
 from abc import ABC, abstractmethod
 
 from . import config
-from .entities import Barrier, FrostNova, Hook, ShadowBomb
+from .entities import Barrier, ExoSuit, FrostNova, Hack, Hook, ShadowBomb
+from .projectiles import Basketball, Volleyball
 
 
 class Ability(ABC):
     sound = "ability"
+    cooldown_mult = 1.0         # habilidade forte demora mais para recarregar
+    reach_mult = 1.0            # alcance do golpe corpo a corpo (passiva de alto do Cauanzera)
 
     def __init__(self, stats):
         self.name = stats.ability_name
@@ -26,6 +29,12 @@ class Ability(ABC):
     def worth_using(self, user, target, dist):
         """Dica para a CPU: vale a pena usar agora?"""
         return True
+
+    def tick(self, user):
+        """Chamado todo quadro (quase todas não precisam)."""
+
+    def reset(self):
+        """Novo round: esquece o que guardou."""
 
 
 def _aim(user, target):
@@ -176,6 +185,104 @@ class ChuvaSombria(Ability):
         return 120 < dist < 460
 
 
+def _nearest_foe(user, match, target):
+    if target is not None and getattr(target, "alive_in_match", False):
+        return target
+    foes = [f for f in match.opponents_of(user) if f.alive_in_match]
+    return min(foes, key=user.distance_to) if foes else None
+
+
+class Multiesportista(Ability):
+    """Cauanzera: cada vez um esporte, sempre nesta ordem — basquete (bola que passa por cima das
+    paredes e não erra), vôlei (saque que quica de um inimigo para outro) e atletismo (100 metros:
+    corre muito e atropela). Passiva de alto: o golpe alcança mais longe."""
+    SPORTS = ("BASQUETE", "VÔLEI", "ATLETISMO")
+    reach_mult = 1.1
+    cooldown_mult = 1.5
+    RUSH = 2 * config.FPS
+    RUSH_DAMAGE = 12
+
+    def __init__(self, stats):
+        super().__init__(stats)
+        self.next = 0
+        self.name = self.SPORTS[0]          # o HUD mostra o próximo esporte
+
+    @property
+    def sport(self):
+        return self.SPORTS[self.next]
+
+    def reset(self):
+        self.next = 0
+        self.name = self.SPORTS[0]
+
+    def activate(self, user, match, target):
+        sport = self.sport
+        foe = _nearest_foe(user, match, target)
+        if sport == "BASQUETE":
+            match.bullets.append(Basketball.throw(user, foe, _dmg(user, Basketball.DAMAGE)))
+            match.popup(user.x, user.y - 80, "ARREMESSO!", (240, 150, 60))
+        elif sport == "VÔLEI":
+            dx, dy = user.direction_to(foe) if foe is not None else user.facing
+            if not (dx or dy):
+                dx, dy = user.facing
+            match.bullets.append(Volleyball(user, foe, dx, dy, _dmg(user, Volleyball.DAMAGE)))
+            match.popup(user.x, user.y - 80, "SAQUE!", (250, 230, 120))
+        else:
+            user.rush_timer = self.RUSH
+            user.rush_hit = set()
+            user.rush_damage = _dmg(user, self.RUSH_DAMAGE)
+            match.popup(user.x, user.y - 80, "100 METROS!", (240, 240, 240))
+            match.dust(user.x, user.y + 20, 8)
+        self.next = (self.next + 1) % len(self.SPORTS)
+        self.name = self.sport
+
+    def worth_using(self, user, target, dist):
+        sport = self.sport
+        if sport == "BASQUETE":
+            return dist > 120
+        if sport == "VÔLEI":
+            return dist < 520
+        return dist < 300
+
+
+class Hacker(Ability):
+    """Albeguinio: abre o notebook e digita por 1s (se apanhar enquanto digita, falha); depois o
+    sinal de Wi-Fi sai dele e todos os adversários ficam HACKEADOS — travados por 5s."""
+    sound = "barrier"
+    cooldown_mult = 2.0             # 20s
+    TYPING = config.FPS
+    FREEZE = 5 * config.FPS
+
+    def activate(self, user, match, target):
+        match.add_effect(Hack(user, self.TYPING, self.FREEZE))
+
+    def worth_using(self, user, target, dist):
+        # longe o bastante para digitar em paz (ou com o inimigo recarregando)
+        if target is None or target.stunned:
+            return False
+        return dist > 260 or target.reloading
+
+
+class Exoesqueleto(Ability):
+    """Borba Jr: as placas de metal se montam nele. Por 6s fica maior, leva metade do dano, não é
+    empurrado e o golpe arremessa longe (quem bate na parede fica tonto)."""
+    sound = "barrier"
+    cooldown_mult = 1.3
+    FRAMES = 6 * config.FPS
+
+    def activate(self, user, match, target):
+        start_exo(user, match, self.FRAMES)
+
+    def worth_using(self, user, target, dist):
+        return dist < 300 or user.hp < user.max_hp * 0.5
+
+
+def start_exo(user, match, frames):
+    """Monta o exoesqueleto (duelo e futebol)."""
+    user.start_exo(frames, match.assets.exo_sprites(user))
+    match.add_effect(ExoSuit(user, frames))
+
+
 ABILITIES = {
     "guerreiro": Investida,
     "atirador": Rajada,
@@ -188,6 +295,9 @@ ABILITIES = {
     "pirata": Gancho,
     "geada": Nevasca,
     "aryel_corrompido": ChuvaSombria,
+    "cauanzera": Multiesportista,
+    "albeguinio": Hacker,
+    "borba": Exoesqueleto,
 }
 
 
