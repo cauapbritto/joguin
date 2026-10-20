@@ -43,6 +43,28 @@ rede: libere (é o servidor do controle pelo celular).
 Se o `pip` reclamar de certificado (rede com proxy), use
 `pip install --use-feature=truststore pyinstaller`.
 
+## Atualizar o jogo
+
+No menu principal, **ATUALIZAR** procura no GitHub se saiu versão nova (é a única função
+do jogo que usa a internet; sem conexão ela só avisa e nada muda).
+
+- **Instalado pelo INSTALAR.bat / INSTALAR.sh** (ou zip extraído): o jogo baixa a versão
+  nova, troca os próprios arquivos e reabre sozinho. Não precisa apagar pasta nenhuma: o
+  `.venv` fica, as bibliotecas só são reinstaladas se o `requirements.txt` mudou, e o
+  progresso salvo (`%APPDATA%/SoulStrike` ou `~/.soulstrike`) nem é tocado. Se algo der
+  errado no meio, os arquivos antigos voltam.
+- **Executável (.exe ou .deb em /opt):** o jogo avisa que tem versão nova e abre a página
+  para baixar (no Linux, é só abrir o .deb novo por cima do antigo).
+- **Clone do git:** use `git pull`.
+
+### Publicar uma versão nova
+
+1. Suba o número em `soulstrike/__init__.py` (`__version__ = "1.1.0"`).
+2. No GitHub, em *Releases → Draft a new release*, crie a tag `v1.1.0` (mesmo número) e
+   publique. O texto da Release aparece na tela de atualização.
+
+O botão compara a tag da última Release com o `__version__` de quem está jogando.
+
 ## Modos
 
 - **Campanha** (1 a 4 jogadores, juntos) — Aryel tocou no Cristal das Almas e virou **Aryel
@@ -307,6 +329,7 @@ soulstrike/
   boss.py               o chefão Aryel Corrompido
   upgrades.py           melhorias entre as fases
   progress.py           progresso salvo (campanha zerada, melhor tempo)
+  updater.py            botão ATUALIZAR: versão nova no GitHub (única parte que usa a internet)
   fighter.py            o lutador
   abilities.py          uma subclasse de Ability por personagem (duelo)
   soccer_powers.py      uma subclasse de SoccerPower por personagem (futebol)
