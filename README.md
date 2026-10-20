@@ -18,6 +18,25 @@ aproveitado. O log fica em `instalar.log`.
 Se o Windows mostrar "O Windows protegeu o computador": **Mais informações** →
 **Executar assim mesmo**.
 
+### Linux Mint (e Ubuntu/Debian)
+
+Extraia o zip, abra a pasta e dê dois cliques em **`INSTALAR.sh`** (escolha **Executar no
+terminal**), ou rode no terminal:
+
+```
+./INSTALAR.sh
+```
+
+Ele usa o Python que já vem no Mint (3.10 a 3.13; instala o `python3.x-venv` pelo `apt` se
+faltar, pedindo a senha), cria o `.venv`, instala as bibliotecas e põe o **Soul Strike** no menu
+de aplicativos (Jogos) e na Área de Trabalho. Se o firewall (`ufw`) estiver ligado, libera a
+porta 5000 para o celular conectar. Pode rodar de novo quando quiser; o log fica em
+`instalar.log`. Também dá para abrir pelo terminal com `./SoulStrike.sh` (ou
+`./SoulStrike.sh --janela`). Para tirar os atalhos e o `.venv`: `./INSTALAR.sh --desinstalar`.
+
+Se os dois cliques abrirem o arquivo no editor de texto: botão direito no `INSTALAR.sh` →
+**Propriedades** → **Permissões** → marque **Permitir executar como programa**.
+
 ### Manual
 
 ```
