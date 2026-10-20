@@ -50,7 +50,7 @@ REBINDABLE = (
 )
 REBIND_BY_ID = {r[0]: r for r in REBINDABLE}
 # teclas que não dá para usar: pausam, voltam ou mudam a tela
-RESERVED_KEYS = (K.K_ESCAPE, K.K_F11, K.K_BACKSPACE, K.K_p, K.K_TAB)
+RESERVED_KEYS = (K.K_ESCAPE, K.K_F11, K.K_F3, K.K_BACKSPACE, K.K_p, K.K_TAB)
 
 
 def _base_keymap(slot, layout):

@@ -1,7 +1,7 @@
 """Loop principal: janela, troca de telas e leitura de entrada."""
 import pygame
 
-from . import config, settings
+from . import config, settings, theme
 from .assets import Assets
 from .controls import PlayerInput
 from .gamepads import Gamepads
@@ -43,6 +43,7 @@ class Game:
         self.base_url = f"http://{server.local_ip()}:{config.WEB_PORT}"
         self._thumbs = {}
         self.running = True
+        self.show_fps = False           # F3 mostra os quadros por segundo
         self._fade = 0
         self._fade_from = None
         from .scenes.menus import LoadingScene
@@ -89,6 +90,11 @@ class Game:
 
     def step(self, events=None):
         """Um quadro do jogo (separado de run() para facilitar testes)."""
+        self.update(events)
+        self.draw()
+
+    def update(self, events=None):
+        """Lógica de um quadro (entrada, cena). run() chama sem desenhar quando o PC atrasa."""
         events = pygame.event.get() if events is None else events
         keys_pressed = set()
         for event in events:
@@ -98,6 +104,8 @@ class Game:
                 keys_pressed.add(event.key)
                 if event.key == pygame.K_F11:
                     self.toggle_fullscreen()
+                elif event.key == pygame.K_F3:
+                    self.show_fps = not self.show_fps
             self.gamepads.handle(event)
         held, pressed = hub.poll()
         axes = hub.axes()
@@ -114,16 +122,53 @@ class Game:
         for event in events:
             self.scene.handle(event)
         self.scene.update()
-        self.scene.draw(self.screen)
         if self._fade > 0:
             self._fade -= 1
-            self._fade_from.set_alpha(round(255 * self._fade / self.FADE_FRAMES))
-            self.screen.blit(self._fade_from, (0, 0))
         self.clock_ticks += 1
 
+    def draw(self):
+        self.scene.draw(self.screen)
+        if self._fade > 0:
+            self._fade_from.set_alpha(round(255 * self._fade / self.FADE_FRAMES))
+            self.screen.blit(self._fade_from, (0, 0))
+        if self.show_fps:
+            self.ui.text(self.screen, f"{self.clock.get_fps():.0f} FPS", theme.XS, theme.BRASS, (8, 8),
+                         anchor="topleft")
+
     def run(self):
+        budget = FrameBudget(config.FPS)
         while self.running:
             self.step()
             pygame.display.flip()
-            self.clock.tick(config.FPS)
+            # PC atrasado (quadro demorou mais que 1/60 s): roda a lógica de novo sem desenhar,
+            # para o jogo não ficar em câmera lenta
+            for _ in range(budget.spend(self.clock.tick(config.FPS))):
+                if not self.running:
+                    break
+                self.update([])
         pygame.quit()
+
+
+class FrameBudget:
+    """Conta o tempo real contra o tempo do jogo (60 quadros por segundo).
+
+    spend(ms do último quadro) devolve quantas atualizações extras a lógica precisa para
+    alcançar o relógio. No máximo MAX_CATCHUP por quadro: num PC lento demais o jogo fica mais
+    lento em vez de travar tentando alcançar.
+    """
+
+    MAX_CATCHUP = 3
+
+    def __init__(self, fps):
+        self.frame_ms = 1000 / fps
+        self.behind = 0.0
+
+    def spend(self, ms):
+        self.behind += ms - self.frame_ms
+        extra = 0
+        while self.behind >= self.frame_ms - 1e-6 and extra < self.MAX_CATCHUP:
+            self.behind -= self.frame_ms
+            extra += 1
+        # muito atrás: esquece o resto. E um quadro adiantado não vira "crédito" acumulado.
+        self.behind = max(-self.frame_ms, min(self.behind, self.frame_ms))
+        return extra
