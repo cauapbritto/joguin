@@ -1,10 +1,12 @@
-# Gera o instalador .deb (Linux Mint / Ubuntu / Debian).
-# Rode pela aba Actions ("Run workflow") ou crie uma tag v1.2.3: o .deb fica nos
-# artefatos da execução e, nas tags, também anexado à release.
+# Gera o instalador .deb (Linux Mint / Ubuntu / Debian) e testa a instalação no
+# Linux Mint 21 e 22 de verdade (contêineres oficiais do Mint).
+# Roda em todo PR que mexe no jogo, pela aba Actions ("Run workflow") ou numa tag
+# v1.2.3: o .deb fica nos artefatos da execução e, nas tags, também na release.
 name: Pacote Linux (.deb)
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
     tags: ["v*"]
 
@@ -42,3 +44,93 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.deb
+
+  # INSTALAR.sh como um usuário comum do Mint: sem python3-venv (o apt instala),
+  # pasta com espaço no nome, atalho válido e o jogo abrindo pelo atalho.
+  instalador-mint:
+    strategy:
+      fail-fast: false
+      matrix:
+        mint: [mint21.3-amd64, mint22-amd64]
+    runs-on: ubuntu-latest
+    container: linuxmintd/${{ matrix.mint }}
+    steps:
+      - name: Preparar o Mint
+        run: |
+          apt-get update
+          apt-get install -y python3 sudo git ca-certificates xvfb xauth xdotool desktop-file-utils xdg-user-dirs
+          apt-get remove -y python3-venv 'python3.*-venv' || true
+          useradd -m -s /bin/bash jogador
+          echo "jogador ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/jogador
+          sudo -u jogador -H xdg-user-dirs-update
+      - uses: actions/checkout@v4
+      - name: Copiar o jogo para "/home/jogador/Soul Strike"
+        run: |
+          mkdir -p "/home/jogador/Soul Strike"
+          cp -a . "/home/jogador/Soul Strike/"
+          chown -R jogador: /home/jogador
+      - name: Instalar e testar
+        run: sudo -u jogador -H bash "/home/jogador/Soul Strike/linux/teste_instalador.sh" "/home/jogador/Soul Strike"
+      - name: python3-venv foi instalado pelo instalador
+        run: dpkg -l | grep -E "^ii +python3(\.[0-9]+)?-venv"
+
+  # Dois cliques no INSTALAR.sh (sem terminal): ele precisa se abrir sozinho num
+  # terminal (gnome-terminal, o padrão do Cinnamon) e terminar a instalação.
+  instalador-sem-terminal:
+    runs-on: ubuntu-latest
+    container: linuxmintd/mint22-amd64
+    steps:
+      - name: Preparar o Mint
+        run: |
+          apt-get update
+          apt-get install -y python3 python3-venv sudo git ca-certificates xvfb xauth dbus-x11 gnome-terminal
+          useradd -m -s /bin/bash jogador
+          echo "jogador ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/jogador
+      - uses: actions/checkout@v4
+      - name: Copiar o jogo
+        run: |
+          mkdir -p "/home/jogador/Soul Strike"
+          cp -a . "/home/jogador/Soul Strike/"
+          chown -R jogador: /home/jogador
+      - name: Abrir o INSTALAR.sh sem terminal
+        timeout-minutes: 10
+        run: |
+          sudo -u jogador -H dbus-run-session -- xvfb-run -a bash -c '
+            setsid bash "$HOME/Soul Strike/INSTALAR.sh" </dev/null >/dev/null 2>&1 &
+            for i in $(seq 1 120); do
+              sleep 5
+              if grep -q "Pronto!" "$HOME/Soul Strike/instalar.log" 2>/dev/null; then
+                echo "Instalação concluída dentro do terminal"; exit 0
+              fi
+            done
+            echo "A instalação não terminou"; cat "$HOME/Soul Strike/instalar.log"; exit 1
+          '
+          test -f /home/jogador/.local/share/applications/soulstrike.desktop
+
+  # O .deb no Mint: instala com apt, abre pelo comando do atalho e remove limpo.
+  deb-mint:
+    needs: deb
+    strategy:
+      fail-fast: false
+      matrix:
+        mint: [mint21.3-amd64, mint22-amd64]
+    runs-on: ubuntu-latest
+    container: linuxmintd/${{ matrix.mint }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: soulstrike-deb
+          path: pacote
+      - name: Instalar o .deb
+        run: |
+          apt-get update
+          apt-get install -y xvfb xauth xdotool desktop-file-utils ./pacote/*.deb
+          desktop-file-validate /usr/share/applications/soulstrike.desktop
+          test -f /usr/share/icons/hicolor/256x256/apps/soulstrike.png
+      - name: Abrir o jogo
+        run: bash linux/ver_janela.sh "$(sed -n 's/^Exec=//p' /usr/share/applications/soulstrike.desktop | head -1)"
+      - name: Remover
+        run: |
+          apt-get remove -y soulstrike
+          test ! -e /opt/soulstrike && test ! -e /usr/bin/soulstrike

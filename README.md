@@ -72,6 +72,8 @@ mais nova que a do PC que gerou o pacote, então gere no Linux mais antigo que f
 Sem um Linux à mão: na aba **Actions** do GitHub, rode **Pacote Linux (.deb)**. Ele
 gera o pacote no Ubuntu 22.04 (serve para o Linux Mint 21 e mais novos) e deixa o
 `.deb` nos artefatos da execução; ao criar uma tag `v1.2.3`, anexa o `.deb` à release.
+Esse mesmo workflow roda em todo PR: testa o `INSTALAR.sh` e o `.deb` no Linux Mint 21 e
+22 (instala, abre o jogo pelo atalho numa tela virtual e remove).
 
 ## Atualizar o jogo
 
@@ -377,6 +379,8 @@ tools/gerar_armas.py    gera os sprites das armas
 tools/build_exe.py      gera dist/SoulStrike.exe
 tools/build_deb.py      gera o pacote .deb para Linux
 linux/instalar.sh       instalador do Linux (chamado pelo INSTALAR.sh)
+linux/teste_instalador.sh, linux/ver_janela.sh
+                        testes do instalador no Linux Mint (GitHub Actions)
 tests/                  testes automáticos
 ```
 

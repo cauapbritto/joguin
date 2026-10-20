@@ -57,34 +57,47 @@ echo "   Pasta: $RAIZ"
 
 # 1. Python ------------------------------------------------------------------
 titulo "[1/5] Python 3.10 a 3.13"
-PYTHON=""
+# Todos os Pythons aceitos, o do sistema (python3) primeiro
+PYTHONS=()
 for cand in python3 $(for v in $VERSOES_ACEITAS; do echo "python$v"; done); do
     command -v "$cand" >/dev/null 2>&1 || continue
     versao="$("$cand" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null)" || continue
-    case " $VERSOES_ACEITAS " in *" $versao "*) PYTHON="$cand"; break ;; esac
+    case " $VERSOES_ACEITAS " in *" $versao "*) PYTHONS+=("$cand") ;; esac
 done
-if [ -z "$PYTHON" ]; then
+if [ ${#PYTHONS[@]} -eq 0 ]; then
     erro "Não achei o Python 3.10 a 3.13."
     echo "   No Linux Mint ele já vem instalado; se tiver sido removido:"
     echo "   sudo apt install python3 python3-venv"
     encerrar 1
 fi
+PYTHON="${PYTHONS[0]}"
 VERSAO="$("$PYTHON" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
 ok "Python encontrado: $PYTHON ($VERSAO)"
 
 # 2. Ambiente virtual --------------------------------------------------------
 titulo "[2/5] Ambiente virtual (.venv)"
-criar_venv() { rm -rf "$RAIZ/.venv"; "$PYTHON" -m venv "$RAIZ/.venv" && [ -x "$PY_VENV" ] && "$PY_VENV" -m pip --version >/dev/null 2>&1; }
+# Tenta cada Python aceito até um conseguir criar o ambiente com pip
+criar_venv() {
+    for PYTHON in "${PYTHONS[@]}"; do
+        rm -rf "$RAIZ/.venv"
+        "$PYTHON" -m venv "$RAIZ/.venv" >/dev/null 2>&1 && "$PY_VENV" -m pip --version >/dev/null 2>&1 && return 0
+    done
+    rm -rf "$RAIZ/.venv"
+    return 1
+}
 if [ -x "$PY_VENV" ] && "$PY_VENV" -m pip --version >/dev/null 2>&1; then
     ok "Ambiente já existe, reaproveitando"
 elif criar_venv; then
-    ok "Ambiente criado"
+    ok "Ambiente criado com $PYTHON"
 else
     # No Mint/Ubuntu o módulo venv vem num pacote à parte
     aviso "Falta o pacote python$VERSAO-venv. Vou instalar pelo apt (pede a sua senha)."
-    if sudo apt-get install -y "python$VERSAO-venv" || sudo apt-get install -y python3-venv; then
+    SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO=sudo
+    instalar_venv() { $SUDO apt-get install -y "python$VERSAO-venv" || $SUDO apt-get install -y python3-venv; }
+    # Lista de pacotes velha dá "não encontrado": atualiza e tenta de novo
+    if instalar_venv || { $SUDO apt-get update && instalar_venv; }; then
         criar_venv || { erro "Não foi possível criar o ambiente virtual."; encerrar 1; }
-        ok "Ambiente criado"
+        ok "Ambiente criado com $PYTHON"
     else
         erro "Não foi possível instalar o python$VERSAO-venv. Rode:  sudo apt install python3-venv"
         encerrar 1
