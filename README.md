@@ -46,7 +46,9 @@ python main.py --janela   # em janela
 python main.py --sem-vsync  # sem sincronia vertical (se a imagem engasgar em algum monitor)
 ```
 
-F11 alterna tela cheia. ESC pausa a partida.
+F11 alterna tela cheia. ESC pausa a partida. Na tela **Opções** do menu dá para mudar o volume
+(geral, música e efeitos), tela cheia, sincronia vertical, tremor de tela e o duplo toque; tudo fica
+salvo em `opcoes.json`, na mesma pasta do progresso. `--janela` e `--sem-vsync` valem mais que as opções salvas.
 
 ### Executável (Windows)
 

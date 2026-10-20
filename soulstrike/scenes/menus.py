@@ -4,7 +4,7 @@ import webbrowser
 
 import pygame
 
-from .. import config, theme
+from .. import config, settings, theme
 from ..controls import KEY_LABELS, SOCCER_KEY_LABELS, PlayerInput
 from ..data import CHARACTERS, SHADOW_CHARACTERS, roster
 from ..net import server
@@ -85,9 +85,9 @@ class TitleScene(_MenuScene):
         game.session = None
         self.cast = roster()
         self.menu = MenuList(
-            [("JOGAR", "play"), ("CONTROLES", "controls"), ("SOBRE O PROJETO", "about"),
-             ("CRÉDITOS", "credits"), ("SAIR", "quit")],
-            topleft=(config.SCREEN_W // 2 - 130, 206), width=260, row_h=34)
+            [("JOGAR", "play"), ("CONTROLES", "controls"), ("OPÇÕES", "options"),
+             ("SOBRE O PROJETO", "about"), ("CRÉDITOS", "credits"), ("SAIR", "quit")],
+            topleft=(config.SCREEN_W // 2 - 130, 196), width=260, row_h=34)
 
     def handle(self, event):
         if self.is_back(event):
@@ -104,6 +104,8 @@ class TitleScene(_MenuScene):
             self.game.change(ModeScene(self.game))
         elif choice == "controls":
             self.game.change(ControlsScene(self.game))
+        elif choice == "options":
+            self.game.change(OptionsScene(self.game))
         elif choice == "about":
             self.game.change(AboutScene(self.game))
         elif choice == "credits":
@@ -334,7 +336,7 @@ class ControlsScene(_InfoScene):
         self.toggle_rect = pygame.Rect(0, 0, 0, 0)
 
     def _toggle_double_tap(self):
-        PlayerInput.double_tap_enabled = not PlayerInput.double_tap_enabled
+        PlayerInput.double_tap_enabled = settings.change("duplo_toque", not PlayerInput.double_tap_enabled)
         self.sfx("click", 0.4)
 
     def handle(self, event):
@@ -382,6 +384,122 @@ class ControlsScene(_InfoScene):
                           "o analógico até a borda para correr.",
                           theme.XS, theme.BONE, (phone.x + 20, phone.y + 32), phone.w - 40, spacing=13)
         self.footer(screen, [("T", "DUPLO TOQUE"), ("ESC", "VOLTAR")])
+
+
+class OptionsScene(_InfoScene):
+    """Volume, tela cheia, vsync, tremor de tela e duplo toque. Tudo fica salvo (settings.py)."""
+
+    heading = "OPÇÕES"
+    # (chave em settings, rótulo, observação)
+    ROWS = [
+        ("volume_geral", "VOLUME GERAL", ""),
+        ("volume_musica", "MÚSICA", ""),
+        ("volume_efeitos", "EFEITOS", ""),
+        ("tela_cheia", "TELA CHEIA", "F11 TAMBÉM ALTERNA"),
+        ("vsync", "SINCRONIA VERTICAL", "VALE AO ABRIR O JOGO DE NOVO"),
+        ("tremor", "TREMOR DE TELA", "NOS IMPACTOS E EXPLOSÕES"),
+        ("duplo_toque", "DUPLO TOQUE = ESQUIVA", "DUAS VEZES NA MESMA SETA"),
+    ]
+    ROW_H = 38
+
+    def __init__(self, game):
+        super().__init__(game)
+        self.index = 0
+        self.rects = []
+
+    @property
+    def key(self):
+        return self.ROWS[self.index][0]
+
+    def change(self, key, step):
+        """step = -1 / +1 nos volumes; nos liga/desliga qualquer passo alterna."""
+        value = settings.get(key)
+        if key in settings.VOLUME_KEYS:
+            new = settings.change(key, round(value + step * settings.VOLUME_STEP, 2))
+            if new == value:
+                return
+            if key == "volume_efeitos" or key == "volume_geral":
+                self.sfx("hit", 0.5)            # amostra do volume novo
+            self.assets.apply_music_volume()
+            return
+        if key == "tela_cheia":
+            self.game.toggle_fullscreen()
+        else:
+            settings.change(key, not value)
+            if key == "duplo_toque":
+                PlayerInput.double_tap_enabled = settings.get(key)
+        self.sfx("click", 0.4)
+
+    def handle(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_UP, pygame.K_w):
+                self.index = (self.index - 1) % len(self.ROWS)
+                self.sfx("select", 0.25)
+                return
+            if event.key in (pygame.K_DOWN, pygame.K_s):
+                self.index = (self.index + 1) % len(self.ROWS)
+                self.sfx("select", 0.25)
+                return
+            if event.key in (pygame.K_LEFT, pygame.K_a):
+                self.change(self.key, -1)
+                return
+            if event.key in (pygame.K_RIGHT, pygame.K_d, pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
+                self.change(self.key, 1)
+                return
+        elif event.type == pygame.MOUSEMOTION:
+            for i, r in enumerate(self.rects):
+                if r.collidepoint(event.pos):
+                    self.index = i
+            return
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (1, 4, 5):
+            for i, r in enumerate(self.rects):
+                if r.collidepoint(event.pos):
+                    self.index = i
+                    # clique na metade esquerda abaixa o volume, na direita aumenta (rodinha também)
+                    if event.button == 1:
+                        step = -1 if event.pos[0] < r.centerx else 1
+                    else:
+                        step = 1 if event.button == 4 else -1
+                    self.change(self.key, step)
+                    return
+            if event.button != 1:
+                return
+        if self.is_back(event) or (event.type == pygame.MOUSEBUTTONDOWN and event.button == 3):
+            self.sfx("cancel", 0.4)
+            self.game.change(TitleScene(self.game))
+
+    def draw_body(self, screen):
+        W = config.SCREEN_W
+        panel = pygame.Rect(120, 92, W - 240, 24 + self.ROW_H * len(self.ROWS))
+        self.ui.panel(screen, panel)
+        self.rects = []
+        y = panel.y + 12
+        for i, (key, label, note) in enumerate(self.ROWS):
+            row = pygame.Rect(panel.x + 10, y, panel.w - 20, self.ROW_H - 4)
+            self.rects.append(row)
+            chosen = i == self.index
+            if chosen:
+                screen.fill(theme.INK, row)
+                screen.fill(theme.BRASS, (row.x, row.y, 3, row.h))
+            color = theme.BONE if chosen else theme.MUTED
+            self.ui.text(screen, label, theme.XS, color, (row.x + 16, row.y + 12), anchor="midleft", shadow=False)
+            if note:
+                self.ui.text(screen, note, theme.XS, theme.FAINT, (row.x + 16, row.y + 26), anchor="midleft",
+                             shadow=False)
+            value = settings.get(key)
+            right = row.right - 16
+            if key in settings.VOLUME_KEYS:
+                bar = pygame.Rect(0, 0, 200, 10)
+                bar.midright = (right - 64, row.centery)
+                self.ui.bar(screen, bar, value, theme.BRASS if chosen else theme.MUTED, ticks=10)
+                self.ui.text(screen, f"{round(value * 100)}%", theme.XS, color, (right, row.centery),
+                             anchor="midright", shadow=False)
+            else:
+                word = "LIGADO" if value else "DESLIGADO"
+                self.ui.text(screen, word, theme.XS, theme.BRASS if value else theme.MUTED, (right, row.centery),
+                             anchor="midright", shadow=False)
+            y += self.ROW_H
+        self.footer(screen, [("↑↓", "ESCOLHER"), ("←→", "MUDAR"), ("ESC", "VOLTAR")])
 
 
 ABOUT = [

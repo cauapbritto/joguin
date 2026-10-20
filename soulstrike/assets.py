@@ -6,7 +6,7 @@ import unicodedata
 
 import pygame
 
-from . import config
+from . import config, settings
 from .data import CHARACTERS, SHADOW_CHARACTERS
 
 DIRECTIONS = ("frente", "costas", "direita", "esquerda")
@@ -15,6 +15,7 @@ SHEET_DIRECTIONS = DIRECTIONS
 SHEET_POSES = (("andar", 8), ("parado", 2), ("ataque", 3), ("dano", 1), ("esquiva", 1))
 SHEET_FACTOR = 2                 # a arte é ampliada 2x sem suavizar
 TEAM_KITS = ("azul", "vermelho")  # uniforme do time 0 e do time 1 no futebol (characters/uniformes)
+MUSIC_VOLUME = 0.3               # música com o volume das opções no máximo
 
 
 class SpriteSet:
@@ -243,7 +244,7 @@ class Assets:
     def play(self, name, volume=0.5):
         sound = self.sounds.get(name)
         if sound:
-            sound.set_volume(volume)
+            sound.set_volume(volume * settings.sfx_volume())
             sound.play()
 
     def music(self, name):
@@ -257,10 +258,15 @@ class Assets:
                 pygame.mixer.music.fadeout(600)
                 return
             pygame.mixer.music.load(str(path))
-            pygame.mixer.music.set_volume(0.3)
+            pygame.mixer.music.set_volume(MUSIC_VOLUME * settings.music_volume())
             pygame.mixer.music.play(-1, fade_ms=600)
         except pygame.error:
             pass
+
+    def apply_music_volume(self):
+        """Volume da música mudou nas opções: vale já, sem recomeçar a faixa."""
+        if pygame.mixer.get_init():
+            pygame.mixer.music.set_volume(MUSIC_VOLUME * settings.music_volume())
 
     def stop_music(self, fade_ms=1200):
         self._music = None

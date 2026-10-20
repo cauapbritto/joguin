@@ -10,7 +10,7 @@ from fractions import Fraction
 
 import pygame
 
-from . import config
+from . import config, settings
 
 ZOOM_STEPS = (Fraction(1), Fraction(3, 4), Fraction(3, 5))
 ZOOM_IN_MARGIN = 0.06     # para aproximar de novo precisa sobrar essa folga (não fica indo e voltando)
@@ -90,7 +90,8 @@ class Camera:
             self._offset = (0, 0)
 
     def shake(self, amount):
-        self._shake = max(self._shake, amount)
+        if settings.get("tremor"):          # dá para desligar nas opções
+            self._shake = max(self._shake, amount)
 
     # ── renderização ─────────────────────────
     def begin(self):

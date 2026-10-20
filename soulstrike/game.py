@@ -1,7 +1,7 @@
 """Loop principal: janela, troca de telas e leitura de entrada."""
 import pygame
 
-from . import config
+from . import config, settings
 from .assets import Assets
 from .controls import PlayerInput
 from .net import server
@@ -16,6 +16,8 @@ class Game:
         from .assets import window_icon
         pygame.display.set_icon(window_icon(32))
         self.headless = headless
+        self.fullscreen = fullscreen
+        PlayerInput.double_tap_enabled = settings.get("duplo_toque")
         flags = pygame.SCALED | (pygame.FULLSCREEN if fullscreen else 0)
         size = (config.SCREEN_W, config.SCREEN_H)
         self.vsync = False
@@ -55,6 +57,13 @@ class Game:
         self.scene = scene
         scene.enter()
 
+    def toggle_fullscreen(self):
+        """Alterna tela cheia (F11 ou opções) e lembra a escolha para a próxima vez."""
+        if not self.headless:
+            pygame.display.toggle_fullscreen()
+        self.fullscreen = not self.fullscreen
+        settings.change("tela_cheia", self.fullscreen)
+
     def quit(self):
         self.running = False
 
@@ -75,7 +84,7 @@ class Game:
             elif event.type == pygame.KEYDOWN:
                 keys_pressed.add(event.key)
                 if event.key == pygame.K_F11:
-                    pygame.display.toggle_fullscreen()
+                    self.toggle_fullscreen()
         held, pressed = hub.poll()
         axes = hub.axes()
         keys_down = pygame.key.get_pressed()
