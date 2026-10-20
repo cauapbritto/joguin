@@ -95,7 +95,9 @@ jobs:
       - name: Abrir o INSTALAR.sh sem terminal
         timeout-minutes: 10
         run: |
-          sudo -u jogador -H dbus-run-session -- xvfb-run -a bash -c '
+          # A sessão D-Bus precisa nascer dentro da tela virtual (o gnome-terminal é
+          # ativado por ela) e com locale UTF-8, como num Mint de verdade
+          sudo -u jogador -H env LANG=C.UTF-8 xvfb-run -a dbus-run-session -- bash -c '
             setsid bash "$HOME/Soul Strike/INSTALAR.sh" </dev/null >/dev/null 2>&1 &
             for i in $(seq 1 120); do
               sleep 5
