@@ -895,7 +895,7 @@ class CampaignMatch(CoopMatch):
         """Clique no botão da tela: confirma o próximo jogador do teclado que ainda não confirmou."""
         if not self.voting or self.vote_button is None or not self.vote_button.collidepoint(pos):
             return False
-        phones = hub.connected_slots()
+        phones = self.game.connected_slots()          # celular e controle confirmam no botão deles
         for f in self.players:
             if f.alive_in_match and f not in self.votes and f.slot not in phones:
                 return self.vote(f)

@@ -4,6 +4,7 @@ import pygame
 from . import config, settings
 from .assets import Assets
 from .controls import PlayerInput
+from .gamepads import Gamepads
 from .net import server
 from .net.remote import SLOTS, hub
 from .ui import UI
@@ -35,6 +36,7 @@ class Game:
         self.assets = Assets()
         self.ui = UI(self.assets)
         self.inputs = {s: PlayerInput(s) for s in SLOTS}
+        self.gamepads = Gamepads(enabled=not headless)
         self.session = None
         self.assist_level = "media"     # assistência do futebol escolhida no menu
         self.backdrop = None
@@ -64,6 +66,17 @@ class Game:
         self.fullscreen = not self.fullscreen
         settings.change("tela_cheia", self.fullscreen)
 
+    def connected_slots(self):
+        """Vagas com celular ou controle USB (quem não está aqui joga no teclado ou é CPU)."""
+        return hub.connected_slots() | self.gamepads.slots()
+
+    def device_of(self, slot):
+        if slot in hub.connected_slots():
+            return "CELULAR"
+        if slot in self.gamepads.slots():
+            return "CONTROLE"
+        return "TECLADO"
+
     def quit(self):
         self.running = False
 
@@ -85,12 +98,19 @@ class Game:
                 keys_pressed.add(event.key)
                 if event.key == pygame.K_F11:
                     self.toggle_fullscreen()
+            self.gamepads.handle(event)
         held, pressed = hub.poll()
         axes = hub.axes()
+        # controles USB entram como se fossem celulares (o celular conectado manda no analógico)
+        pad_held, pad_pressed, pad_axes = self.gamepads.poll()
+        held, pressed = held | pad_held, pressed | pad_pressed
+        axes = {**pad_axes, **axes}
         keys_down = pygame.key.get_pressed()
         now = pygame.time.get_ticks()
         for slot, inp in self.inputs.items():
             inp.update(keys_down, keys_pressed, held, pressed, now, axes.get(slot))
+        if getattr(self.scene, "menu_keys", False):
+            events = list(events) + self.gamepads.menu_events()     # menus só de teclado: controle vira setas
         for event in events:
             self.scene.handle(event)
         self.scene.update()

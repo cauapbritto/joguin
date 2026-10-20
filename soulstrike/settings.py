@@ -15,6 +15,8 @@ DEFAULTS = {
     "vsync": True,
     "tremor": True,         # tremor de tela nos impactos
     "duplo_toque": True,    # duplo toque numa seta = esquiva/corte
+    "controle_comeca_no_p2": False,     # 1º controle USB é o P2 (o P1 fica no teclado)
+    "teclas": {},           # teclas trocadas: {"1": {"attack": código}, ...} (controls.py)
 }
 VOLUME_KEYS = ("volume_geral", "volume_musica", "volume_efeitos")
 VOLUME_STEP = 0.1
@@ -27,7 +29,7 @@ def path():
 
 
 def _clean(data):
-    values = dict(DEFAULTS)
+    values = {k: (dict(v) if isinstance(v, dict) else v) for k, v in DEFAULTS.items()}
     if not isinstance(data, dict):
         return values
     for key, default in DEFAULTS.items():
@@ -35,6 +37,9 @@ def _clean(data):
         if isinstance(default, bool):
             if isinstance(value, bool):
                 values[key] = value
+        elif isinstance(default, dict):
+            if isinstance(value, dict):
+                values[key] = {str(k): dict(v) for k, v in value.items() if isinstance(v, dict)}
         elif isinstance(value, (int, float)) and not isinstance(value, bool):
             values[key] = round(max(0.0, min(1.0, float(value))), 2)
     return values
@@ -45,7 +50,7 @@ def load():
     try:
         _values = _clean(json.loads(path().read_text(encoding="utf-8")))
     except (OSError, ValueError):
-        _values = dict(DEFAULTS)
+        _values = _clean({})
     return _values
 
 

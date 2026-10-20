@@ -5,7 +5,8 @@ import webbrowser
 import pygame
 
 from .. import config, settings, theme
-from ..controls import KEY_LABELS, SOCCER_KEY_LABELS, PlayerInput
+from ..controls import (REBINDABLE, PlayerInput, bind_key, current_key, default_key, key_label, move_label,
+                        reset_keys)
 from ..data import CHARACTERS, SHADOW_CHARACTERS, roster
 from ..net import server
 from ..session import MODES, Session, SlotSetup
@@ -69,6 +70,8 @@ class LoadingScene(Scene):
 class _MenuScene(Scene):
     """Tela com o fundo animado da arena."""
 
+    menu_keys = False       # True: a tela só lê o teclado, então o controle USB vira setas/Enter/Esc
+
     def __init__(self, game):
         super().__init__(game)
         if game.backdrop is None:
@@ -80,6 +83,8 @@ class _MenuScene(Scene):
 
 
 class TitleScene(_MenuScene):
+    menu_keys = True
+
     def __init__(self, game):
         super().__init__(game)
         game.session = None
@@ -164,6 +169,8 @@ MODE_TEXT = {
 
 
 class ModeScene(_MenuScene):
+    menu_keys = True
+
     def __init__(self, game):
         super().__init__(game)
         options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2")]
@@ -292,6 +299,7 @@ class ModeScene(_MenuScene):
 
 class _InfoScene(_MenuScene):
     heading = ""
+    menu_keys = True
 
     def handle(self, event):
         if self.is_back(event) or (event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN) \
@@ -311,18 +319,13 @@ class _InfoScene(_MenuScene):
 class ControlsScene(_InfoScene):
     heading = "CONTROLES"
 
-    # (ação, tecla do jogador 1, tecla do jogador 2) — None = mesma tecla do duelo
-    ROWS = [
-        ("MOVER", KEY_LABELS[1]["move"], KEY_LABELS[2]["move"]),
-        ("ATACAR / CHUTAR", KEY_LABELS[1]["attack"], KEY_LABELS[2]["attack"]),
-        ("HABILIDADE / PASSE", KEY_LABELS[1]["special"], KEY_LABELS[2]["special"]),
-        ("ESQUIVA (DUELO)", KEY_LABELS[1]["dodge"], KEY_LABELS[2]["dodge"]),
-        ("TROCAR ARMA / SUPER", KEY_LABELS[1]["switch"], KEY_LABELS[2]["switch"]),
-        ("CORTE / CARRINHO (FUTEBOL)", SOCCER_KEY_LABELS[1]["dodge"], SOCCER_KEY_LABELS[2]["dodge"]),
-        ("CORRER (FUTEBOL)", SOCCER_KEY_LABELS[1]["sprint"], SOCCER_KEY_LABELS[2]["sprint"]),
-        ("MARCAR (FUTEBOL)", SOCCER_KEY_LABELS[1]["mark"], SOCCER_KEY_LABELS[2]["mark"]),
-        ("CONDUZIR COLADO (FUTEBOL)", SOCCER_KEY_LABELS[1]["dribble"], SOCCER_KEY_LABELS[2]["dribble"]),
-    ]
+    @staticmethod
+    def rows():
+        """(ação, tecla do jogador 1, tecla do jogador 2), já com as teclas trocadas."""
+        rows = [("MOVER", move_label(1), move_label(2))]
+        for row_id, label, _, _ in REBINDABLE[4:]:
+            rows.append((label, key_label(1, row_id), key_label(2, row_id)))
+        return rows
     TIPS = [
         "DUELO: A MUNIÇÃO RECARREGA SOZINHA. ARCO: SEGURE ATACAR PARA TENSIONAR.",
         "FUTEBOL: TOQUE EM CHUTAR/PASSE = RASTEIRO. SEGURE E SOLTE = PELO ALTO.",
@@ -343,6 +346,10 @@ class ControlsScene(_InfoScene):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_t:
             self._toggle_double_tap()
             return
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_k:
+            self.sfx("confirm", 0.4)
+            self.game.change(RebindScene(self.game))
+            return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.toggle_rect.collidepoint(event.pos):
             self._toggle_double_tap()
             return
@@ -360,7 +367,7 @@ class ControlsScene(_InfoScene):
         y += 12
         screen.fill(theme.LINE, (panel.x + 16, y, panel.w - 32, 2))
         y += 18
-        for label, k1, k2 in self.ROWS:
+        for label, k1, k2 in self.rows():
             self.ui.text(screen, label, theme.XS, theme.BONE, (cols[0], y), anchor="midleft", shadow=False)
             self.ui.keycap(screen, k1, (cols[1], y))
             self.ui.keycap(screen, k2, (cols[2], y))
@@ -383,7 +390,7 @@ class ControlsScene(_InfoScene):
                           f"{self.game.base_url} e escolha o número do jogador. No futebol, empurre "
                           "o analógico até a borda para correr.",
                           theme.XS, theme.BONE, (phone.x + 20, phone.y + 32), phone.w - 40, spacing=13)
-        self.footer(screen, [("T", "DUPLO TOQUE"), ("ESC", "VOLTAR")])
+        self.footer(screen, [("K", "TROCAR TECLAS"), ("T", "DUPLO TOQUE"), ("ESC", "VOLTAR")])
 
 
 class OptionsScene(_InfoScene):
@@ -399,6 +406,7 @@ class OptionsScene(_InfoScene):
         ("vsync", "SINCRONIA VERTICAL", "VALE AO ABRIR O JOGO DE NOVO"),
         ("tremor", "TREMOR DE TELA", "NOS IMPACTOS E EXPLOSÕES"),
         ("duplo_toque", "DUPLO TOQUE = ESQUIVA", "DUAS VEZES NA MESMA SETA"),
+        ("controle_comeca_no_p2", "1º CONTROLE USB É O P2", "DESLIGADO: É O P1"),
     ]
     ROW_H = 38
 
@@ -500,6 +508,127 @@ class OptionsScene(_InfoScene):
                              anchor="midright", shadow=False)
             y += self.ROW_H
         self.footer(screen, [("↑↓", "ESCOLHER"), ("←→", "MUDAR"), ("ESC", "VOLTAR")])
+
+
+class RebindScene(_InfoScene):
+    """Trocar as teclas do jogador 1 e do jogador 2 (fica salvo nas opções)."""
+
+    heading = "TROCAR TECLAS"
+    ROW_H = 24
+
+    def __init__(self, game):
+        super().__init__(game)
+        self.row = 0                    # linha de REBINDABLE; len(REBINDABLE) = RESTAURAR PADRÃO
+        self.col = 0                    # 0 = jogador 1, 1 = jogador 2
+        self.waiting = False            # esperando a tecla nova
+        self.message = ""
+        self.cells = {}
+
+    @property
+    def slot(self):
+        return self.col + 1
+
+    def _start(self):
+        if self.row == len(REBINDABLE):
+            reset_keys(self.slot)
+            self._apply()
+            self.message = f"TECLAS DO JOGADOR {self.slot} VOLTARAM AO PADRÃO"
+            self.sfx("confirm", 0.4)
+            return
+        self.waiting = True
+        self.message = ""
+        self.sfx("click", 0.4)
+
+    def _apply(self):
+        for inp in self.game.inputs.values():
+            inp.set_layout(inp.layout)          # as partidas já usam as teclas novas
+
+    def _bind(self, code):
+        self.waiting = False
+        row_id = REBINDABLE[self.row][0]
+        ok, msg = bind_key(self.slot, row_id, code)
+        self.message = msg
+        if ok:
+            self._apply()
+            self.sfx("confirm", 0.4)
+        else:
+            self.sfx("cancel", 0.4)
+
+    def handle(self, event):
+        if self.waiting:
+            if event.type == pygame.KEYDOWN and not getattr(event, "from_pad", False):
+                if event.key == pygame.K_ESCAPE:
+                    self.waiting = False
+                    self.sfx("cancel", 0.3)
+                else:
+                    self._bind(event.key)
+            return
+        n = len(REBINDABLE) + 1
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_UP, pygame.K_w):
+                self.row = (self.row - 1) % n
+            elif event.key in (pygame.K_DOWN, pygame.K_s):
+                self.row = (self.row + 1) % n
+            elif event.key in (pygame.K_LEFT, pygame.K_a, pygame.K_RIGHT, pygame.K_d):
+                self.col = 1 - self.col
+            elif event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
+                self._start()
+            elif self.is_back(event):
+                self.sfx("cancel", 0.4)
+                self.game.change(ControlsScene(self.game))
+            return
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for (row, col), rect in self.cells.items():
+                if rect.collidepoint(event.pos):
+                    self.row, self.col = row, col
+                    self._start()
+                    return
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
+            self.sfx("cancel", 0.4)
+            self.game.change(ControlsScene(self.game))
+
+    def draw_body(self, screen):
+        W = config.SCREEN_W
+        panel = pygame.Rect(64, 78, W - 128, 46 + self.ROW_H * (len(REBINDABLE) + 1))
+        self.ui.panel(screen, panel)
+        cols = (panel.x + 20, panel.x + 470, panel.x + 640)
+        y = panel.y + 16
+        self.ui.text(screen, "AÇÃO", theme.XS, theme.MUTED, (cols[0], y), anchor="midleft")
+        for i in (0, 1):
+            self.ui.text(screen, f"JOGADOR {i + 1}", theme.XS, theme.SLOT_COLORS[i + 1], (cols[1 + i], y),
+                         anchor="midleft")
+        y += 22
+        self.cells = {}
+        for r, (row_id, label, _, _) in enumerate(REBINDABLE + (("reset", "RESTAURAR PADRÃO", "", ()),)):
+            chosen_row = r == self.row
+            if chosen_row:
+                screen.fill(theme.INK, (panel.x + 10, y - 10, panel.w - 20, self.ROW_H - 2))
+            color = theme.BONE if chosen_row else theme.MUTED
+            self.ui.text(screen, label, theme.XS, color, (cols[0], y), anchor="midleft", shadow=False)
+            for c in (0, 1):
+                cell = pygame.Rect(cols[1 + c] - 6, y - 10, 150, self.ROW_H - 2)
+                self.cells[(r, c)] = cell
+                here = chosen_row and c == self.col
+                if row_id == "reset":
+                    text, kc = "RESTAURAR", theme.BRASS if here else theme.FAINT
+                    self.ui.text(screen, text, theme.XS, kc, (cols[1 + c], y), anchor="midleft", shadow=False)
+                elif here and self.waiting:
+                    if (self.ticks // 15) % 2:
+                        self.ui.text(screen, "APERTE A TECLA", theme.XS, theme.BRASS, (cols[1 + c], y),
+                                     anchor="midleft", shadow=False)
+                else:
+                    changed = current_key(c + 1, row_id) != default_key(c + 1, row_id)
+                    cap = self.ui.keycap(screen, key_label(c + 1, row_id), (cols[1 + c], y),
+                                         color=theme.BRASS if changed else theme.BONE)
+                    if here:
+                        pygame.draw.rect(screen, theme.BRASS, cap.inflate(6, 6), 1)
+            y += self.ROW_H
+        if self.message:
+            self.ui.text(screen, self.message, theme.XS, theme.BLOOD, (W // 2, panel.bottom + 16))
+        if self.waiting:
+            self.footer(screen, [("ESC", "CANCELAR")])
+        else:
+            self.footer(screen, [("↑↓", "ESCOLHER"), ("←→", "JOGADOR"), ("ENTER", "TROCAR"), ("ESC", "VOLTAR")])
 
 
 ABOUT = [
