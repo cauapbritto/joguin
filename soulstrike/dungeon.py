@@ -280,7 +280,7 @@ class Chest(Entity):
         if self.t == OPEN_AT:
             match.burst(self.x, self.y - 20, GOLD_L, 26, speed=5)
             match.camera.shake(4)
-            match.assets.play("ability", 0.6)
+            match.assets.play("bau", 0.6)
         if self.t == LAUNCH_AT:
             match.launch_relics(self)
         if OPEN_AT < self.t < 120 and self.t % 2 == 0:

@@ -40,6 +40,25 @@ class CharacterStats:
     soccer_only: bool = False   # craque do futebol: só aparece na escolha do futebol
 
 
+
+# som do disparo por estilo de projétil (efeitos gerados por tools/gerar_sons.py); o resto usa o tiro comum
+SHOT_SOUNDS = {
+    "flecha": "arco", "virote": "arco", "espinho": "arco",
+    "pistola": "tiro_forte", "canhao": "tiro_forte",
+    "lanca": "arremesso", "shuriken": "arremesso", "estrela": "arremesso", "granada": "arremesso",
+    "disquete": "arremesso", "pendrive": "arremesso", "bumerangue": "arremesso", "corrente": "arremesso",
+    "foice": "arremesso", "neve": "arremesso",
+    "orbe": "magia", "cranio": "magia", "lanterna": "magia", "colmeia": "magia",
+    "cristal": "gelo", "estalactite": "gelo", "espelho": "gelo",
+    "raio": "eletrico", "raio_supremo": "eletrico", "pulso": "eletrico",
+    "chama": "fogo",
+}
+
+
+def shot_sound(weapon, frame=0):
+    """Nome do efeito do disparo desta arma (tiro comum alterna dois sons)."""
+    return SHOT_SOUNDS.get(weapon.style) or ("shoot" if frame % 3 else "shoot2")
+
 def _ranged(name, damage, speed, cooldown, style="", mag=0, reload=0, regen=0, charge=False, note="", **extra):
     return WeaponStats(name, "ranged", damage, bullet_speed=speed, cooldown=cooldown, style=style, mag=mag,
                        reload=reload, regen=regen, charge=charge, note=note, **extra)

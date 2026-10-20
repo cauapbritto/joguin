@@ -16,6 +16,8 @@ SHEET_POSES = (("andar", 8), ("parado", 2), ("ataque", 3), ("dano", 1), ("esquiv
 SHEET_FACTOR = 2                 # a arte é ampliada 2x sem suavizar
 TEAM_KITS = ("azul", "vermelho")  # uniforme do time 0 e do time 1 no futebol (characters/uniformes)
 MUSIC_VOLUME = 0.3               # música com o volume das opções no máximo
+MAX_SAME_SOUND = 3               # o mesmo efeito tocando junto no máximo (rajadas não viram parede de ruído)
+MUSIC_FILES = {"menu": "bgm.ogg", "battle": "battle_bgm.mp3", "camp": "camp_bgm.ogg", "boss": "boss_bgm.ogg"}
 
 
 class SpriteSet:
@@ -243,15 +245,14 @@ class Assets:
     # ── som ──────────────────────────────────
     def play(self, name, volume=0.5):
         sound = self.sounds.get(name)
-        if sound:
+        if sound and sound.get_num_channels() < MAX_SAME_SOUND:
             sound.set_volume(volume * settings.sfx_volume())
             sound.play()
 
     def music(self, name):
         if name == self._music or pygame.mixer.get_init() is None:
             return
-        path = {"menu": config.SOUNDS_DIR / "bgm.ogg",
-                "battle": config.SOUNDS_DIR / "battle_bgm.mp3"}.get(name)
+        path = config.SOUNDS_DIR / MUSIC_FILES[name] if name in MUSIC_FILES else None
         self._music = name
         try:
             if path is None or not path.is_file():

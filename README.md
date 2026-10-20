@@ -342,6 +342,7 @@ web/                    página do controle no celular
 assets/                 sprites, tiles, sons e fonte
 tools/gerar_sprites.py  gera os sprites pixel art dos personagens e das criaturas
 tools/gerar_armas.py    gera os sprites das armas
+tools/gerar_sons.py     gera os efeitos novos (armas, futebol, campanha) e as músicas do acampamento e do chefão
 tools/build_exe.py      gera dist/SoulStrike.exe
 tests/                  testes automáticos
 ```

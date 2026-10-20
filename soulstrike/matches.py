@@ -31,6 +31,7 @@ class Result:
 
 class Match(ABC):
     min_zoom = 0.6
+    music = "battle"
 
     def __init__(self, game, session, map_key):
         self.game = game
@@ -1052,7 +1053,7 @@ class SoccerMatch(Match):
         ball.homing_timer = 0
         f.kick_cd = 14
         self.last_touch = f
-        self.assets.play("shoot", 0.3)
+        self.assets.play("chute", 0.3)
         return True
 
     # ── marcar ───────────────────────────────
@@ -1146,7 +1147,7 @@ class SoccerMatch(Match):
         self.popup(f.x, f.y - 74, "AFASTOU", theme.BONE)
         self.burst(ball.x, ball.y, (236, 230, 220), 6, speed=3)
         self.camera.shake(2)
-        self.assets.play("shoot", 0.35)
+        self.assets.play("chute", 0.35)
         return True
 
     def incoming(self, f, horizon=24, reach=120):
@@ -1333,7 +1334,7 @@ class SoccerMatch(Match):
         f.facing = (dx, dy)
         self.last_touch = f
         self.popup(f.x, f.y - 74, "CRUZAMENTO", theme.BONE)
-        self.assets.play("shoot", 0.3)
+        self.assets.play("chute", 0.3)
         return True
 
     def pass_ball(self, f, high=False, direction=None, power=1.0):
@@ -1399,7 +1400,7 @@ class SoccerMatch(Match):
                 ball.homing_timer = 0
             ball.vx, ball.vy = f.facing[0] * power, f.facing[1] * power
         self.last_touch = f
-        self.assets.play("shoot", 0.25)
+        self.assets.play("chute", 0.25)
         return True
 
     def use_power(self, f):
@@ -1835,13 +1836,16 @@ class SoccerMatch(Match):
         self.burst(self.ball.x, self.ball.y, theme.BONE, 20, speed=6, gravity=0.1, size=3)
         self.camera.shake(8)
         self.assets.play("victory", 0.5)
+        self.assets.play("torcida", 0.45)
         if self.score[scoring_team] >= config.WIN_SCORE:
+            self.assets.play("apito", 0.4)
             self.result_team = scoring_team
             self.ending = config.DEATH_ANIM_FRAMES + 30
             self.freeze = 0
             self.assets.stop_music(1800)
 
     def _kickoff(self):
+        self.assets.play("apito", 0.35)
         self.goal_banner = None
         self.ball.reset(self.arena.width / 2, self.arena.height / 2)
         self.last_touch = None

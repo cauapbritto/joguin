@@ -68,6 +68,7 @@ class VolumeTest(OpcoesBase):
     def test_efeito_usa_o_volume_das_opcoes(self):
         assets = game().assets
         sound = mock.Mock()
+        sound.get_num_channels.return_value = 0
         with mock.patch.dict(assets.sounds, {"teste": sound}):
             settings.change("volume_geral", 0.5)
             settings.change("volume_efeitos", 0.5)
@@ -78,6 +79,7 @@ class VolumeTest(OpcoesBase):
     def test_efeitos_mudos(self):
         assets = game().assets
         sound = mock.Mock()
+        sound.get_num_channels.return_value = 0
         with mock.patch.dict(assets.sounds, {"teste": sound}):
             settings.change("volume_efeitos", 0.0)
             assets.play("teste", 0.8)

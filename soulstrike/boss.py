@@ -279,6 +279,7 @@ class BossAI(EnemyAI):
             me.ghost_walk = False
             arena.resolve(me)                         # se parou dentro de uma parede, sai dela
             match.camera.shake(7)
+            match.assets.play("passo_pesado", 0.6)
             match.dust(me.x, me.y + 30, 12)
             self._next(me, match, pause=30)
 
@@ -313,6 +314,7 @@ class BossAI(EnemyAI):
             match.add_effect(Shockwave(me, me.x, me.y, 140, round(26 * me.damage_bonus), stun=36,
                                        color=(220, 120, 255)))
             me.melee_flash = 12
+            match.assets.play("passo_pesado", 0.7)
             self._next(me, match, pause=36)
 
 

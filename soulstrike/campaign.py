@@ -474,6 +474,7 @@ class CoopMatch(Match):
         self.revive_progress[p] = 0.0
         self.was_down.discard(p)
         self.burst(p.x, p.y - 16, p.color, 22, speed=5)
+        self.assets.play("levantar", 0.45)
         self.assets.play("select", 0.5)
 
     def _set_banner(self, title, sub=None, color=theme.BRASS):
@@ -671,6 +672,7 @@ class CampaignMatch(CoopMatch):
             from .boss import spawn_boss
             enemy, brain = spawn_boss(self, x, y)
             self.boss = enemy
+            self.assets.music("boss")
         else:
             enemy, brain = spawn_enemy(self, kind, x, y)
         scale = elite_hp_scale(kind, len(self.players))
@@ -828,7 +830,7 @@ class CampaignMatch(CoopMatch):
             if alive and all(p in self.votes for p in alive):
                 self.state, self.state_timer = "teleport", TELEPORT_FRAMES
                 hub_vote(self, 0)
-                self.assets.play("ability", 0.7)
+                self.assets.play("teletransporte", 0.6)
         elif state == "teleport":
             if timer % 3 == 0:
                 for p in self.alive_players:
@@ -995,6 +997,7 @@ class LobbyMatch(CoopMatch):
     das duas masmorras e, na volta da primeira, o baú escondido com as armas raras."""
 
     lobby = True
+    music = "camp"
 
     def __init__(self, game, run):
         cfg = MAPS_BY_KEY[run.phase.lobby]

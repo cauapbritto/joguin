@@ -111,6 +111,7 @@ class PlayScene(Scene):
     def __init__(self, game, match):
         super().__init__(game)
         self.match = match
+        self.music = getattr(match, "music", "battle")     # acampamento tem a sua música calma
         self.paused = False
         restart = "REINICIAR FASE" if game.session and game.session.campaign else "REINICIAR"
         self.main_menu = MenuList([("CONTINUAR", "resume"), (restart, "restart"), ("SAIR PARA O MENU", "quit")],
@@ -169,6 +170,8 @@ class PlayScene(Scene):
 
     def update(self):
         super().update()
+        if self.ticks == 1 and self.game.session.soccer:
+            self.sfx("apito", 0.35)                       # apito do começo do jogo
         humans = [self.game.inputs[s] for s in self.active_slots()]
         if any(inp.pressed("pause") for inp in humans):
             self._set_paused(not self.paused)
