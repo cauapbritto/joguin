@@ -18,16 +18,18 @@ AREA="$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Desktop")"
 ATALHO="$AREA/soulstrike.desktop"
 
 # Aberto com dois cliques (sem terminal): abre de novo dentro de um terminal, para
-# mostrar o progresso e poder pedir a senha. O link sem espaços evita problemas de
-# aspas nos terminais que recebem o comando como uma linha só.
+# mostrar o progresso e poder pedir a senha. O comando vai em argumentos separados
+# (nunca numa linha só): cada terminal entende a linha de um jeito diferente.
 if [ ! -t 0 ] && [ -z "${SOULSTRIKE_NO_TERMINAL:-}" ]; then
+    export SOULSTRIKE_NO_TERMINAL=1
+    eu="$(readlink -f "$0")"
     for term in x-terminal-emulator gnome-terminal mate-terminal xfce4-terminal konsole xterm; do
-        if command -v "$term" >/dev/null 2>&1; then
-            link="$(mktemp -d)/instalar.sh"
-            ln -s "$(readlink -f "$0")" "$link"
-            export SOULSTRIKE_NO_TERMINAL=1
-            exec "$term" -e "bash $link $*"
-        fi
+        command -v "$term" >/dev/null 2>&1 || continue
+        case "$term" in
+            gnome-terminal)                exec "$term" -- bash "$eu" "$@" ;;
+            mate-terminal|xfce4-terminal)  exec "$term" -x bash "$eu" "$@" ;;
+            *)                             exec "$term" -e bash "$eu" "$@" ;;
+        esac
     done
 fi
 
