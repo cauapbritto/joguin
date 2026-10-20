@@ -249,7 +249,7 @@ class Assets:
     def music(self, name):
         if name == self._music or pygame.mixer.get_init() is None:
             return
-        path = {"menu": config.SOUNDS_DIR / "bgm.wav",
+        path = {"menu": config.SOUNDS_DIR / "bgm.ogg",
                 "battle": config.SOUNDS_DIR / "battle_bgm.mp3"}.get(name)
         self._music = name
         try:

@@ -113,13 +113,22 @@ class PlayScene(Scene):
         self.match = match
         self.paused = False
         restart = "REINICIAR FASE" if game.session and game.session.campaign else "REINICIAR"
-        self.pause_menu = MenuList([("CONTINUAR", "resume"), (restart, "restart"), ("SAIR PARA O MENU", "quit")],
-                                   topleft=(config.SCREEN_W // 2 - 156, 250), width=312)
+        self.main_menu = MenuList([("CONTINUAR", "resume"), (restart, "restart"), ("SAIR PARA O MENU", "quit")],
+                                  topleft=(config.SCREEN_W // 2 - 156, 250), width=312)
+        # sair no meio da campanha perde a corrida inteira: pergunta antes
+        self.confirm_menu = MenuList([("NÃO, CONTINUAR", "back"), ("SIM, SAIR", "quit_now")],
+                                     topleft=(config.SCREEN_W // 2 - 156, 266), width=312)
+        self.pause_menu = self.main_menu
+
+    @property
+    def confirming(self):
+        return self.pause_menu is self.confirm_menu
 
     def _set_paused(self, value):
         self.paused = value
         pygame.mouse.set_visible(value)       # mouse só aparece no menu de pausa (e no teletransporte)
         self._cursor = value
+        self.pause_menu = self.main_menu
         self.pause_menu.index = 0
         hub.set_phase("paused" if value else "playing", active=self.active_slots())
         self.sfx("click", 0.5)
@@ -147,7 +156,13 @@ class PlayScene(Scene):
             if pygame.mixer.get_init():
                 pygame.mixer.music.unpause()
             self.game.change(self.match.restart_scene() or VersusScene(self.game))
-        elif choice == "quit":
+        elif choice == "quit" and self.game.session and self.game.session.campaign:
+            self.pause_menu = self.confirm_menu
+            self.pause_menu.index = 0
+        elif choice == "back":
+            self.pause_menu = self.main_menu
+            self.pause_menu.index = len(self.main_menu.options) - 1
+        elif choice in ("quit", "quit_now"):
             if pygame.mixer.get_init():
                 pygame.mixer.music.unpause()
             self.game.change(TitleScene(self.game))
@@ -193,7 +208,11 @@ class PlayScene(Scene):
             panel = pygame.Rect(0, 0, 360, 200)
             panel.midtop = (W // 2, 180)
             self.ui.panel(screen, panel)
-            self.ui.text(screen, "PAUSADO", theme.M, theme.BONE, (W // 2, panel.y + 36))
+            if self.confirming:
+                self.ui.text(screen, "SAIR DA CAMPANHA?", theme.M, theme.BONE, (W // 2, panel.y + 30))
+                self.ui.text(screen, "O PROGRESSO DESTA CORRIDA SE PERDE", theme.XS, theme.BLOOD, (W // 2, panel.y + 58))
+            else:
+                self.ui.text(screen, "PAUSADO", theme.M, theme.BONE, (W // 2, panel.y + 36))
             self.pause_menu.draw(screen, self.ui, self.ticks)
 
 

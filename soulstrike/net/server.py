@@ -168,14 +168,28 @@ def status():
 
 
 def local_ip():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    """IP do computador na rede local (o celular acessa o jogo por ele).
+
+    "Conectar" um socket UDP não manda nada: só pergunta ao sistema por qual endereço sairia.
+    Sem internet (roteador sem rede, celular como ponto de acesso) a rota para 8.8.8.8 pode não
+    existir, então tenta também um endereço da rede local e, por último, os IPs do próprio nome.
+    """
+    for probe in ("8.8.8.8", "192.168.0.1", "10.0.0.1"):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.connect((probe, 80))
+            ip = sock.getsockname()[0]
+            if not ip.startswith("127.") and ip != "0.0.0.0":
+                return ip
+        except OSError:
+            pass
+        finally:
+            sock.close()
     try:
-        sock.connect(("8.8.8.8", 80))
-        return sock.getsockname()[0]
+        names = socket.gethostbyname_ex(socket.gethostname())[2]
     except OSError:
-        return "127.0.0.1"
-    finally:
-        sock.close()
+        names = []
+    return next((ip for ip in names if not ip.startswith("127.")), "127.0.0.1")
 
 
 def controller_url(slot):

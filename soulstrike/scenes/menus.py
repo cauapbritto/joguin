@@ -115,7 +115,7 @@ class TitleScene(_MenuScene):
         W, H = config.SCREEN_W, config.SCREEN_H
         self.draw_background(screen)
         self.ui.logo(screen, (W // 2, 112))
-        self.ui.text(screen, "DUELO DE ARENA  ·  FUTEBOL", theme.XS, theme.MUTED, (W // 2, 158))
+        self.ui.text(screen, "CAMPANHA  ·  DUELO DE ARENA  ·  FUTEBOL", theme.XS, theme.MUTED, (W // 2, 158))
         self.menu.draw(screen, self.ui, self.ticks)
 
         # elenco no chão
