@@ -98,14 +98,18 @@ jobs:
           # A sessão D-Bus precisa nascer dentro da tela virtual (o gnome-terminal é
           # ativado por ela) e com locale UTF-8, como num Mint de verdade
           sudo -u jogador -H env LANG=C.UTF-8 xvfb-run -a dbus-run-session -- bash -c '
-            setsid bash "$HOME/Soul Strike/INSTALAR.sh" </dev/null >/dev/null 2>&1 &
-            for i in $(seq 1 120); do
+            setsid bash "$HOME/Soul Strike/INSTALAR.sh" </dev/null >/tmp/terminal.log 2>&1 &
+            for i in $(seq 1 60); do
               sleep 5
               if grep -q "Pronto!" "$HOME/Soul Strike/instalar.log" 2>/dev/null; then
                 echo "Instalação concluída dentro do terminal"; exit 0
               fi
             done
-            echo "A instalação não terminou"; cat "$HOME/Soul Strike/instalar.log"; exit 1
+            echo "A instalação não terminou"
+            echo "--- terminal"; cat /tmp/terminal.log
+            echo "--- instalar.log"; cat "$HOME/Soul Strike/instalar.log"
+            echo "--- processos"; ps -ef
+            exit 1
           '
           test -f /home/jogador/.local/share/applications/soulstrike.desktop
 
