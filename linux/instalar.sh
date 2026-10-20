@@ -145,7 +145,8 @@ else
     aviso "Não deu para gerar o ícone; o atalho fica sem figura."
 fi
 
-# Caminho entre aspas: funciona mesmo com espaços no nome da pasta
+# Caminho entre aspas: funciona mesmo com espaços no nome da pasta. Chama pelo bash
+# porque o ATUALIZAR do jogo troca os arquivos e pode tirar a permissão de execução.
 cat > "$MENU" <<DESKTOP
 [Desktop Entry]
 Type=Application
@@ -153,7 +154,7 @@ Version=1.0
 Name=Soul Strike
 GenericName=Jogo de luta e aventura
 Comment=Campanha cooperativa, duelo de arena e futebol em pixel art, para 1 a 4 jogadores
-Exec="$RAIZ/SoulStrike.sh"
+Exec=bash "$RAIZ/SoulStrike.sh"
 Path=$RAIZ
 Icon=$ICONE
 Terminal=false
@@ -164,7 +165,7 @@ Actions=Janela;
 
 [Desktop Action Janela]
 Name=Jogar em janela
-Exec="$RAIZ/SoulStrike.sh" --janela
+Exec=bash "$RAIZ/SoulStrike.sh" --janela
 DESKTOP
 chmod +x "$MENU"
 command -v update-desktop-database >/dev/null && update-desktop-database "$(dirname "$MENU")" 2>/dev/null

@@ -21,7 +21,11 @@ BUILD = ROOT / "build"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_exe import make_icon  # noqa: E402
 
-VERSION = (os.environ.get("SOULSTRIKE_VERSION") or "1.0.0").lstrip("v")   # tag v1.2.3 -> 1.2.3
+sys.path.insert(0, str(ROOT))
+from soulstrike import __version__  # noqa: E402
+
+# A versão do pacote é a do jogo (a mesma que o botão ATUALIZAR compara); numa tag v1.2.3, 1.2.3
+VERSION = (os.environ.get("SOULSTRIKE_VERSION") or __version__).lstrip("v")
 GLIBC = platform.libc_ver()[1] or "2.31"   # o executável só roda com glibc igual ou mais nova
 ARCH = {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine(), platform.machine())
 

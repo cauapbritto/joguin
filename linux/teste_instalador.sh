@@ -26,6 +26,9 @@ bash "$JOGO/INSTALAR.sh" </dev/null | tee /tmp/segunda.txt || falha "reinstalaç
 grep -q "reaproveitando" /tmp/segunda.txt || falha "não reaproveitou o .venv"
 
 passo "Abrindo o jogo pelo comando do atalho"
+# O ATUALIZAR do jogo regrava os arquivos sem a permissão de execução: o atalho tem
+# que funcionar mesmo assim
+chmod -x "$JOGO/SoulStrike.sh"
 EXEC="$(sed -n 's/^Exec=//p' "$MENU" | head -1)"
 bash "$JOGO/linux/ver_janela.sh" "$EXEC" || falha "o jogo não abriu"
 
