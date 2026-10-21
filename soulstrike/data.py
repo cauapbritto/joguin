@@ -122,6 +122,10 @@ CHARACTERS = (
                    (_ranged("Canhão de Pulso", 12, 11, 26, "pulso", mag=4, reload=70, charge=True,
                             note="Segure para carregar: tiro maior que empurra."),
                     _melee("Punho Mecânico", 25, 58)), "borba"),
+    # craque do futebol que defende (entrou depois: fica no fim para não mudar os índices)
+    CharacterStats("paredao", "Paredão", 165, 3.7, (52, 150, 132),
+                   "Corpo fechado", "Bloqueia de mais longe e a bola fantasma não passa.",
+                   (_melee("Chute", 10, 50),), "paredao", soccer_only=True),
 )
 SOCCER_STARS = tuple(c.key for c in CHARACTERS if c.soccer_only)
 FIGHTERS = tuple(c for c in CHARACTERS if not c.soccer_only)     # quem luta (duelo e campanha)

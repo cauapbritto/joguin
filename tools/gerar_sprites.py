@@ -1415,6 +1415,7 @@ def borba_exo(p):
 NUMBER = (244, 242, 236)            # número nas costas
 DIGITS = {                          # algarismos 3x5
     "3": ("###", "..#", ".##", "..#", "###"),
+    "4": ("#.#", "#.#", "###", "..#", "..#"),
     "5": ("###", "#..", "###", "..#", "###"),
     "6": ("###", "#..", "###", "#.#", "###"),
     "8": ("###", "#.#", "###", "#.#", "###"),
@@ -1464,15 +1465,18 @@ def soccer_legs(c, p, skin, sock, boots, wide=False):
         c.rect(x, bottom + 2, 3, 1, shade(boots, -38))
 
 
-def footballer(c, p, skin, shirt, shirt_d, shirt_l, shorts, sock, boots, number, wide=False, stripes=None):
-    """Corpo de jogador: chuteira, meião, calção e camisa (número nas costas, escudo no peito)."""
+def footballer(c, p, skin, shirt, shirt_d, shirt_l, shorts, sock, boots, number, wide=False, stripes=None,
+               gloves=None):
+    """Corpo de jogador: chuteira, meião, calção e camisa (número nas costas, escudo no peito).
+    ``gloves`` = cor das luvas de goleiro (sem luva, a mão fica na cor da pele)."""
+    hand = gloves or skin
     x, y, w, h = p.torso
     soccer_legs(c, p, skin, sock, boots, wide)
     c.rect(x, y + h, w, 3, shorts)                               # calção
     c.rect(x, y + h + 2, w, 1, shade(shorts, -24))
     if not p.side:
         c.rect(x + w // 2, y + h + 1, 1, 2, shade(shorts, -30))  # entre as pernas
-    far_arm(c, p, shirt, skin)
+    far_arm(c, p, shirt, hand)
     torso(c, p, shirt)
     if stripes is not None and not p.side:
         for sx in range(x + 1, x + w - 1, 3):
@@ -1491,7 +1495,7 @@ def footballer(c, p, skin, shirt, shirt_d, shirt_l, shorts, sock, boots, number,
         digit(c, x + (w - 3) // 2, y + 1, number, NUMBER)
     else:
         c.rect(x + 1, y, w - 2, 1, shirt_l)
-    arms(c, p, shirt, skin, thick=3 if wide else 2, cuff=skin)  # manga curta
+    arms(c, p, shirt, hand, thick=3 if wide else 2, cuff=skin)  # manga curta
 
 
 def faisca(p):
@@ -1882,6 +1886,29 @@ def golem(p):
     return c
 
 
+def paredao(p):
+    """Paredão: zagueiro grandão de cabelo black, faixa na testa e luvas de goleiro."""
+    c = Canvas()
+    skin, hair_c, band = (104, 66, 46), (26, 20, 24), (240, 238, 230)
+    gloves = (196, 232, 72)
+    shirt, shirt_d, shirt_l = uni(p, (44, 150, 128)), uni(p, (24, 98, 84), "dark"), uni(p, (110, 204, 180), "light")
+    hx, hy, hw, hh = p.head
+    footballer(c, p, skin, shirt, shirt_d, shirt_l, (30, 34, 44), shirt_d, (40, 40, 48), "4", wide=True,
+               gloves=gloves)
+    head(c, p, skin)
+    curly_hair(c, p, hair_c, puff=2)
+    c.rect(hx, hy + 2, hw, 1, band)                              # faixa na testa
+    if p.dir != "costas":
+        eyes(c, p)
+        mouth(c, p, skin)
+        if p.dir == "frente":
+            c.rect(hx + 1, hy + 4, 3, 1, hair_c)                 # sobrancelha fechada
+            c.rect(hx + hw - 4, hy + 4, 3, 1, hair_c)
+        else:
+            c.rect(hx + hw - 5, hy + 4, 3, 1, hair_c)
+    return c
+
+
 # ── catálogo ──────────────────────────────────
 # nome → (desenho, largo, cores que acendem de vermelho na alma corrompida)
 CHARACTERS = {
@@ -1899,6 +1926,7 @@ CHARACTERS = {
     "trovao": (trovao, True, [EYE, WHITE]),
     "ginga": (ginga, False, [EYE, WHITE]),
     "matador": (matador, False, [EYE, WHITE]),
+    "paredao": (paredao, True, [EYE, WHITE]),
     "cauanzera": (cauanzera, False, [EYE, LENS, LENS_L]),
     "albeguinio": (albeguinio, False, [EYE, WHITE]),
     "borba": (borba, True, [EYE, LENS, LENS_L]),             # corpo largo: o mais forte da turma
@@ -1908,7 +1936,7 @@ CHARACTERS = {
     "golem": (golem, False, []),
 }
 HEROES = ("guerreiro", "atirador", "tanque", "ninja", "velocista", "aryel", "fantasma", "tita", "pirata", "geada",
-          "faisca", "trovao", "ginga", "matador", "cauanzera", "albeguinio", "borba")
+          "faisca", "trovao", "ginga", "matador", "cauanzera", "albeguinio", "borba", "paredao")
 KIT_DIR = OUT / "uniformes"
 VARIANTS = ("borba_exo",)            # não são personagens, mas também ganham uniforme (futebol)
 
