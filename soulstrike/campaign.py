@@ -219,6 +219,60 @@ class CampaignRun:
             ratio = f.hp / f.max_hp if f.hp > 0 else 0.0
             self.hp_ratio[f.slot] = min(1.0, ratio + PHASE_HEAL)
 
+    # ── salvar entre fases ───────────────────
+    SAVE_VERSION = 1
+    _BY_SLOT = ("upgrades", "hp_ratio", "kills", "damage", "relics", "held")
+
+    def to_save(self):
+        """O estado do começo da fase, num formato que cabe no progresso.json."""
+        state = self._state()
+        for k in self._BY_SLOT:
+            state[k] = {str(s): v for s, v in state[k].items()}
+        return {"versao": self.SAVE_VERSION, "dificuldade": self.session.difficulty,
+                "jogadores": [{"slot": s.slot, "char": s.char, "weapon": s.weapon} for s in self.session.slots],
+                "estado": state}
+
+    @classmethod
+    def from_save(cls, data):
+        """Monta a campanha salva de novo. Devolve None se o arquivo estiver estranho ou velho."""
+        from .data import CHARACTERS
+        from .session import Session, SlotSetup
+        from .upgrades import UPGRADES
+        try:
+            if data.get("versao") != cls.SAVE_VERSION or data.get("dificuldade") not in DIFFICULTY:
+                return None
+            slots = []
+            for p in data["jogadores"]:
+                slot, char, weapon = int(p["slot"]), int(p["char"]), int(p["weapon"])
+                if not (1 <= slot <= 4 and 0 <= char < len(CHARACTERS) and weapon in (0, 1)):
+                    return None
+                slots.append(SlotSetup(slot, char=char, weapon=weapon))
+            if not slots or len({s.slot for s in slots}) != len(slots):
+                return None
+            run = cls(Session("campaign", slots, difficulty=data["dificuldade"]))
+            state = data["estado"]
+            for k in cls._BY_SLOT:
+                values = {int(s): v for s, v in state[k].items()}
+                if set(values) != set(run.slots):
+                    return None
+                setattr(run, k, values)
+            if any(u not in UPGRADES for ups in run.upgrades.values() for u in ups):
+                return None
+            if any(r is not None and r not in RARE_WEAPONS for r in run.relics.values()):
+                return None
+            run.hp_ratio = {s: min(1.0, max(0.05, float(r))) for s, r in run.hp_ratio.items()}
+            run.phase_index = int(state["phase_index"])
+            if not 0 <= run.phase_index < len(PHASES):
+                return None
+            run.continues = max(1, int(state["continues"]))
+            run.frames = int(state["frames"])
+            run.kills = {s: int(v) for s, v in run.kills.items()}
+            run.damage = {s: int(v) for s, v in run.damage.items()}
+            run.held = {s: int(v) for s, v in run.held.items()}
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return None
+        return run
+
     def add_upgrade(self, slot, key):
         self.upgrades[slot].append(key)
 

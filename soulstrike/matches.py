@@ -2004,6 +2004,9 @@ def _bounce_off_walls(ball, walls):
 
 
 def create_match(game, session):
+    if session.mode == "treino":
+        from .training import TrainingMatch
+        return TrainingMatch(game, session)
     if session.soccer:
         return SoccerMatch(game, session)
     return TeamBattleMatch(game, session) if session.team_mode else BattleMatch(game, session)

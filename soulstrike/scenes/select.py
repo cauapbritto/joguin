@@ -365,7 +365,7 @@ class CharSelectScene(_MenuScene):
     def handle(self, event):
         if self.is_back(event):
             self.sfx("cancel", 0.4)
-            nxt = ModeScene(self.game) if self.game.session.mode == "cpu" else LobbyScene(self.game)
+            nxt = ModeScene(self.game) if self.game.session.mode in ("cpu", "treino") else LobbyScene(self.game)
             self.game.change(nxt)
             return
         if event.type == pygame.KEYDOWN:
@@ -536,7 +536,8 @@ class CharSelectScene(_MenuScene):
         ui.text(screen, setup.name, theme.XS, theme.BONE, (head.x + 8, head.centery), anchor="midleft")
         if setup.cpu:
             source = (DIFFICULTIES[self.game.session.difficulty]["label"]
-                      if self.game.session.mode in ("cpu", "duel2") else "AUTO")
+                      if self.game.session.mode in ("cpu", "duel2")
+                      else "BONECO" if self.game.session.mode == "treino" else "AUTO")
         else:
             source = self.game.device_of(setup.slot)
         ui.text(screen, source, theme.XS, mix(setup.color, theme.BONE, 0.5), (head.right - 8, head.centery), anchor="midright")
@@ -687,7 +688,9 @@ class CharSelectScene(_MenuScene):
             for direction, r in zip(("left", "right"), self.diff_arrows):
                 ui.arrow(screen, r.center, direction, 7, theme.BRASS if r.collidepoint(mouse) else theme.MUTED)
         else:
-            ui.paragraph(screen, "Os dois confirmam e a luta começa.", theme.XS, theme.MUTED,
+            text = ("Escolha o seu lutador. O boneco fica parado e não ataca."
+                    if self.game.session.mode == "treino" else "Os dois confirmam e a luta começa.")
+            ui.paragraph(screen, text, theme.XS, theme.MUTED,
                          (c.x + 16, c.y + 236), c.w - 32, spacing=14)
 
     def _draw_campaign_panel(self, screen, c):

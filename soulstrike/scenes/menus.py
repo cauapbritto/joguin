@@ -164,6 +164,9 @@ MODE_TEXT = {
     "soccer2": ("Times de dois. O jogador 2 entra pelo teclado (;) ou celular; o 3 e o 4, pelo celular. "
                 "Quem faltar vira CPU para fechar o time.",
                 "1 A 4 JOGADORES"),
+    "treino": ("Para quem está começando: um boneco de treino parado e uma lição por vez na tela "
+               "(andar, atacar, trocar de arma, esquivar, habilidade e itens). Ninguém perde.",
+               "1 JOGADOR"),
     "campaign": ("Juntos contra as sombras: em cada fase, um acampamento e duas masmorras, com um baú "
                  "escondido de armas raras no caminho. No fim, o chefão Aryel Corrompido. Quem cair pode "
                  "ser levantado por um companheiro.",
@@ -176,9 +179,15 @@ class ModeScene(_MenuScene):
 
     def __init__(self, game):
         super().__init__(game)
-        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2")]
+        from .. import progress
+        from ..campaign import CampaignRun
+        saved = progress.saved_campaign()
+        self.saved_run = CampaignRun.from_save(saved) if saved else None
+        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2", "treino")]
+        if self.saved_run is not None:
+            options.insert(0, ("CONTINUAR CAMPANHA", "continue"))
         options.append(("VOLTAR", "back"))
-        self.menu = MenuList(options, topleft=(56, 104), width=320, row_h=38)
+        self.menu = MenuList(options, topleft=(56, 100), width=320, row_h=36)
 
     def handle(self, event):
         if self.is_back(event):
@@ -193,9 +202,15 @@ class ModeScene(_MenuScene):
             self.game.change(TitleScene(self.game))
             return
         self.sfx("confirm")
+        if choice == "continue":
+            from .campaign import start_phase
+            run = self.saved_run
+            self.game.session = run.session
+            self.game.change(start_phase(self.game, run, story=False))
+            return
         count = MODES[choice]["slots"]
         teams = MODES[choice].get("teams", False)
-        slots = [SlotSetup(s, cpu=(choice == "cpu" and s == 2) or (teams and s > 1))
+        slots = [SlotSetup(s, cpu=(choice in ("cpu", "treino") and s == 2) or (teams and s > 1))
                  for s in range(1, count + 1)]
         if choice == "campaign":
             slots = slots[:1]           # P2 a P4 entram na tela de conexão
@@ -204,7 +219,7 @@ class ModeScene(_MenuScene):
         if previous is not None and teams:
             self.game.session.layout = previous.layout      # mantém a divisão de times escolhida
         from .select import CharSelectScene, LobbyScene
-        if choice == "cpu":
+        if choice in ("cpu", "treino"):
             self.game.change(CharSelectScene(self.game))
         else:
             self.game.change(LobbyScene(self.game))
@@ -221,18 +236,30 @@ class ModeScene(_MenuScene):
         if key == "back":
             self.ui.text(screen, "VOLTAR AO MENU", theme.S, theme.MUTED, panel.center)
         else:
-            desc, players = MODE_TEXT[key]
+            desc, players = MODE_TEXT[key] if key != "continue" else self._continue_text()
             self._illustration(screen, key, pygame.Rect(panel.x + 2, panel.y + 2, panel.w - 4, 170))
-            self.ui.text(screen, MODES[key]["title"], theme.S, theme.BRASS, (panel.x + 24, panel.y + 196), anchor="topleft")
+            title = MODES[key]["title"] if key != "continue" else "CONTINUAR CAMPANHA"
+            self.ui.text(screen, title, theme.S, theme.BRASS, (panel.x + 24, panel.y + 196), anchor="topleft")
             self.ui.text(screen, players, theme.XS, theme.MUTED, (panel.right - 24, panel.y + 200), anchor="topright")
             self.ui.paragraph(screen, desc, theme.XS, theme.BONE, (panel.x + 24, panel.y + 232), panel.w - 48, spacing=16)
         self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR"), ("ESC", "VOLTAR")])
 
+    def _continue_text(self):
+        from ..ai import DIFFICULTIES
+        from ..campaign import PHASES
+        run = self.saved_run
+        n = run.players
+        desc = (f"Volta para o acampamento da fase {run.phase_index + 1} de {len(PHASES)}: "
+                f"{run.phase.name}, dificuldade {DIFFICULTIES[run.session.difficulty]['label']}. As melhorias, as armas "
+                "raras e a vida continuam como estavam. Quem jogava pelo celular ou controle precisa estar "
+                "conectado antes.")
+        return desc, f"{n} JOGADOR" + ("ES" if n > 1 else "")
+
     def _illustration(self, screen, key, area):
-        if key == "campaign":
+        if key in ("campaign", "continue"):
             self._campaign_illustration(screen, area)
             return
-        battle = key in ("cpu", "duel", "duel2")
+        battle = key in ("cpu", "duel", "duel2", "treino")
         floor = theme.INK if battle else (34, 92, 46)
         screen.fill(floor, area)
         if not battle:
@@ -249,6 +276,7 @@ class ModeScene(_MenuScene):
         ground = area.bottom - 22
         cast = {
             "cpu": [("guerreiro", "direita", -90), ("tanque", "esquerda", 90)],
+            "treino": [("aryel", "direita", -70), ("tanque", "esquerda", 70)],
             "duel": [("aryel", "direita", -90), ("ninja", "esquerda", 90)],
             "duel2": [("pirata", "direita", -150), ("geada", "direita", -70),
                       ("atirador", "esquerda", 70), ("tanque", "esquerda", 150)],
