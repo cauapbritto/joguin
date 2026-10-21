@@ -242,7 +242,8 @@ class FutebolTest(unittest.TestCase):
             match = _futebol((i, 2))
             p1 = match.fighters[0]
             # o gancho do Pirata é para buscar a bola longe; os outros, com a bola no pé
-            gap = 200 if SOCCER_POWERS[stats.key].__name__ == "GanchoNaBola" else 25
+            # (a antecipação do Paredão, com a bola solta longe dele, no próprio campo)
+            gap = {"GanchoNaBola": 200, "Antecipacao": 300}.get(SOCCER_POWERS[stats.key].__name__, 25)
             if SOCCER_POWERS[stats.key].__name__ == "Enterrada":
                 gx = match.goal_x(1 - p1.team)                # enterrada: perto da área adversária
                 p1.x = gx - 400 if gx > p1.x else gx + 400

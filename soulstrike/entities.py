@@ -279,8 +279,12 @@ class Hack(Entity):
                 self.state = "wave"
                 self.age = 0
                 hit = 0
+                keeping = getattr(match, "keeping", None)
                 for f in match.opponents_of(owner):
-                    if f.alive_in_match and f.hack(self.freeze):
+                    frames = self.freeze
+                    if keeping is not None and keeping(f):
+                        frames = round(frames * config.KEEPER_HACK)   # de goleiro: trava menos
+                    if f.alive_in_match and f.hack(frames):
                         hit += 1
                         match.popup(f.x, f.y - 80, "HACKEADO", self.GREEN)
                         match.burst(f.x, f.y - 30, self.GREEN, 10, speed=3, size=3)
