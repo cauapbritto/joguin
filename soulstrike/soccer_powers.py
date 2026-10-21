@@ -714,7 +714,7 @@ class Hackear(SoccerPower):
     """Albeguinio: digita no notebook e os adversários ficam travados (e perdem a bola)."""
     name = "HACK"
     description = "Digita e trava os adversários por 2,5s."
-    cooldown = 16 * config.FPS
+    cooldown = 26 * config.FPS                      # trava o time todo: recarga longa
     sound = "barrier"
     TYPING = round(0.6 * config.FPS)
     FREEZE = round(2.5 * config.FPS)
@@ -728,7 +728,7 @@ class Hackear(SoccerPower):
         owner = match.possessor
         ball = match.ball
         if owner is not None and owner.team != user.team:
-            return abs(ball.x - match.goal_x(user.team)) < 900
+            return abs(ball.x - match.goal_x(user.team)) < 600       # só quando o ataque já chegou perto
         return owner is None and any(f.distance_to(ball) < 120 for f in match.foes_of(user)) \
             and user.distance_to(ball) > 200
 
