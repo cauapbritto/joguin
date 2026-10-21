@@ -85,6 +85,7 @@ class Assets:
         self.wall_textures = {}
         self._qr = {}
         self._music = None
+        self.music_paused = False      # pausa do jogo: música muda
 
     # ── carga ────────────────────────────────
     def load_steps(self):
@@ -259,6 +260,7 @@ class Assets:
                 pygame.mixer.music.fadeout(600)
                 return
             pygame.mixer.music.load(str(path))
+            self.music_paused = False
             pygame.mixer.music.set_volume(MUSIC_VOLUME * settings.music_volume())
             pygame.mixer.music.play(-1, fade_ms=600)
         except pygame.error:
@@ -267,7 +269,17 @@ class Assets:
     def apply_music_volume(self):
         """Volume da música mudou nas opções: vale já, sem recomeçar a faixa."""
         if pygame.mixer.get_init():
-            pygame.mixer.music.set_volume(MUSIC_VOLUME * settings.music_volume())
+            volume = 0.0 if self.music_paused else MUSIC_VOLUME * settings.music_volume()
+            pygame.mixer.music.set_volume(volume)
+
+    def pause_music(self, paused):
+        """Pausa: a música fica muda (sem parar a faixa).
+
+        Não usa music.pause()/unpause(): no pygame 2.6 eles seguram o GIL enquanto esperam o
+        áudio, e se um efeito terminar no mesmo instante o jogo trava para sempre.
+        """
+        self.music_paused = paused
+        self.apply_music_volume()
 
     def stop_music(self, fade_ms=1200):
         self._music = None

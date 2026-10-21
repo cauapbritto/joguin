@@ -133,11 +133,7 @@ class PlayScene(Scene):
         self.pause_menu.index = 0
         hub.set_phase("paused" if value else "playing", active=self.active_slots())
         self.sfx("click", 0.5)
-        if pygame.mixer.get_init():
-            if value:
-                pygame.mixer.music.pause()
-            else:
-                pygame.mixer.music.unpause()
+        self.assets.pause_music(value)
 
     def handle(self, event):
         if event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_p):
@@ -154,8 +150,7 @@ class PlayScene(Scene):
         if choice == "resume":
             self._set_paused(False)
         elif choice == "restart":
-            if pygame.mixer.get_init():
-                pygame.mixer.music.unpause()
+            self.assets.pause_music(False)
             self.game.change(self.match.restart_scene() or VersusScene(self.game))
         elif choice == "quit" and self.game.session and self.game.session.campaign:
             self.pause_menu = self.confirm_menu
@@ -164,8 +159,7 @@ class PlayScene(Scene):
             self.pause_menu = self.main_menu
             self.pause_menu.index = len(self.main_menu.options) - 1
         elif choice in ("quit", "quit_now"):
-            if pygame.mixer.get_init():
-                pygame.mixer.music.unpause()
+            self.assets.pause_music(False)
             self.game.change(TitleScene(self.game))
 
     def update(self):

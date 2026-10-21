@@ -68,6 +68,29 @@ class MixagemTest(unittest.TestCase):
         game().assets.play("nao_existe")
 
 
+class PausaDaMusicaTest(unittest.TestCase):
+    def test_pausa_deixa_a_musica_muda_sem_music_pause(self):
+        """music.pause()/unpause() do pygame 2.6 seguram o GIL e podem travar o jogo."""
+        g = game()
+        match, _ = futebol()
+        scene = PlayScene(g, match)
+        g.scene = scene
+        with mock.patch("pygame.mixer.get_init", return_value=(44100, -16, 2)), \
+                mock.patch("pygame.mixer.music") as music:
+            scene._set_paused(True)
+            self.assertEqual(music.set_volume.call_args[0][0], 0.0)
+            g.assets.apply_music_volume()                # mexer no volume nas opções não volta o som
+            self.assertEqual(music.set_volume.call_args[0][0], 0.0)
+            scene._set_paused(False)
+            self.assertGreater(music.set_volume.call_args[0][0], 0.0)
+            scene._set_paused(True)
+            scene._choose("quit")
+            self.assertGreater(music.set_volume.call_args[0][0], 0.0)
+            music.pause.assert_not_called()
+            music.unpause.assert_not_called()
+        self.assertFalse(g.assets.music_paused)
+
+
 class DueloTest(unittest.TestCase):
     def test_golpe_de_perto_tem_som_de_golpe(self):
         match, _ = campanha()
