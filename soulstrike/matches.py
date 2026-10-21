@@ -103,6 +103,10 @@ class Match(ABC):
     def hit_pause(self, frames):
         self.hitstop = max(self.hitstop, frames)
 
+    def last_breath(self, fighter):
+        """Golpe que derrubaria `fighter`: True deixa ele com 1 de vida (só a campanha solo usa)."""
+        return False
+
     def hit_feedback(self, target, amount):
         """Tremida e pausa curta quando alguém leva um golpe (o "peso" do impacto)."""
         self.camera.shake(3 if amount < 20 else 6)
@@ -865,6 +869,10 @@ class Goal(Entity):
             surf.fill(tuple(c // 2 for c in color), (r.x, y, r.w, 1))
         for py in (r.y - 6, r.bottom):
             surf.fill((230, 230, 222), (r.x - 2, py, r.w + 22, 6))
+
+
+GOAL_HITSTOP = 10            # gol: o jogo congela por um instante...
+GOAL_SLOWMO = 40            # ...e segue em câmera lenta enquanto a bola entra
 
 
 class SoccerMatch(Match):
@@ -1835,6 +1843,8 @@ class SoccerMatch(Match):
         self.burst(self.ball.x, self.ball.y, color, 40, speed=8, gravity=0.1, size=5)
         self.burst(self.ball.x, self.ball.y, theme.BONE, 20, speed=6, gravity=0.1, size=3)
         self.camera.shake(8)
+        self.hit_pause(GOAL_HITSTOP)        # "tranco": o jogo para por um instante e depois vai em câmera lenta
+        self.slowmo = max(self.slowmo, GOAL_SLOWMO)
         self.assets.play("victory", 0.5)
         self.assets.play("torcida", 0.45)
         if self.score[scoring_team] >= config.WIN_SCORE:

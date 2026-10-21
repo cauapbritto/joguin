@@ -776,6 +776,8 @@ class Fighter(Entity):
                 return True
         dealt = min(amount, self.hp)
         self.hp -= dealt
+        if self.hp <= 0 and match is not None and match.last_breath(self):
+            self.hp = 1                                          # segurou o golpe que derrubaria
         if attacker is not None and attacker.lifesteal > 0 and attacker.hp > 0:
             attacker.hp = min(attacker.max_hp, attacker.hp + max(1, round(dealt * attacker.lifesteal)))
         self.hit_flash = 6

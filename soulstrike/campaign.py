@@ -30,6 +30,7 @@ REVIVE_FRAMES = 120           # tempo perto de um companheiro caído para levant
 REVIVE_RADIUS = 56
 REVIVE_HP = 0.4
 CONTINUE_HP = 0.5
+LAST_BREATH_FRAMES = 90       # invencível depois do último fôlego (campanha solo)
 LEASH_X, LEASH_Y = 1150, 500  # quão longe os jogadores podem ficar uns dos outros (cabe na câmera)
 INTRO_FRAMES = 150
 BETWEEN_FRAMES = 110
@@ -613,6 +614,7 @@ class CampaignMatch(CoopMatch):
         if run.players == 1:
             self.enemy_dmg *= SOLO_DAMAGE         # sozinho não tem quem levante: inimigos batem menos
         self.corpses = {}
+        self.breath_used = False        # último fôlego (campanha solo): uma vez por masmorra
         self.state = "intro"
         self.state_timer = INTRO_FRAMES
         self.slain_boss = False
@@ -784,6 +786,18 @@ class CampaignMatch(CoopMatch):
             kind = random.choices(("vida", "furia", "energia", "municao"), weights=(46, 20, 16, 18))[0]
             x, y = self.arena.free_spot(e.x, e.y, 14)
             self.pickups.append(Pickup(kind, x, y))
+
+    def last_breath(self, fighter):
+        """Jogando sozinho não tem quem levante: o primeiro golpe fatal da masmorra deixa com 1 de vida."""
+        if self.run.players != 1 or self.breath_used or fighter not in self.players:
+            return False
+        self.breath_used = True
+        fighter.invulnerable_timer = max(fighter.invulnerable_timer, LAST_BREATH_FRAMES)
+        self.slowmo = max(self.slowmo, 30)
+        self.popup(fighter.x, fighter.y - 80, "ÚLTIMO FÔLEGO!", theme.BRASS)
+        self.burst(fighter.x, fighter.y - 16, theme.BRASS, 24, speed=5)
+        self.assets.play("levantar", 0.5)
+        return True
 
     # ── caídos e continues ───────────────────
     def _update_downed(self):
