@@ -207,7 +207,7 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
 | Pirata     | 140  | Gancho: puxa o inimigo para a frente do sabre e o atordoa | Gancho: puxa a bola, até do pé do adversário (e do drible mágico) |
 | Geada      | 100  | Nevasca: onda de gelo, dano em volta e inimigo lento      | Congelar: adversários perto ficam lentos         |
 | Cauanzera  | 100  | Multiesportista: basquete, vôlei e 100 metros, nessa ordem (veja abaixo) | Enterrada: perto da área, pula todo mundo e crava a bola no gol |
-| Albeguinio | 140  | Hacker: digita 1 s no notebook e trava todos os adversários por 5 s | Hack: digita e trava os adversários por 2,5 s |
+| Albeguinio | 140  | Hacker: digita 1 s no notebook e trava todos os adversários por 5 s | Hack: digita e trava os adversários por 2,5 s (recarga de 26 s) |
 | Borba Jr   | 125  | Exoesqueleto: 6 s de armadura (veja abaixo)               | Exoesqueleto: 4 s em que ninguém toma a bola dele |
 | Aryel Corrompido* | 135 | Chuva Sombria: 5 bombas caem em cima e em volta do inimigo | Bomba sombria: maior, atordoa e deixa lento |
 
