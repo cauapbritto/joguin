@@ -91,8 +91,8 @@ class TitleScene(_MenuScene):
         self.cast = roster()
         self.menu = MenuList(
             [("JOGAR", "play"), ("CONTROLES", "controls"), ("OPÇÕES", "options"),
-             ("SOBRE O PROJETO", "about"), ("CRÉDITOS", "credits"), ("SAIR", "quit")],
-            topleft=(config.SCREEN_W // 2 - 130, 196), width=260, row_h=34)
+             ("SOBRE O PROJETO", "about"), ("CRÉDITOS", "credits"), ("ATUALIZAR", "update"), ("SAIR", "quit")],
+            topleft=(config.SCREEN_W // 2 - 130, 184), width=260, row_h=32)
 
     def handle(self, event):
         if self.is_back(event):
@@ -115,6 +115,9 @@ class TitleScene(_MenuScene):
             self.game.change(AboutScene(self.game))
         elif choice == "credits":
             self.game.change(CreditsScene(self.game))
+        elif choice == "update":
+            from .update import UpdateScene
+            self.game.change(UpdateScene(self.game))
         elif choice == "quit":
             self.game.quit()
 

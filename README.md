@@ -18,24 +18,18 @@ aproveitado. O log fica em `instalar.log`.
 Se o Windows mostrar "O Windows protegeu o computador": **Mais informações** →
 **Executar assim mesmo**.
 
-### Linux Mint (e Ubuntu/Debian)
+### Linux Mint (e Ubuntu/Debian), jeito fácil
 
-Extraia o zip, abra a pasta e dê dois cliques em **`INSTALAR.sh`** (escolha **Executar no
-terminal**), ou rode no terminal:
+Extraia o zip do projeto, dê dois cliques em **`INSTALAR.sh`** e escolha
+**Executar no terminal** (ou rode `bash INSTALAR.sh` no terminal da pasta). Ele usa o
+Python que já vem no Mint (3.10 a 3.13), instala o `python3-venv` pelo `apt` se faltar
+(pede a sua senha), cria o `.venv`, instala as bibliotecas e cria o atalho
+**Soul Strike** no menu (seção Jogos) e na Área de Trabalho. Também dá para abrir pelo
+`SoulStrike.sh`. Pode rodar o instalador de novo quando quiser; o log fica em
+`instalar.log`. Para tirar os atalhos: `bash INSTALAR.sh --remover`.
 
-```
-./INSTALAR.sh
-```
-
-Ele usa o Python que já vem no Mint (3.10 a 3.13; instala o `python3.x-venv` pelo `apt` se
-faltar, pedindo a senha), cria o `.venv`, instala as bibliotecas e põe o **Soul Strike** no menu
-de aplicativos (Jogos) e na Área de Trabalho. Se o firewall (`ufw`) estiver ligado, libera a
-porta 5000 para o celular conectar. Pode rodar de novo quando quiser; o log fica em
-`instalar.log`. Também dá para abrir pelo terminal com `./SoulStrike.sh` (ou
-`./SoulStrike.sh --janela`). Para tirar os atalhos e o `.venv`: `./INSTALAR.sh --desinstalar`.
-
-Se os dois cliques abrirem o arquivo no editor de texto: botão direito no `INSTALAR.sh` →
-**Propriedades** → **Permissões** → marque **Permitir executar como programa**.
+Se o firewall estiver ligado (`sudo ufw status`), libere o controle pelo celular com
+`sudo ufw allow 5000/tcp`.
 
 ### Manual
 
@@ -63,6 +57,47 @@ rede: libere (é o servidor do controle pelo celular).
 
 Se o `pip` reclamar de certificado (rede com proxy), use
 `pip install --use-feature=truststore pyinstaller`.
+
+### Pacote .deb (Linux Mint / Ubuntu / Debian)
+
+```
+pip install -r requirements.txt pyinstaller
+python tools/build_deb.py
+```
+
+Gera `dist/soulstrike_1.0.0_amd64.deb`, que não precisa de Python no PC de quem for
+jogar: dois cliques abrem o Instalador de Pacotes (ou `sudo apt install ./dist/soulstrike_*.deb`).
+O jogo vai para `/opt/soulstrike`, com atalho no menu e o comando `soulstrike`; remove
+com `sudo apt remove soulstrike`. O executável só roda em sistemas com glibc igual ou
+mais nova que a do PC que gerou o pacote, então gere no Linux mais antigo que for usar.
+
+Sem um Linux à mão: na aba **Actions** do GitHub, rode **Pacote Linux (.deb)**. Ele
+gera o pacote no Ubuntu 22.04 (serve para o Linux Mint 21 e mais novos) e deixa o
+`.deb` nos artefatos da execução; ao criar uma tag `v1.2.3`, anexa o `.deb` à release.
+Esse mesmo workflow roda em todo PR: testa o `INSTALAR.sh` e o `.deb` no Linux Mint 21 e
+22 (instala, abre o jogo pelo atalho numa tela virtual e remove).
+
+## Atualizar o jogo
+
+No menu principal, **ATUALIZAR** procura no GitHub se saiu versão nova (é a única função
+do jogo que usa a internet; sem conexão ela só avisa e nada muda).
+
+- **Instalado pelo INSTALAR.bat / INSTALAR.sh** (ou zip extraído): o jogo baixa a versão
+  nova, troca os próprios arquivos e reabre sozinho. Não precisa apagar pasta nenhuma: o
+  `.venv` fica, as bibliotecas só são reinstaladas se o `requirements.txt` mudou, e o
+  progresso salvo (`%APPDATA%/SoulStrike` ou `~/.soulstrike`) nem é tocado. Se algo der
+  errado no meio, os arquivos antigos voltam.
+- **Executável (.exe ou .deb em /opt):** o jogo avisa que tem versão nova e abre a página
+  para baixar (no Linux, é só abrir o .deb novo por cima do antigo).
+- **Clone do git:** use `git pull`.
+
+### Publicar uma versão nova
+
+1. Suba o número em `soulstrike/__init__.py` (`__version__ = "1.1.0"`).
+2. No GitHub, em *Releases → Draft a new release*, crie a tag `v1.1.0` (mesmo número) e
+   publique. O texto da Release aparece na tela de atualização.
+
+O botão compara a tag da última Release com o `__version__` de quem está jogando.
 
 ## Modos
 
@@ -351,6 +386,7 @@ soulstrike/
   boss.py               o chefão Aryel Corrompido
   upgrades.py           melhorias entre as fases
   progress.py           progresso salvo (campanha zerada, melhor tempo)
+  updater.py            botão ATUALIZAR: versão nova no GitHub (única parte que usa a internet)
   fighter.py            o lutador
   abilities.py          uma subclasse de Ability por personagem (duelo)
   soccer_powers.py      uma subclasse de SoccerPower por personagem (futebol)
@@ -367,6 +403,10 @@ tools/gerar_sprites.py  gera os sprites pixel art dos personagens e das criatura
 tools/gerar_armas.py    gera os sprites das armas
 tools/gerar_sons.py     gera os efeitos novos (armas, futebol, campanha) e as músicas do acampamento e do chefão
 tools/build_exe.py      gera dist/SoulStrike.exe
+tools/build_deb.py      gera o pacote .deb para Linux
+linux/instalar.sh       instalador do Linux (chamado pelo INSTALAR.sh)
+linux/teste_instalador.sh, linux/ver_janela.sh
+                        testes do instalador no Linux Mint (GitHub Actions)
 tests/                  testes automáticos
 ```
 

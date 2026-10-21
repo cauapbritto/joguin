@@ -23,4 +23,4 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m unittest discover tests
       - name: Instalador do Linux (sintaxe)
-        run: bash -n INSTALAR.sh && bash -n SoulStrike.sh
+        run: for f in INSTALAR.sh SoulStrike.sh linux/*.sh; do bash -n "$f"; done
