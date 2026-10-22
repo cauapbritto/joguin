@@ -198,18 +198,18 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
 
 | Personagem | Vida | Habilidade (duelo)                                        | Super (futebol)                                  |
 |------------|------|-----------------------------------------------------------|--------------------------------------------------|
-| Guerreiro  | 150  | Investida: avança e causa 30 de dano                      | Carrinho: desliza, derruba e rouba a bola        |
+| Guerreiro  | 150  | Investida: avança e causa 30 de dano                      | Zagueirão: 5 s no seu campo sem cair, roubando só de encostar (veja abaixo) |
 | Atirador   | 105  | Rajada: 5 balas em leque                                  | Chute certeiro: chute com curva para o gol       |
-| Tanque     | 230  | Muralha: barreira que bloqueia tiros por 4 s              | Muralha: barreira na frente do próprio gol       |
+| Tanque     | 230  | Muralha: barreira que bloqueia tiros por 4 s              | Muralha: barreira na frente do próprio gol por 6 s (segura até a enterrada) |
 | Ninja      | 95   | Shuriken: 3 shurikens de dano alto                        | Sombra: aparece atrás da bola, virado para o gol |
 | Velocista  | 115  | Turbo: 2x mais rápido por 4 s                             | Arrancada: corre muito com a bola colada         |
-| Aryel      | 120  | Aposta: roleta de GREEN, meio green ou RED (veja abaixo)  | Aposta no gol: gol em até 8 s vale 2             |
+| Aryel      | 120  | Aposta: roleta de GREEN, meio green ou RED (veja abaixo)  | Grau de moto: 3 s de moto, bola colada, e quem ele atropela cai |
 | Fantasma   | 110  | Teletransporte: some e reaparece                          | Bola fantasma: atravessa os adversários          |
 | Titã       | 180  | Invulnerável por 3 s                                      | Gigante: fica enorme e empurra todo mundo        |
-| Pirata     | 140  | Gancho: puxa o inimigo para a frente do sabre e o atordoa | Gancho: puxa a bola, até do pé do adversário     |
+| Pirata     | 140  | Gancho: puxa o inimigo para a frente do sabre e o atordoa | Gancho: puxa a bola, até do pé do adversário (e do drible mágico) |
 | Geada      | 100  | Nevasca: onda de gelo, dano em volta e inimigo lento      | Congelar: adversários perto ficam lentos         |
 | Cauanzera  | 100  | Multiesportista: basquete, vôlei e 100 metros, nessa ordem (veja abaixo) | Enterrada: perto da área, pula todo mundo e crava a bola no gol |
-| Albeguinio | 140  | Hacker: digita 1 s no notebook e trava todos os adversários por 5 s | Hack: digita e trava os adversários por 2,5 s |
+| Albeguinio | 140  | Hacker: digita 1 s no notebook e trava todos os adversários por 5 s | Hack: digita e trava os adversários por 2,5 s (recarga de 26 s) |
 | Borba Jr   | 125  | Exoesqueleto: 6 s de armadura (veja abaixo)               | Exoesqueleto: 4 s em que ninguém toma a bola dele |
 | Aryel Corrompido* | 135 | Chuva Sombria: 5 bombas caem em cima e em volta do inimigo | Bomba sombria: maior, atordoa e deixa lento |
 
@@ -224,10 +224,20 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
 - **Baixinho:** o corpo é menor, então é mais difícil de acertar, mas ele tem um pouco menos de vida.
 - **Grau de moto:** a esquiva vira uma empinada de moto, mais longa, soltando fumaça.
 - **Capacete de moto** é a arma de perto (a Granada continua).
-- **Futebol, Aposta no gol:** se o time dele fizer gol nos próximos 8 s, o gol vale 2 (aparece a
-  contagem em cima dele). Se não sair, deu RED e ele fica sem fôlego.
+- **Futebol, Grau de moto:** sobe na moto por 3 s: anda bem mais rápido, a bola vai colada no pé e
+  quem ele atropela cai (e perde a bola, se estava com ela). Serve para puxar o contra-ataque e para
+  chegar no atacante.
 
 O Aryel Corrompido continua como era (tamanho normal, Martelo e Chuva Sombria).
+
+### Guerreiro no futebol: Zagueirão
+
+O Guerreiro é o zagueiro do jogo. **Sempre (pegada firme):** rouba a bola na metade do tempo e
+MARCAR não fica mais lento. **Super (5 s, só no seu campo; passou do meio, acaba):** não cai, não
+trava e não fica lento (bomba, hack, caneta, chute trovão e trombada do exoesqueleto não pegam);
+rouba a bola só de encostar, até do drible mágico e do exoesqueleto; a bola que bate nele morre no
+pé e perde o efeito (curva, fantasma ou trovão); dá toco na enterrada; e o corte dele vira carrinho,
+que derruba quem está com a bola. Recarga de 14 s.
 
 ### Cauanzera, Albeguinio e Borba Jr
 
@@ -237,8 +247,9 @@ O Aryel Corrompido continua como era (tamanho normal, Martelo e Chuva Sombria).
   sai dele, bate na parede e volta nele. **100 metros:** corre muito por 2 s e atropela quem estiver
   no caminho. Passiva de **alto**: o golpe corpo a corpo alcança mais longe e, no futebol, cabeceia
   bolas mais altas. No futebol, a **Enterrada** (com a bola, perto da área adversária) pula por cima
-  de todo mundo — ninguém toca nele no ar — e crava a bola no gol: não dá para defender, por isso a
-  recarga é de 25 s.
+  de todo mundo — ninguém toca nele no ar — e crava a bola no gol, a até 450 px da linha do gol.
+  Só para em quem estiver no ponto onde ele cai de Zagueirão ou de exoesqueleto, ou na Muralha
+  erguida (**toco**). Recarga de 25 s.
 - **Albeguinio — Hacker.** Abre o notebook e digita por 1 s, parado. Se apanhar enquanto digita, o
   hack falha. Terminando, o sinal de Wi-Fi sai dele e **todos** os adversários em jogo ficam
   HACKEADOS por 5 s: não andam, não atiram e não usam nada (pega até o exoesqueleto; o chefão da
@@ -250,7 +261,7 @@ O Aryel Corrompido continua como era (tamanho normal, Martelo e Chuva Sombria).
 
 ### Craques do futebol
 
-Quatro personagens que só aparecem na escolha do futebol (quadradinho com fundo de gramado).
+Cinco personagens que só aparecem na escolha do futebol (quadradinho com fundo de gramado).
 Além do SUPER, cada um tem uma habilidade que vale o jogo todo:
 
 | Craque  | Sempre                                                   | Super                                                                 |
@@ -259,6 +270,7 @@ Além do SUPER, cada um tem uma habilidade que vale o jogo todo:
 | Trovão  | Cabeça de aço: cabeceia bola mais alta e com mais força   | Chute trovão: bomba reta que derruba quem entra na frente e segue      |
 | Ginga   | Condução veloz: bola colada no pé até correndo, sem frear (como na arrancada do Velocista) | Caneta: a bola passa entre as pernas do marcador, que fica tonto, e ele sai com ela |
 | Matador | Faro na área: dentro da área o chute vai no gol e sai mais forte | Faro de gol: por 5 s corre mais e a bola solta perto dele vem para o pé |
+| Paredão | Corpo fechado: bloqueia a bola de mais longe e a bola fantasma não passa por ele | Antecipação: teleporta até a bola, no próprio campo, e sai com ela (tira até do drible mágico; do exoesqueleto, não) |
 
 Eles jogam de uniforme como todo mundo (número nas costas) e a CPU também usa os poderes.
 
@@ -351,6 +363,12 @@ No futebol:
 - No seu campo, **chutar** com a bola solta dá um **chutão** para longe do gol (vale apertar
   um pouco antes de a bola chegar). **Corte** com um chute vindo vira **carrinho de bloqueio**;
   errou o tempo, fica no chão por um instante.
+- **Corte** sem a bola é uma arrancada curta para onde você aponta (sem apontar, na direção da
+  bola, se ela estiver perto). Encostou em quem está com a bola durante a arrancada, cutuca a bola
+  para a frente e quase sempre fica com ela. Com a bola, o corte é um drible para o lado mais
+  livre, e a bola vai junto.
+- **De goleiro** (segurando MARCAR perto do seu gol), a bola fantasma para em você, o chute trovão
+  te derruba mas perde metade da força e o hack trava você bem menos tempo.
 - **Conduzir** colado deixa a bola presa no pé (corre 10% mais devagar).
 - **Assistência** (alta, média ou desligada; TAB na escolha de personagens): corrige um pouco
   o chute que sairia para fora, ajuda no passe e puxa para o pé a bola que passa perto.

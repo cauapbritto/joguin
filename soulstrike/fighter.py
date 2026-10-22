@@ -163,7 +163,7 @@ class Fighter(Entity):
         self.weapon_index = weapon_index
         self.ability = create_ability(stats)
         self.on_moto = False            # esquiva de moto em andamento
-        self.bet_timer = 0              # aposta no gol (futebol, Aryel)
+        self.moto_timer = 0             # grau de moto no futebol (Aryel): anda de moto e atropela
 
         self.vx = self.vy = 0.0
         self.input = (0.0, 0.0)
@@ -190,6 +190,8 @@ class Fighter(Entity):
         self.sprint_timer = 0
         self.magic_timer = 0            # drible mágico (Faísca) e o instante da caneta (Ginga)
         self.nose_timer = 0             # faro de gol (Matador)
+        self.zaga_timer = 0             # zagueirão (Guerreiro): não cai, rouba encostando, a bola morre no pé
+        self.cut_timer = 0              # corte em andamento: cutuca a bola de quem encostar
         self.hack_timer = 0             # hackeado (Albeguinio): travado, sem andar, atirar nem usar nada
         self.type_timer = 0             # digitando no notebook (Albeguinio): parado
         self.virus_timer = 0            # vírus do pendrive: perde vida aos poucos
@@ -431,6 +433,8 @@ class Fighter(Entity):
         base = self.stats.speed * MOVE_SCALE
         if self.sprint_timer > 0:
             return base * 1.8
+        if self.moto_timer > 0:
+            return base * config.MOTO_SPEED
         if self.sprinting:
             base *= config.SPRINT_MULT
         elif self.carrying_close and not (self.power is not None and self.power.glued_carry):
@@ -439,6 +443,8 @@ class Fighter(Entity):
             base *= 1.15           # drible mágico
         if self.nose_timer > 0:
             base *= 1.2            # faro de gol
+        if self.zaga_timer > 0:
+            base *= 1.1            # zagueirão
         if self.slow_timer > 0:
             base *= config.SLOW_MULT
         if self.bow_draw > 0:
@@ -450,8 +456,8 @@ class Fighter(Entity):
         return base * (2 if self.speed_timer > 0 else 1) * self.speed_mult
 
     def slow(self, frames):
-        """Fica lento (gelo). Invulnerável não é afetado."""
-        if self.invulnerable:
+        """Fica lento (gelo). Invulnerável e zagueirão não são afetados."""
+        if self.invulnerable or self.zaga_timer > 0:
             return False
         self.slow_timer = max(self.slow_timer, frames)
         return True
@@ -485,7 +491,8 @@ class Fighter(Entity):
         return (config.FURY_MULT if self.fury_timer > 0 else 1.0) * self.damage_bonus
 
     def stun(self, frames=config.STUN_FRAMES):
-        if self.invulnerable or self.unstoppable or self.magic_timer > 0 or self.exo_timer > 0 or self.lift > 0:
+        if (self.invulnerable or self.unstoppable or self.magic_timer > 0 or self.exo_timer > 0 or self.lift > 0
+                or self.zaga_timer > 0):
             return False
         self.stun_timer = max(self.stun_timer, frames)
         self.charge_timer = 0
@@ -520,8 +527,8 @@ class Fighter(Entity):
 
     def hack(self, frames):
         """Hackeado (Albeguinio): trava tudo por ``frames``. Pega até quem não fica tonto (exoesqueleto,
-        chefão — este por menos tempo); só escapa quem está invulnerável ou no ar."""
-        if self.hp <= 0 or self.invulnerable_timer > 0 or self.lift > 0 or self.magic_timer > 0:
+        chefão — este por menos tempo); só escapa quem está invulnerável, no ar ou de zagueirão."""
+        if self.hp <= 0 or self.invulnerable_timer > 0 or self.lift > 0 or self.magic_timer > 0 or self.zaga_timer > 0:
             return False
         if self.unstoppable:
             frames = round(frames * BOSS_HACK)
@@ -824,8 +831,8 @@ class Fighter(Entity):
         self.ability.tick(self)
         for name in ("attack_cd", "ability_cd", "dash_cd", "speed_timer", "invulnerable_timer",
                      "super_cd", "kick_cd", "stun_timer", "fury_timer", "giant_timer", "sprint_timer",
-                     "magic_timer", "nose_timer", "hack_timer", "type_timer", "rush_timer", "thrown_timer",
-                     "root_timer", "fear_timer", "frozen_timer",
+                     "magic_timer", "nose_timer", "zaga_timer", "moto_timer", "cut_timer", "hack_timer",
+                     "type_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer",
                      "slow_timer", "windup", "aim_timer", "haste_timer", "dry_click",
                      "hit_flash", "melee_flash", "shoot_flash", "teleport_flash"):
             value = getattr(self, name)
@@ -1116,7 +1123,8 @@ class Fighter(Entity):
         flash = self.hit_flash > 0 and self.hit_flash % 2 == 0
         scale = self.draw_scale * (1.5 if self.giant_timer > 0 else 1.0) * (EXO_SCALE if self.exo_timer > 0 else 1.0)
         kind, index = self._pose()
-        riding = self.on_moto and self.dash_timer > 0
+        dodging_moto = self.on_moto and self.dash_timer > 0
+        riding = dodging_moto or self.moto_timer > 0     # esquiva de moto ou grau de moto (futebol)
         ride = MOTO_RIDE if riding else 0
         base = (sx, feet + 2 - round(self.lift) - ride)  # meio de baixo do sprite
 
@@ -1147,9 +1155,14 @@ class Fighter(Entity):
             self._draw_aura(surf, img, rect, ticks)
         surf.blit(img, rect)
         if riding:                                     # a moto na frente das pernas (ele vai sentado)
-            t = 1 - self.dash_timer / max(1, self.dash_len)
-            right = self.dash_dir[0] > 0 if abs(self.dash_dir[0]) > 0.2 else self.facing[0] >= 0
-            draw_moto(surf, sx, feet + 2, right, 20 * math.sin(math.pi * min(1.0, t * 1.2)))
+            if dodging_moto:
+                t = 1 - self.dash_timer / max(1, self.dash_len)
+                right = self.dash_dir[0] > 0 if abs(self.dash_dir[0]) > 0.2 else self.facing[0] >= 0
+                wheelie = 20 * math.sin(math.pi * min(1.0, t * 1.2))
+            else:
+                right = self.facing[0] >= 0
+                wheelie = 10 + 6 * math.sin(self.age * 0.18) if self.moving else 4
+            draw_moto(surf, sx, feet + 2, right, wheelie)
         if flash and self.aura is not None:
             # as sombras só clareiam um pouco ao levar dano (não viram um vulto branco)
             hit = pygame.mask.from_surface(img).to_surface(setcolor=(200, 170, 230, 255), unsetcolor=(0, 0, 0, 0))

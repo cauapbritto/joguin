@@ -29,7 +29,7 @@ def com_bola(key, foe="guerreiro", humans=(1,)):
 
 class ElencoTest(unittest.TestCase):
     def test_so_aparecem_no_futebol(self):
-        self.assertEqual(set(SOCCER_STARS), {"faisca", "trovao", "ginga", "matador"})
+        self.assertEqual(set(SOCCER_STARS), {"faisca", "trovao", "ginga", "matador", "paredao"})
         batalha = {c.key for c in roster()}
         futebol_ = {c.key for c in roster(soccer=True)}
         self.assertFalse(batalha & set(SOCCER_STARS))

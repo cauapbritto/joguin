@@ -1,5 +1,5 @@
 """Aryel: Aposta (roleta GREEN / meio green / RED), Baixinho, esquiva de moto, Capacete e, no
-futebol, a Aposta no gol (gol em até 8s vale 2; se não sair, fica sem fôlego)."""
+futebol, o Grau de moto (3s de moto: corre muito, bola colada e quem ele atropela cai)."""
 import random
 import unittest
 
@@ -91,35 +91,47 @@ class BaixinhoEMotoTest(unittest.TestCase):
         self.assertEqual(CHARACTERS[KEYS.index("aryel")].weapons[1].name, "Capacete")
 
 
-class ApostaNoGolTest(unittest.TestCase):
+class GrauDeMotoTest(unittest.TestCase):
     def _jogo(self):
         match, inputs = futebol(chars=(KEYS.index("aryel"), KEYS.index("tanque")), humans=(1,))
         p1, p2 = match.fighters
         p2.x, p2.y = 400, MEIO + 400
-        p1.x, p1.y = GOL_D - 300, MEIO
+        p1.x, p1.y = 900, MEIO
         match.ball.x, match.ball.y = p1.x + 28, MEIO
         run(match, 3, inputs)
         return match, inputs, p1, p2
 
-    def test_gol_na_aposta_vale_dois(self):
+    def test_moto_corre_mais_com_a_bola_colada(self):
         match, inputs, p1, p2 = self._jogo()
+        normal = p1.max_speed
         self.assertTrue(match.use_power(p1))
-        p1.facing = (1.0, 0.0)
-        match.kick(p1, (1.0, 0.0))
-        for _ in range(120):
-            run(match, 1, inputs)
-            if match.score[0]:
-                break
-        self.assertEqual(match.score[0], 2)
+        self.assertGreater(p1.max_speed, normal * 1.5)
+        inputs[1].stick = (1.0, 0.0)
+        run(match, 60, inputs)
+        self.assertIs(match.possessor, p1)                 # a bola foi junto
+        self.assertGreater(p1.x, 900 + 60 * normal * 1.3)
 
-    def test_sem_gol_fica_sem_folego(self):
+    def test_atropela_quem_esta_com_a_bola(self):
+        match, inputs, p1, p2 = self._jogo()
+        match._release(p1, 600)
+        p2.x, p2.y = 1200, MEIO
+        match.ball.x, match.ball.y = p2.x + 26, MEIO
+        run(match, 3, inputs)
+        self.assertIs(match.possessor, p2)
+        self.assertTrue(match.use_power(p1))
+        inputs[1].stick = (1.0, 0.0)
+        for _ in range(90):
+            run(match, 1, inputs)
+            if p2.stunned:
+                break
+        self.assertTrue(p2.stunned)
+        self.assertIsNot(match.possessor, p2)
+
+    def test_acaba_depois_de_3s(self):
         match, inputs, p1, p2 = self._jogo()
         self.assertTrue(match.use_power(p1))
-        match._release(p1, 600)
-        match.ball.x, match.ball.y = 300, 200
-        run(match, 8 * config.FPS + 5, inputs)
-        self.assertEqual(p1.bet_timer, 0)
-        self.assertTrue(p1.exhausted)
+        run(match, 3 * config.FPS + 2, inputs)
+        self.assertEqual(p1.moto_timer, 0)
 
 
 if __name__ == "__main__":

@@ -23,6 +23,10 @@ class SoccerPower(ABC):
     head_power = 1.0          # força da cabeçada
     glued_carry = False       # bola sempre colada no pé, até correndo, sem perder velocidade
     finisher = False          # dentro da área adversária o chute vai no gol e sai mais forte
+    steal_power = 1.0         # rouba a bola tanto mais rápido (Guerreiro: pegada firme)
+    firm_mark = False         # MARCAR sem perder velocidade
+    body_reach = 0            # o corpo bloqueia a bola de tão mais longe (Paredão)
+    ghost_proof = False       # a bola fantasma não atravessa ele
 
     def use(self, user, match):
         if user.super_cd > 0 or user.stunned:
@@ -52,25 +56,42 @@ def _goal_dir(user, match, spread=0):
     return dx / d, dy / d
 
 
-class Carrinho(SoccerPower):
-    name = "CARRINHO"
-    description = "Desliza para a frente, derruba quem acertar e rouba a bola."
-    cooldown = 8 * config.FPS
-    sound = "dash"
+class Zagueirao(SoccerPower):
+    """Guerreiro: o zagueiro do jogo. Por 5s, no próprio campo, não cai nem trava, rouba a bola só de
+    encostar (até do drible mágico e do exoesqueleto), a bola que bate nele morre no pé (fantasma,
+    trovão e curva perdem o efeito), dá toco na enterrada e o corte dele vira carrinho. Passou do
+    meio de campo, acaba. Passiva (pegada firme): rouba a bola na metade do tempo e marca sem frear."""
+    name = "ZAGUEIRÃO"
+    description = "5s no seu campo: não cai, rouba encostando e mata qualquer chute."
+    cooldown = 14 * config.FPS
+    sound = "barrier"
+    steal_power = 2.0
+    firm_mark = True
+    FRAMES = 5 * config.FPS
 
     def activate(self, user, match):
-        if not user.dash(user.facing, frames=16, cooldown=30):
-            return False
-        user.tackle_timer = 16
+        if not match.in_own_half(user):
+            return False                             # é poder de defesa: só no próprio campo
+        user.zaga_timer = self.FRAMES
+        user.slow_timer = 0
+        match.burst(user.x, user.y - 10, ZAGA_COLOR, 18, speed=4)
+        match.camera.shake(3)
         return True
 
     def worth_using(self, user, match):
+        if not match.in_own_half(user):
+            return False
         ball = match.ball
-        for foe in match.foes_of(user):
-            if math.hypot(foe.x - ball.x, foe.y - ball.y) < 40 and user.distance_to(foe) < 150:
-                user.face(foe)
-                return True
-        return False
+        home = match.goal_x(user.team)
+        owner = match.possessor
+        if owner is not None and owner.team != user.team:
+            return user.distance_to(owner) < 260 and abs(owner.x - home) < 900
+        tricky = ball.ghost_timer > 0 or ball.thunder_timer > 0 or ball.homing_timer > 0
+        coming = (ball.vx < -4) if user.team == 0 else (ball.vx > 4)
+        return tricky and coming and abs(ball.x - home) < 800
+
+
+ZAGA_COLOR = (150, 196, 255)
 
 
 class ChuteCerteiro(SoccerPower):
@@ -124,14 +145,14 @@ class BallWall(Entity):
 
 class MuralhaDoGol(SoccerPower):
     name = "MURALHA"
-    description = "Ergue uma barreira na frente do próprio gol por 5s."
+    description = "Barreira na frente do próprio gol por 6s (para até a enterrada)."
     cooldown = 15 * config.FPS
     sound = "barrier"
 
     def activate(self, user, match):
         home = match.goal_x(user.team)
         x = home + (70 if user.team == 0 else -70)
-        match.add_ball_wall(BallWall(x, match.arena.height / 2, user.team, 5 * config.FPS))
+        match.add_ball_wall(BallWall(x, match.arena.height / 2, user.team, 6 * config.FPS))
         return True
 
     def worth_using(self, user, match):
@@ -190,10 +211,8 @@ class Bomba(SoccerPower):
         for foe in match.foes_of(user):
             dx, dy = foe.x - user.x, foe.y - user.y
             d = math.hypot(dx, dy)
-            if d < self.RADIUS:
-                if d:
-                    foe.knock = [dx / d * 9, dy / d * 9]
-                foe.stun(45)
+            if d < self.RADIUS and foe.stun(45) and d:      # zagueirão nem se mexe
+                foe.knock = [dx / d * 9, dy / d * 9]
         ball = match.ball
         dx, dy = ball.x - user.x, ball.y - user.y
         d = math.hypot(dx, dy)
@@ -224,27 +243,28 @@ class BombaSombria(Bomba):
         return True
 
 
-class ApostaNoGol(SoccerPower):
-    """Aryel: aposta que faz gol. Se o time dele marcar com ele em até 8s, o gol vale 2 (GREEN);
-    se não, deu RED e ele fica sem fôlego."""
-    name = "APOSTA NO GOL"
-    description = "Gol em até 8s vale 2. Se não sair, fica sem fôlego."
-    cooldown = 18 * config.FPS
-    sound = "click"
-    FRAMES = 8 * config.FPS
+class GrauDeMoto(SoccerPower):
+    """Aryel: sobe na moto por 3s. Anda bem mais rápido, a bola vai colada no pé e quem ele atropela
+    cai (e perde a bola). Serve para puxar o contra-ataque e para chegar no atacante."""
+    name = "GRAU DE MOTO"
+    description = "3s de moto: corre muito, bola colada, e quem ele atropela cai."
+    cooldown = 13 * config.FPS
+    sound = "dash"
+    FRAMES = 3 * config.FPS
 
     def activate(self, user, match):
-        if user.bet_timer > 0:
-            return False
-        user.bet_timer = self.FRAMES
-        match.popup(user.x, user.y - 92, "GOL VALE 2!", (110, 230, 110))
-        match.burst(user.x, user.y - 30, (240, 196, 60), 14, speed=4)
+        user.moto_timer = self.FRAMES
+        match.burst(user.x, user.y + 16, (150, 146, 150), 14, speed=3)
+        match.camera.shake(3)
         return True
 
     def worth_using(self, user, match):
         owner = match.possessor
-        near = abs(match.goal_x(1 - user.team) - match.ball.x) < 700
-        return near and owner is not None and owner.team == user.team
+        if owner is user:
+            return abs(match.goal_x(1 - user.team) - user.x) > 500       # puxa o contra-ataque
+        if owner is not None and owner.team != user.team:
+            return 120 < user.distance_to(owner) < 360                   # vai atropelar quem está com a bola
+        return False
 
 
 class BolaFantasma(SoccerPower):
@@ -298,8 +318,8 @@ class GanchoNaBola(SoccerPower):
         owner = match.possessor
         if d > self.RANGE or ball.z > config.HEAD_RANGE[1] or (owner is not None and owner.team == user.team):
             return False
-        if owner is not None and (owner.magic_timer > 0 or owner.exo_timer > 0):
-            return False                            # drible mágico / exoesqueleto: nem o gancho tira
+        if owner is not None and owner.exo_timer > 0:
+            return False                            # exoesqueleto: nem o gancho tira (o drible mágico, sim)
         if owner is not None:
             match._release(owner, 30)               # arranca a bola do adversário
         if d < 40:
@@ -451,6 +471,13 @@ class Caneta(SoccerPower):
         foe = _foe_ahead(user, match, self.REACH)
         if foe is None:
             return False                             # sem marcador na frente não tem caneta
+        if foe.zaga_timer > 0:
+            # zagueirão não cai na caneta: fica com a bola
+            match._release(user, 30)
+            match._take(foe)
+            match.popup(foe.x, foe.y - 74, "DESARMOU", ZAGA_COLOR)
+            match.burst(match.ball.x, match.ball.y, ZAGA_COLOR, 10, speed=3)
+            return True
         dx, dy = foe.x - user.x, foe.y - user.y
         d = math.hypot(dx, dy) or 1
         dx, dy = dx / d, dy / d
@@ -494,6 +521,68 @@ class FaroDeGol(SoccerPower):
         return match.possessor is None and user.distance_to(ball) < 420 and ball.z < 30
 
 
+class Antecipacao(SoccerPower):
+    """Paredão: lê a jogada e aparece na bola, no próprio campo, e sai com ela (tira até do drible
+    mágico; do exoesqueleto, não). A bola perde qualquer efeito. Passiva: corpo grande, que
+    bloqueia de mais longe, e a bola fantasma não passa por ele."""
+    name = "ANTECIPAÇÃO"
+    description = "Teleporta até a bola no seu campo e sai com ela."
+    cooldown = 13 * config.FPS
+    sound = "ability"
+    body_reach = 10
+    ghost_proof = True
+    RANGE = 750
+
+    def _can_reach(self, user, match):
+        ball = match.ball
+        owner = match.possessor
+        if getattr(match, "dunk", None) is not None or ball.z > config.HEAD_RANGE[1]:
+            return False
+        if owner is not None and (owner.team == user.team or owner.exo_timer > 0):
+            return False
+        if abs(ball.x - match.goal_x(user.team)) > match.arena.width / 2:
+            return False                             # só no próprio campo
+        return user.distance_to(ball) < self.RANGE
+
+    def activate(self, user, match):
+        if not self._can_reach(user, match):
+            return False
+        ball = match.ball
+        owner = match.possessor
+        if owner is not None:
+            match._release(owner, 30)
+        # aparece colado na bola, do lado do próprio gol, já virado para o campo
+        gx, gy = match.goal_center(user.team)
+        ux, uy = gx - ball.x, gy - ball.y
+        d = math.hypot(ux, uy) or 1
+        ux, uy = ux / d, uy / d
+        x, y = match.arena.free_spot(ball.x + ux * 24, ball.y + uy * 24, user.radius)
+        match.burst(user.x, user.y - 16, user.stats.color, 14)
+        user.x, user.y = x, y
+        user.prev_pos = (x, y)
+        user.vx = user.vy = 0
+        user.facing = (-ux, -uy)
+        user.teleport_flash = 20
+        match.kill_ball_effects()
+        ball.z = ball.vz = 0.0
+        ball.vx = ball.vy = 0.0
+        match._take(user)
+        match.popup(user.x, user.y - 74, "ANTECIPOU", theme.BONE)
+        match.burst(x, y - 16, user.stats.color, 14)
+        return True
+
+    def worth_using(self, user, match):
+        if not self._can_reach(user, match):
+            return False
+        owner = match.possessor
+        ball = match.ball
+        home = match.goal_x(user.team)
+        if owner is not None:
+            return abs(owner.x - home) < 700 and user.distance_to(owner) > 140
+        coming = (ball.vx < -4) if user.team == 0 else (ball.vx > 4)
+        return coming and abs(ball.x - home) < 700 and user.distance_to(ball) > 160
+
+
 # ── Cauanzera, Albeguinio e Borba Jr ───────────
 
 class Dunk(Entity):
@@ -502,6 +591,7 @@ class Dunk(Entity):
 
     FRAMES = 44
     PEAK = 150
+    BLOCK_RANGE = 80               # zagueirão / exoesqueleto até essa distância do ponto de queda dá toco
 
     def __init__(self, user, match):
         super().__init__(user.x, user.y)
@@ -541,11 +631,13 @@ class Dunk(Entity):
             match.particles.append(Particle(user.x, user.y + 18, 0, 0, (84, 162, 222), 14, 3))
         if t < 1:
             return
-        # crava: a bola desce direto para dentro do gol (nem o goleiro alcança)
         user.lift = 0
         self.alive = False
         match.dunk = None
         ball = match.ball
+        if self._blocked(match):
+            return
+        # crava: a bola desce direto para dentro do gol (nem o goleiro alcança)
         gx, gy = self.goal
         ball.x, ball.y = gx + self.inward * 24, gy
         ball.z, ball.vz = 0.0, 0.0
@@ -563,6 +655,29 @@ class Dunk(Entity):
         match.camera.shake(9)
         match.assets.play("explosion", 0.5)
 
+    def _blocked(self, match):
+        """Toco: zagueirão ou exoesqueleto no ponto de queda, ou a muralha erguida, seguram a enterrada."""
+        user, ball = self.user, match.ball
+        wall = any(w.team != user.team for w in match.ball_walls)
+        blocker = next((f for f in match.foes_of(user) if (f.zaga_timer > 0 or f.exo_timer > 0)
+                        and math.hypot(f.x - self.land[0], f.y - self.land[1]) < self.BLOCK_RANGE), None)
+        if not wall and blocker is None:
+            return False
+        ball.held = False
+        ball.z, ball.vz = 20.0, 3.0
+        ball.x, ball.y = user.x + self.inward * 20, user.y
+        ball.vx, ball.vy = self.inward * 7.0, random.uniform(-3, 3)      # espirra de volta para o campo
+        match.possessor = None
+        match.no_trap[user] = 30
+        match.last_touch = blocker
+        who = blocker or user
+        match.popup(who.x, who.y - 90, "TOCO!", ZAGA_COLOR)
+        match.burst(ball.x, ball.y - ball.z, ZAGA_COLOR, 18, speed=5)
+        match.dust(user.x, user.y + 20, 8)
+        match.camera.shake(6)
+        match.assets.play("hit", 0.5)
+        return True
+
     def draw(self, surf, camera):
         pass
 
@@ -577,7 +692,7 @@ class Enterrada(SoccerPower):
     sound = "dash"
     release_frames = 0
     head_reach = 36
-    RANGE = 600                                     # distância máxima da linha do gol adversário
+    RANGE = 450                                     # distância máxima da linha do gol adversário
 
     def use(self, user, match):
         if match.possessor is not user or getattr(match, "dunk", None) is not None:
@@ -599,7 +714,7 @@ class Hackear(SoccerPower):
     """Albeguinio: digita no notebook e os adversários ficam travados (e perdem a bola)."""
     name = "HACK"
     description = "Digita e trava os adversários por 2,5s."
-    cooldown = 16 * config.FPS
+    cooldown = 26 * config.FPS                      # trava o time todo: recarga longa
     sound = "barrier"
     TYPING = round(0.6 * config.FPS)
     FREEZE = round(2.5 * config.FPS)
@@ -613,7 +728,7 @@ class Hackear(SoccerPower):
         owner = match.possessor
         ball = match.ball
         if owner is not None and owner.team != user.team:
-            return abs(ball.x - match.goal_x(user.team)) < 900
+            return abs(ball.x - match.goal_x(user.team)) < 600       # só quando o ataque já chegou perto
         return owner is None and any(f.distance_to(ball) < 120 for f in match.foes_of(user)) \
             and user.distance_to(ball) > 200
 
@@ -641,12 +756,12 @@ class ExoBola(SoccerPower):
 
 
 SOCCER_POWERS = {
-    "guerreiro": Carrinho,
+    "guerreiro": Zagueirao,
     "atirador": ChuteCerteiro,
     "tanque": MuralhaDoGol,
     "ninja": Sombra,
     "velocista": Arrancada,
-    "aryel": ApostaNoGol,
+    "aryel": GrauDeMoto,
     "fantasma": BolaFantasma,
     "tita": Gigante,
     "pirata": GanchoNaBola,
@@ -656,6 +771,7 @@ SOCCER_POWERS = {
     "trovao": ChuteTrovao,
     "ginga": Caneta,
     "matador": FaroDeGol,
+    "paredao": Antecipacao,
     "cauanzera": Enterrada,
     "albeguinio": Hackear,
     "borba": ExoBola,
