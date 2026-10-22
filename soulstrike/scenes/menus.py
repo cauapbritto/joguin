@@ -4,11 +4,14 @@ import webbrowser
 
 import pygame
 
-from .. import config, theme
+from .. import __version__, config, theme
+from ..about import PAGES, highlight
+from ..abilities import Ability
 from ..controls import KEY_LABELS, SOCCER_KEY_LABELS, PlayerInput
 from ..data import CHARACTERS, SHADOW_CHARACTERS, roster
 from ..net import server
 from ..session import MODES, Session, SlotSetup
+from ..soccer_powers import SoccerPower
 from ..ui import Backdrop, MenuList
 from .base import Scene
 
@@ -387,86 +390,150 @@ class ControlsScene(_InfoScene):
         self.footer(screen, [("T", "DUPLO TOQUE"), ("ESC", "VOLTAR")])
 
 
-ABOUT = [
-    ("OS 4 PILARES DA ORIENTAÇÃO A OBJETOS NO SOUL STRIKE", None),
-    ("ENCAPSULAMENTO", "Fighter guarda vida, posição, tempos de recarga e a munição. Ninguém altera a vida "
-     "diretamente: quem causa dano chama take_damage(), que confere esquiva e invulnerabilidade antes "
-     "de descontar. Do mesmo jeito, só attack() gasta tiro e só start_reload() e refill_ammo() enchem o pente. RemoteHub esconde a trava entre a thread do servidor web e o jogo; o resto do código "
-     "só usa apply_input(), poll() e status()."),
-    ("ABSTRAÇÃO", "Entity e Ability são classes abstratas (ABC): dizem o que toda entidade e toda "
-     "habilidade faz (update, draw, activate) sem dizer como. Arena.resolve() esconde a colisão de "
-     "círculo com retângulo e Camera esconde o zoom e a conversão do mundo para a tela."),
-    ("HERANÇA", "Fighter, Bullet, Explosion, Barrier, FrostNova, Wall, Pickup, Ball, Portal e Shockwave herdam "
-     "de Entity e ganham posição, distance_to() e direction_to(). Hook (o gancho do Pirata) herda de Bullet: "
-     "voa e colide como um tiro e só muda o que acontece ao acertar (on_hit puxa o alvo). Os projéteis das "
-     "armas (Arrow, Grenade, ChainBall...) herdam de Projectile, que herda de Bullet. ShadowBomb herda "
-     "de GroundMark: é o mesmo aviso no chão, só que explode no fim. BattleMatch, SoccerMatch e "
-     "CampaignMatch herdam de Match, que já cuida de câmera, tiros, partículas e desenho. Na campanha, "
-     "CampaignMatch (a masmorra) e LobbyMatch (o acampamento) herdam de CoopMatch, que junta o que as duas "
-     "têm em comum (levantar quem caiu, a mira, os itens, o escurecer entre as etapas). TeamBattleMatch "
-     "(o duelo 2 x 2) herda de BattleMatch e só troca o que é um \"lado\": em vez de um lutador, um time "
-     "inteiro, que precisa cair todo para perder o round. Os inimigos da "
-     "campanha são Fighters do time das sombras. Todas as telas herdam de Scene."),
-    ("POLIMORFISMO", "Cada arma de tiro dispara a sua subclasse de Projectile: Arrow (a flecha que finca na "
-     "parede), Tracer, Spear, ShurikenStar (ricocheteia), ThrowingStar, Grenade (vai por cima das paredes), "
-     "Orb (persegue e atravessa paredes), ChainBall (vai e volta), LeadBall e IceShard (deixa lento). A partida "
-     "só chama update(), on_hit() e on_wall() e cada uma responde do seu jeito. "
-     "Cada personagem tem uma subclasse de Ability: Investida, Rajada, Muralha, "
-     "ShurikenTripla, Turbo, Explosao, Teletransporte, Invulneravel, Gancho, Nevasca e ChuvaSombria. O "
-     "lutador só chama ability.use() e cada classe responde do seu jeito. No futebol, o botão SUPER chama "
-     "power.use() de uma subclasse de SoccerPower (Zagueirao, ChuteCerteiro, MuralhaDoGol, Sombra, Arrancada, "
-     "GrauDeMoto, Bomba, BombaSombria, BolaFantasma, Gigante, GanchoNaBola, Congelar, Antecipacao...). Na campanha, cada inimigo tem um "
-     "cérebro (DiabreteAI, EsqueletoAI, GolemAI, BossAI) e cada melhoria é uma subclasse de Upgrade com "
-     "apply(). Nos mapas, cada estilo de parede (Hedge, DungeonStone, IceBlock) e cada ambiente (Fireflies, "
-     "Torches, Snow) responde ao mesmo paint() ou draw(). E a cena de jogo chama match.step() sem saber se "
-     "é duelo, duelo 2 x 2, futebol ou campanha."),
-]
-
-
 class AboutScene(_InfoScene):
+    """Abas: o jogo, os 4 pilares da orientação a objetos (com trecho de código real) e os bastidores."""
     heading = "SOBRE O PROJETO"
+    TABS = ["JOGO"] + [page.tab for page in PAGES]
+    PANEL = pygame.Rect(56, 112, config.SCREEN_W - 112, 380)
+    CAST = ("guerreiro", "atirador", "tanque", "ninja", "velocista", "aryel", "fantasma", "tita", "pirata",
+            "geada", "cauanzera", "paredao")
+    MODES = (("DUELO", "1 X 1 OU 2 X 2 NA ARENA", theme.BLOOD),
+             ("FUTEBOL", "PODERES, CRUZAMENTO E CORTE", theme.MOSS),
+             ("CAMPANHA", "MASMORRA EM COOPERATIVO", theme.SKY))
 
     def __init__(self, game):
         super().__init__(game)
-        self.scroll = 0
-        self.content_h = 0
+        self.page = 0
+        self.tab_rects = []
+        self._big = {}           # retratos ampliados, por personagem
+        self._colored = [highlight(page.code) for page in PAGES]
+
+    def _go(self, page):
+        page %= len(self.TABS)
+        if page != self.page:
+            self.page = page
+            self.sfx("select", 0.25)
 
     def handle(self, event):
-        if event.type == pygame.MOUSEWHEEL:
-            self.scroll -= event.y * 24
-        elif event.type == pygame.KEYDOWN and event.key in (pygame.K_UP, pygame.K_w):
-            self.scroll -= 24
-        elif event.type == pygame.KEYDOWN and event.key in (pygame.K_DOWN, pygame.K_s):
-            self.scroll += 24
+        if event.type == pygame.KEYDOWN and event.key in (pygame.K_LEFT, pygame.K_a):
+            self._go(self.page - 1)
+        elif event.type == pygame.KEYDOWN and event.key in (pygame.K_RIGHT, pygame.K_d, pygame.K_TAB):
+            self._go(self.page + 1)
+        elif event.type == pygame.MOUSEWHEEL:
+            self._go(self.page - event.y)
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for i, rect in enumerate(self.tab_rects):
+                if rect.collidepoint(event.pos):
+                    self._go(i)
         else:
             super().handle(event)
-        self.scroll = max(0, min(self.scroll, max(0, self.content_h - 360)))
+
+    def _portrait(self, screen, key, midbottom, scale):
+        img = self.assets.sprites[key].portrait
+        if scale != 1:
+            if key not in self._big:
+                self._big[key] = pygame.transform.scale(img, (img.get_width() * scale, img.get_height() * scale))
+            img = self._big[key]
+        w = 26 * scale
+        pygame.draw.ellipse(screen, (6, 4, 10), (midbottom[0] - w, midbottom[1] - 3 * scale, w * 2, 6 * scale))
+        screen.blit(img, img.get_rect(midbottom=midbottom))
+
+    def _tabs(self, screen):
+        self.tab_rects = []
+        x, y = self.PANEL.x, self.PANEL.y - 14
+        for i, name in enumerate(self.TABS):
+            rect = pygame.Rect(x, y - 10, self.assets.text_width(name, theme.XS) + 20, 20)
+            if i == self.page:
+                screen.fill(theme.INK_2, rect)
+                screen.fill(theme.BRASS, (rect.x, rect.bottom - 2, rect.w, 2))
+            self.ui.text(screen, name, theme.XS, theme.BRASS if i == self.page else theme.MUTED, rect.center,
+                         shadow=False)
+            self.tab_rects.append(rect)
+            x = rect.right + 6
+        self.ui.text(screen, f"{self.page + 1}/{len(self.TABS)}", theme.XS, theme.FAINT,
+                     (self.PANEL.right, y), anchor="midright", shadow=False)
 
     def draw_body(self, screen):
+        self._tabs(screen)
+        self.ui.panel(screen, self.PANEL)
+        if self.page == 0:
+            self._draw_game(screen)
+        else:
+            self._draw_pillar(screen, self.page - 1)
+        self.footer(screen, [("←→", "PÁGINA"), ("ESC", "VOLTAR")])
+
+    def _draw_game(self, screen):
+        panel = self.PANEL
         W = config.SCREEN_W
-        panel = pygame.Rect(56, 92, W - 112, 380)
-        self.ui.panel(screen, panel)
-        clip = panel.inflate(-8, -12)
-        screen.set_clip(clip)
-        y = panel.y + 20 - self.scroll
-        start = y
-        for heading, body in ABOUT:
-            if body is None:
-                self.ui.text(screen, heading, theme.XS, theme.MUTED, (panel.x + 24, y), anchor="topleft")
-                y += 28
-                continue
-            self.ui.text(screen, heading, theme.S, theme.BRASS, (panel.x + 24, y), anchor="topleft")
-            y = self.ui.paragraph(screen, body, theme.XS, theme.BONE, (panel.x + 24, y + 26), panel.w - 48, spacing=15)
-            y += 18
-        screen.set_clip(None)
-        self.content_h = y - start
-        if self.content_h > 360:
-            track = pygame.Rect(panel.right - 10, panel.y + 10, 4, panel.h - 20)
-            screen.fill(theme.INK, track)
-            frac = self.scroll / max(1, self.content_h - 360)
-            thumb_h = max(20, track.h * 360 // self.content_h)
-            screen.fill(theme.LINE_HI, (track.x, track.y + (track.h - thumb_h) * frac, 4, thumb_h))
-        self.footer(screen, [("↑↓", "ROLAR"), ("ESC", "VOLTAR")])
+        self.ui.logo(screen, (W // 2, panel.y + 44), size=theme.L)
+        self.ui.paragraph(screen, "Jogo em pixel art feito em Python com pygame, para 1 a 4 jogadores no mesmo "
+                          "computador. Cada um joga no teclado ou usa o próprio celular como controle, só "
+                          "abrindo o navegador na mesma rede Wi-Fi.", theme.XS, theme.BONE,
+                          (panel.x + 40, panel.y + 80), panel.w - 80, spacing=14)
+        cw = (panel.w - 80 - 2 * 16) // 3
+        for i, (name, text, color) in enumerate(self.MODES):
+            card = pygame.Rect(panel.x + 40 + i * (cw + 16), panel.y + 134, cw, 58)
+            self.ui.panel(screen, card, fill=theme.INK_3, accent=color, shadow=False)
+            self.ui.text(screen, name, theme.S, color, (card.centerx, card.y + 22))
+            self.ui.text(screen, text, theme.XS, theme.MUTED, (card.centerx, card.y + 44), shadow=False)
+        n = len(self.CAST)
+        for i, key in enumerate(self.CAST):
+            self._portrait(screen, key, (panel.x + 70 + i * (panel.w - 140) // (n - 1), panel.y + 290), 1)
+        self.ui.text(screen, f"{len(CHARACTERS)} PERSONAGENS  ·  {_count(Ability)} HABILIDADES  ·  "
+                     f"{_count(SoccerPower)} PODERES NO FUTEBOL", theme.XS, theme.MUTED,
+                     (W // 2, panel.y + 312), shadow=False)
+        screen.fill(theme.LINE, (panel.x + 40, panel.y + 330, panel.w - 80, 1))
+        facts = (("VERSÃO", __version__), ("FEITO COM", "PYTHON 3 + PYGAME"), ("CONTROLE", "TECLADO OU CELULAR"))
+        for i, (label, value) in enumerate(facts):
+            x = panel.x + 40 + i * (panel.w - 80) // 3
+            self.ui.text(screen, label, theme.XS, theme.FAINT, (x, panel.y + 344), anchor="topleft", shadow=False)
+            self.ui.text(screen, value, theme.XS, theme.BRASS, (x, panel.y + 358), anchor="topleft", shadow=False)
+
+    def _draw_pillar(self, screen, index):
+        page, panel = PAGES[index], self.PANEL
+        x, w = panel.x + 22, 250
+        self.ui.text(screen, page.tab, theme.S, theme.BRASS, (x, panel.y + 22), anchor="topleft")
+        self.ui.text(screen, "A IDEIA", theme.XS, theme.MUTED, (x, panel.y + 58), anchor="topleft", shadow=False)
+        y = self.ui.paragraph(screen, page.idea, theme.XS, theme.BONE, (x, panel.y + 74), w, spacing=13)
+        self.ui.text(screen, "NO SOUL STRIKE", theme.XS, theme.MUTED, (x, y + 12), anchor="topleft", shadow=False)
+        self.ui.paragraph(screen, page.in_game, theme.XS, theme.BONE, (x, y + 28), w, spacing=13)
+        self._portrait(screen, page.sprite, (x + w // 2, panel.bottom - 18), 2)
+        left = x + w + 22
+        self._draw_code(screen, pygame.Rect(left, panel.y + 16, panel.right - 16 - left, panel.h - 32),
+                        page.path, self._colored[index])
+
+    def _draw_code(self, screen, rect, path, lines):
+        self.ui.panel(screen, rect, fill=CODE_BG, shadow=False)
+        bar = pygame.Rect(rect.x + 2, rect.y + 2, rect.w - 4, 20)
+        screen.fill(theme.INK_3, bar)
+        for i, color in enumerate((theme.BLOOD, theme.BRASS, theme.MOSS)):
+            pygame.draw.circle(screen, color, (bar.x + 12 + i * 12, bar.centery), 3)
+        self.ui.text(screen, path, theme.XS, theme.MUTED, (bar.x + 50, bar.centery), anchor="midleft", shadow=False)
+        self.ui.text(screen, "TRECHO REAL", theme.XS, theme.FAINT, (bar.right - 10, bar.centery),
+                     anchor="midright", shadow=False)
+        y = bar.bottom + 10
+        for n, parts in enumerate(lines, 1):
+            self.ui.text(screen, f"{n:>2}", theme.XS, theme.FAINT, (rect.x + 10, y), anchor="topleft", shadow=False)
+            x = rect.x + 36
+            for text, color in parts:
+                if not text.isspace():
+                    self.ui.text(screen, text, theme.XS, color, (x, y), anchor="topleft", shadow=False)
+                x += self.assets.text_width(text, theme.XS)
+            y += 13
+
+
+CODE_BG = (8, 7, 12)
+
+
+def _count(base):
+    """Quantas subclasses concretas (sem método abstrato pendente) a classe tem."""
+    found, todo = set(), list(base.__subclasses__())
+    while todo:
+        cls = todo.pop()
+        todo.extend(cls.__subclasses__())
+        if not getattr(cls, "__abstractmethods__", None):
+            found.add(cls)
+    return len(found)
 
 
 CREDITS = [
