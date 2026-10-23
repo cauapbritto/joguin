@@ -10,6 +10,7 @@ MODES = {
     "duel2": {"title": "DUELO 2 x 2", "soccer": False, "slots": 4, "teams": True},
     "soccer2": {"title": "FUTEBOL 2 x 2", "soccer": True, "slots": 4, "teams": True},
     "campaign": {"title": "CAMPANHA", "soccer": False, "slots": 4},
+    "treino": {"title": "TREINO", "soccer": False, "slots": 2},
 }
 
 # Como as vagas formam os times nos modos 2 x 2 (escolhido no lobby)

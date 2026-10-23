@@ -6,6 +6,7 @@ import pygame
 
 from . import config, theme
 from .abilities import create_ability
+from .data import shot_sound
 from .entities import Entity, Particle, hostile
 from . import weapon_art
 
@@ -672,7 +673,7 @@ class Fighter(Entity):
         if weapon.is_melee:
             self.melee_flash = 12
             self.attack_cd = weapon.cooldown
-            match.assets.play("shoot", 0.4)
+            match.assets.play("golpe", 0.45)
             self._deflect_bullets(match)
             # acerta todos os adversários ao alcance na frente (no duelo, só existe um)
             fx, fy = self.facing
@@ -696,7 +697,7 @@ class Fighter(Entity):
         self._spend_ammo()
         self.attack_cd = weapon.cooldown
         self.shoot_flash = 5
-        match.assets.play("shoot" if match.frame % 3 else "shoot2", 0.3)
+        match.assets.play(shot_sound(weapon, match.frame), 0.3)
         return True
 
     def _spend_ammo(self):
@@ -722,7 +723,7 @@ class Fighter(Entity):
         self.attack_cd = BOW_RECOVER
         self.shoot_flash = 5
         self.aim_timer = max(self.aim_timer, AIM_HOLD)
-        match.assets.play("dash" if power >= 1 else "shoot", 0.35)
+        match.assets.play("arco", 0.45 if power >= 1 else 0.3)
 
     def throw_from(self, attacker, match):
         """Golpe do exoesqueleto: voa longe (e se bater na parede fica tonto)."""
@@ -782,6 +783,8 @@ class Fighter(Entity):
                 return True
         dealt = min(amount, self.hp)
         self.hp -= dealt
+        if self.hp <= 0 and match is not None and match.last_breath(self):
+            self.hp = 1                                          # segurou o golpe que derrubaria
         if attacker is not None and attacker.lifesteal > 0 and attacker.hp > 0:
             attacker.hp = min(attacker.max_hp, attacker.hp + max(1, round(dealt * attacker.lifesteal)))
         self.hit_flash = 6

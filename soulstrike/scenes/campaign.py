@@ -24,6 +24,7 @@ def start_campaign(game):
 def start_phase(game, run, story=True):
     """Começa a fase no acampamento (depois da história dela)."""
     run.begin_phase()
+    progress.save_campaign(run.to_save())      # dá para continuar daqui depois de fechar o jogo
 
     def play():
         return stage_scene(game, run)
@@ -454,6 +455,7 @@ class CampaignEndScene(_RunMenuScene):
         secs = run.frames // config.FPS
         self.best_before = progress.best_time(run.session.difficulty)
         self.record, self.unlocked = progress.record_campaign(secs, run.session.difficulty, run.players)
+        progress.clear_campaign()
         self.menu = MenuList([("MENU PRINCIPAL", "menu"), ("JOGAR DE NOVO", "again")],
                              topleft=(64, 356), width=300)
         self.banner = "CAMPANHA CONCLUÍDA"

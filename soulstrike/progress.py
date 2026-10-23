@@ -60,3 +60,21 @@ def record_campaign(seconds, difficulty, players):
     data["jogadores_ultima"] = players
     save(data)
     return record, unlocked_now
+
+
+# ── campanha salva (no começo de cada fase) ──
+def save_campaign(state):
+    data = load()
+    data["campanha_salva"] = state
+    return save(data)
+
+
+def saved_campaign():
+    state = load().get("campanha_salva")
+    return state if isinstance(state, dict) else None
+
+
+def clear_campaign():
+    data = load()
+    if data.pop("campanha_salva", None) is not None:
+        save(data)

@@ -1,0 +1,26 @@
+name: Testes
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12", "3.13"]
+    env:
+      # sem tela nem placa de som no servidor do GitHub
+      SDL_VIDEODRIVER: dummy
+      SDL_AUDIODRIVER: dummy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover tests
+      - name: Instalador do Linux (sintaxe)
+        run: for f in INSTALAR.sh SoulStrike.sh linux/*.sh; do bash -n "$f"; done

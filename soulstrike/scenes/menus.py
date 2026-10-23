@@ -4,8 +4,9 @@ import webbrowser
 
 import pygame
 
-from .. import config, theme
-from ..controls import KEY_LABELS, SOCCER_KEY_LABELS, PlayerInput
+from .. import config, settings, theme
+from ..controls import (REBINDABLE, PlayerInput, bind_key, current_key, default_key, key_label, move_label,
+                        reset_keys)
 from ..data import CHARACTERS, SHADOW_CHARACTERS, roster
 from ..net import server
 from ..session import MODES, Session, SlotSetup
@@ -69,6 +70,8 @@ class LoadingScene(Scene):
 class _MenuScene(Scene):
     """Tela com o fundo animado da arena."""
 
+    menu_keys = False       # True: a tela só lê o teclado, então o controle USB vira setas/Enter/Esc
+
     def __init__(self, game):
         super().__init__(game)
         if game.backdrop is None:
@@ -80,14 +83,16 @@ class _MenuScene(Scene):
 
 
 class TitleScene(_MenuScene):
+    menu_keys = True
+
     def __init__(self, game):
         super().__init__(game)
         game.session = None
         self.cast = roster()
         self.menu = MenuList(
-            [("JOGAR", "play"), ("CONTROLES", "controls"), ("SOBRE O PROJETO", "about"),
-             ("CRÉDITOS", "credits"), ("ATUALIZAR", "update"), ("SAIR", "quit")],
-            topleft=(config.SCREEN_W // 2 - 130, 206), width=260, row_h=34)
+            [("JOGAR", "play"), ("CONTROLES", "controls"), ("OPÇÕES", "options"),
+             ("SOBRE O PROJETO", "about"), ("CRÉDITOS", "credits"), ("ATUALIZAR", "update"), ("SAIR", "quit")],
+            topleft=(config.SCREEN_W // 2 - 130, 184), width=260, row_h=32)
 
     def handle(self, event):
         if self.is_back(event):
@@ -104,6 +109,8 @@ class TitleScene(_MenuScene):
             self.game.change(ModeScene(self.game))
         elif choice == "controls":
             self.game.change(ControlsScene(self.game))
+        elif choice == "options":
+            self.game.change(OptionsScene(self.game))
         elif choice == "about":
             self.game.change(AboutScene(self.game))
         elif choice == "credits":
@@ -118,7 +125,7 @@ class TitleScene(_MenuScene):
         W, H = config.SCREEN_W, config.SCREEN_H
         self.draw_background(screen)
         self.ui.logo(screen, (W // 2, 112))
-        self.ui.text(screen, "DUELO DE ARENA  ·  FUTEBOL", theme.XS, theme.MUTED, (W // 2, 158))
+        self.ui.text(screen, "CAMPANHA  ·  DUELO DE ARENA  ·  FUTEBOL", theme.XS, theme.MUTED, (W // 2, 158))
         self.menu.draw(screen, self.ui, self.ticks)
 
         # elenco no chão
@@ -157,6 +164,9 @@ MODE_TEXT = {
     "soccer2": ("Times de dois. O jogador 2 entra pelo teclado (;) ou celular; o 3 e o 4, pelo celular. "
                 "Quem faltar vira CPU para fechar o time.",
                 "1 A 4 JOGADORES"),
+    "treino": ("Para quem está começando: um boneco de treino parado e uma lição por vez na tela "
+               "(andar, atacar, trocar de arma, esquivar, habilidade e itens). Ninguém perde.",
+               "1 JOGADOR"),
     "campaign": ("Juntos contra as sombras: em cada fase, um acampamento e duas masmorras, com um baú "
                  "escondido de armas raras no caminho. No fim, o chefão Aryel Corrompido. Quem cair pode "
                  "ser levantado por um companheiro.",
@@ -165,11 +175,19 @@ MODE_TEXT = {
 
 
 class ModeScene(_MenuScene):
+    menu_keys = True
+
     def __init__(self, game):
         super().__init__(game)
-        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2")]
+        from .. import progress
+        from ..campaign import CampaignRun
+        saved = progress.saved_campaign()
+        self.saved_run = CampaignRun.from_save(saved) if saved else None
+        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2", "treino")]
+        if self.saved_run is not None:
+            options.insert(0, ("CONTINUAR CAMPANHA", "continue"))
         options.append(("VOLTAR", "back"))
-        self.menu = MenuList(options, topleft=(56, 104), width=320, row_h=38)
+        self.menu = MenuList(options, topleft=(56, 100), width=320, row_h=36)
 
     def handle(self, event):
         if self.is_back(event):
@@ -184,9 +202,15 @@ class ModeScene(_MenuScene):
             self.game.change(TitleScene(self.game))
             return
         self.sfx("confirm")
+        if choice == "continue":
+            from .campaign import start_phase
+            run = self.saved_run
+            self.game.session = run.session
+            self.game.change(start_phase(self.game, run, story=False))
+            return
         count = MODES[choice]["slots"]
         teams = MODES[choice].get("teams", False)
-        slots = [SlotSetup(s, cpu=(choice == "cpu" and s == 2) or (teams and s > 1))
+        slots = [SlotSetup(s, cpu=(choice in ("cpu", "treino") and s == 2) or (teams and s > 1))
                  for s in range(1, count + 1)]
         if choice == "campaign":
             slots = slots[:1]           # P2 a P4 entram na tela de conexão
@@ -195,7 +219,7 @@ class ModeScene(_MenuScene):
         if previous is not None and teams:
             self.game.session.layout = previous.layout      # mantém a divisão de times escolhida
         from .select import CharSelectScene, LobbyScene
-        if choice == "cpu":
+        if choice in ("cpu", "treino"):
             self.game.change(CharSelectScene(self.game))
         else:
             self.game.change(LobbyScene(self.game))
@@ -212,18 +236,30 @@ class ModeScene(_MenuScene):
         if key == "back":
             self.ui.text(screen, "VOLTAR AO MENU", theme.S, theme.MUTED, panel.center)
         else:
-            desc, players = MODE_TEXT[key]
+            desc, players = MODE_TEXT[key] if key != "continue" else self._continue_text()
             self._illustration(screen, key, pygame.Rect(panel.x + 2, panel.y + 2, panel.w - 4, 170))
-            self.ui.text(screen, MODES[key]["title"], theme.S, theme.BRASS, (panel.x + 24, panel.y + 196), anchor="topleft")
+            title = MODES[key]["title"] if key != "continue" else "CONTINUAR CAMPANHA"
+            self.ui.text(screen, title, theme.S, theme.BRASS, (panel.x + 24, panel.y + 196), anchor="topleft")
             self.ui.text(screen, players, theme.XS, theme.MUTED, (panel.right - 24, panel.y + 200), anchor="topright")
             self.ui.paragraph(screen, desc, theme.XS, theme.BONE, (panel.x + 24, panel.y + 232), panel.w - 48, spacing=16)
         self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR"), ("ESC", "VOLTAR")])
 
+    def _continue_text(self):
+        from ..ai import DIFFICULTIES
+        from ..campaign import PHASES
+        run = self.saved_run
+        n = run.players
+        desc = (f"Volta para o acampamento da fase {run.phase_index + 1} de {len(PHASES)}: "
+                f"{run.phase.name}, dificuldade {DIFFICULTIES[run.session.difficulty]['label']}. As melhorias, as armas "
+                "raras e a vida continuam como estavam. Quem jogava pelo celular ou controle precisa estar "
+                "conectado antes.")
+        return desc, f"{n} JOGADOR" + ("ES" if n > 1 else "")
+
     def _illustration(self, screen, key, area):
-        if key == "campaign":
+        if key in ("campaign", "continue"):
             self._campaign_illustration(screen, area)
             return
-        battle = key in ("cpu", "duel", "duel2")
+        battle = key in ("cpu", "duel", "duel2", "treino")
         floor = theme.INK if battle else (34, 92, 46)
         screen.fill(floor, area)
         if not battle:
@@ -240,6 +276,7 @@ class ModeScene(_MenuScene):
         ground = area.bottom - 22
         cast = {
             "cpu": [("guerreiro", "direita", -90), ("tanque", "esquerda", 90)],
+            "treino": [("aryel", "direita", -70), ("tanque", "esquerda", 70)],
             "duel": [("aryel", "direita", -90), ("ninja", "esquerda", 90)],
             "duel2": [("pirata", "direita", -150), ("geada", "direita", -70),
                       ("atirador", "esquerda", 70), ("tanque", "esquerda", 150)],
@@ -293,6 +330,7 @@ class ModeScene(_MenuScene):
 
 class _InfoScene(_MenuScene):
     heading = ""
+    menu_keys = True
 
     def handle(self, event):
         if self.is_back(event) or (event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN) \
@@ -312,18 +350,13 @@ class _InfoScene(_MenuScene):
 class ControlsScene(_InfoScene):
     heading = "CONTROLES"
 
-    # (ação, tecla do jogador 1, tecla do jogador 2) — None = mesma tecla do duelo
-    ROWS = [
-        ("MOVER", KEY_LABELS[1]["move"], KEY_LABELS[2]["move"]),
-        ("ATACAR / CHUTAR", KEY_LABELS[1]["attack"], KEY_LABELS[2]["attack"]),
-        ("HABILIDADE / PASSE", KEY_LABELS[1]["special"], KEY_LABELS[2]["special"]),
-        ("ESQUIVA (DUELO)", KEY_LABELS[1]["dodge"], KEY_LABELS[2]["dodge"]),
-        ("TROCAR ARMA / SUPER", KEY_LABELS[1]["switch"], KEY_LABELS[2]["switch"]),
-        ("CORTE / CARRINHO (FUTEBOL)", SOCCER_KEY_LABELS[1]["dodge"], SOCCER_KEY_LABELS[2]["dodge"]),
-        ("CORRER (FUTEBOL)", SOCCER_KEY_LABELS[1]["sprint"], SOCCER_KEY_LABELS[2]["sprint"]),
-        ("MARCAR (FUTEBOL)", SOCCER_KEY_LABELS[1]["mark"], SOCCER_KEY_LABELS[2]["mark"]),
-        ("CONDUZIR COLADO (FUTEBOL)", SOCCER_KEY_LABELS[1]["dribble"], SOCCER_KEY_LABELS[2]["dribble"]),
-    ]
+    @staticmethod
+    def rows():
+        """(ação, tecla do jogador 1, tecla do jogador 2), já com as teclas trocadas."""
+        rows = [("MOVER", move_label(1), move_label(2))]
+        for row_id, label, _, _ in REBINDABLE[4:]:
+            rows.append((label, key_label(1, row_id), key_label(2, row_id)))
+        return rows
     TIPS = [
         "DUELO: A MUNIÇÃO RECARREGA SOZINHA. ARCO: SEGURE ATACAR PARA TENSIONAR.",
         "FUTEBOL: TOQUE EM CHUTAR/PASSE = RASTEIRO. SEGURE E SOLTE = PELO ALTO.",
@@ -337,12 +370,16 @@ class ControlsScene(_InfoScene):
         self.toggle_rect = pygame.Rect(0, 0, 0, 0)
 
     def _toggle_double_tap(self):
-        PlayerInput.double_tap_enabled = not PlayerInput.double_tap_enabled
+        PlayerInput.double_tap_enabled = settings.change("duplo_toque", not PlayerInput.double_tap_enabled)
         self.sfx("click", 0.4)
 
     def handle(self, event):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_t:
             self._toggle_double_tap()
+            return
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_k:
+            self.sfx("confirm", 0.4)
+            self.game.change(RebindScene(self.game))
             return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.toggle_rect.collidepoint(event.pos):
             self._toggle_double_tap()
@@ -361,7 +398,7 @@ class ControlsScene(_InfoScene):
         y += 12
         screen.fill(theme.LINE, (panel.x + 16, y, panel.w - 32, 2))
         y += 18
-        for label, k1, k2 in self.ROWS:
+        for label, k1, k2 in self.rows():
             self.ui.text(screen, label, theme.XS, theme.BONE, (cols[0], y), anchor="midleft", shadow=False)
             self.ui.keycap(screen, k1, (cols[1], y))
             self.ui.keycap(screen, k2, (cols[2], y))
@@ -384,7 +421,245 @@ class ControlsScene(_InfoScene):
                           f"{self.game.base_url} e escolha o número do jogador. No futebol, empurre "
                           "o analógico até a borda para correr.",
                           theme.XS, theme.BONE, (phone.x + 20, phone.y + 32), phone.w - 40, spacing=13)
-        self.footer(screen, [("T", "DUPLO TOQUE"), ("ESC", "VOLTAR")])
+        self.footer(screen, [("K", "TROCAR TECLAS"), ("T", "DUPLO TOQUE"), ("ESC", "VOLTAR")])
+
+
+class OptionsScene(_InfoScene):
+    """Volume, tela cheia, vsync, tremor de tela e duplo toque. Tudo fica salvo (settings.py)."""
+
+    heading = "OPÇÕES"
+    # (chave em settings, rótulo, observação)
+    ROWS = [
+        ("volume_geral", "VOLUME GERAL", ""),
+        ("volume_musica", "MÚSICA", ""),
+        ("volume_efeitos", "EFEITOS", ""),
+        ("tela_cheia", "TELA CHEIA", "F11 TAMBÉM ALTERNA"),
+        ("vsync", "SINCRONIA VERTICAL", "VALE AO ABRIR O JOGO DE NOVO"),
+        ("tremor", "TREMOR DE TELA", "NOS IMPACTOS E EXPLOSÕES"),
+        ("duplo_toque", "DUPLO TOQUE = ESQUIVA", "DUAS VEZES NA MESMA SETA"),
+        ("controle_comeca_no_p2", "1º CONTROLE USB É O P2", "DESLIGADO: É O P1"),
+    ]
+    ROW_H = 38
+
+    def __init__(self, game):
+        super().__init__(game)
+        self.index = 0
+        self.rects = []
+
+    @property
+    def key(self):
+        return self.ROWS[self.index][0]
+
+    def change(self, key, step):
+        """step = -1 / +1 nos volumes; nos liga/desliga qualquer passo alterna."""
+        value = settings.get(key)
+        if key in settings.VOLUME_KEYS:
+            new = settings.change(key, round(value + step * settings.VOLUME_STEP, 2))
+            if new == value:
+                return
+            if key == "volume_efeitos" or key == "volume_geral":
+                self.sfx("hit", 0.5)            # amostra do volume novo
+            self.assets.apply_music_volume()
+            return
+        if key == "tela_cheia":
+            self.game.toggle_fullscreen()
+        else:
+            settings.change(key, not value)
+            if key == "duplo_toque":
+                PlayerInput.double_tap_enabled = settings.get(key)
+        self.sfx("click", 0.4)
+
+    def handle(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_UP, pygame.K_w):
+                self.index = (self.index - 1) % len(self.ROWS)
+                self.sfx("select", 0.25)
+                return
+            if event.key in (pygame.K_DOWN, pygame.K_s):
+                self.index = (self.index + 1) % len(self.ROWS)
+                self.sfx("select", 0.25)
+                return
+            if event.key in (pygame.K_LEFT, pygame.K_a):
+                self.change(self.key, -1)
+                return
+            if event.key in (pygame.K_RIGHT, pygame.K_d, pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
+                self.change(self.key, 1)
+                return
+        elif event.type == pygame.MOUSEMOTION:
+            for i, r in enumerate(self.rects):
+                if r.collidepoint(event.pos):
+                    self.index = i
+            return
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (1, 4, 5):
+            for i, r in enumerate(self.rects):
+                if r.collidepoint(event.pos):
+                    self.index = i
+                    # clique na metade esquerda abaixa o volume, na direita aumenta (rodinha também)
+                    if event.button == 1:
+                        step = -1 if event.pos[0] < r.centerx else 1
+                    else:
+                        step = 1 if event.button == 4 else -1
+                    self.change(self.key, step)
+                    return
+            if event.button != 1:
+                return
+        if self.is_back(event) or (event.type == pygame.MOUSEBUTTONDOWN and event.button == 3):
+            self.sfx("cancel", 0.4)
+            self.game.change(TitleScene(self.game))
+
+    def draw_body(self, screen):
+        W = config.SCREEN_W
+        panel = pygame.Rect(120, 92, W - 240, 24 + self.ROW_H * len(self.ROWS))
+        self.ui.panel(screen, panel)
+        self.rects = []
+        y = panel.y + 12
+        for i, (key, label, note) in enumerate(self.ROWS):
+            row = pygame.Rect(panel.x + 10, y, panel.w - 20, self.ROW_H - 4)
+            self.rects.append(row)
+            chosen = i == self.index
+            if chosen:
+                screen.fill(theme.INK, row)
+                screen.fill(theme.BRASS, (row.x, row.y, 3, row.h))
+            color = theme.BONE if chosen else theme.MUTED
+            self.ui.text(screen, label, theme.XS, color, (row.x + 16, row.y + 12), anchor="midleft", shadow=False)
+            if note:
+                self.ui.text(screen, note, theme.XS, theme.FAINT, (row.x + 16, row.y + 26), anchor="midleft",
+                             shadow=False)
+            value = settings.get(key)
+            right = row.right - 16
+            if key in settings.VOLUME_KEYS:
+                bar = pygame.Rect(0, 0, 200, 10)
+                bar.midright = (right - 64, row.centery)
+                self.ui.bar(screen, bar, value, theme.BRASS if chosen else theme.MUTED, ticks=10)
+                self.ui.text(screen, f"{round(value * 100)}%", theme.XS, color, (right, row.centery),
+                             anchor="midright", shadow=False)
+            else:
+                word = "LIGADO" if value else "DESLIGADO"
+                self.ui.text(screen, word, theme.XS, theme.BRASS if value else theme.MUTED, (right, row.centery),
+                             anchor="midright", shadow=False)
+            y += self.ROW_H
+        self.footer(screen, [("↑↓", "ESCOLHER"), ("←→", "MUDAR"), ("ESC", "VOLTAR")])
+
+
+class RebindScene(_InfoScene):
+    """Trocar as teclas do jogador 1 e do jogador 2 (fica salvo nas opções)."""
+
+    heading = "TROCAR TECLAS"
+    ROW_H = 24
+
+    def __init__(self, game):
+        super().__init__(game)
+        self.row = 0                    # linha de REBINDABLE; len(REBINDABLE) = RESTAURAR PADRÃO
+        self.col = 0                    # 0 = jogador 1, 1 = jogador 2
+        self.waiting = False            # esperando a tecla nova
+        self.message = ""
+        self.cells = {}
+
+    @property
+    def slot(self):
+        return self.col + 1
+
+    def _start(self):
+        if self.row == len(REBINDABLE):
+            reset_keys(self.slot)
+            self._apply()
+            self.message = f"TECLAS DO JOGADOR {self.slot} VOLTARAM AO PADRÃO"
+            self.sfx("confirm", 0.4)
+            return
+        self.waiting = True
+        self.message = ""
+        self.sfx("click", 0.4)
+
+    def _apply(self):
+        for inp in self.game.inputs.values():
+            inp.set_layout(inp.layout)          # as partidas já usam as teclas novas
+
+    def _bind(self, code):
+        self.waiting = False
+        row_id = REBINDABLE[self.row][0]
+        ok, msg = bind_key(self.slot, row_id, code)
+        self.message = msg
+        if ok:
+            self._apply()
+            self.sfx("confirm", 0.4)
+        else:
+            self.sfx("cancel", 0.4)
+
+    def handle(self, event):
+        if self.waiting:
+            if event.type == pygame.KEYDOWN and not getattr(event, "from_pad", False):
+                if event.key == pygame.K_ESCAPE:
+                    self.waiting = False
+                    self.sfx("cancel", 0.3)
+                else:
+                    self._bind(event.key)
+            return
+        n = len(REBINDABLE) + 1
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_UP, pygame.K_w):
+                self.row = (self.row - 1) % n
+            elif event.key in (pygame.K_DOWN, pygame.K_s):
+                self.row = (self.row + 1) % n
+            elif event.key in (pygame.K_LEFT, pygame.K_a, pygame.K_RIGHT, pygame.K_d):
+                self.col = 1 - self.col
+            elif event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
+                self._start()
+            elif self.is_back(event):
+                self.sfx("cancel", 0.4)
+                self.game.change(ControlsScene(self.game))
+            return
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for (row, col), rect in self.cells.items():
+                if rect.collidepoint(event.pos):
+                    self.row, self.col = row, col
+                    self._start()
+                    return
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
+            self.sfx("cancel", 0.4)
+            self.game.change(ControlsScene(self.game))
+
+    def draw_body(self, screen):
+        W = config.SCREEN_W
+        panel = pygame.Rect(64, 78, W - 128, 46 + self.ROW_H * (len(REBINDABLE) + 1))
+        self.ui.panel(screen, panel)
+        cols = (panel.x + 20, panel.x + 470, panel.x + 640)
+        y = panel.y + 16
+        self.ui.text(screen, "AÇÃO", theme.XS, theme.MUTED, (cols[0], y), anchor="midleft")
+        for i in (0, 1):
+            self.ui.text(screen, f"JOGADOR {i + 1}", theme.XS, theme.SLOT_COLORS[i + 1], (cols[1 + i], y),
+                         anchor="midleft")
+        y += 22
+        self.cells = {}
+        for r, (row_id, label, _, _) in enumerate(REBINDABLE + (("reset", "RESTAURAR PADRÃO", "", ()),)):
+            chosen_row = r == self.row
+            if chosen_row:
+                screen.fill(theme.INK, (panel.x + 10, y - 10, panel.w - 20, self.ROW_H - 2))
+            color = theme.BONE if chosen_row else theme.MUTED
+            self.ui.text(screen, label, theme.XS, color, (cols[0], y), anchor="midleft", shadow=False)
+            for c in (0, 1):
+                cell = pygame.Rect(cols[1 + c] - 6, y - 10, 150, self.ROW_H - 2)
+                self.cells[(r, c)] = cell
+                here = chosen_row and c == self.col
+                if row_id == "reset":
+                    text, kc = "RESTAURAR", theme.BRASS if here else theme.FAINT
+                    self.ui.text(screen, text, theme.XS, kc, (cols[1 + c], y), anchor="midleft", shadow=False)
+                elif here and self.waiting:
+                    if (self.ticks // 15) % 2:
+                        self.ui.text(screen, "APERTE A TECLA", theme.XS, theme.BRASS, (cols[1 + c], y),
+                                     anchor="midleft", shadow=False)
+                else:
+                    changed = current_key(c + 1, row_id) != default_key(c + 1, row_id)
+                    cap = self.ui.keycap(screen, key_label(c + 1, row_id), (cols[1 + c], y),
+                                         color=theme.BRASS if changed else theme.BONE)
+                    if here:
+                        pygame.draw.rect(screen, theme.BRASS, cap.inflate(6, 6), 1)
+            y += self.ROW_H
+        if self.message:
+            self.ui.text(screen, self.message, theme.XS, theme.BLOOD, (W // 2, panel.bottom + 16))
+        if self.waiting:
+            self.footer(screen, [("ESC", "CANCELAR")])
+        else:
+            self.footer(screen, [("↑↓", "ESCOLHER"), ("←→", "JOGADOR"), ("ENTER", "TROCAR"), ("ESC", "VOLTAR")])
 
 
 ABOUT = [

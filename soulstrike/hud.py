@@ -329,6 +329,9 @@ def _soul_icon(screen, center, filled):
         pygame.draw.polygon(screen, theme.LINE_HI, pts, 1)
 
 
+BOSS_MARKS = (0.5, 0.2)        # chefão chama ajuda com metade da vida e fica furioso com 20%
+
+
 def draw_campaign(screen, ui, match):
     W = config.SCREEN_W
     run = match.run
@@ -341,7 +344,14 @@ def draw_campaign(screen, ui, match):
         bar.midtop = (W // 2, 30)
         ui.text(screen, boss.stats.name.upper(), theme.XS, (200, 150, 250), (W // 2, 16))
         ratio = boss.hp / boss.max_hp
-        ui.bar(screen, bar.inflate(4, 4), ratio, (150, 60, 200), back=(30, 16, 40), ticks=10)
+        tired = getattr(boss, "vulnerability", 1.0) > 1.0
+        color = (240, 200, 90) if tired and (match.frame // 6) % 2 else (150, 60, 200)
+        frame = ui.bar(screen, bar.inflate(4, 4), ratio, color, back=(30, 16, 40), ticks=10)
+        for mark in BOSS_MARKS:
+            # onde ele muda de comportamento: o risco some quando a vida já passou dali
+            if ratio > mark:
+                mx = frame.x + 1 + round((frame.w - 2) * mark)
+                screen.fill(theme.BONE, (mx - 1, frame.y - 3, 2, frame.h + 6))
         if getattr(boss, "phase_label", ""):
             ui.text(screen, boss.phase_label, theme.XS, theme.BLOOD, (W // 2, bar.bottom + 14))
     elif match.lobby:

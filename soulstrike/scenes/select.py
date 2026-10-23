@@ -5,6 +5,7 @@ import pygame
 
 from .. import config, theme
 from ..ai import DIFFICULTIES, DIFFICULTY_ORDER
+from ..controls import key_label
 from ..arena import BATTLE_MAPS, MAPS_BY_KEY
 from ..data import CHARACTERS, MAX_DAMAGE, MAX_HP, MAX_SPEED, roster_indices
 from ..soccer_assist import ASSIST_LEVELS, ASSIST_ORDER
@@ -94,7 +95,7 @@ class LobbyScene(_MenuScene):
 
     def update(self):
         super().update()
-        connected = hub.connected_slots()
+        connected = self.game.connected_slots()
         if self.campaign or self.teams:
             self._update_joined(connected)
         # qualquer jogador no celular pode avançar
@@ -138,11 +139,11 @@ class LobbyScene(_MenuScene):
         if self.campaign:
             sub = "ATÉ 4 JOGADORES · CELULAR NA MESMA REDE WI-FI · P1 E P2 TAMBÉM NO TECLADO"
         elif self.teams:
-            sub = "MESMA REDE WI-FI · O P2 ENTRA COM ; NO TECLADO · VAGA SEM NINGUÉM VIRA CPU"
+            sub = f"MESMA REDE WI-FI · O P2 ENTRA COM {key_label(2, 'attack')} NO TECLADO · VAGA SEM NINGUÉM VIRA CPU"
         else:
             sub = "MESMA REDE WI-FI · QUEM NÃO CONECTAR JOGA NO TECLADO"
         self.ui.text(screen, sub, theme.XS, theme.MUTED, (64, 84), anchor="midleft")
-        connected = hub.connected_slots()
+        connected = self.game.connected_slots()
         if self.teams:
             self._draw_teams(screen)
         for slot, rect in self.cards.items():
@@ -160,10 +161,11 @@ class LobbyScene(_MenuScene):
             if self.campaign or self.teams:
                 on = slot in self.joined
                 empty = "CPU" if self.teams else "AGUARDANDO"
-                status = ("NO JOGO · CELULAR" if slot in connected else "NO JOGO · TECLADO") if on else empty
+                status = f"NO JOGO · {self.game.device_of(slot)}" if on else empty
                 scolor = theme.MOSS if on else theme.MUTED
-                phone_only = "SEM CELULAR: CPU" if self.teams else "SÓ PELO CELULAR"
-                hint = {1: "SEMPRE JOGA", 2: "; ENTRA · / SAI" if slot not in connected else "",
+                phone_only = "SEM CELULAR: CPU" if self.teams else "CELULAR OU CONTROLE"
+                p2_keys = f"{key_label(2, 'attack')} ENTRA · {key_label(2, 'special')} SAI"
+                hint = {1: "SEMPRE JOGA", 2: p2_keys if slot not in connected else "",
                         3: phone_only, 4: phone_only}[slot]
             else:
                 status, scolor = ("CONECTADO", theme.MOSS) if on else ("AGUARDANDO", theme.MUTED)
@@ -296,7 +298,7 @@ class CharSelectScene(_MenuScene):
         if not self.game.session.team_mode:
             return
         before = self.active_slots()
-        connected = hub.connected_slots()
+        connected = self.game.connected_slots()
         self._joined_now = set()
         for card in self.cards:
             if card.slot == 1:
@@ -363,7 +365,7 @@ class CharSelectScene(_MenuScene):
     def handle(self, event):
         if self.is_back(event):
             self.sfx("cancel", 0.4)
-            nxt = ModeScene(self.game) if self.game.session.mode == "cpu" else LobbyScene(self.game)
+            nxt = ModeScene(self.game) if self.game.session.mode in ("cpu", "treino") else LobbyScene(self.game)
             self.game.change(nxt)
             return
         if event.type == pygame.KEYDOWN:
@@ -534,9 +536,10 @@ class CharSelectScene(_MenuScene):
         ui.text(screen, setup.name, theme.XS, theme.BONE, (head.x + 8, head.centery), anchor="midleft")
         if setup.cpu:
             source = (DIFFICULTIES[self.game.session.difficulty]["label"]
-                      if self.game.session.mode in ("cpu", "duel2") else "AUTO")
+                      if self.game.session.mode in ("cpu", "duel2")
+                      else "BONECO" if self.game.session.mode == "treino" else "AUTO")
         else:
-            source = "CELULAR" if setup.slot in hub.connected_slots() else "TECLADO"
+            source = self.game.device_of(setup.slot)
         ui.text(screen, source, theme.XS, mix(setup.color, theme.BONE, 0.5), (head.right - 8, head.centery), anchor="midright")
 
         # sprite andando no lugar
@@ -620,16 +623,21 @@ class CharSelectScene(_MenuScene):
         if setup.cpu and self.teams:
             # vaga sem ninguém: a CPU joga, mas dá para assumir
             if setup.slot == 2:
-                ui.hints(screen, [(";", "ASSUMIR A VAGA")], foot.center, gap=8)
+                ui.hints(screen, [(key_label(2, "attack"), "ASSUMIR A VAGA")], foot.center, gap=8)
             else:
-                ui.text(screen, "CELULAR: ASSUME", theme.XS, theme.FAINT, foot.center, shadow=False)
+                ui.text(screen, "CELULAR OU CONTROLE", theme.XS, theme.FAINT, foot.center, shadow=False)
         elif card.ready:
             screen.fill(mix(theme.MOSS, theme.INK, 0.55), foot)
             ui.text(screen, "PRONTO", theme.XS, theme.BONE, foot.center)
         elif setup.slot in hub.connected_slots():
             ui.text(screen, "ESCOLHA PELO CELULAR", theme.XS, theme.MUTED, foot.center, shadow=False)
+        elif setup.slot in self.game.gamepads.slots():
+            keys = [("← →", ""), ("↑", ""), ("A", "OK")]
+            ui.hints(screen, [keys[0], keys[2]] if self.soccer else keys, foot.center, gap=8)
         elif setup.slot <= 2:
-            keys = {1: [("A D", ""), ("W", ""), ("G", "OK")], 2: [("← →", ""), ("↑", ""), (";", "OK")]}[setup.slot]
+            s = setup.slot
+            keys = [(f"{key_label(s, 'left')} {key_label(s, 'right')}", ""), (key_label(s, "up"), ""),
+                    (key_label(s, "attack"), "OK")]
             if self.soccer:
                 keys = [keys[0], keys[2]]
             ui.hints(screen, keys, foot.center, gap=8)
@@ -680,7 +688,9 @@ class CharSelectScene(_MenuScene):
             for direction, r in zip(("left", "right"), self.diff_arrows):
                 ui.arrow(screen, r.center, direction, 7, theme.BRASS if r.collidepoint(mouse) else theme.MUTED)
         else:
-            ui.paragraph(screen, "Os dois confirmam e a luta começa.", theme.XS, theme.MUTED,
+            text = ("Escolha o seu lutador. O boneco fica parado e não ataca."
+                    if self.game.session.mode == "treino" else "Os dois confirmam e a luta começa.")
+            ui.paragraph(screen, text, theme.XS, theme.MUTED,
                          (c.x + 16, c.y + 236), c.w - 32, spacing=14)
 
     def _draw_campaign_panel(self, screen, c):

@@ -40,7 +40,9 @@ python main.py --janela   # em janela
 python main.py --sem-vsync  # sem sincronia vertical (se a imagem engasgar em algum monitor)
 ```
 
-F11 alterna tela cheia. ESC pausa a partida.
+F11 alterna tela cheia. ESC pausa a partida. Na tela **Opções** do menu dá para mudar o volume
+(geral, música e efeitos), tela cheia, sincronia vertical, tremor de tela e o duplo toque; tudo fica
+salvo em `opcoes.json`, na mesma pasta do progresso. `--janela` e `--sem-vsync` valem mais que as opções salvas.
 
 ### Executável (Windows)
 
@@ -312,6 +314,29 @@ exoesqueleto, arremessa o inimigo).
 
 Toque duas vezes numa seta para esquivar (dá para desligar na tela de Controles, tecla T).
 
+As teclas do jogador 1 e do jogador 2 podem ser trocadas em **Controles → K (Trocar teclas)**. Trocar
+ATACAR troca também o confirmar dos menus; se a tecla já era de outra ação do mesmo jogador, as duas
+trocam de lugar. Fica salvo junto das opções.
+
+### Controle USB ou Bluetooth
+
+Controles de Xbox, PlayStation e genéricos funcionam sem configurar nada: o primeiro controle é o
+jogador 1, o segundo o jogador 2 e assim por diante (nas **Opções** dá para o primeiro controle ser o
+P2, deixando o P1 no teclado). Nos menus o direcional navega, A confirma e B volta.
+
+| Botão (Xbox / PlayStation) | Ação                                   |
+|----------------------------|----------------------------------------|
+| Analógico ou direcional    | Mover                                  |
+| A / X                      | Atacar / chutar / confirmar            |
+| X / quadrado               | Habilidade / passe                     |
+| B / bola                   | Esquiva / corte                        |
+| Y / triângulo              | Trocar arma / super                    |
+| LB / L1                    | Marcar (futebol)                       |
+| RB / R1                    | Conduzir colado (futebol)              |
+| RT / R2                    | Correr (futebol)                       |
+| LT / L2                    | Esquiva                                |
+| START / OPTIONS            | Pausa                                  |
+
 No futebol:
 
 - Um toque em **chutar** ou **passe** manda a bola rasteira; **segurar e soltar** levanta
@@ -394,6 +419,7 @@ web/                    página do controle no celular
 assets/                 sprites, tiles, sons e fonte
 tools/gerar_sprites.py  gera os sprites pixel art dos personagens e das criaturas
 tools/gerar_armas.py    gera os sprites das armas
+tools/gerar_sons.py     gera os efeitos novos (armas, futebol, campanha) e as músicas do acampamento e do chefão
 tools/build_exe.py      gera dist/SoulStrike.exe
 tools/build_deb.py      gera o pacote .deb para Linux
 linux/instalar.sh       instalador do Linux (chamado pelo INSTALAR.sh)

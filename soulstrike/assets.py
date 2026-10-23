@@ -6,7 +6,7 @@ import unicodedata
 
 import pygame
 
-from . import config
+from . import config, settings
 from .data import CHARACTERS, SHADOW_CHARACTERS
 
 DIRECTIONS = ("frente", "costas", "direita", "esquerda")
@@ -15,6 +15,9 @@ SHEET_DIRECTIONS = DIRECTIONS
 SHEET_POSES = (("andar", 8), ("parado", 2), ("ataque", 3), ("dano", 1), ("esquiva", 1))
 SHEET_FACTOR = 2                 # a arte é ampliada 2x sem suavizar
 TEAM_KITS = ("azul", "vermelho")  # uniforme do time 0 e do time 1 no futebol (characters/uniformes)
+MUSIC_VOLUME = 0.3               # música com o volume das opções no máximo
+MAX_SAME_SOUND = 3               # o mesmo efeito tocando junto no máximo (rajadas não viram parede de ruído)
+MUSIC_FILES = {"menu": "bgm.ogg", "battle": "battle_bgm.mp3", "camp": "camp_bgm.ogg", "boss": "boss_bgm.ogg"}
 
 
 class SpriteSet:
@@ -82,6 +85,7 @@ class Assets:
         self.wall_textures = {}
         self._qr = {}
         self._music = None
+        self.music_paused = False      # pausa do jogo: música muda
 
     # ── carga ────────────────────────────────
     def load_steps(self):
@@ -242,25 +246,40 @@ class Assets:
     # ── som ──────────────────────────────────
     def play(self, name, volume=0.5):
         sound = self.sounds.get(name)
-        if sound:
-            sound.set_volume(volume)
+        if sound and sound.get_num_channels() < MAX_SAME_SOUND:
+            sound.set_volume(volume * settings.sfx_volume())
             sound.play()
 
     def music(self, name):
         if name == self._music or pygame.mixer.get_init() is None:
             return
-        path = {"menu": config.SOUNDS_DIR / "bgm.wav",
-                "battle": config.SOUNDS_DIR / "battle_bgm.mp3"}.get(name)
+        path = config.SOUNDS_DIR / MUSIC_FILES[name] if name in MUSIC_FILES else None
         self._music = name
         try:
             if path is None or not path.is_file():
                 pygame.mixer.music.fadeout(600)
                 return
             pygame.mixer.music.load(str(path))
-            pygame.mixer.music.set_volume(0.3)
+            self.music_paused = False
+            pygame.mixer.music.set_volume(MUSIC_VOLUME * settings.music_volume())
             pygame.mixer.music.play(-1, fade_ms=600)
         except pygame.error:
             pass
+
+    def apply_music_volume(self):
+        """Volume da música mudou nas opções: vale já, sem recomeçar a faixa."""
+        if pygame.mixer.get_init():
+            volume = 0.0 if self.music_paused else MUSIC_VOLUME * settings.music_volume()
+            pygame.mixer.music.set_volume(volume)
+
+    def pause_music(self, paused):
+        """Pausa: a música fica muda (sem parar a faixa).
+
+        Não usa music.pause()/unpause(): no pygame 2.6 eles seguram o GIL enquanto esperam o
+        áudio, e se um efeito terminar no mesmo instante o jogo trava para sempre.
+        """
+        self.music_paused = paused
+        self.apply_music_volume()
 
     def stop_music(self, fade_ms=1200):
         self._music = None
