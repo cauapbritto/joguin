@@ -244,6 +244,29 @@ def draw_round_banner(screen, ui, match):
             _band(screen, ui, color, min(1.0, (age - 20) / 10), title, sub)
 
 
+def _draw_powers(screen, ui, match):
+    """Caixa do SUPER de cada jogador humano, com a recarga."""
+    W, H = config.SCREEN_W, config.SCREEN_H
+    per_team = {0: 0, 1: 0}
+    w = 196
+    for f in match.fighters:
+        if f.is_cpu:
+            continue
+        k = per_team[f.team]
+        per_team[f.team] += 1
+        x = 16 + k * (w + 12) if f.team == 0 else W - 16 - w - k * (w + 12)
+        rect = pygame.Rect(x, H - 42, w, 30)
+        screen.fill(theme.SHADOW, rect.move(2, 2))
+        screen.fill(theme.INK_2, rect)
+        screen.fill(f.color, (rect.x, rect.y, 4, rect.h))
+        ready = f.super_cd <= 0
+        ui.text(screen, f.label, theme.XS, f.color, (rect.x + 12, rect.y + 10), anchor="midleft", shadow=False)
+        ui.text(screen, f.power.name, theme.XS, theme.BRASS if ready else theme.MUTED,
+                (rect.right - 8, rect.y + 10), anchor="midright", shadow=False)
+        ratio = 1 - f.super_cd / f.power.cooldown
+        ui.bar(screen, (rect.x + 12, rect.y + 19, w - 20, 6), ratio, theme.BRASS if ready else theme.SKY)
+
+
 def draw_soccer(screen, ui, match):
     W, H = config.SCREEN_W, config.SCREEN_H
     board = pygame.Rect(0, 0, 300, 48)
@@ -263,25 +286,7 @@ def draw_soccer(screen, ui, match):
     ui.text(screen, "x", theme.S, theme.MUTED, board.center)
     ui.text(screen, f"PRIMEIRO A {config.WIN_SCORE}", theme.XS, theme.MUTED, (W // 2, board.bottom + 12))
 
-    # poder de cada jogador humano
-    per_team = {0: 0, 1: 0}
-    w = 196
-    for f in match.fighters:
-        if f.is_cpu:
-            continue
-        k = per_team[f.team]
-        per_team[f.team] += 1
-        x = 16 + k * (w + 12) if f.team == 0 else W - 16 - w - k * (w + 12)
-        rect = pygame.Rect(x, H - 42, w, 30)
-        screen.fill(theme.SHADOW, rect.move(2, 2))
-        screen.fill(theme.INK_2, rect)
-        screen.fill(f.color, (rect.x, rect.y, 4, rect.h))
-        ready = f.super_cd <= 0
-        ui.text(screen, f.label, theme.XS, f.color, (rect.x + 12, rect.y + 10), anchor="midleft", shadow=False)
-        ui.text(screen, f.power.name, theme.XS, theme.BRASS if ready else theme.MUTED,
-                (rect.right - 8, rect.y + 10), anchor="midright", shadow=False)
-        ratio = 1 - f.super_cd / f.power.cooldown
-        ui.bar(screen, (rect.x + 12, rect.y + 19, w - 20, 6), ratio, theme.BRASS if ready else theme.SKY)
+    _draw_powers(screen, ui, match)
 
 
 def draw_goal_banner(screen, ui, team, scorer, own_goal, age):
@@ -336,6 +341,7 @@ def draw_basket(screen, ui, match):
         rect.midtop = (W // 2, board.bottom + 24)
         ratio = 1 - match.shot_clock / (SHOT_CLOCK * config.FPS)
         ui.bar(screen, rect, ratio, theme.TEAM_COLORS[owner.team] if left > 3 else theme.BRASS)
+    _draw_powers(screen, ui, match)
 
 
 def draw_basket_banner(screen, ui, title, sub, team, age):

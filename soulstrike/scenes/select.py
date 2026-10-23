@@ -9,6 +9,7 @@ from ..controls import key_label
 from ..arena import BASKET_MAPS, BATTLE_MAPS, MAPS_BY_KEY
 from ..data import CHARACTERS, MAX_DAMAGE, MAX_HP, MAX_SPEED, roster_indices
 from ..soccer_assist import ASSIST_LEVELS, ASSIST_ORDER
+from ..basket_powers import BASKET_POWERS
 from ..soccer_powers import SOCCER_POWERS
 from .. import weapon_art
 from ..net.remote import hub
@@ -586,13 +587,21 @@ class CharSelectScene(_MenuScene):
             ui.bar(screen, (rect.x + 14 + label_w, y - 4, rect.w - 28 - label_w, 8), ratio, setup.color, ticks=5)
             y += 14
         if self.soccer:
-            power = SOCCER_POWERS[stats.key]
+            basket = self.game.session.basket
+            power = (BASKET_POWERS if basket else SOCCER_POWERS)[stats.key]
+            extra = power.passive if basket else (stats.ability_desc if stats.soccer_only else "")
             y += 4
             ui.text(screen, "SUPER: " + power.name, theme.XS, theme.BRASS, (rect.x + 14, y), anchor="midleft")
-            for line in ui.wrap(power.description, theme.XS, rect.w - 28)[:2 if stats.soccer_only else 3]:
+            for line in ui.wrap(power.description, theme.XS, rect.w - 28)[:2 if extra else 3]:
                 y += 12
                 ui.text(screen, line, theme.XS, theme.MUTED, (rect.x + 14, y), anchor="midleft", shadow=False)
-            if stats.soccer_only:
+            if basket and extra:
+                y += 15
+                ui.text(screen, "SEMPRE:", theme.XS, theme.MOSS, (rect.x + 14, y), anchor="midleft")
+                for line in ui.wrap(extra, theme.XS, rect.w - 28)[:2]:
+                    y += 12
+                    ui.text(screen, line, theme.XS, theme.MUTED, (rect.x + 14, y), anchor="midleft", shadow=False)
+            elif stats.soccer_only:
                 # craque: além do SUPER, uma habilidade que vale o jogo todo
                 y += 15
                 ui.text(screen, "SEMPRE: " + stats.ability_name.upper(), theme.XS, theme.MOSS,
