@@ -164,6 +164,30 @@ def effects():
         print("som", name)
 
 
+def basketball_effects():
+    """Sons do basquete (semente própria: não muda os outros efeitos)."""
+    r = random.Random(11)
+    sons = {
+        # bola quicando no chão: tum grave e curto
+        "quique": mix(tone(120, 0.09, "sine", 1.0, slide=70, curve=5), noise(0.03, 0.3, rng=r, lowpass=0.15)),
+        # bola no aro: metal batendo (parciais desafinadas)
+        "aro": mix(tone(620, 0.35, "sine", 0.6, curve=4), tone(1490, 0.25, "sine", 0.35, curve=5),
+                   tone(2380, 0.15, "sine", 0.2, curve=6), noise(0.02, 0.4, rng=r, lowpass=0.7)),
+        # bola na tabela: pancada seca de madeira
+        "tabela": mix(tone(240, 0.1, "triangle", 0.8, slide=180, curve=5), noise(0.05, 0.6, rng=r, lowpass=0.4)),
+        # bola passando pela rede: chuá
+        "rede": sweep_noise(0.3, 0.6, 0.1, rng=r, attack=0.02, curve=1.8),
+        # toco: tapa forte na bola
+        "toco": mix(noise(0.08, 1.0, rng=r, curve=4, lowpass=0.6), tone(160, 0.12, "sine", 0.8, slide=80, curve=4)),
+        # buzina do fim do tempo
+        "buzina": mix(tone(233, 0.9, "square", 0.5, attack=0.01, curve=0.3),
+                      tone(277, 0.9, "square", 0.35, attack=0.01, curve=0.3)),
+    }
+    for name, samples in sons.items():
+        save_wav(name, samples)
+        print("som", name)
+
+
 # ── músicas (chiptune) ─────────────────────────────────────
 NOTE = {n: i for i, n in enumerate(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"])}
 
@@ -262,4 +286,5 @@ def music():
 
 if __name__ == "__main__":
     effects()
+    basketball_effects()
     music()

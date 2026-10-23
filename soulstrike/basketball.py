@@ -42,7 +42,8 @@ FIRE_SECONDS = 20
 DUNKS = ("CRAVADA", "GIRO 360", "PENDURADO NO ARO")
 SHOW_DUNKS = ("MOINHO", "CAMBALHOTA", "GIRO 360")
 HANG_FRAMES = 30                # Pendurado no Aro: tempo segurando no aro antes de cair
-RIM_SHAKE = 24                  # quadros que o aro treme depois da enterrada
+RIM_SHAKE = 24
+GLUE_STEAL = 0.04               # Marcação Colada: chance por quadro encostado (uns 0,4s em média)                  # quadros que o aro treme depois da enterrada
 REBOUND_PULL = 0.12             # a bola que bateu no aro é puxada para o mais perto
 BALL_COLOR = (226, 112, 36)
 SEAM_COLOR = (60, 24, 8)
@@ -118,6 +119,22 @@ class BasketBall(Entity):
         pygame.draw.circle(surf, (250, 170, 110), (sx - 4, sy - 4), 2)
 
 
+def who(f):
+    """Nome no placar final: o personagem, com a vaga na frente quando é gente jogando."""
+    name = f.stats.name.upper()
+    return name if f.is_cpu else f"{f.label} {name}"
+
+
+def stat_line(f):
+    """Números de um jogador no placar final: os pontos e o que mais ele fez (cabe numa linha)."""
+    extras = [(n, one if n == 1 else many) for n, one, many in (
+        (f.dunks, "ENTERRADA", "ENTERRADAS"), (f.blocks, "TOCO", "TOCOS"), (f.steals, "ROUBO", "ROUBOS")) if n]
+    if not extras:
+        return f"{f.points} PTS"
+    n, word = max(extras, key=lambda e: e[0])
+    return f"{f.points} PTS  {n} {word}"
+
+
 def _hoop_images(key, side):
     """Camadas da cesta (de trás e da frente) da quadra; a da direita é o espelho da esquerda."""
     folder = config.TILES_DIR / key
@@ -131,6 +148,18 @@ def _hoop_images(key, side):
     return images
 
 
+def _fire_frames(side):
+    """Fogo animado em volta do aro (arte da Arena Soul, serve nas três quadras)."""
+    frames = []
+    for i in range(1, 5):
+        try:
+            img = pygame.image.load(str(config.TILES_DIR / "quadra_soul" / f"aro_fogo_{i}.png")).convert_alpha()
+        except (pygame.error, FileNotFoundError):
+            return []
+        frames.append(pygame.transform.flip(img, True, False) if side == 1 else img)
+    return frames
+
+
 class HoopLayer(Entity):
     """Uma das camadas da cesta. Sem a arte, desenha uma cesta simples."""
 
@@ -142,14 +171,21 @@ class HoopLayer(Entity):
         self.front = front
         self.sort_y = Court.MID_Y + (Court.RIM_R if front else 0)
         self.shake = 0                       # depois da enterrada a cesta treme
+        self.fire = False                    # alguém que ataca esta cesta está pegando fogo
+        self.fire_frames = _fire_frames(side) if front else []
+        self.ticks = 0
 
     def update(self, match):
         pass
 
     def draw(self, surf, camera):
         dy = round(math.sin(self.shake * 1.3) * self.shake / 6) if self.shake else 0
+        self.ticks += 1
         if self.image is not None:
             surf.blit(self.image, (round(self.x - camera.x), round(self.y - camera.y) + dy))
+            if self.fire and self.fire_frames:
+                frame = self.fire_frames[(self.ticks // 6) % len(self.fire_frames)]
+                surf.blit(frame, (round(self.x - camera.x), round(self.y - camera.y) + dy))
             return
         hx, cy = Court.hoop_x(self.side), Court.MID_Y
         rim = pygame.Rect(0, 0, Court.RIM_R * 2, 16)
@@ -186,6 +222,7 @@ class BasketballMatch(Match):
             fighter.armed = False
             fighter.power = create_basket_power(fighter.stats)
             fighter.points = 0
+            fighter.blocks = fighter.steals = fighter.dunks = 0      # números do placar final
             fighter.glue_timer = 0           # Marcação Colada
             fighter.wall_timer = 0           # Toco Voador
             fighter.hot_timer = 0            # Mão Quente
@@ -263,7 +300,7 @@ class BasketballMatch(Match):
 
     def ball_bounced(self, ball):
         if ball.vz > 2:
-            self.assets.play("click", min(0.35, ball.vz * 0.06))
+            self.assets.play("quique", min(0.45, ball.vz * 0.08))
 
     # ── ações ────────────────────────────────
     def _give(self, f):
@@ -505,6 +542,7 @@ class BasketballMatch(Match):
             return False
         self._release(owner, 30)
         self._give(f)
+        f.steals += 1
         self.popup(f.x, f.y - 74, "ROUBO!", theme.BRASS)
         self.burst(self.ball.x, self.ball.y - 10, (236, 230, 220), 8, speed=3)
         self.assets.play("hit", 0.3)
@@ -567,6 +605,7 @@ class BasketballMatch(Match):
                 self.lids[side] -= 1
         for hoop in self.hoops:
             hoop.shake = max(0, hoop.shake - 1)
+            hoop.fire = any(f.fire_timer > 0 and self.hoop_of(f.team) == hoop.side for f in self.fighters)
         for effect in self.effects:
             effect.update(self)
         self.effects = [e for e in self.effects if e.alive]
@@ -626,10 +665,14 @@ class BasketballMatch(Match):
         owner = self.holder
         for f in self.fighters:
             if f.glue_timer > 0 and owner is not None and owner.team != f.team and not f.stunned:
+                # colado, rouba logo (não na hora): dá tempo de passar, fintar ou proteger
                 if (f.distance_to(owner) < f.radius + owner.radius + 10 and not owner.dunking
-                        and owner.magic_timer <= 0 and owner.exo_timer <= 0):
+                        and owner.magic_timer <= 0 and owner.exo_timer <= 0 and not owner.protecting
+                        and owner.feint_timer <= 0 and random.random() < GLUE_STEAL):
                     self.release_ball(owner, 30)
                     self._give(f)
+                    f.steals += 1
+                    f.glue_timer = 0                    # a marcação colada rouba uma vez só
                     self.popup(f.x, f.y - 74, "ROUBOU", theme.BRASS)
                     owner = f
             if f.moto_timer > 0:
@@ -932,11 +975,13 @@ class BasketballMatch(Match):
         return BLOCK_REACH + f.power.block_bonus + (16 if f.giant_timer > 0 else 0)
 
     def _toco(self, f, ball, text="TOCO!"):
+        f.blocks += 1
         self.popup(f.x, f.y - 90, text, theme.BRASS)
         self.burst(ball.x, ball.y - ball.z, (236, 230, 220), 10, speed=4)
         self.camera.shake(4)
         self.hit_pause(4)
-        self.assets.play("hit", 0.5)
+        self.assets.play("toco", 0.6)
+        self.assets.play("torcida", 0.2)
 
     def _block(self):
         """Toco: quem está no ar encosta no arremesso (ou na enterrada) do adversário."""
@@ -999,7 +1044,7 @@ class BasketballMatch(Match):
             ball.x = face
             ball.vx = -ball.vx * BOARD_KEEP
             ball.vy *= BOARD_KEEP
-            self.assets.play("click", 0.3)
+            self.assets.play("tabela", 0.4)
         if (self.lids[side] > 0 and z0 >= Court.RIM_Z > ball.z - ball.radius
                 and math.hypot(ball.x - hx, ball.y - hy) < Court.RIM_R + ball.radius):
             # Tampa no Aro: a bola bate na tampa e volta
@@ -1011,7 +1056,7 @@ class BasketballMatch(Match):
             self.shot_clock = 0
             if self.shot is not None:
                 self.shot["touched"] = True
-            self.assets.play("click", 0.5)
+            self.assets.play("tabela", 0.5)
             self.burst(hx, hy - Court.RIM_Z, (150, 226, 240), 6, speed=3)
             return
         hit = rim_contact(ball.x, ball.y, ball.z, hx, hy, Court.RIM_Z, Court.RIM_R, ball.radius)
@@ -1025,7 +1070,7 @@ class BasketballMatch(Match):
             if self.shot is not None:
                 self.shot["touched"] = True
             if math.hypot(ball.vx, ball.vy) + abs(ball.vz) > 2:
-                self.assets.play("click", 0.4)
+                self.assets.play("aro", 0.35)
         elif through_hoop(z0, ball.z, ball.x, ball.y, hx, hy, Court.RIM_Z, Court.RIM_R, ball.radius):
             self._basket(side)
 
@@ -1076,6 +1121,8 @@ class BasketballMatch(Match):
         scorer = shot["shooter"] if shot is not None and shot["team"] == team else None
         if scorer is not None:
             scorer.points += points
+            if shot.get("dunk"):
+                scorer.dunks += 1
         title = "CESTA DE 3!" if points == 3 else "CESTA!"
         self.banner = (title, scorer.label if scorer else "", team)
         self.banner_age = 0
@@ -1085,7 +1132,9 @@ class BasketballMatch(Match):
         self.burst(hx, hy - Court.RIM_Z, theme.BONE, 12, speed=4, gravity=0.12, size=3)
         self.camera.shake(5)
         self.hit_pause(6)
-        self.assets.play("torcida", 0.4)
+        self.assets.play("rede", 0.5)
+        clean = shot is not None and not shot.get("touched")      # chuá: nem encostou no aro
+        self.assets.play("torcida", 0.55 if points == 3 or clean or (shot or {}).get("dunk") else 0.35)
         self.shot = None
         self.shot_clock = 0
         if self.overtime:
@@ -1113,6 +1162,7 @@ class BasketballMatch(Match):
         if scorer.streak >= FIRE_STREAK and scorer.fire_timer == 0:
             self.banner = ("PEGANDO FOGO!", scorer.label, team)
             self.burst(scorer.x, scorer.y - 30, (255, 150, 40), 24, speed=5, gravity=-0.05, size=4)
+            self.assets.play("fogo", 0.6)
         if scorer.streak >= FIRE_STREAK:
             scorer.fire_timer = FIRE_SECONDS * config.FPS
 
@@ -1132,7 +1182,7 @@ class BasketballMatch(Match):
             self.attack = {0: 0, 1: 1}                  # 2º tempo: os times trocam de lado
             self.banner = ("INTERVALO", "TROCA DE LADO", None)
             self.banner_age = 0
-            self.assets.play("apito", 0.4)
+            self.assets.play("buzina", 0.4)
             self.freeze = 90
         elif self.score[0] != self.score[1]:
             self._end(0 if self.score[0] > self.score[1] else 1)
@@ -1140,7 +1190,7 @@ class BasketballMatch(Match):
             self.overtime = True
             self.banner = ("EMPATE", "PRÓXIMA CESTA VENCE", None)
             self.banner_age = 0
-            self.assets.play("apito", 0.4)
+            self.assets.play("buzina", 0.4)
             self.freeze = 90
 
     def _turnover(self, f):
@@ -1179,15 +1229,18 @@ class BasketballMatch(Match):
         self.result_team = team
         self.ending = config.DEATH_ANIM_FRAMES + 30
         self.holder = None
-        self.assets.play("apito", 0.4)
+        self.assets.play("buzina", 0.45)
+        self.assets.play("torcida", 0.5)
         self.assets.stop_music(1800)
 
     def _finish(self):
         team = self.result_team
         winners = [f for f in self.fighters if f.team == team]
         lines = [("PLACAR", f"{self.score[0]} x {self.score[1]}")]
-        for f in self.fighters:
-            lines.append((f"{f.label} PONTOS", str(f.points)))
+        for f in sorted(self.fighters, key=lambda f: (f.team, f.slot)):
+            lines.append((who(f), stat_line(f)))
+        best = max(self.fighters, key=lambda f: (f.points + 2 * (f.blocks + f.steals), f.team == team))
+        lines.append(("DESTAQUE", who(best)))
         self.result = Result(f"TIME {theme.TEAM_NAMES[team]} VENCEU", theme.TEAM_COLORS[team], winners,
                              lines, score=tuple(self.score))
         self.finished = True

@@ -516,5 +516,74 @@ class Enterradas(unittest.TestCase):
         self.assertEqual((f.hang, f.lift), (0, 0))
 
 
+class QuadrasEPolimento(unittest.TestCase):
+    def test_escolhe_a_quadra_na_selecao(self):
+        import pygame
+        from soulstrike.scenes.select import CharSelectScene
+        g = game()
+        g.session = Session("basket2", [SlotSetup(i + 1, char=i, cpu=i > 0) for i in range(4)])
+        g.session.map_key = "quadra_rua"
+        scene = CharSelectScene(g)
+        self.assertEqual(scene.court_key, "quadra_rua")            # lembra a última
+        scene.handle(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_TAB, mod=0, unicode="\t"))
+        self.assertEqual(scene.court_key, "quadra_soul")
+        scene.draw(g.screen)
+        for card in scene.cards:
+            card.ready = True
+        for _ in range(60):
+            scene.update()
+        self.assertEqual(g.session.map_key, "quadra_soul")
+
+    def test_aro_pega_fogo(self):
+        match, _ = basquete()
+        f = next(f for f in match.fighters if f.team == 0)
+        run(match, 1)
+        self.assertFalse(any(h.fire for h in match.hoops))
+        f.fire_timer = 100
+        run(match, 1)
+        side = match.hoop_of(0)
+        front = [h for h in match.hoops if h.front and h.side == side][0]
+        self.assertTrue(front.fire)
+        self.assertEqual(len(front.fire_frames), 4)
+        g = game()
+        match.draw(g.screen, g.ui)
+
+    def test_sons_do_basquete(self):
+        g = game()
+        for name in ("quique", "aro", "tabela", "rede", "toco", "buzina"):
+            self.assertTrue((config.SOUNDS_DIR / f"{name}.wav").exists(), name)
+
+    def test_placar_final(self):
+        match, _ = basquete()
+        f = match.fighters[0]
+        f.points, f.dunks, f.blocks, f.steals = 12, 2, 1, 0
+        self.assertEqual(B.stat_line(f), "12 PTS  2 ENTERRADAS")
+        match.score = [12, 0]
+        match.result_team = 0
+        match._finish()
+        labels = [label for label, _ in match.result.lines]
+        self.assertEqual(labels[0], "PLACAR")
+        self.assertEqual(labels[-1], "DESTAQUE")
+        self.assertIn(f.stats.name.upper(), match.result.lines[-1][1])
+
+    def test_marcacao_colada_nao_rouba_de_quem_protege(self):
+        random.seed(2)
+        match, _ = basquete(chars=(4, 0, 2, 3))
+        atk, guerreiro = de(match, "velocista"), de(match, "guerreiro")
+        com_bola(match, atk, 1000, 600)
+        guerreiro.x, guerreiro.y = 1030, 600
+        self.assertTrue(match.use_power(guerreiro))
+        atk.protecting = True
+        for _ in range(60):
+            atk.protecting = True
+            match._power_rules()
+        self.assertIs(match.holder, atk)
+        atk.protecting = False
+        for _ in range(200):
+            match._power_rules()
+        self.assertIs(match.holder, guerreiro)
+        self.assertEqual(guerreiro.glue_timer, 0)               # rouba uma vez só
+
+
 if __name__ == "__main__":
     unittest.main()

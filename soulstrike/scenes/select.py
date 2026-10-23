@@ -245,6 +245,9 @@ class CharSelectScene(_MenuScene):
         self.countdown = 0
         keys = [m.key for m in BATTLE_MAPS]
         self.map_index = keys.index(session.map_key) if session.map_key in keys else 0
+        # basquete: a quadra é escolhida aqui (fica a última escolhida)
+        self.basket = session.basket
+        self.court_index = BASKET_MAPS.index(session.map_key) if session.map_key in BASKET_MAPS else 0
         n = len(self.cards)
         count = len(self.roster)
         # muitos personagens (futebol): os quadradinhos encolhem para caber na tela
@@ -339,6 +342,14 @@ class CharSelectScene(_MenuScene):
             card.ready = True
             self.sfx("confirm", 0.5)
 
+    @property
+    def court_key(self):
+        return BASKET_MAPS[self.court_index]
+
+    def _cycle_court(self, step):
+        self.court_index = (self.court_index + step) % len(BASKET_MAPS)
+        self.sfx("click", 0.4)
+
     def _cycle_map(self, step):
         self.map_index = (self.map_index + step) % len(BATTLE_MAPS)
         self.sfx("click", 0.4)
@@ -374,6 +385,10 @@ class CharSelectScene(_MenuScene):
                 card = self._first_open()
                 if card:
                     self._confirm(card)
+            elif self.basket and event.key in (pygame.K_TAB, pygame.K_RIGHTBRACKET):
+                self._cycle_court(1)
+            elif self.basket and event.key == pygame.K_LEFTBRACKET:
+                self._cycle_court(-1)
             elif self.soccer and event.key == pygame.K_TAB:
                 self._cycle_assist(1)
             elif self.campaign and event.key == pygame.K_TAB:
@@ -408,6 +423,9 @@ class CharSelectScene(_MenuScene):
                     else:
                         self._confirm(card)
                     return
+            if self.basket and pos[1] < 70 and pos[0] > config.SCREEN_W - 320:
+                self._cycle_court(1)                   # clique no nome da quadra
+                return
             if self.soccer and len(self.cards) == 2:
                 for step, r in zip((-1, 1), self.assist_arrows):
                     if r.collidepoint(pos):
@@ -438,6 +456,8 @@ class CharSelectScene(_MenuScene):
                 self._change_char(card, -1)
             if inp.pressed("char_right"):
                 self._change_char(card, 1)
+            if inp.pressed("weapon") and self.basket:
+                self._cycle_court(1)                   # no controle/celular: o botão de arma troca a quadra
             if inp.pressed("weapon") and not self.soccer:
                 card.setup.weapon = 1 - card.setup.weapon
                 self.sfx("select", 0.3)
@@ -455,8 +475,7 @@ class CharSelectScene(_MenuScene):
                     self.game.change(start_campaign(self.game))
                     return
                 session = self.game.session
-                # basquete: por enquanto a quadra é sorteada (a escolha entra na seleção depois)
-                session.map_key = random.choice(BASKET_MAPS) if session.basket else self.map_key
+                session.map_key = self.court_key if session.basket else self.map_key
                 from .play import VersusScene
                 self.game.change(VersusScene(self.game))
         else:
@@ -468,6 +487,9 @@ class CharSelectScene(_MenuScene):
         self.title(screen, "ESCOLHA OS LUTADORES", y=40)
         self.ui.text(screen, self.game.session.title, theme.XS, theme.MUTED,
                      (config.SCREEN_W - 64, 40), anchor="midright")
+        if self.basket:
+            self.ui.text(screen, "QUADRA: " + MAPS_BY_KEY[self.court_key].name.upper(), theme.XS, theme.BRASS,
+                         (config.SCREEN_W - 64, 56), anchor="midright")
         self._draw_roster(screen)
         for card, rect in zip(self.cards, self.card_rects):
             self._draw_card(screen, card, rect)
@@ -484,6 +506,8 @@ class CharSelectScene(_MenuScene):
             if self.campaign:
                 label = DIFFICULTIES[self.game.session.difficulty]["label"]
                 items.insert(0, ("TAB", "DIFICULDADE: " + label))
+            elif self.basket:
+                items.insert(0, ("TAB", "QUADRA: " + MAPS_BY_KEY[self.court_key].name.upper()))
             elif not self.soccer:
                 label = "MAPA"
                 if len(self.cards) == 4:            # sem o painel do meio: o nome do mapa vai no rodapé
