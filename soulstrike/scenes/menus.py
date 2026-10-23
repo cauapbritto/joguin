@@ -34,7 +34,10 @@ class LoadingScene(Scene):
             hub.roster_size = len(CHARACTERS)          # o celular recebe todos (acha o escolhido pelo índice)
             if not self.game.headless:
                 server.start_in_background()
-            self.game.change(TitleScene(self.game))
+            from .. import novidades
+            news = novidades.to_show()
+            novidades.mark_seen()
+            self.game.change(NewsScene(self.game, news) if news else TitleScene(self.game))
 
     def _load(self):
         for progress in self.assets.load_steps():
@@ -375,6 +378,7 @@ class ControlsScene(_InfoScene):
         "PASSE VAI NA DIREÇÃO QUE VOCÊ APONTA. NA PONTA, NO 2X2, VIRA CRUZAMENTO.",
         "NO SEU CAMPO, CHUTAR COM A BOLA SOLTA = CHUTÃO PARA LONGE DO GOL.",
         "CORTE COM UM CHUTE VINDO = CARRINHO DE BLOQUEIO.",
+        "BASQUETE: SEGURE CHUTAR PARA PULAR E SOLTE NA FAIXA VERDE. CORTE = FINTA OU ROUBO.",
     ]
 
     def __init__(self, game):
@@ -838,3 +842,35 @@ class CreditsScene(_InfoScene):
         self._draw_verse(screen, pygame.Rect(596, panel.y + 24, 276, panel.h - 48))
         self.menu.draw(screen, self.ui, self.ticks)
         self.footer(screen, [("←→", "ESCOLHER"), ("ENTER", "ABRIR LINK"), ("ESC", "VOLTAR")])
+
+
+class NewsScene(_InfoScene):
+    """Novidades da versão nova: aparece uma vez, quando o jogo abre depois de atualizar."""
+    heading = "NOVIDADES"
+    PANEL = pygame.Rect(56, 92, config.SCREEN_W - 112, 330)
+
+    def __init__(self, game, news):
+        super().__init__(game)
+        self.news = news[:2]                 # no máximo as duas versões mais novas
+
+    def handle(self, event):
+        if (self.is_back(event) or (event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_SPACE))
+                or event.type == pygame.MOUSEBUTTONDOWN):
+            self.sfx("confirm", 0.4)
+            self.game.change(TitleScene(self.game))
+
+    def draw_body(self, screen):
+        self.ui.panel(screen, self.PANEL)
+        x, y = self.PANEL.x + 24, self.PANEL.y + 22
+        width = self.PANEL.w - 48
+        for version, lines in self.news:
+            self.ui.text(screen, f"VERSÃO {version}", theme.S, theme.BRASS, (x, y), anchor="midleft")
+            y += 22
+            for line in lines:
+                if y > self.PANEL.bottom - 24:
+                    break
+                screen.fill(theme.MOSS, (x + 2, y + 2, 5, 5))
+                y = self.ui.paragraph(screen, line.upper(), theme.XS, theme.BONE, (x + 16, y),
+                                      width - 16, spacing=15) + 8
+            y += 10
+        self.footer(screen, [("ENTER", "CONTINUAR")])
