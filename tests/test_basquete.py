@@ -474,5 +474,47 @@ class Poderes(unittest.TestCase):
         self.assertEqual(match.score, [2, 0])
 
 
+class Enterradas(unittest.TestCase):
+    def enterrada(self, chars=(0, 1, 2, 3), voadora=False):
+        match, _ = basquete(chars=chars)
+        f = next(f for f in match.fighters if f.team == 0)
+        side = match.hoop_of(0)
+        hx = Court.hoop_x(side)
+        com_bola(match, f, hx + ((-520 if voadora else -230) if side == 1 else (520 if voadora else 230)), 620)
+        if voadora:
+            self.assertTrue(match.use_power(f))
+        else:
+            self.assertTrue(match.start_shot(f))
+        return match, f, side
+
+    def test_tipos_normais_e_vistosos(self):
+        random.seed(3)
+        normais = {self.enterrada()[1].dunk_move for _ in range(30)}
+        self.assertEqual(normais, set(B.DUNKS))
+        vistosos = {self.enterrada(chars=(15, 1, 2, 3), voadora=True)[1].dunk_move for _ in range(30)}
+        self.assertEqual(vistosos, set(B.SHOW_DUNKS))
+
+    def test_cada_tipo_faz_a_cesta_e_o_aro_treme(self):
+        for move in B.DUNKS + B.SHOW_DUNKS:
+            match, f, side = self.enterrada()
+            f.dunk_move = move
+            run(match, f.dunk_total)
+            self.assertTrue(any(h.shake > 0 for h in match.hoops if h.side == side), move)
+            run(match, 100)
+            self.assertEqual(match.score, [2, 0], move)
+            self.assertEqual(f.spin, 0)
+            self.assertEqual(f.lift, 0)
+
+    def test_pendurado_fica_no_aro(self):
+        match, f, side = self.enterrada()
+        f.dunk_move = "PENDURADO NO ARO"
+        run(match, f.dunk_total + 5)
+        self.assertGreater(f.hang, 0)
+        self.assertGreater(f.lift, B.JUMP_H)
+        self.assertLess(abs(f.x - Court.hoop_x(side)), Court.RIM_R + 10)
+        run(match, B.HANG_FRAMES + B.JUMP_FRAMES)
+        self.assertEqual((f.hang, f.lift), (0, 0))
+
+
 if __name__ == "__main__":
     unittest.main()

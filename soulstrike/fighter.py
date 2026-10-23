@@ -243,6 +243,7 @@ class Fighter(Entity):
         self.unstoppable = False        # não é atordoado nem puxado (chefão)
         self.vulnerability = 1.0        # dano recebido é multiplicado por isso (chefão cansado)
         self.lift = 0                   # altura do desenho acima do chão (pulo do chefão)
+        self.spin = 0                   # giro do desenho em graus (cambalhota da enterrada)
         self.last_attacker = None
         self.kills = 0
         self.power = None               # poder do futebol (definido pela partida)
@@ -1151,6 +1152,9 @@ class Fighter(Entity):
         if scale != 1.0:
             img = pygame.transform.scale(img, (round(img.get_width() * scale), round(img.get_height() * scale)))
         rect = img.get_rect(midbottom=base)
+        if self.spin:
+            img = pygame.transform.rotate(img, self.spin)
+            rect = img.get_rect(center=rect.center)
         if self.aura is not None:
             self._draw_aura(surf, img, rect, ticks)
         surf.blit(img, rect)

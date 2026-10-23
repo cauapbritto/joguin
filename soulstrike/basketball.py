@@ -38,6 +38,11 @@ FEINT_FRAMES = 20               # quem tenta roubar nesse tempo erra e fica para
 FEINT_STUN = 30                 # 0,5 s parado
 FIRE_STREAK = 3                 # cestas seguidas do mesmo jogador para pegar fogo
 FIRE_SECONDS = 20
+# tipos de enterrada: os mais vistosos só com fogo, Enterrada Voadora ou alley-oop
+DUNKS = ("CRAVADA", "GIRO 360", "PENDURADO NO ARO")
+SHOW_DUNKS = ("MOINHO", "CAMBALHOTA", "GIRO 360")
+HANG_FRAMES = 30                # Pendurado no Aro: tempo segurando no aro antes de cair
+RIM_SHAKE = 24                  # quadros que o aro treme depois da enterrada
 REBOUND_PULL = 0.12             # a bola que bateu no aro é puxada para o mais perto
 BALL_COLOR = (226, 112, 36)
 SEAM_COLOR = (60, 24, 8)
@@ -136,17 +141,19 @@ class HoopLayer(Entity):
         self.image = image
         self.front = front
         self.sort_y = Court.MID_Y + (Court.RIM_R if front else 0)
+        self.shake = 0                       # depois da enterrada a cesta treme
 
     def update(self, match):
         pass
 
     def draw(self, surf, camera):
+        dy = round(math.sin(self.shake * 1.3) * self.shake / 6) if self.shake else 0
         if self.image is not None:
-            surf.blit(self.image, (round(self.x - camera.x), round(self.y - camera.y)))
+            surf.blit(self.image, (round(self.x - camera.x), round(self.y - camera.y) + dy))
             return
         hx, cy = Court.hoop_x(self.side), Court.MID_Y
         rim = pygame.Rect(0, 0, Court.RIM_R * 2, 16)
-        rim.center = (round(hx - camera.x), round(cy - Court.RIM_Z - camera.y))
+        rim.center = (round(hx - camera.x), round(cy - Court.RIM_Z - camera.y) + dy)
         if self.front:
             pygame.draw.arc(surf, (240, 104, 30), rim, math.pi, math.tau, 4)
             return
@@ -190,6 +197,8 @@ class BasketballMatch(Match):
             fighter.jump_shot = False        # o pulo é de arremesso (com a barrinha)
             fighter.dunking = 0              # quadros que faltam do voo da enterrada
             fighter.dunk_from = fighter.dunk_to = (0.0, 0.0)
+            fighter.dunk_move = ""            # tipo da enterrada (DUNKS ou SHOW_DUNKS)
+            fighter.hang = 0                 # quadros pendurado no aro depois de cravar
             fighter.shot_half = 0.3          # meia largura da faixa verde deste arremesso
             fighter.meter_flash = None       # (soltou em, faixa, quadros) para mostrar o resultado
             fighter.feint_timer = 0
@@ -378,7 +387,9 @@ class BasketballMatch(Match):
         f.alley_dunk = alley
         f.jump, f.jump_shot = 0, False
         f.facing = unit(hx - f.x, hy - f.y)
-        self.popup(f.x, f.y - 90, "ENTERRADA", theme.BONE)
+        show = flying or alley or self.on_fire(f)
+        f.dunk_move = random.choice(SHOW_DUNKS if show else DUNKS)
+        self.popup(f.x, f.y - 90, f.dunk_move + "!", theme.BRASS if show else theme.BONE)
         self.assets.play("dash", 0.4)
         return True
 
@@ -411,9 +422,21 @@ class BasketballMatch(Match):
         ball.vx, ball.vy, ball.vz = shot_velocity(ball.x, ball.y, ball.z, hx, hy, Court.RIM_Z - 6, 8,
                                                   config.GRAVITY)
         self.shot = {"team": f.team, "three": False, "shooter": f, "side": side, "dunk": True}
-        f.jump = JUMP_FRAMES // 2            # desce do aro
+        show = f.fly_dunk or f.alley_dunk or f.dunk_move in SHOW_DUNKS
+        f.facing = unit(hx - f.x, hy - f.y)
+        f.spin = 0
+        if f.dunk_move == "PENDURADO NO ARO":
+            f.hang = HANG_FRAMES             # fica no aro e só depois desce
+        else:
+            f.jump = JUMP_FRAMES // 2        # desce do aro
         f.fly_dunk = f.alley_dunk = False
-        self.camera.shake(3)
+        for hoop in self.hoops:
+            if hoop.side == side:
+                hoop.shake = RIM_SHAKE
+        rim_y = hy - Court.RIM_Z
+        self.burst(hx, rim_y, f.color, 22 if show else 14, speed=6 if show else 4)
+        self.burst(hx, rim_y, (255, 236, 170), 10, speed=3)
+        self.camera.shake(6 if show else 4)
         self.assets.play("arremesso", 0.45)
 
     def jump(self, f):
@@ -542,6 +565,8 @@ class BasketballMatch(Match):
         for side in (0, 1):
             if self.lids[side] > 0:
                 self.lids[side] -= 1
+        for hoop in self.hoops:
+            hoop.shake = max(0, hoop.shake - 1)
         for effect in self.effects:
             effect.update(self)
         self.effects = [e for e in self.effects if e.alive]
@@ -573,7 +598,7 @@ class BasketballMatch(Match):
         for f in self.fighters:
             if f.steal_timer > 0:
                 self._check_steal(f)
-            if f.jump or f.dunking:
+            if f.jump or f.dunking or f.hang:
                 f.steer(0, 0)                   # no ar não dá para mudar de direção
             if f.protecting and self.holder is f:
                 self._protect(f)
@@ -702,7 +727,19 @@ class BasketballMatch(Match):
 
     def _update_moves(self, f):
         """Pulo (arco do desenho e barrinha), enterrada, finta, roubo e pegando fogo."""
-        if f.dunking:
+        if not f.dunking:
+            f.spin = 0                           # a cambalhota acaba no aro (ou no toco)
+        if f.hang:
+            # Pendurado no Aro: balança segurando no aro e depois cai
+            f.hang -= 1
+            hx, hy = self.hoop_pos(self.hoop_of(f.team))
+            ux, uy = unit(f.dunk_to[0] - hx, f.dunk_to[1] - hy)
+            f.x, f.y = hx + ux * (Court.RIM_R + 6), hy + uy * (Court.RIM_R + 6)
+            f.vx = f.vy = 0.0
+            f.lift = Court.RIM_Z - 48 + math.sin(f.hang * 0.5) * 3      # as mãos no aro
+            if f.hang == 0:
+                f.jump = JUMP_FRAMES // 2
+        elif f.dunking:
             f.dunking -= 1
             k = 1 - f.dunking / f.dunk_total
             (x0, y0), (x1, y1) = f.dunk_from, f.dunk_to
@@ -712,6 +749,14 @@ class BasketballMatch(Match):
             f.lift = peak * math.sin(k * math.pi / 2) if k < 0.85 else peak * (1 - (k - 0.85) * 2)
             if (f.fly_dunk or f.alley_dunk) and self.frame % 3 == 0:
                 self.burst(f.x, f.y + 18, (84, 162, 222), 2, speed=1)
+            if f.dunk_move == "GIRO 360" and k < 0.9:
+                a = k * math.tau / 0.9           # uma volta inteira no ar
+                hx, hy = self.hoop_pos(self.hoop_of(f.team))
+                bx, by = unit(hx - f.x, hy - f.y)
+                c, s_ = math.cos(a), math.sin(a)
+                f.facing = (bx * c - by * s_, bx * s_ + by * c)
+            elif f.dunk_move == "CAMBALHOTA":
+                f.spin = -360 * min(1.0, k / 0.85) * (1 if f.facing[0] >= 0 else -1)
             if f.dunking == 0:
                 if self.holder is f:
                     self._dunk_release(f)
@@ -825,7 +870,12 @@ class BasketballMatch(Match):
         if owner is not None:
             # a bola quica sozinha ao lado do jogador (o drible é automático)
             fx, fy = owner.facing
-            if owner.jump or owner.dunking:
+            if owner.dunking and owner.dunk_move == "MOINHO":
+                # moinho: a bola dá uma volta grande com o braço esticado
+                a = (1 - owner.dunking / owner.dunk_total) * math.tau * 1.25
+                ball.x, ball.y = owner.x + fx * 30 * math.cos(a), owner.y + 2
+                ball.z = owner.lift + config.BODY_HEIGHT + 30 * math.sin(a) - 4
+            elif owner.jump or owner.dunking:
                 # no pulo a bola vai nas mãos, em cima da cabeça
                 ball.x, ball.y = owner.x + fx * 6, owner.y + 2
                 ball.z = owner.lift + config.BODY_HEIGHT + 30
@@ -1120,6 +1170,7 @@ class BasketballMatch(Match):
             f.jump = f.dunking = 0
             f.jump_shot, f.lift, f.protecting = False, 0, False
             f.fly_dunk = f.alley_dunk = False
+            f.hang, f.spin = 0, 0
             hx, _ = self.hoop_pos(self.hoop_of(f.team))
             f.facing = (1.0, 0.0) if hx > f.x else (-1.0, 0.0)
         self.alley = None
