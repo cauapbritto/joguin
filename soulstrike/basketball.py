@@ -12,6 +12,7 @@ import pygame
 from . import config, hud, theme
 from .ai import BasketballAI
 from .arena import BASKET_MAPS, Court
+from .basket_powers import create_basket_power
 from .basket_assist import (JUMP_FRAMES, aim_point, board_hit, bounce, flight_frames, green_half, miss_distance,
                             rim_contact, shot_error, shot_velocity, steal_chance, through_hoop)
 from .entities import Entity
@@ -37,6 +38,11 @@ FEINT_FRAMES = 20               # quem tenta roubar nesse tempo erra e fica para
 FEINT_STUN = 30                 # 0,5 s parado
 FIRE_STREAK = 3                 # cestas seguidas do mesmo jogador para pegar fogo
 FIRE_SECONDS = 20
+# tipos de enterrada: os mais vistosos só com fogo, Enterrada Voadora ou alley-oop
+DUNKS = ("CRAVADA", "GIRO 360", "PENDURADO NO ARO")
+SHOW_DUNKS = ("MOINHO", "CAMBALHOTA", "GIRO 360")
+HANG_FRAMES = 30                # Pendurado no Aro: tempo segurando no aro antes de cair
+RIM_SHAKE = 24                  # quadros que o aro treme depois da enterrada
 REBOUND_PULL = 0.12             # a bola que bateu no aro é puxada para o mais perto
 BALL_COLOR = (226, 112, 36)
 SEAM_COLOR = (60, 24, 8)
@@ -135,17 +141,19 @@ class HoopLayer(Entity):
         self.image = image
         self.front = front
         self.sort_y = Court.MID_Y + (Court.RIM_R if front else 0)
+        self.shake = 0                       # depois da enterrada a cesta treme
 
     def update(self, match):
         pass
 
     def draw(self, surf, camera):
+        dy = round(math.sin(self.shake * 1.3) * self.shake / 6) if self.shake else 0
         if self.image is not None:
-            surf.blit(self.image, (round(self.x - camera.x), round(self.y - camera.y)))
+            surf.blit(self.image, (round(self.x - camera.x), round(self.y - camera.y) + dy))
             return
         hx, cy = Court.hoop_x(self.side), Court.MID_Y
         rim = pygame.Rect(0, 0, Court.RIM_R * 2, 16)
-        rim.center = (round(hx - camera.x), round(cy - Court.RIM_Z - camera.y))
+        rim.center = (round(hx - camera.x), round(cy - Court.RIM_Z - camera.y) + dy)
         if self.front:
             pygame.draw.arc(surf, (240, 104, 30), rim, math.pi, math.tau, 4)
             return
@@ -160,6 +168,7 @@ class HoopLayer(Entity):
 
 class BasketballMatch(Match):
     min_zoom = 0.6
+    RIM_Z = Court.RIM_Z
 
     def __init__(self, game, session):
         key = session.map_key if session.map_key in BASKET_MAPS else BASKET_MAPS[0]
@@ -175,12 +184,21 @@ class BasketballMatch(Match):
             fighter.sprites = self.assets.kit_sprites(fighter.stats.key, team)
             fighter.kit = team
             fighter.armed = False
-            fighter.power = None
+            fighter.power = create_basket_power(fighter.stats)
             fighter.points = 0
+            fighter.glue_timer = 0           # Marcação Colada
+            fighter.wall_timer = 0           # Toco Voador
+            fighter.hot_timer = 0            # Mão Quente
+            fighter.ghost_timer = 0          # Bola Fantasma (vale para o próximo arremesso)
+            fighter.frost_timer = 0          # Congelar: faixa verde estreita
+            fighter.fly_dunk = False         # enterrada voadora (ninguém toca no ar)
+            fighter.alley_dunk = False       # a enterrada veio de um alley-oop
             fighter.jump = 0                 # quadros desde o pulo (0 = no chão)
             fighter.jump_shot = False        # o pulo é de arremesso (com a barrinha)
             fighter.dunking = 0              # quadros que faltam do voo da enterrada
             fighter.dunk_from = fighter.dunk_to = (0.0, 0.0)
+            fighter.dunk_move = ""            # tipo da enterrada (DUNKS ou SHOW_DUNKS)
+            fighter.hang = 0                 # quadros pendurado no aro depois de cravar
             fighter.shot_half = 0.3          # meia largura da faixa verde deste arremesso
             fighter.meter_flash = None       # (soltou em, faixa, quadros) para mostrar o resultado
             fighter.feint_timer = 0
@@ -214,6 +232,8 @@ class BasketballMatch(Match):
         self.banner_age = 0
         self.result_team = None
         self.freeze = 0
+        self.lids = {0: 0, 1: 0}             # Tampa no Aro: quadros que faltam em cada aro
+        self.alley = None                    # alley-oop no ar: quem passou, para quem, quem caiu
         self._tip_off()
 
     # ── consultas ────────────────────────────
@@ -260,6 +280,40 @@ class BasketballMatch(Match):
             self.holder = None
         self.no_catch[f] = frames
 
+    def release_ball(self, f, frames=18):
+        """Tira a bola da mão (poderes, hack, atropelo)."""
+        self._release(f, frames)
+        f.jump_shot = False
+
+    def grab(self, f):
+        """A bola vai direto para a mão (gancho, interceptação)."""
+        ball = self.ball
+        ball.x, ball.y, ball.z = f.x, f.y, 20.0
+        self.alley = None
+        self._give(f)
+
+    def freeze_foe(self, foe, frames):
+        """Congelar: lento e com a faixa verde estreita. O Exo e o Faro de Cesta não sentem."""
+        if foe.exo_timer > 0 or foe.nose_timer > 0:
+            return False
+        if not foe.slow(frames):
+            return False
+        foe.frost_timer = max(foe.frost_timer, frames)
+        return True
+
+    def use_power(self, f):
+        if self.freeze or self.ending or f.power is None:
+            return False
+        if not f.power.use(f, self):
+            return False
+        hub.publish_slot(f.slot, cooldown=1.0) if not f.is_cpu else None
+        return True
+
+    def glued_by(self, f):
+        """Adversário de Marcação Colada em cima de f (ou None)."""
+        return next((o for o in self.foes_of(f) if o.glue_timer > 0 and o.distance_to(f) < 90
+                     and not o.stunned), None)
+
     def on_fire(self, f):
         return f.fire_timer > 0
 
@@ -272,10 +326,17 @@ class BasketballMatch(Match):
         hx, hy = self.hoop_pos(side)
         dist = math.hypot(hx - f.x, hy - f.y)
         if Court.in_key(side, f.x, f.y) and dist < DUNK_RANGE:
-            return self.dunk(f)
+            if self.glued_by(f) is None:
+                return self.dunk(f)
+            self.popup(f.x, f.y - 90, "SEM ENTERRADA", theme.MUTED)   # marcação colada
         f.jump = 1
         f.jump_shot = True
-        f.shot_half = green_half(dist, Court.is_three(side, f.x, f.y), self.on_fire(f))
+        half = green_half(dist, Court.is_three(side, f.x, f.y), self.on_fire(f)) + f.power.green_bonus
+        if f.hot_timer > 0:
+            half = 0.5                        # Mão Quente: a faixa inteira
+        if f.frost_timer > 0:
+            half *= 0.4                       # Congelar: faixa estreita
+        f.shot_half = half
         f.facing = unit(hx - f.x, hy - f.y)
         return True
 
@@ -304,13 +365,14 @@ class BasketballMatch(Match):
         three = Court.is_three(side, f.x, f.y)
         tx, ty = aim_point(hx, hy, f.x, f.y, miss, random.choice((-1, 1)))
         self._launch(f, tx, ty, Court.RIM_Z + 2, flight_frames(dist), z0=HAND_Z + f.lift)
-        self.shot = {"team": f.team, "three": three, "shooter": f, "side": side}
+        self.shot = {"team": f.team, "three": three, "shooter": f, "side": side, "ghost": f.ghost_timer > 0}
+        f.ghost_timer = 0
         f.facing = unit(hx - f.x, hy - f.y)
         self.assets.play("arremesso", 0.35)
 
-    def dunk(self, f):
+    def dunk(self, f, flying=False, alley=False):
         """Enterrada: voa até o aro com a bola em cima da cabeça e crava. No caminho, só um toco
-        segura."""
+        segura. A voadora (Cauanzera) e a do alley-oop vão alto, por cima de todo mundo."""
         side = self.hoop_of(f.team)
         hx, hy = self.hoop_pos(side)
         dist = math.hypot(hx - f.x, hy - f.y)
@@ -319,11 +381,15 @@ class BasketballMatch(Match):
             ux = -ux                          # nunca por trás da tabela
         f.dunk_from = (f.x, f.y)
         f.dunk_to = (hx + ux * (DUNK_REACH + 6), hy + uy * (DUNK_REACH + 6))
-        f.dunking = max(8, round(dist / 13))
+        f.dunking = max(8, round(dist / (10 if flying else 13)))
         f.dunk_total = f.dunking
+        f.fly_dunk = flying
+        f.alley_dunk = alley
         f.jump, f.jump_shot = 0, False
         f.facing = unit(hx - f.x, hy - f.y)
-        self.popup(f.x, f.y - 90, "ENTERRADA", theme.BONE)
+        show = flying or alley or self.on_fire(f)
+        f.dunk_move = random.choice(SHOW_DUNKS if show else DUNKS)
+        self.popup(f.x, f.y - 90, f.dunk_move + "!", theme.BRASS if show else theme.BONE)
         self.assets.play("dash", 0.4)
         return True
 
@@ -331,6 +397,24 @@ class BasketballMatch(Match):
         side = self.hoop_of(f.team)
         hx, hy = self.hoop_pos(side)
         ball = self.ball
+        if f.exo_timer > 0 and self.lids[side] > 0:
+            self.lids[side] = 0
+            self.popup(hx, hy - 150, "ARRANCOU A TAMPA", theme.BRASS)
+            self.burst(hx, hy - Court.RIM_Z, (150, 226, 240), 20, speed=5)
+        wall = None if f.alley_dunk else next(
+            (o for o in self.foes_of(f) if o.wall_timer > 0 and not o.stunned
+             and math.hypot(o.x - hx, o.y - hy) < 260), None)
+        if wall is not None:
+            # Toco Voador: o Paredão sobe e tira a enterrada
+            wall.wall_timer = 0
+            wall.jump = 1
+            self._release(f, 30)
+            ux, uy = unit(f.x - hx, f.y - hy)
+            ball.x, ball.y, ball.z = f.x, f.y, f.lift + 50
+            ball.vx, ball.vy, ball.vz = ux * 6, uy * 6, 3.0
+            f.jump, f.fly_dunk, f.alley_dunk = JUMP_FRAMES // 2, False, False
+            self._toco(wall, ball, "TOCO VOADOR!")
+            return
         self._release(f)
         ux, uy = unit(f.x - hx, f.y - hy)
         ball.x, ball.y = hx + ux * DUNK_REACH, hy + uy * DUNK_REACH
@@ -338,8 +422,21 @@ class BasketballMatch(Match):
         ball.vx, ball.vy, ball.vz = shot_velocity(ball.x, ball.y, ball.z, hx, hy, Court.RIM_Z - 6, 8,
                                                   config.GRAVITY)
         self.shot = {"team": f.team, "three": False, "shooter": f, "side": side, "dunk": True}
-        f.jump = JUMP_FRAMES // 2            # desce do aro
-        self.camera.shake(3)
+        show = f.fly_dunk or f.alley_dunk or f.dunk_move in SHOW_DUNKS
+        f.facing = unit(hx - f.x, hy - f.y)
+        f.spin = 0
+        if f.dunk_move == "PENDURADO NO ARO":
+            f.hang = HANG_FRAMES             # fica no aro e só depois desce
+        else:
+            f.jump = JUMP_FRAMES // 2        # desce do aro
+        f.fly_dunk = f.alley_dunk = False
+        for hoop in self.hoops:
+            if hoop.side == side:
+                hoop.shake = RIM_SHAKE
+        rim_y = hy - Court.RIM_Z
+        self.burst(hx, rim_y, f.color, 22 if show else 14, speed=6 if show else 4)
+        self.burst(hx, rim_y, (255, 236, 170), 10, speed=3)
+        self.camera.shake(6 if show else 4)
         self.assets.play("arremesso", 0.45)
 
     def jump(self, f):
@@ -362,7 +459,7 @@ class BasketballMatch(Match):
         direction = unit(*direction)
         if not f.dash(direction, frames=config.CUT_FRAMES, cooldown=36):
             return False
-        f.feint_timer = FEINT_FRAMES
+        f.feint_timer = FEINT_FRAMES + f.power.feint_bonus
         self.popup(f.x, f.y - 80, "FINTA", theme.BONE)
         self.assets.play("dash", 0.3)
         return True
@@ -398,7 +495,11 @@ class BasketballMatch(Match):
             f.stun(FEINT_STUN)
             self.popup(f.x, f.y - 74, "CAIU NA FINTA" if owner.feint_timer > 0 else "ERROU", theme.MUTED)
             return False
+        if owner.magic_timer > 0 or owner.exo_timer > 0 or owner.moto_timer > 0:
+            self.popup(f.x, f.y - 74, "NÃO TIRA", theme.MUTED)
+            return False
         chance = steal_chance(owner.facing, f.x - owner.x, f.y - owner.y, owner.protecting)
+        chance *= owner.power.steal_mult
         if random.random() >= chance:
             self.popup(f.x, f.y - 74, "ERROU", theme.MUTED)
             return False
@@ -419,7 +520,7 @@ class BasketballMatch(Match):
         if mate is not None:
             vx, vy = mate.x - mate.prev_pos[0], mate.y - mate.prev_pos[1]
             dist = math.hypot(mate.x - f.x, mate.y - f.y)
-            frames = max(8, round(dist / PASS_SPEED))
+            frames = max(8, round(dist / (PASS_SPEED * f.power.pass_speed)))
             tx, ty = mate.x + vx * frames, mate.y + vy * frames
         else:
             frames = 40
@@ -461,6 +562,14 @@ class BasketballMatch(Match):
         for f in self.fighters:
             f.prev_pos = (f.x, f.y)
             self._update_moves(f)
+        for side in (0, 1):
+            if self.lids[side] > 0:
+                self.lids[side] -= 1
+        for hoop in self.hoops:
+            hoop.shake = max(0, hoop.shake - 1)
+        for effect in self.effects:
+            effect.update(self)
+        self.effects = [e for e in self.effects if e.alive]
         for f, ctrl in self.controllers.items():
             if self.freeze or f.stunned:
                 f.steer(0, 0)
@@ -469,10 +578,14 @@ class BasketballMatch(Match):
                 self._human(f, ctrl)
             else:
                 ctrl.update(f, self)
+            if f.glue_timer > 0 and not f.stunned and not self.freeze:
+                self._glue_steer(f)
             f.update(self)
             f.update_stamina()
         for i, a in enumerate(self.fighters):
             for b in self.fighters[i + 1:]:
+                if a.magic_timer > 0 or b.magic_timer > 0:
+                    continue                    # drible mágico: atravessa os marcadores
                 _separate(a, b)
                 self.arena.resolve(a)
                 self.arena.resolve(b)
@@ -481,10 +594,11 @@ class BasketballMatch(Match):
             if self.freeze == 0:
                 self._tip_off()
             return
+        self._power_rules()
         for f in self.fighters:
             if f.steal_timer > 0:
                 self._check_steal(f)
-            if f.jump or f.dunking:
+            if f.jump or f.dunking or f.hang:
                 f.steer(0, 0)                   # no ar não dá para mudar de direção
             if f.protecting and self.holder is f:
                 self._protect(f)
@@ -496,15 +610,153 @@ class BasketballMatch(Match):
             if not f.is_cpu:
                 hub.publish_slot(f.slot, stamina=f.stamina, tired=f.exhausted)
 
+    def _glue_steer(self, f):
+        """Marcação Colada: corre grudado em quem está com a bola."""
+        owner = self.holder
+        if owner is None or owner.team == f.team:
+            return
+        dx, dy = owner.x - f.x, owner.y - f.y
+        d = math.hypot(dx, dy)
+        if d > 4:
+            f.steer(dx / d, dy / d)
+        f.sprint_held = f.stamina > 0.1
+
+    def _power_rules(self):
+        """Regras dos poderes que valem a cada quadro: marcação colada, moto, hack."""
+        owner = self.holder
+        for f in self.fighters:
+            if f.glue_timer > 0 and owner is not None and owner.team != f.team and not f.stunned:
+                if (f.distance_to(owner) < f.radius + owner.radius + 10 and not owner.dunking
+                        and owner.magic_timer <= 0 and owner.exo_timer <= 0):
+                    self.release_ball(owner, 30)
+                    self._give(f)
+                    self.popup(f.x, f.y - 74, "ROUBOU", theme.BRASS)
+                    owner = f
+            if f.moto_timer > 0:
+                for foe in self.foes_of(f):
+                    if f.distance_to(foe) > f.radius + foe.radius + 6 or foe.stunned:
+                        continue
+                    if foe.giant_timer > 0:
+                        f.moto_timer = 0
+                        f.stun(40)
+                        self.popup(f.x, f.y - 90, "BATEU", theme.BONE)
+                        self.camera.shake(5)
+                        break
+                    if foe.stun(45):
+                        self.popup(foe.x, foe.y - 74, "ATROPELADO", theme.BONE)
+                        self.camera.shake(3)
+                        if self.holder is foe:
+                            self.release_ball(foe, 30)
+                            self._give(f)
+                            owner = f
+        if owner is not None and owner.hacked:
+            self.release_ball(owner, 40)
+            self.ball.vz = 2.0
+
+    def _power_glow(self, f):
+        """Brilho dos poderes que duram (para todo mundo ver quem está com o quê)."""
+        if self.frame % 3:
+            return
+        glow = None
+        if f.glue_timer > 0:
+            glow = (150, 196, 255)
+        elif f.wall_timer > 0:
+            glow = (236, 230, 220)
+        elif f.hot_timer > 0:
+            glow = (255, 150, 50)
+        elif f.ghost_timer > 0:
+            glow = (210, 210, 255)
+        elif f.frost_timer > 0:
+            glow = (200, 236, 250)
+        elif f.magic_timer > 0:
+            glow = (255, 226, 120)
+        elif f.nose_timer > 0:
+            glow = (150, 236, 150)
+        if glow is not None:
+            self.burst(f.x + random.uniform(-12, 12), f.y - random.uniform(0, 44) - f.lift, glow, 1,
+                       speed=1, gravity=-0.03, size=3)
+
+    def alley_oop(self, user, mate):
+        """Alley-oop Trovão: passe alto e forte para o companheiro, que sobe e crava."""
+        vx, vy = mate.x - mate.prev_pos[0], mate.y - mate.prev_pos[1]
+        dist = math.hypot(mate.x - user.x, mate.y - user.y)
+        frames = max(14, round(dist / (PASS_SPEED * 1.3)))
+        tx, ty = mate.x + vx * frames, mate.y + vy * frames
+        user.jump_shot = False
+        self._launch(user, tx, ty, CATCH_HEIGHT + 30, frames, z0=40 + user.lift)
+        self.alley = {"from": user, "to": mate, "age": 0, "hit": set()}
+        self.catch_lock = 5
+        self.burst(self.ball.x, self.ball.y - 40, (255, 236, 120), 12, speed=5)
+        self.camera.shake(5)
+        return True
+
+    def _update_alley(self):
+        """O passe do alley-oop derruba quem entra na frente; o Gigante intercepta."""
+        alley, ball = self.alley, self.ball
+        alley["age"] += 1
+        if alley["age"] > 150 or (ball.z <= 0.5 and ball.vz <= 0):
+            self.alley = None
+            return
+        for foe in self.foes_of(alley["from"]):
+            if foe in alley["hit"]:
+                continue
+            d = math.hypot(foe.x - ball.x, foe.y - ball.y)
+            if foe.giant_timer > 0 and d < foe.radius + 30 and ball.z < 140:
+                self.grab(foe)
+                self.popup(foe.x, foe.y - 90, "INTERCEPTOU", theme.BRASS)
+                return
+            if d < foe.radius + 14 and ball.z < 110 and foe.stun(45):
+                alley["hit"].add(foe)
+                self.popup(foe.x, foe.y - 74, "DERRUBADO", theme.BONE)
+                self.burst(foe.x, foe.y - 30, (255, 236, 120), 10, speed=4)
+
+    def _faro_pull(self):
+        """Faro de Cesta: a bola solta perto vem para a mão do Matador."""
+        ball = self.ball
+        for f in self.fighters:
+            if f.nose_timer <= 0 or f.stunned or ball.z > 130:
+                continue
+            d = math.hypot(f.x - ball.x, f.y - ball.y)
+            if 10 < d < 280:
+                ball.vx += (f.x - ball.x) / d * 0.45
+                ball.vy += (f.y - ball.y) / d * 0.45
+                speed = math.hypot(ball.vx, ball.vy)
+                if speed > 9:
+                    ball.vx, ball.vy = ball.vx / speed * 9, ball.vy / speed * 9
+                return
+
     def _update_moves(self, f):
         """Pulo (arco do desenho e barrinha), enterrada, finta, roubo e pegando fogo."""
-        if f.dunking:
+        if not f.dunking:
+            f.spin = 0                           # a cambalhota acaba no aro (ou no toco)
+        if f.hang:
+            # Pendurado no Aro: balança segurando no aro e depois cai
+            f.hang -= 1
+            hx, hy = self.hoop_pos(self.hoop_of(f.team))
+            ux, uy = unit(f.dunk_to[0] - hx, f.dunk_to[1] - hy)
+            f.x, f.y = hx + ux * (Court.RIM_R + 6), hy + uy * (Court.RIM_R + 6)
+            f.vx = f.vy = 0.0
+            f.lift = Court.RIM_Z - 48 + math.sin(f.hang * 0.5) * 3      # as mãos no aro
+            if f.hang == 0:
+                f.jump = JUMP_FRAMES // 2
+        elif f.dunking:
             f.dunking -= 1
             k = 1 - f.dunking / f.dunk_total
             (x0, y0), (x1, y1) = f.dunk_from, f.dunk_to
             f.x, f.y = x0 + (x1 - x0) * k, y0 + (y1 - y0) * k
             f.vx = f.vy = 0.0
-            f.lift = JUMP_H * math.sin(k * math.pi / 2)
+            peak = 110 if (f.fly_dunk or f.alley_dunk) else JUMP_H
+            f.lift = peak * math.sin(k * math.pi / 2) if k < 0.85 else peak * (1 - (k - 0.85) * 2)
+            if (f.fly_dunk or f.alley_dunk) and self.frame % 3 == 0:
+                self.burst(f.x, f.y + 18, (84, 162, 222), 2, speed=1)
+            if f.dunk_move == "GIRO 360" and k < 0.9:
+                a = k * math.tau / 0.9           # uma volta inteira no ar
+                hx, hy = self.hoop_pos(self.hoop_of(f.team))
+                bx, by = unit(hx - f.x, hy - f.y)
+                c, s_ = math.cos(a), math.sin(a)
+                f.facing = (bx * c - by * s_, bx * s_ + by * c)
+            elif f.dunk_move == "CAMBALHOTA":
+                f.spin = -360 * min(1.0, k / 0.85) * (1 if f.facing[0] >= 0 else -1)
             if f.dunking == 0:
                 if self.holder is f:
                     self._dunk_release(f)
@@ -518,13 +770,20 @@ class BasketballMatch(Match):
                 if f.jump_shot and self.holder is f:
                     self.release_shot(f, 1.0)   # não soltou: sai torto na descida
                 f.jump, f.jump_shot, f.lift = 0, False, 0
-        for name in ("feint_timer", "steal_timer", "steal_cd"):
+        for name in ("feint_timer", "steal_timer", "steal_cd", "glue_timer", "wall_timer", "hot_timer",
+                     "ghost_timer", "frost_timer"):
             if getattr(f, name) > 0:
                 setattr(f, name, getattr(f, name) - 1)
         if f.meter_flash is not None:
             timing, half, frames = f.meter_flash
             f.meter_flash = (timing, half, frames - 1) if frames > 1 else None
+        if f.moto_timer > 0 and f.hack_timer > 0:
+            f.hack_timer = f.stun_timer = 0     # de moto, o hack não pega
+        if f.hacked:
+            f.glue_timer = f.wall_timer = 0
+        self._power_glow(f)
         if f.fire_timer > 0:
+            f.super_cd = 0                      # pegando fogo: o SUPER recarrega na hora
             f.fire_timer -= 1
             if self.frame % 2 == 0:
                 self.burst(f.x + random.uniform(-12, 12), f.y - random.uniform(10, 50) - f.lift,
@@ -596,8 +855,8 @@ class BasketballMatch(Match):
                 self.steal(f, stick)
             elif inp.double_tap:
                 self.steal(f, inp.double_tap)
-        if inp.pressed("super"):
-            self.assets.play("cancel", 0.2)     # os SUPERs do basquete chegam na etapa 5
+        if inp.pressed("super") and not self.use_power(f):
+            self.assets.play("cancel", 0.2)
 
     def _update_ball(self):
         ball = self.ball
@@ -611,7 +870,12 @@ class BasketballMatch(Match):
         if owner is not None:
             # a bola quica sozinha ao lado do jogador (o drible é automático)
             fx, fy = owner.facing
-            if owner.jump or owner.dunking:
+            if owner.dunking and owner.dunk_move == "MOINHO":
+                # moinho: a bola dá uma volta grande com o braço esticado
+                a = (1 - owner.dunking / owner.dunk_total) * math.tau * 1.25
+                ball.x, ball.y = owner.x + fx * 30 * math.cos(a), owner.y + 2
+                ball.z = owner.lift + config.BODY_HEIGHT + 30 * math.sin(a) - 4
+            elif owner.jump or owner.dunking:
                 # no pulo a bola vai nas mãos, em cima da cabeça
                 ball.x, ball.y = owner.x + fx * 6, owner.y + 2
                 ball.z = owner.lift + config.BODY_HEIGHT + 30
@@ -630,18 +894,23 @@ class BasketballMatch(Match):
                 return
         _bounce_off_walls(ball, self.arena.walls)
         ball.near_hoop = any(abs(ball.x - Court.hoop_x(s)) < 80 and abs(ball.y - Court.MID_Y) < 60 for s in (0, 1))
+        if self.alley is not None:
+            self._update_alley()
+            if self.holder is not None:
+                return
         if self._block():
             return
+        self._faro_pull()
         self._rebound_pull()
         self._catch()
 
     def _block_dunk(self):
         """Toco na enterrada: quem está no ar encosta em quem voa para o aro e a bola sai."""
         owner = self.holder
-        if owner is None or not owner.dunking:
-            return False
+        if owner is None or not owner.dunking or owner.fly_dunk or owner.alley_dunk:
+            return False                        # a voadora e a do alley-oop passam por cima
         for f in self.foes_of(owner):
-            if f.lift < 10 or f.distance_to(owner) > f.radius + owner.radius + BLOCK_REACH:
+            if self._reach_lift(f) < 10 or f.distance_to(owner) > f.radius + owner.radius + self._block_reach(f):
                 continue
             ball = self.ball
             self._release(owner, 30)
@@ -653,8 +922,17 @@ class BasketballMatch(Match):
             return True
         return False
 
-    def _toco(self, f, ball):
-        self.popup(f.x, f.y - 90, "TOCO!", theme.BRASS)
+    @staticmethod
+    def _reach_lift(f):
+        """Altura do pulo para o toco; o Gigante alcança sem pular."""
+        return max(f.lift, 30) if f.giant_timer > 0 else f.lift
+
+    @staticmethod
+    def _block_reach(f):
+        return BLOCK_REACH + f.power.block_bonus + (16 if f.giant_timer > 0 else 0)
+
+    def _toco(self, f, ball, text="TOCO!"):
+        self.popup(f.x, f.y - 90, text, theme.BRASS)
         self.burst(ball.x, ball.y - ball.z, (236, 230, 220), 10, speed=4)
         self.camera.shake(4)
         self.hit_pause(4)
@@ -665,12 +943,29 @@ class BasketballMatch(Match):
         ball, shot = self.ball, self.shot
         if shot is None or shot.get("touched") or shot.get("blocked"):
             return False
+        hx, hy = self.hoop_pos(shot["side"])
         for f in self.fighters:
-            if f.lift < 10 or f.team == shot["team"]:
+            if f.team == shot["team"] or f.stunned:
                 continue
-            reach = f.lift + config.BODY_HEIGHT + 64
+            if shot.get("ghost") and not f.power.ghost_proof:
+                continue                        # bola fantasma: atravessa mãos e tocos
+            if (f.wall_timer > 0 and ball.vz < 0 and math.hypot(ball.x - hx, ball.y - hy) < 110
+                    and math.hypot(f.x - hx, f.y - hy) < 260):
+                # Toco Voador: o Paredão sobe e tira a bola antes do aro
+                f.wall_timer = 0
+                f.jump = 1
+                ux, uy = unit(ball.x - hx, ball.y - hy) if math.hypot(ball.x - hx, ball.y - hy) > 1 else (0.0, 1.0)
+                ball.vx, ball.vy, ball.vz = ux * 6, uy * 6, 3.0
+                shot["blocked"] = True
+                self.shot = None
+                self._toco(f, ball, "TOCO VOADOR!")
+                return True
+            lift = self._reach_lift(f)
+            if lift < 10:
+                continue
+            reach = lift + config.BODY_HEIGHT + 64
             d = math.hypot(f.x - ball.x, f.y - ball.y)
-            if d < f.radius + ball.radius + BLOCK_REACH and ball.z < reach:
+            if d < f.radius + ball.radius + self._block_reach(f) and ball.z < reach:
                 ux, uy = unit(ball.x - f.x, ball.y - f.y) if d > 1 else unit(-ball.vx, -ball.vy)
                 ball.vx, ball.vy, ball.vz = ux * 6, uy * 6, 2.5
                 shot["blocked"] = True
@@ -705,6 +1000,20 @@ class BasketballMatch(Match):
             ball.vx = -ball.vx * BOARD_KEEP
             ball.vy *= BOARD_KEEP
             self.assets.play("click", 0.3)
+        if (self.lids[side] > 0 and z0 >= Court.RIM_Z > ball.z - ball.radius
+                and math.hypot(ball.x - hx, ball.y - hy) < Court.RIM_R + ball.radius):
+            # Tampa no Aro: a bola bate na tampa e volta
+            ux, uy = unit(ball.x - hx, ball.y - hy) if math.hypot(ball.x - hx, ball.y - hy) > 1 \
+                else ((1.0, 0.0) if side == 0 else (-1.0, 0.0))
+            ball.z = Court.RIM_Z + ball.radius
+            ball.vz = abs(ball.vz) * 0.5 + 2.0
+            ball.vx, ball.vy = ux * 3.0, uy * 3.0
+            self.shot_clock = 0
+            if self.shot is not None:
+                self.shot["touched"] = True
+            self.assets.play("click", 0.5)
+            self.burst(hx, hy - Court.RIM_Z, (150, 226, 240), 6, speed=3)
+            return
         hit = rim_contact(ball.x, ball.y, ball.z, hx, hy, Court.RIM_Z, Court.RIM_R, ball.radius)
         if hit is not None:
             (nx, ny, nz), depth = hit
@@ -728,14 +1037,33 @@ class BasketballMatch(Match):
             return
         if self.shot is not None and ball.vz > 0 and not self.shot.get("touched"):
             return                           # arremesso subindo: só o toco tira
+        alley = self.alley
         best, best_d = None, 1e9
         for f in self.fighters:
-            if f.stunned or f in self.no_catch or ball.z >= CATCH_HEIGHT + f.lift:
+            if f.stunned or f in self.no_catch:
+                continue
+            high = CATCH_HEIGHT + f.lift + (40 if f.giant_timer > 0 else 0)
+            reach = 12 + (14 if f.giant_timer > 0 else 0) + (12 if f.nose_timer > 0 else 0)
+            if alley is not None:
+                if f is alley["to"]:
+                    high, reach = high + 70, reach + 16    # o alley-oop vai alto, na mão dele
+                elif ball.z > CATCH_HEIGHT * 0.6:
+                    continue
+            if ball.z >= high:
                 continue                     # no pulo, pega mais alto (rebote)
             d = math.hypot(f.x - ball.x, f.y - ball.y)
-            if d < f.radius + ball.radius + 12 and d < best_d:
+            if d < f.radius + ball.radius + reach and d < best_d:
                 best, best_d = f, d
+        if best is not None and alley is not None and best is alley["to"]:
+            self.alley = None
+            self._give(best)
+            hx, hy = self.hoop_pos(self.hoop_of(best.team))
+            if math.hypot(hx - best.x, hy - best.y) < Court.THREE_R + 120:
+                self.dunk(best, alley=True)
+                self.popup(best.x, best.y - 110, "ALLEY-OOP!", theme.BRASS)
+            return
         if best is not None:
+            self.alley = None
             if self.shot is not None and best.team != self.shot["team"]:
                 self.popup(best.x, best.y - 74, "REBOTE", theme.BONE)
             self._give(best)
@@ -841,8 +1169,11 @@ class BasketballMatch(Match):
             f.stamina, f.exhausted = 1.0, False
             f.jump = f.dunking = 0
             f.jump_shot, f.lift, f.protecting = False, 0, False
+            f.fly_dunk = f.alley_dunk = False
+            f.hang, f.spin = 0, 0
             hx, _ = self.hoop_pos(self.hoop_of(f.team))
             f.facing = (1.0, 0.0) if hx > f.x else (-1.0, 0.0)
+        self.alley = None
 
     def _end(self, team):
         self.result_team = team
@@ -868,6 +1199,18 @@ class BasketballMatch(Match):
             rect = pygame.Rect(0, 0, 54, 18)
             rect.center = (round(p.x - cam.x), round(p.y - cam.y) + 22)
             pygame.draw.ellipse(view, (232, 232, 220), rect, 1)
+
+    def draw_over_walls(self, view, cam):
+        """Tampa no Aro: um disco por cima do aro tampado."""
+        for side in (0, 1):
+            frames = self.lids[side]
+            if frames <= 0 or (frames < 40 and (frames // 4) % 2 == 0):
+                continue
+            hx, hy = self.hoop_pos(side)
+            rect = pygame.Rect(0, 0, Court.RIM_R * 2 + 10, 14)
+            rect.center = (round(hx - cam.x), round(hy - Court.RIM_Z - cam.y))
+            pygame.draw.ellipse(view, (20, 40, 56), rect)
+            pygame.draw.ellipse(view, (150, 226, 240), rect, 2)
 
     def draw(self, screen, ui):
         super().draw(screen, ui)
@@ -904,5 +1247,5 @@ class BasketballMatch(Match):
         hud.draw_basket(screen, ui, self)
 
     def hud_regions(self):
-        W = config.SCREEN_W
-        return [pygame.Rect(W // 2 - 166, 0, 332, 96)]
+        W, H = config.SCREEN_W, config.SCREEN_H
+        return [pygame.Rect(W // 2 - 166, 0, 332, 96), pygame.Rect(0, H - 52, W, 52)]   # placar e SUPER

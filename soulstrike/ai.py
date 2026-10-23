@@ -397,6 +397,10 @@ class BasketballAI:
             if me.jump >= self.release_at:
                 match.release_shot(me)
             return
+        power = me.power
+        if (power is not None and me.super_cd <= 0 and not me.dunking and random.random() < 0.05
+                and power.worth_using(me, match) and match.use_power(me)):
+            return
         side = match.hoop_of(me.team)
         hx, hy = match.hoop_pos(side)
         home_x, _ = match.hoop_pos(1 - side)

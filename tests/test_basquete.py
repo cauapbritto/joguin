@@ -8,6 +8,8 @@ from apoio import FakeInput, game, run
 from soulstrike import basketball as B
 from soulstrike import config
 from soulstrike.arena import BASKET_MAPS, MAPS_BY_KEY, Court
+from soulstrike.basket_powers import BASKET_POWERS
+from soulstrike.data import CHARACTERS
 from soulstrike.basket_assist import (JUMP_FRAMES, aim_point, board_hit, bounce, flight_frames, green_half,
                                       miss_distance, rim_contact, shot_error, shot_velocity, steal_chance,
                                       through_hoop)
@@ -336,6 +338,182 @@ class Partida(unittest.TestCase):
         self.assertTrue(match.finished)
         self.assertGreater(sum(match.score), 0)
         self.assertEqual(sum(f.points for f in match.fighters), sum(match.score))
+
+
+def de(match, key):
+    return next(f for f in match.fighters if f.stats.key == key)
+
+
+def com_bola(match, f, x, y):
+    f.x, f.y = x, y
+    match.ball.reset(x, y)
+    match._give(f)
+
+
+class Poderes(unittest.TestCase):
+    """SUPERs do basquete (etapa 5). As vagas 1 e 3 são do time 0, as 2 e 4 do time 1."""
+
+    def test_todo_mundo_tem_super_e_aparece_no_hud(self):
+        self.assertEqual(set(BASKET_POWERS), {c.key for c in CHARACTERS})
+        match, _ = basquete(humans=(1, 2))
+        for f in match.fighters:
+            self.assertIs(type(f.power), BASKET_POWERS[f.stats.key])
+        g = game()
+        match.draw(g.screen, g.ui)
+
+    def test_recarga_e_poder_que_precisa_da_bola(self):
+        match, _ = basquete(chars=(15, 1, 2, 3))
+        cauan = de(match, "cauanzera")
+        self.assertFalse(match.use_power(cauan))                 # sem a bola não enterra
+        tanque = de(match, "tanque")
+        self.assertTrue(match.use_power(tanque))
+        self.assertFalse(match.use_power(tanque))                # recarregando
+        self.assertEqual(tanque.super_cd, 8 * config.FPS)
+
+    def test_tampa_no_aro_e_o_exo_arranca(self):
+        match, _ = basquete(chars=(17, 2, 4, 3))
+        side = match.hoop_of(0)
+        hx = Court.hoop_x(side)
+        inward = -1 if side == 1 else 1
+        self.assertTrue(match.use_power(de(match, "tanque")))
+        arremesso(match, 0, hx + inward * 350, 600)
+        self.assertEqual(match.score, [0, 0])                    # bateu na tampa
+        match.lids[side] = 4 * config.FPS
+        borba = de(match, "borba")
+        self.assertTrue(match.use_power(borba))
+        com_bola(match, borba, hx + inward * 150, 600)
+        self.assertTrue(match.start_shot(borba))
+        run(match, 120)
+        self.assertEqual(match.score, [2, 0])
+        self.assertEqual(match.lids[side], 0)
+
+    def test_toco_voador(self):
+        match, _ = basquete(chars=(4, 18, 2, 3))
+        side = match.hoop_of(0)
+        hx = Court.hoop_x(side)
+        paredao = de(match, "paredao")
+        self.assertTrue(match.use_power(paredao))
+        self.assertLess(abs(paredao.x - hx), 80)
+        arremesso(match, 0, hx + (-350 if side == 1 else 350), 600)
+        self.assertEqual(match.score, [0, 0])
+
+    def test_mao_quente_acerta_ate_atrasado(self):
+        match, _ = basquete(chars=(1, 4, 2, 3))
+        side = match.hoop_of(0)
+        hx = Court.hoop_x(side)
+        self.assertTrue(match.use_power(de(match, "atirador")))
+        arremesso(match, 0, hx + (-800 if side == 1 else 800), 600, certo=False)
+        self.assertEqual(match.score, [3, 0])
+
+    def test_enterrada_voadora_da_linha_de_3(self):
+        match, _ = basquete(chars=(15, 4, 2, 3))
+        side = match.hoop_of(0)
+        hx = Court.hoop_x(side)
+        cauan = de(match, "cauanzera")
+        com_bola(match, cauan, hx + (-520 if side == 1 else 520), 600)
+        self.assertTrue(match.use_power(cauan))
+        run(match, 150)
+        self.assertEqual(match.score, [2, 0])
+
+    def test_gancho_puxa_a_bola(self):
+        match, _ = basquete(chars=(4, 8, 2, 3))
+        atk = de(match, "velocista")
+        com_bola(match, atk, 1000, 600)
+        pirata = de(match, "pirata")
+        pirata.x, pirata.y = 1300, 600
+        self.assertTrue(match.use_power(pirata))
+        self.assertIs(match.holder, pirata)
+
+    def test_hack_derruba_a_bola(self):
+        match, _ = basquete(chars=(4, 16, 2, 3))
+        atk = de(match, "velocista")
+        com_bola(match, atk, 1000, 600)
+        hacker = de(match, "albeguinio")
+        hacker.x, hacker.y = 1200, 600
+        self.assertTrue(match.use_power(hacker))
+        run(match, 60)
+        self.assertIsNot(match.holder, atk)
+
+    def test_congelar_e_o_exo_nao_sente(self):
+        match, _ = basquete(chars=(4, 9, 17, 3))
+        geada = de(match, "geada")
+        atk, borba = de(match, "velocista"), de(match, "borba")
+        geada.x, geada.y = 1000, 600
+        atk.x, atk.y = 1100, 600
+        borba.x, borba.y = 1000, 700
+        match.use_power(borba)
+        self.assertTrue(match.use_power(geada))
+        self.assertGreater(atk.frost_timer, 0)
+        self.assertEqual(borba.frost_timer, 0)
+
+    def test_bomba_encolhe_o_gigante(self):
+        match, _ = basquete(chars=(10, 7, 2, 3))
+        bomba, tita = de(match, "aryel_corrompido"), de(match, "tita")
+        bomba.x, bomba.y = 1000, 600
+        tita.x, tita.y = 1080, 600
+        self.assertTrue(match.use_power(tita))
+        self.assertGreater(tita.giant_timer, 0)
+        self.assertTrue(match.use_power(bomba))
+        self.assertEqual(tita.giant_timer, 0)
+        self.assertTrue(tita.stunned)
+
+    def test_bola_fantasma_passa_pelo_toco(self):
+        match, _ = basquete(chars=(6, 4, 2, 3))
+        atk, dfn = de(match, "fantasma"), de(match, "velocista")
+        side = match.hoop_of(0)
+        hx = Court.hoop_x(side)
+        com_bola(match, atk, hx + (-400 if side == 1 else 400), 600)
+        dfn.x, dfn.y = atk.x + (24 if side == 1 else -24), 600
+        self.assertTrue(match.use_power(atk))
+        match.start_shot(atk)
+        run(match, 4)
+        match.jump(dfn)
+        run(match, 14)
+        match.release_shot(atk, 0.5)
+        run(match, 200)
+        self.assertEqual(match.score, [2, 0])
+
+
+class Enterradas(unittest.TestCase):
+    def enterrada(self, chars=(0, 1, 2, 3), voadora=False):
+        match, _ = basquete(chars=chars)
+        f = next(f for f in match.fighters if f.team == 0)
+        side = match.hoop_of(0)
+        hx = Court.hoop_x(side)
+        com_bola(match, f, hx + ((-520 if voadora else -230) if side == 1 else (520 if voadora else 230)), 620)
+        if voadora:
+            self.assertTrue(match.use_power(f))
+        else:
+            self.assertTrue(match.start_shot(f))
+        return match, f, side
+
+    def test_tipos_normais_e_vistosos(self):
+        random.seed(3)
+        normais = {self.enterrada()[1].dunk_move for _ in range(30)}
+        self.assertEqual(normais, set(B.DUNKS))
+        vistosos = {self.enterrada(chars=(15, 1, 2, 3), voadora=True)[1].dunk_move for _ in range(30)}
+        self.assertEqual(vistosos, set(B.SHOW_DUNKS))
+
+    def test_cada_tipo_faz_a_cesta_e_o_aro_treme(self):
+        for move in B.DUNKS + B.SHOW_DUNKS:
+            match, f, side = self.enterrada()
+            f.dunk_move = move
+            run(match, f.dunk_total)
+            self.assertTrue(any(h.shake > 0 for h in match.hoops if h.side == side), move)
+            run(match, 100)
+            self.assertEqual(match.score, [2, 0], move)
+            self.assertEqual(f.spin, 0)
+            self.assertEqual(f.lift, 0)
+
+    def test_pendurado_fica_no_aro(self):
+        match, f, side = self.enterrada()
+        f.dunk_move = "PENDURADO NO ARO"
+        run(match, f.dunk_total + 5)
+        self.assertGreater(f.hang, 0)
+        self.assertGreater(f.lift, B.JUMP_H)
+        self.assertLess(abs(f.x - Court.hoop_x(side)), Court.RIM_R + 10)
+        run(match, B.HANG_FRAMES + B.JUMP_FRAMES)
+        self.assertEqual((f.hang, f.lift), (0, 0))
 
 
 if __name__ == "__main__":
