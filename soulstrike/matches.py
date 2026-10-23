@@ -2097,7 +2097,7 @@ def create_match(game, session):
         return TrainingMatch(game, session)
     if session.basket:
         from .basketball import BasketballMatch
-        return BasketballMatch(game, session)
+        return BasketballMatch(game, session, warmup=True)     # com aquecimento antes da bola ao alto
     if session.soccer:
         return SoccerMatch(game, session)
     return TeamBattleMatch(game, session) if session.team_mode else BattleMatch(game, session)

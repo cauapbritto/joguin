@@ -7,6 +7,11 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.4.0": [
+        "Basquete: 1 minuto de aquecimento antes da bola ao alto, cada time no seu lado e cada um com a sua bola.",
+        "No aquecimento, a cesta não conta: é para treinar a barrinha, a enterrada e a finta.",
+        "Aperte SUPER para dizer que está pronto: quando todos estiverem, a partida começa na hora.",
+    ],
     "1.3.0": [
         "Basquete: o SUPER agora funciona! Cada personagem tem o seu, e ele volta a cada 8 segundos.",
         "Defesa: Marcação Colada, Toco Voador, Tampa no Aro, Gigante, Congelar, Gancho e Hack.",
