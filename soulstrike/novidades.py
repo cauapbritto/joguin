@@ -7,6 +7,15 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.2.0": [
+        "Basquete: segure CHUTAR para pular e solte na faixa verde da barrinha. De 3, a faixa é estreita.",
+        "Dentro do garrafão, CHUTAR enterra sozinho, voando até o aro.",
+        "Sem a bola, CHUTAR pula para dar toco ou pegar o rebote mais alto.",
+        "CORTE com a bola faz a finta; sem a bola, rouba (melhor de lado ou por trás).",
+        "MARCAR com a bola protege; sem a bola, cola no adversário.",
+        "Três cestas seguidas do mesmo jogador: PEGANDO FOGO, com a faixa verde quase inteira.",
+        "Esta tela de novidades aparece sempre que o jogo for atualizado.",
+    ],
     "1.1.0": [
         "Novo modo BASQUETE 2 x 2, com três quadras: Ginásio, Quadra de Rua e Arena Soul Strike.",
         "Cesta de 2 e de 3, enterrada no garrafão, posse de 10 segundos e dois tempos de 2 minutos.",

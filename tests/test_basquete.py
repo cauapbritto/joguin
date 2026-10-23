@@ -8,7 +8,8 @@ from apoio import FakeInput, game, run
 from soulstrike import basketball as B
 from soulstrike import config
 from soulstrike.arena import BASKET_MAPS, MAPS_BY_KEY, Court
-from soulstrike.basket_assist import (aim_point, board_hit, bounce, flight_frames, rim_contact, shot_velocity,
+from soulstrike.basket_assist import (JUMP_FRAMES, aim_point, board_hit, bounce, flight_frames, green_half,
+                                      miss_distance, rim_contact, shot_error, shot_velocity, steal_chance,
                                       through_hoop)
 from soulstrike.matches import create_match
 from soulstrike.session import Session, SlotSetup
@@ -37,17 +38,16 @@ def basquete(chars=(0, 1, 2, 3), humans=(), key="quadra_ginasio"):
 
 
 def arremesso(match, team, x, y, certo=True):
-    """Coloca a bola na mão de alguém do time em (x, y), arremessa e deixa a bola voar."""
+    """Coloca a bola na mão de alguém do time em (x, y), arremessa (soltando no topo do pulo ou
+    bem atrasado) e deixa a bola voar."""
     f = next(f for f in match.fighters if f.team == team)
     f.x, f.y = x, y
     match.ball.reset(x, y)
     match._give(f)
-    old = dict(B.MAKE_CHANCE)
-    B.MAKE_CHANCE.update({k: (1.0 if certo else 0.0) for k in old})
-    try:
-        match.shoot(f)
-    finally:
-        B.MAKE_CHANCE.update(old)
+    match.start_shot(f)
+    if f.jump_shot:
+        run(match, 10)
+        match.release_shot(f, 0.5 if certo else 0.98)
     run(match, 200)
     return f
 
@@ -109,6 +109,25 @@ class Geometria(unittest.TestCase):
         self.assertFalse(board_hit(bx + 20, bx + 8, 0, 40, bx, 0, 60, Court.BOARD_Z, 12))   # embaixo
         bx = Court.board_x(1)
         self.assertTrue(board_hit(bx - 20, bx - 8, 10, 120, bx, 1, 60, Court.BOARD_Z, 12))
+
+    def test_faixa_verde(self):
+        self.assertAlmostEqual(green_half(300, False), 0.30)
+        self.assertAlmostEqual(green_half(500, True), 0.075)
+        self.assertLess(green_half(1100, True), green_half(600, True))
+        self.assertAlmostEqual(green_half(1100, True, on_fire=True), 0.45)
+        self.assertEqual(shot_error(0.5, 0.075), 0)
+        self.assertEqual(shot_error(0.57, 0.075), 0)
+        self.assertGreater(shot_error(0.7, 0.075), 0)
+        self.assertEqual(miss_distance(0, 20), 0)
+        self.assertGreater(miss_distance(0.3, 20), miss_distance(0.01, 20))
+
+    def test_chance_de_roubo(self):
+        frente = steal_chance((1, 0), 30, 0)
+        lado = steal_chance((1, 0), 0, 30)
+        tras = steal_chance((1, 0), -30, 0)
+        self.assertLess(frente, lado)
+        self.assertLess(lado, tras)
+        self.assertLess(steal_chance((1, 0), -30, 0, protecting=True), 0.1)
 
     def test_mira_de_erro_fica_na_borda(self):
         self.assertEqual(aim_point(184, 600, 600, 600, 0, 1), (184, 600))
@@ -202,6 +221,105 @@ class Partida(unittest.TestCase):
         run(match, 400)
         self.assertTrue(match.finished)
         self.assertEqual(match.result.score, (0, 2))
+
+    def test_barrinha_no_humano(self):
+        match, inputs = basquete(humans=(1,))
+        me = next(f for f in match.fighters if f.slot == 1)
+        side = match.hoop_of(me.team)
+        hx = Court.hoop_x(side)
+        me.x, me.y = hx + (-380 if side == 1 else 380), 600
+        match.ball.reset(me.x, me.y)
+        match._give(me)
+        inputs[1].hold("attack")
+        run(match, JUMP_FRAMES // 2, inputs)
+        self.assertTrue(me.jump_shot)
+        self.assertGreater(me.lift, 20)
+        inputs[1].release("attack")
+        run(match, 200, inputs)
+        self.assertEqual(match.score[me.team], 2)
+
+    def test_segurar_demais_erra(self):
+        match, inputs = basquete(humans=(1,))
+        me = next(f for f in match.fighters if f.slot == 1)
+        side = match.hoop_of(me.team)
+        me.x, me.y = Court.hoop_x(side) + (-600 if side == 1 else 600), 600
+        match.ball.reset(me.x, me.y)
+        match._give(me)
+        inputs[1].hold("attack")
+        run(match, 220, inputs)
+        self.assertEqual(match.score, [0, 0])
+
+    def test_enterrada_de_longe_no_garrafao(self):
+        match, _ = basquete()
+        f = next(f for f in match.fighters if f.team == 0)
+        side = match.hoop_of(0)
+        hx = Court.hoop_x(side)
+        f.x, f.y = hx + (-260 if side == 1 else 260), 640
+        match.ball.reset(f.x, f.y)
+        match._give(f)
+        self.assertTrue(match.start_shot(f))
+        self.assertTrue(f.dunking)
+        run(match, 120)
+        self.assertEqual(match.score, [2, 0])
+        self.assertLess(abs(f.x - hx), 80)
+
+    def test_toco_no_arremesso(self):
+        match, _ = basquete()
+        atk = next(f for f in match.fighters if f.team == 0)
+        dfn = next(f for f in match.fighters if f.team == 1)
+        side = match.hoop_of(0)
+        hx = Court.hoop_x(side)
+        atk.x, atk.y = hx + (-400 if side == 1 else 400), 600
+        dfn.x, dfn.y = atk.x + (24 if side == 1 else -24), 600
+        match.ball.reset(atk.x, atk.y)
+        match._give(atk)
+        match.start_shot(atk)
+        run(match, 4)
+        match.jump(dfn)
+        run(match, 14)
+        match.release_shot(atk, 0.5)
+        run(match, 200)
+        self.assertEqual(match.score, [0, 0])
+
+    def test_finta_faz_o_roubo_errar(self):
+        match, _ = basquete()
+        atk = next(f for f in match.fighters if f.team == 0)
+        dfn = next(f for f in match.fighters if f.team == 1)
+        atk.x, atk.y, atk.facing = 1000, 600, (1.0, 0.0)
+        dfn.x, dfn.y = 1000, 650
+        match.ball.reset(atk.x, atk.y)
+        match._give(atk)
+        self.assertTrue(match.feint(atk, (0, -1)))
+        match.steal(dfn)
+        run(match, 12)
+        self.assertIs(match.holder, atk)
+        self.assertTrue(dfn.stunned)
+
+    def test_roubo_por_tras(self):
+        random.seed(1)
+        roubos = 0
+        for _ in range(20):
+            match, _ = basquete()
+            atk = next(f for f in match.fighters if f.team == 0)
+            dfn = next(f for f in match.fighters if f.team == 1)
+            atk.x, atk.y, atk.facing = 1000, 600, (1.0, 0.0)
+            dfn.x, dfn.y = 950, 600
+            match.ball.reset(atk.x, atk.y)
+            match._give(atk)
+            match.steal(dfn)
+            run(match, 12)
+            roubos += match.holder is dfn
+        self.assertGreater(roubos, 12)
+
+    def test_pegando_fogo_com_tres_seguidas(self):
+        match, _ = basquete()
+        side = match.hoop_of(0)
+        hx = Court.hoop_x(side)
+        for _ in range(3):
+            f = arremesso(match, 0, hx + (-350 if side == 1 else 350), 600)
+        self.assertEqual(match.score[0], 6)
+        self.assertGreater(f.fire_timer, 0)
+        self.assertAlmostEqual(green_half(900, True, match.on_fire(f)), 0.45)
 
     def test_cpu_contra_cpu_joga_a_partida_toda(self):
         g = game()

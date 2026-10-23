@@ -372,14 +372,31 @@ class BasketballAI:
         self.wait = random.randint(10, 30)      # quadros com a bola antes de pensar em arremessar
         self.had_ball = False
         self.lane = random.choice((-1, 1))      # para que lado abre quando o companheiro tem a bola
+        self.release_at = 20
+
+    @staticmethod
+    def _release_frame(me, three, jump_frames):
+        """Quando soltar a barrinha: a CPU acerta o tempo na maioria das vezes, menos no de 3."""
+        half = me.shot_half
+        if random.random() < (0.55 if three else 0.8):
+            t = 0.5 + random.uniform(-0.8, 0.8) * half
+        else:
+            t = 0.5 + random.choice((-1, 1)) * (half + random.uniform(0.03, 0.2))
+        return max(2, min(jump_frames, round(t * jump_frames)))
 
     def update(self, me, match):
         from .arena import Court
+        from .basket_assist import JUMP_FRAMES
+        from .basketball import DUNK_RANGE
         if match.freeze or match.ending:
             me.steer(0, 0)
             return
         ball = match.ball
         owner = match.holder
+        if me.jump_shot and owner is me:
+            if me.jump >= self.release_at:
+                match.release_shot(me)
+            return
         side = match.hoop_of(me.team)
         hx, hy = match.hoop_pos(side)
         home_x, _ = match.hoop_pos(1 - side)
@@ -394,13 +411,25 @@ class BasketballAI:
             dist = math.hypot(hx - me.x, hy - me.y)
             foes = match.foes_of(me)
             pressure = min((math.hypot(f.x - me.x, f.y - me.y) for f in foes), default=999)
-            close = Court.in_key(side, me.x, me.y) and dist < 150
-            open_shot = pressure > 120 and dist < 560
+            close = Court.in_key(side, me.x, me.y) and dist < DUNK_RANGE
+            three = Court.is_three(side, me.x, me.y)
+            open_shot = (pressure > 110 and dist < 620) or (pressure > 75 and not three and dist < 420)
+            mates = match.mates_of(me)
+            blocked = any(_off_lane(f, me, _Spot(hx, hy)) < 50 and f.distance_to(_Spot(hx, hy)) < dist
+                          for f in foes)
+            if close and blocked and mates and random.random() < 0.05:
+                mate = mates[0]
+                if all(_off_lane(f, me, mate) > 50 for f in foes):      # garrafão fechado: toca
+                    match.pass_ball(me, (mate.x - me.x, mate.y - me.y))
+                    return
             late = match.shot_clock > 7 * config.FPS
             if self.wait <= 0 and (close or open_shot or late):
-                match.shoot(me)
+                if match.start_shot(me) and me.jump_shot:
+                    self.release_at = self._release_frame(me, Court.is_three(side, me.x, me.y), JUMP_FRAMES)
                 return
-            mates = match.mates_of(me)
+            if pressure < 45 and random.random() < 0.025:
+                match.feint(me)
+                return
             if mates and pressure < 50 and random.random() < 0.04:
                 mate = mates[0]
                 if all(_off_lane(f, me, mate) > 50 for f in foes):      # só passa com a linha livre
@@ -417,6 +446,17 @@ class BasketballAI:
             me.sprint_held = me.stamina > 0.3 and dist > 300
             return
         self.had_ball = False
+        if not me.jump and not me.dunking:
+            if owner is not None and owner.team != me.team:
+                d = me.distance_to(owner)
+                if (owner.jump_shot or owner.dunking) and d < 80 and random.random() < 0.12:
+                    match.jump(me)              # toco
+                    return
+                if d < 60 and not owner.jump and random.random() < 0.015:
+                    match.steal(me)
+            elif (owner is None and match.shot is not None and match.shot.get("touched")
+                  and dist_ball < 40 and 40 < ball.z < 110 and random.random() < 0.2):
+                match.jump(me)                  # rebote no alto
 
         if owner is None:
             # bola solta: vai até onde ela vai cair
@@ -456,3 +496,10 @@ def _off_lane(p, a, b):
     L = dx * dx + dy * dy or 1
     t = max(0.0, min(1.0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / L))
     return math.hypot(a.x + dx * t - p.x, a.y + dy * t - p.y)
+
+
+class _Spot:
+    """Um ponto com x e y, para as contas de distância (o aro, por exemplo)."""
+
+    def __init__(self, x, y):
+        self.x, self.y = x, y
