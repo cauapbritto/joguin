@@ -456,7 +456,7 @@ class BasketballAI:
                 if (owner.jump_shot or owner.dunking) and d < 80 and random.random() < 0.12:
                     match.jump(me)              # toco
                     return
-                if d < 60 and not owner.jump and random.random() < 0.015:
+                if d < 60 and not owner.jump and random.random() < 0.006:
                     match.steal(me)
             elif (owner is None and match.shot is not None and match.shot.get("touched")
                   and dist_ball < 40 and 40 < ball.z < 110 and random.random() < 0.2):

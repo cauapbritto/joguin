@@ -13,6 +13,9 @@ NEWS = {
         "Ataque: Mão Quente, Enterrada Voadora (da linha de 3), Bola Fantasma, Alley-oop Trovão e mais.",
         "Todo SUPER de ataque tem um contra. Ex.: a enterrada do Exo arranca a Tampa no Aro.",
         "Enterradas novas: Giro 360 e Pendurado no Aro. Pegando fogo ou com SUPER: Moinho e Cambalhota.",
+        "Escolha a quadra antes da partida com TAB: Ginásio, Quadra de Rua ou Arena Soul Strike.",
+        "Quem pega fogo deixa o aro em chamas. Sons novos de quique, aro, rede, toco e buzina.",
+        "No fim, o placar mostra os pontos de cada um, o que mais ele fez (enterradas, tocos ou roubos) e o destaque.",
         "A caixa do SUPER aparece no canto da tela, e a escolha de personagem mostra o poder do basquete.",
     ],
     "1.2.0": [

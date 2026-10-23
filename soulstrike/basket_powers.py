@@ -94,7 +94,10 @@ class MarcacaoColada(BasketPower):
 
     def worth_using(self, user, match):
         owner = _foe_holder(user, match)
-        return owner is not None and user.distance_to(owner) < 300
+        if owner is None or user.distance_to(owner) > 300:
+            return False
+        hx, hy = _own_hoop(user, match)
+        return math.hypot(owner.x - hx, owner.y - hy) < 700      # só quando ele já ameaça a cesta
 
 
 class TocoVoador(BasketPower):
@@ -148,7 +151,8 @@ class TampaNoAro(BasketPower):
         hx, hy = _own_hoop(user, match)
         owner = _foe_holder(user, match)
         if owner is not None:
-            return math.hypot(owner.x - hx, owner.y - hy) < 520
+            # a CPU tampa só na hora: arremesso subindo ou enterrada a caminho
+            return (owner.jump_shot or owner.dunking) and math.hypot(owner.x - hx, owner.y - hy) < 600
         shot = match.shot
         return shot is not None and shot["team"] != user.team and not shot.get("touched")
 

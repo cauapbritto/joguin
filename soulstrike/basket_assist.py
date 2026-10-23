@@ -129,5 +129,5 @@ def steal_chance(facing, rel_x, rel_y, protecting=False):
     if dot > 0.4:
         return 0.25
     if dot < -0.4:
-        return 0.85
+        return 0.7
     return 0.55

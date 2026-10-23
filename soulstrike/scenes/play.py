@@ -281,7 +281,7 @@ class ResultsScene(_MenuScene):
             pygame.draw.ellipse(screen, theme.SHADOW, (x - 44, ground - 8, 88, 16))
             screen.blit(img, img.get_rect(midbottom=(x, ground + 4 - bob)))
 
-        panel = pygame.Rect(stage_x - 170, 330, 340, 24 + 22 * len(r.lines))
+        panel = pygame.Rect(stage_x - 200, 330, 400, 24 + 22 * len(r.lines))
         self.ui.panel(screen, panel)
         y = panel.y + 22
         for label, value in r.lines:
