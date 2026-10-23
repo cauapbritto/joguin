@@ -164,6 +164,9 @@ MODE_TEXT = {
     "soccer2": ("Times de dois. O jogador 2 entra pelo teclado (;) ou celular; o 3 e o 4, pelo celular. "
                 "Quem faltar vira CPU para fechar o time.",
                 "1 A 4 JOGADORES"),
+    "basket2": ("Basquete 2 x 2 no caos: a bola quica sozinha, cesta de 2 ou de 3 e dois tempos de 2 minutos. "
+                "No empate, a próxima cesta vence. Quem faltar vira CPU.",
+                "1 A 4 JOGADORES"),
     "treino": ("Para quem está começando: um boneco de treino parado e uma lição por vez na tela "
                "(andar, atacar, trocar de arma, esquivar, habilidade e itens). Ninguém perde.",
                "1 JOGADOR"),
@@ -183,7 +186,7 @@ class ModeScene(_MenuScene):
         from ..campaign import CampaignRun
         saved = progress.saved_campaign()
         self.saved_run = CampaignRun.from_save(saved) if saved else None
-        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2", "treino")]
+        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2", "basket2", "treino")]
         if self.saved_run is not None:
             options.insert(0, ("CONTINUAR CAMPANHA", "continue"))
         options.append(("VOLTAR", "back"))
@@ -283,6 +286,8 @@ class ModeScene(_MenuScene):
             "soccer1": [("velocista", "direita", -110), ("atirador", "esquerda", 110)],
             "soccer2": [("tita", "direita", -150), ("fantasma", "direita", -70),
                         ("guerreiro", "esquerda", 70), ("aryel", "esquerda", 150)],
+            "basket2": [("ninja", "direita", -150), ("velocista", "direita", -70),
+                        ("pirata", "esquerda", 70), ("tita", "esquerda", 150)],
         }[key]
         step = self.ticks // 4
         for name, direction, dx in cast:
@@ -297,6 +302,13 @@ class ModeScene(_MenuScene):
             bx = area.centerx + int(math.sin(self.ticks * 0.05) * 20)
             pygame.draw.circle(screen, (20, 18, 24), (bx, ground - 6), 9)
             pygame.draw.circle(screen, (238, 236, 228), (bx, ground - 6), 8)
+        elif key.startswith("basket"):
+            # bola de basquete quicando no meio
+            by = ground - 8 - int(abs(math.sin(self.ticks * 0.08)) * 46)
+            pygame.draw.circle(screen, (60, 24, 8), (area.centerx, by), 10)
+            pygame.draw.circle(screen, (226, 112, 36), (area.centerx, by), 9)
+            screen.fill((60, 24, 8), (area.centerx - 9, by, 18, 1))
+            screen.fill((60, 24, 8), (area.centerx, by - 9, 1, 18))
         screen.fill(theme.LINE, (area.x, area.bottom, area.w, 2))
 
 

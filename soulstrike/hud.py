@@ -303,6 +303,56 @@ def draw_goal_banner(screen, ui, team, scorer, own_goal, age):
         ui.text(screen, sub, theme.XS, theme.BONE, (W // 2, H // 2 + 30))
 
 
+
+def draw_basket(screen, ui, match):
+    """Placar do basquete: pontos dos times, relógio do tempo e os 10 segundos de posse."""
+    W = config.SCREEN_W
+    board = pygame.Rect(0, 0, 300, 48)
+    board.midtop = (W // 2, 10)
+    ui.panel(screen, board, fill=theme.INK_2)
+    half = board.w // 2
+    for team in (0, 1):
+        color = theme.TEAM_COLORS[team]
+        block = pygame.Rect(board.x + 4 + team * (half - 4), board.y + 4, half - 4, board.h - 8)
+        screen.fill(mix(color, theme.INK, 0.6), block)
+        screen.fill(color, (block.x, block.bottom - 3, block.w, 3))
+        name_x = block.x + 10 if team == 0 else block.right - 10
+        ui.text(screen, theme.TEAM_NAMES[team], theme.XS, theme.BONE, (name_x, block.y + 10),
+                anchor="midleft" if team == 0 else "midright")
+        score_x = block.right - 28 if team == 0 else block.x + 28
+        ui.text(screen, str(match.score[team]), theme.L, theme.BONE, (score_x, block.centery + 1))
+    ui.text(screen, "x", theme.S, theme.MUTED, board.center)
+    if match.overtime:
+        ui.text(screen, "PRÓXIMA CESTA VENCE", theme.XS, theme.BRASS, (W // 2, board.bottom + 12))
+    else:
+        secs = max(0, -(-match.clock // config.FPS))
+        ui.text(screen, f"{match.half}º TEMPO  {secs // 60}:{secs % 60:02d}", theme.XS,
+                theme.BRASS if secs <= 10 else theme.MUTED, (W // 2, board.bottom + 12))
+    owner = match.holder
+    if owner is not None:
+        from .basketball import SHOT_CLOCK
+        left = max(0, SHOT_CLOCK - match.shot_clock // config.FPS)
+        rect = pygame.Rect(0, 0, 120, 6)
+        rect.midtop = (W // 2, board.bottom + 24)
+        ratio = 1 - match.shot_clock / (SHOT_CLOCK * config.FPS)
+        ui.bar(screen, rect, ratio, theme.TEAM_COLORS[owner.team] if left > 3 else theme.BRASS)
+
+
+def draw_basket_banner(screen, ui, title, sub, team, age):
+    """Faixa no meio da tela: cesta (com a cor do time), intervalo ou empate."""
+    W, H = config.SCREEN_W, config.SCREEN_H
+    slide = min(1.0, age / 14)
+    color = theme.TEAM_COLORS[team] if team is not None else theme.BRASS
+    band = pygame.Rect(0, 0, int(W * slide), 80)
+    band.midleft = (0, H // 2)
+    screen.fill(mix(color, theme.INK, 0.55), band)
+    screen.fill(color, (band.x, band.y, band.w, 4))
+    screen.fill(color, (band.x, band.bottom - 4, band.w, 4))
+    if slide >= 1:
+        ui.text(screen, title, theme.XL, theme.BONE, (W // 2, H // 2 - 8))
+        if sub:
+            ui.text(screen, sub, theme.XS, theme.BONE, (W // 2, H // 2 + 26))
+
 # ─────────────────────────────────────────────
 #  CAMPANHA
 # ─────────────────────────────────────────────

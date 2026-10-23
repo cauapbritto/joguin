@@ -9,6 +9,7 @@ MODES = {
     "soccer1": {"title": "FUTEBOL 1 x 1", "soccer": True, "slots": 2},
     "duel2": {"title": "DUELO 2 x 2", "soccer": False, "slots": 4, "teams": True},
     "soccer2": {"title": "FUTEBOL 2 x 2", "soccer": True, "slots": 4, "teams": True},
+    "basket2": {"title": "BASQUETE 2 x 2", "soccer": True, "basket": True, "slots": 4, "teams": True},
     "campaign": {"title": "CAMPANHA", "soccer": False, "slots": 4},
     "treino": {"title": "TREINO", "soccer": False, "slots": 2},
 }
@@ -53,6 +54,11 @@ class Session:
     @property
     def soccer(self):
         return MODES[self.mode]["soccer"]
+
+    @property
+    def basket(self):
+        """Basquete: usa o elenco, os uniformes e as teclas do futebol, mas é outra partida."""
+        return MODES[self.mode].get("basket", False)
 
     @property
     def team_mode(self):
