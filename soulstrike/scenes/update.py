@@ -130,8 +130,11 @@ class UpdateScene(_InfoScene):
                     out.append(("BAIXE A VERSÃO NOVA NA PÁGINA DO GITHUB.", theme.MUTED))
                 else:
                     out.append(("SEU PROGRESSO SALVO É MANTIDO.", theme.MUTED))
-                if info.notes:
-                    out.append((info.notes.splitlines()[0][:70], theme.FAINT))
+                notes = [ln.strip().lstrip("-*• ").strip() for ln in info.notes.splitlines()]
+                notes = [ln for ln in notes if ln and not ln.startswith("#")]
+                if notes:
+                    out.append(("NOVIDADES:", theme.BRASS))
+                    out += [("· " + ln[:90], theme.BONE) for ln in notes[:4]]
         elif self.state == "done" and self.result is not None:
             out.append((self.result.message, theme.MOSS if self.result.ok else theme.BLOOD))
         return out

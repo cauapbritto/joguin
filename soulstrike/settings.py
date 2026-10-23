@@ -17,6 +17,7 @@ DEFAULTS = {
     "duplo_toque": True,    # duplo toque numa seta = esquiva/corte
     "controle_comeca_no_p2": False,     # 1º controle USB é o P2 (o P1 fica no teclado)
     "teclas": {},           # teclas trocadas: {"1": {"attack": código}, ...} (controls.py)
+    "versao_vista": "",     # última versão cujas novidades o jogador já viu (novidades.py)
 }
 VOLUME_KEYS = ("volume_geral", "volume_musica", "volume_efeitos")
 VOLUME_STEP = 0.1
@@ -34,7 +35,10 @@ def _clean(data):
         return values
     for key, default in DEFAULTS.items():
         value = data.get(key)
-        if isinstance(default, bool):
+        if isinstance(default, str):
+            if isinstance(value, str):
+                values[key] = value[:20]
+        elif isinstance(default, bool):
             if isinstance(value, bool):
                 values[key] = value
         elif isinstance(default, dict):
