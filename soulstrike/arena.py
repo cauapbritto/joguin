@@ -46,6 +46,72 @@ class Pitch:
         return [(x, up), (cls.W - x, up), (x, down), (cls.W - x, down)]
 
 
+class Court:
+    """Medidas da quadra de basquete (as mesmas nas três quadras). A arte de cada uma segue isto."""
+    W, H = 2000, 1200
+    WALL = 20                              # muro invisível em volta (a bola quica nele)
+    LEFT, RIGHT, TOP, BOTTOM = 80, 1920, 80, 1120     # linhas da quadra
+    MID_Y = H / 2
+    HOOP_IN = 104                          # aro (no chão) a partir da linha de fundo
+    RIM_Z = 96                             # altura do aro
+    RIM_R = 20                             # raio do aro
+    BOARD_IN = 76                          # tabela a partir da linha de fundo
+    BOARD_HALF = 60                        # meia largura da tabela
+    BOARD_Z = (86, 156)                    # de que altura a que altura vai a tabela
+    POLE_IN = -40                          # poste atrás da linha de fundo
+    POLE_R = 14
+    KEY_DEPTH, KEY_HALF = 380, 160         # garrafão
+    THREE_R = 470                          # linha de 3 (a partir do aro)
+    CORNER = 70                            # reta do canto: tão longe assim da lateral
+    CORNER_LEN = 240                       # e desse tamanho, a partir da linha de fundo
+    HOOP_SPRITE = (16, 380)                # canto do sprite da cesta da esquerda
+
+    @classmethod
+    def hoop_x(cls, side):
+        """Aro da esquerda (0) ou da direita (1)."""
+        return cls.LEFT + cls.HOOP_IN if side == 0 else cls.RIGHT - cls.HOOP_IN
+
+    @classmethod
+    def board_x(cls, side):
+        return cls.LEFT + cls.BOARD_IN if side == 0 else cls.RIGHT - cls.BOARD_IN
+
+    @classmethod
+    def pole(cls, side):
+        return (cls.LEFT + cls.POLE_IN if side == 0 else cls.RIGHT - cls.POLE_IN), cls.MID_Y
+
+    @classmethod
+    def in_key(cls, side, x, y):
+        """Dentro do garrafão do aro `side`."""
+        inside_x = x <= cls.LEFT + cls.KEY_DEPTH if side == 0 else x >= cls.RIGHT - cls.KEY_DEPTH
+        return inside_x and abs(y - cls.MID_Y) <= cls.KEY_HALF
+
+    @classmethod
+    def is_three(cls, side, x, y):
+        """Arremesso daqui, no aro `side`, vale 3?"""
+        if y < cls.TOP + cls.CORNER or y > cls.BOTTOM - cls.CORNER:
+            return True                     # canto: fora da reta
+        return math.hypot(x - cls.hoop_x(side), y - cls.MID_Y) > cls.THREE_R
+
+    @classmethod
+    def bounds(cls):
+        W, H, E = cls.W, cls.H, cls.WALL
+        rects = [(0, 0, W, E), (0, H - E, W, E), (0, 0, E, H), (W - E, 0, E, H)]
+        for side in (0, 1):
+            px, py = cls.pole(side)
+            r = cls.POLE_R
+            rects.append((px - r, py - r, r * 2, r * 2))
+        return rects
+
+    @classmethod
+    def spawns(cls):
+        """Largada: time 0 à esquerda (vagas 0 e 2), time 1 à direita (1 e 3)."""
+        up, down = cls.MID_Y - 150, cls.MID_Y + 150
+        return [(500, up), (cls.W - 500, up), (500, down), (cls.W - 500, down)]
+
+
+BASKET_MAPS = ("quadra_ginasio", "quadra_rua", "quadra_soul")
+
+
 @dataclass
 class MapConfig:
     key: str
@@ -120,6 +186,14 @@ MAPS = [
         floor=((44, 122, 58), (50, 134, 64)), wall_colors=((112, 102, 90), (150, 138, 122), (60, 52, 44)),
         battle=False,
     ),
+]
+# Quadras de basquete: mesmas medidas, só a arte muda (assets/tiles/quadra_*)
+MAPS += [
+    MapConfig(key, name, (Court.W, Court.H), walls=[], spawns=Court.spawns(), bounds=Court.bounds(),
+              floor=floor, battle=False)
+    for key, name, floor in (("quadra_ginasio", "Ginásio", ((196, 142, 84), (34, 86, 168))),
+                             ("quadra_rua", "Quadra de Rua", ((52, 56, 64), (164, 60, 50))),
+                             ("quadra_soul", "Arena Soul Strike", ((30, 24, 44), (74, 32, 118))))
 ]
 # Variações das arenas (a 2ª masmorra de cada fase da campanha; também valem no duelo)
 MAPS += [
@@ -269,6 +343,9 @@ class Arena:
         if self.cfg.key == SOCCER_MAP:
             _soccer_pitch(surf, self.cfg.floor)
             return surf
+        if self.cfg.key in BASKET_MAPS:
+            _basket_court(surf, self.cfg.floor)        # sem a arte: só as linhas
+            return surf
         painted = scenery.paint_floor(self.cfg.key, (self.width, self.height), self.cfg.theme, self.cfg.void)
         if painted is not None:
             return painted
@@ -305,6 +382,34 @@ def _fit_texture(textures, w, h):
             out.blit(img, (left, 0), (tw - (w - left), 0, w - left, h))
             return out
     return None
+
+
+def _basket_court(surf, colors):
+    C = Court
+    floor, paint = colors
+    surf.fill(tuple(c * 3 // 4 for c in floor))
+    surf.fill(floor, (C.LEFT, C.TOP, C.RIGHT - C.LEFT, C.BOTTOM - C.TOP))
+    line = (240, 240, 232)
+    cy = round(C.MID_Y)
+    pygame.draw.circle(surf, paint, (C.W // 2, cy), 120)
+    pygame.draw.circle(surf, line, (C.W // 2, cy), 120, 6)
+    pygame.draw.rect(surf, line, (C.LEFT, C.TOP, C.RIGHT - C.LEFT, C.BOTTOM - C.TOP), 6)
+    surf.fill(line, (C.W // 2 - 3, C.TOP, 6, C.BOTTOM - C.TOP))
+    for side in (0, 1):
+        hx = C.hoop_x(side)
+        kx = C.LEFT if side == 0 else C.RIGHT - C.KEY_DEPTH
+        key = pygame.Rect(kx, cy - C.KEY_HALF, C.KEY_DEPTH, C.KEY_HALF * 2)
+        surf.fill(paint, key)
+        pygame.draw.rect(surf, line, key, 6)
+        reach = math.sqrt(C.THREE_R ** 2 - (C.MID_Y - C.TOP - C.CORNER) ** 2)
+        ang = math.atan2(C.MID_Y - C.TOP - C.CORNER, reach)
+        arc = pygame.Rect(hx - C.THREE_R, cy - C.THREE_R, C.THREE_R * 2, C.THREE_R * 2)
+        a0, a1 = (-ang, ang) if side == 0 else (math.pi - ang, math.pi + ang)
+        pygame.draw.arc(surf, line, arc, a0, a1, 6)
+        end = hx + reach if side == 0 else hx - reach
+        for y in (C.TOP + C.CORNER, C.BOTTOM - C.CORNER):
+            x0, x1 = sorted((C.LEFT if side == 0 else C.RIGHT, end))
+            surf.fill(line, (x0, y - 3, x1 - x0, 6))
 
 
 def _soccer_pitch(surf, colors):

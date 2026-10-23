@@ -362,3 +362,97 @@ def _between(blocker, a, b):
         return False
     px, py = a.x + abx * t, a.y + aby * t
     return math.hypot(blocker.x - px, blocker.y - py) < 40
+
+
+class BasketballAI:
+    """Jogador de basquete controlado pela CPU: leva a bola para a cesta, arremessa quando está
+    livre ou perto, passa quando é apertado e, sem a bola, marca ou se desmarca."""
+
+    def __init__(self):
+        self.wait = random.randint(10, 30)      # quadros com a bola antes de pensar em arremessar
+        self.had_ball = False
+        self.lane = random.choice((-1, 1))      # para que lado abre quando o companheiro tem a bola
+
+    def update(self, me, match):
+        from .arena import Court
+        if match.freeze or match.ending:
+            me.steer(0, 0)
+            return
+        ball = match.ball
+        owner = match.holder
+        side = match.hoop_of(me.team)
+        hx, hy = match.hoop_pos(side)
+        home_x, _ = match.hoop_pos(1 - side)
+        dist_ball = math.hypot(ball.x - me.x, ball.y - me.y)
+        me.sprint_held = dist_ball > 260 and me.stamina > 0.35
+
+        if owner is me:
+            if not self.had_ball:
+                self.had_ball = True
+                self.wait = random.randint(10, 30)
+            self.wait -= 1
+            dist = math.hypot(hx - me.x, hy - me.y)
+            foes = match.foes_of(me)
+            pressure = min((math.hypot(f.x - me.x, f.y - me.y) for f in foes), default=999)
+            close = Court.in_key(side, me.x, me.y) and dist < 150
+            open_shot = pressure > 120 and dist < 560
+            late = match.shot_clock > 7 * config.FPS
+            if self.wait <= 0 and (close or open_shot or late):
+                match.shoot(me)
+                return
+            mates = match.mates_of(me)
+            if mates and pressure < 50 and random.random() < 0.04:
+                mate = mates[0]
+                if all(_off_lane(f, me, mate) > 50 for f in foes):      # só passa com a linha livre
+                    match.pass_ball(me, (mate.x - me.x, mate.y - me.y))
+                    return
+            # leva a bola para o garrafão, desviando um pouco de quem marca
+            tx, ty = hx + (90 if side == 0 else -90), hy + self.lane * 30
+            dx, dy = tx - me.x, ty - me.y
+            d = math.hypot(dx, dy) or 1
+            mx, my = dx / d, dy / d
+            if pressure < 70:
+                mx, my = mx - my * 0.5 * self.lane, my + mx * 0.5 * self.lane
+            me.steer(mx, my)
+            me.sprint_held = me.stamina > 0.3 and dist > 300
+            return
+        self.had_ball = False
+
+        if owner is None:
+            # bola solta: vai até onde ela vai cair
+            tx, ty = ball.x + ball.vx * 10, ball.y + ball.vy * 10
+            mates = match.mates_of(me)
+            closer = [m for m in mates if math.hypot(ball.x - m.x, ball.y - m.y) < dist_ball - 40]
+            if closer and match.shot is not None and match.shot["team"] != me.team:
+                tx, ty = (ball.x + home_x) / 2, (ball.y + hy) / 2      # o companheiro pega: eu volto
+        elif owner.team == me.team:
+            # companheiro com a bola: abre na ala, perto da linha de 3
+            fwd = 1 if side == 1 else -1
+            tx, ty = hx - fwd * 380, hy + self.lane * 260
+        else:
+            # defesa: marca quem tem a bola ou o outro atacante, entre ele e a minha cesta
+            mates = match.mates_of(me)
+            mine = owner
+            if mates and math.hypot(owner.x - mates[0].x, owner.y - mates[0].y) < math.hypot(owner.x - me.x, owner.y - me.y):
+                others = [f for f in match.foes_of(me) if f is not owner]
+                if others:
+                    mine = others[0]
+            ux, uy = home_x - mine.x, hy - mine.y
+            u = math.hypot(ux, uy) or 1
+            tx, ty = mine.x + ux / u * 46, mine.y + uy / u * 46
+            me.sprint_held = me.sprint_held or (math.hypot(tx - me.x, ty - me.y) > 160 and me.stamina > 0.3)
+        dx, dy = tx - me.x, ty - me.y
+        d = math.hypot(dx, dy)
+        if d > 10:
+            me.steer(dx / d, dy / d)
+        else:
+            me.steer(0, 0)
+            me.face(ball)
+
+
+def _off_lane(p, a, b):
+    """Distância de p até o segmento de a até b (quem está no caminho do passe)."""
+    dx, dy = b.x - a.x, b.y - a.y
+    L = dx * dx + dy * dy or 1
+    t = max(0.0, min(1.0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / L))
+    return math.hypot(a.x + dx * t - p.x, a.y + dy * t - p.y)

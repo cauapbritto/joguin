@@ -6,7 +6,7 @@ import pygame
 from .. import config, theme
 from ..ai import DIFFICULTIES, DIFFICULTY_ORDER
 from ..controls import key_label
-from ..arena import BATTLE_MAPS, MAPS_BY_KEY
+from ..arena import BASKET_MAPS, BATTLE_MAPS, MAPS_BY_KEY
 from ..data import CHARACTERS, MAX_DAMAGE, MAX_HP, MAX_SPEED, roster_indices
 from ..soccer_assist import ASSIST_LEVELS, ASSIST_ORDER
 from ..soccer_powers import SOCCER_POWERS
@@ -453,7 +453,9 @@ class CharSelectScene(_MenuScene):
                     from .campaign import start_campaign
                     self.game.change(start_campaign(self.game))
                     return
-                self.game.session.map_key = self.map_key
+                session = self.game.session
+                # basquete: por enquanto a quadra é sorteada (a escolha entra na seleção depois)
+                session.map_key = random.choice(BASKET_MAPS) if session.basket else self.map_key
                 from .play import VersusScene
                 self.game.change(VersusScene(self.game))
         else:

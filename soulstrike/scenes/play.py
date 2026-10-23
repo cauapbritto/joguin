@@ -99,7 +99,10 @@ class VersusScene(Scene):
                 screen.blit(ink, r.move(dx, dy))
             screen.blit(vs, r)
 
-        place = "ESTÁDIO" if soccer else MAPS_BY_KEY[self.session.map_key].name.upper()
+        if self.session.basket:
+            place = MAPS_BY_KEY[self.session.map_key].name.upper() if self.session.map_key in MAPS_BY_KEY else "QUADRA"
+        else:
+            place = "ESTÁDIO" if soccer else MAPS_BY_KEY[self.session.map_key].name.upper()
         self.ui.text(screen, place, theme.XS, theme.MUTED, (W // 2, H - 24))
 
 
