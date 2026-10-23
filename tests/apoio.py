@@ -7,6 +7,8 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 # progresso salvo dos testes vai para uma pasta temporária (não mexe no do jogador)
 os.environ.setdefault("SOULSTRIKE_PROGRESS", os.path.join(tempfile.mkdtemp(prefix="soulstrike-"), "progresso.json"))
 
+import pygame  # noqa: E402
+
 from soulstrike.ai import SoccerAI  # noqa: E402
 from soulstrike.arena import Pitch  # noqa: E402
 from soulstrike.game import Game  # noqa: E402
@@ -19,7 +21,13 @@ _game = None
 def game():
     global _game
     if _game is None:
-        _game = Game(fullscreen=False, headless=True)
+        try:
+            _game = Game(fullscreen=False, headless=True)
+        except Exception:
+            # fecha a janela que o Game() já abriu: senão o próximo teste tenta criar outra por cima
+            # e cai em "failed to create renderer", escondendo o erro de verdade
+            pygame.display.quit()
+            raise
         _game.assets.load()
     return _game
 
