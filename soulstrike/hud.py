@@ -327,6 +327,16 @@ def draw_basket(screen, ui, match):
         score_x = block.right - 28 if team == 0 else block.x + 28
         ui.text(screen, str(match.score[team]), theme.L, theme.BONE, (score_x, block.centery + 1))
     ui.text(screen, "x", theme.S, theme.MUTED, board.center)
+    if match.warmup:
+        secs = max(0, -(-match.warmup // config.FPS))
+        ui.text(screen, f"AQUECIMENTO  {secs // 60}:{secs % 60:02d}", theme.XS, theme.BRASS,
+                (W // 2, board.bottom + 12))
+        humans = [f for f in match.fighters if not f.is_cpu]
+        if humans:
+            ready = sum(1 for f in humans if f.warm_ready)
+            ui.text(screen, f"SUPER: PRONTO  {ready}/{len(humans)}", theme.XS, theme.MUTED,
+                    (W // 2, board.bottom + 28))
+        return
     if match.overtime:
         ui.text(screen, "PRÓXIMA CESTA VENCE", theme.XS, theme.BRASS, (W // 2, board.bottom + 12))
     else:

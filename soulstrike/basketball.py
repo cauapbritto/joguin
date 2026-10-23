@@ -21,6 +21,8 @@ from .net.remote import hub
 from .soccer_assist import pick_receiver, unit
 
 HALF_SECONDS = 120              # dois tempos de 2 minutos
+WARMUP_SECONDS = 60             # aquecimento antes da bola ao alto: cada um com a sua bola
+WARM_STATE = ("ball", "holder", "shot", "no_catch", "catch_lock", "alley")   # o que cada bola tem
 SHOT_CLOCK = 10                 # segundos com a bola sem arremessar: perde a posse
 CATCH_HEIGHT = 56               # bola mais baixa que isso pode ser pega
 HAND_Z = 40                     # altura de onde sai o arremesso
@@ -206,7 +208,7 @@ class BasketballMatch(Match):
     min_zoom = 0.6
     RIM_Z = Court.RIM_Z
 
-    def __init__(self, game, session):
+    def __init__(self, game, session, warmup=False):
         key = session.map_key if session.map_key in BASKET_MAPS else BASKET_MAPS[0]
         super().__init__(game, session, key)
         spawns = self.arena.cfg.spawns
@@ -271,7 +273,12 @@ class BasketballMatch(Match):
         self.freeze = 0
         self.lids = {0: 0, 1: 0}             # Tampa no Aro: quadros que faltam em cada aro
         self.alley = None                    # alley-oop no ar: quem passou, para quem, quem caiu
+        self.warmup = 0                      # quadros que faltam do aquecimento (0 = jogo valendo)
+        self.warm = {}                       # aquecimento: o estado da bola de cada jogador
+        self._only = None                    # aquecimento: só este jogador pega a bola da vez
         self._tip_off()
+        if warmup:
+            self._start_warmup()
 
     # ── consultas ────────────────────────────
     def hoop_of(self, team):
@@ -288,9 +295,14 @@ class BasketballMatch(Match):
         return [o for o in self.fighters if o.team != f.team]
 
     def world_entities(self):
+        if self.warmup:
+            return self.fighters + [st["ball"] for st in self.warm.values()] + self.hoops
         return self.fighters + [self.ball] + self.hoops
 
     def focus_points(self):
+        if self.warmup:
+            pts = [(f.x, f.y - 20) for f in self.fighters if not f.is_cpu]
+            return pts or [(f.x, f.y - 20) for f in self.fighters]
         ball = self.ball
         pts = [(ball.x, ball.y - ball.z)]
         pts += [(f.x, f.y - 20) for f in self.fighters if not f.is_cpu]
@@ -339,7 +351,7 @@ class BasketballMatch(Match):
         return True
 
     def use_power(self, f):
-        if self.freeze or self.ending or f.power is None:
+        if self.warmup or self.freeze or self.ending or f.power is None:
             return False
         if not f.power.use(f, self):
             return False
@@ -503,7 +515,8 @@ class BasketballMatch(Match):
 
     def steal(self, f, direction=None):
         """CORTE sem a bola: arrancada curta; encostando em quem tem a bola, tenta roubar."""
-        if f.jump or f.steal_cd > 0 or f.stunned or self.freeze or self.ending or self.holder is f:
+        if (f.jump or f.steal_cd > 0 or f.stunned or self.freeze or self.ending or self.holder is f
+                or self.warmup):
             return False
         owner = self.holder
         if owner is not None and owner.team != f.team and f.distance_to(owner) < 160:
@@ -549,7 +562,7 @@ class BasketballMatch(Match):
         return True
 
     def pass_ball(self, f, direction=None):
-        if self.holder is not f or self.freeze or self.ending:
+        if self.holder is not f or self.freeze or self.ending or self.warmup:
             return False
         if direction is None or math.hypot(*direction) < 0.2:
             direction = f.facing
@@ -572,7 +585,7 @@ class BasketballMatch(Match):
     def ask_ball(self, f):
         """Sem a bola, PASSE pede a bola: o companheiro da CPU passa na hora."""
         owner = self.holder
-        if owner is not None and owner.team == f.team and owner is not f and owner.is_cpu:
+        if owner is not None and owner.team == f.team and owner is not f and owner.is_cpu and not self.warmup:
             self.pass_ball(owner, (f.x - owner.x, f.y - owner.y))
             return True
         return False
@@ -596,6 +609,9 @@ class BasketballMatch(Match):
                            theme.TEAM_COLORS[self.result_team], 6, speed=3, gravity=0.15, size=5)
             if self.ending == 0:
                 self._finish()
+            return
+        if self.warmup:
+            self._warm_step()
             return
         for f in self.fighters:
             f.prev_pos = (f.x, f.y)
@@ -898,7 +914,11 @@ class BasketballMatch(Match):
                 self.steal(f, stick)
             elif inp.double_tap:
                 self.steal(f, inp.double_tap)
-        if inp.pressed("super") and not self.use_power(f):
+        if inp.pressed("super") and self.warmup:
+            f.warm_ready = not f.warm_ready       # no aquecimento, SUPER diz "estou pronto"
+            self.popup(f.x, f.y - 90, "PRONTO!" if f.warm_ready else "AINDA NÃO", theme.MOSS)
+            self.assets.play("confirm" if f.warm_ready else "cancel", 0.3)
+        elif inp.pressed("super") and not self.use_power(f):
             self.assets.play("cancel", 0.2)
 
     def _update_ball(self):
@@ -941,6 +961,9 @@ class BasketballMatch(Match):
             self._update_alley()
             if self.holder is not None:
                 return
+        if self.warmup:
+            self._catch()                       # aquecimento: sem toco e sem puxar o rebote
+            return
         if self._block():
             return
         self._faro_pull()
@@ -948,6 +971,8 @@ class BasketballMatch(Match):
         self._catch()
 
     def _block_dunk(self):
+        if self.warmup:
+            return False
         """Toco na enterrada: quem está no ar encosta em quem voa para o aro e a bola sai."""
         owner = self.holder
         if owner is None or not owner.dunking or owner.fly_dunk or owner.alley_dunk:
@@ -1085,7 +1110,7 @@ class BasketballMatch(Match):
         alley = self.alley
         best, best_d = None, 1e9
         for f in self.fighters:
-            if f.stunned or f in self.no_catch:
+            if f.stunned or f in self.no_catch or (self._only is not None and f is not self._only):
                 continue
             high = CATCH_HEIGHT + f.lift + (40 if f.giant_timer > 0 else 0)
             reach = 12 + (14 if f.giant_timer > 0 else 0) + (12 if f.nose_timer > 0 else 0)
@@ -1116,6 +1141,17 @@ class BasketballMatch(Match):
     def _basket(self, side):
         team = next(t for t, s in self.attack.items() if s == side)
         shot = self.shot
+        if self.warmup:
+            # aquecimento: a cesta não conta, só comemora um pouco
+            hx, hy = self.hoop_pos(side)
+            shooter = shot["shooter"] if shot is not None else None
+            if shooter is not None:
+                shooter.warm_makes += 1
+                self.popup(hx, hy - Court.RIM_Z - 30, f"{shooter.label} · {shooter.warm_makes}", theme.BONE)
+            self.burst(hx, hy - Court.RIM_Z, theme.TEAM_COLORS[team], 10, speed=4, gravity=0.12, size=3)
+            self.assets.play("rede", 0.35)
+            self.shot = None
+            return
         points = 3 if shot is not None and shot["three"] and shot["team"] == team else 2
         self.score[team] += points
         scorer = shot["shooter"] if shot is not None and shot["team"] == team else None
@@ -1202,6 +1238,142 @@ class BasketballMatch(Match):
             self._give(min(foes, key=lambda o: o.distance_to(f)))
         self.assets.play("apito", 0.3)
 
+    # ── aquecimento ──────────────────────────
+    def _start_warmup(self):
+        """Cada time no lado da cesta que ataca, cada jogador com a sua bola."""
+        self.warmup = WARMUP_SECONDS * config.FPS
+        main = self.ball
+        self.warm = {}
+        for f in self.fighters:
+            hx, hy = self.hoop_pos(self.hoop_of(f.team))
+            inward = 1 if hx < Court.W / 2 else -1
+            f.x = hx + inward * random.uniform(260, 520)
+            f.y = hy + random.uniform(-260, 260)
+            f.prev_pos = (f.x, f.y)
+            f.facing = (float(-inward), 0.0)
+            f.warm_ready = False
+            f.warm_makes = 0
+            f.warm_spot = None
+            f.warm_release = 0
+            ball = BasketBall(f.x, f.y)
+            self.warm[f] = {"ball": ball, "holder": f, "shot": None, "no_catch": {}, "catch_lock": 0,
+                            "alley": None}
+        self.main_ball = main
+        self.banner = ("AQUECIMENTO", "SUPER: PRONTO", None)
+        self.banner_age = 0
+
+    def _swap_in(self, f):
+        for k in WARM_STATE:
+            setattr(self, k, self.warm[f][k])
+        self._only = f
+
+    def _swap_out(self, f):
+        for k in WARM_STATE:
+            self.warm[f][k] = getattr(self, k)
+        self._only = None
+
+    def _warm_half(self, f):
+        """No aquecimento cada time fica na sua metade da quadra."""
+        mid = Court.W / 2
+        if self.hoop_of(f.team) == 1:
+            f.x = max(f.x, mid + 30)
+        else:
+            f.x = min(f.x, mid - 30)
+
+    def _warm_step(self):
+        self.warmup -= 1
+        for hoop in self.hoops:
+            hoop.shake = max(0, hoop.shake - 1)
+        for effect in self.effects:
+            effect.update(self)
+        self.effects = [e for e in self.effects if e.alive]
+        for f in self.fighters:
+            self._swap_in(f)
+            f.prev_pos = (f.x, f.y)
+            self._update_moves(f)
+            ctrl = self.controllers[f]
+            if f.stunned:
+                f.steer(0, 0)
+            elif hasattr(ctrl, "axis"):
+                self._human(f, ctrl)
+            else:
+                self._warm_ai(f)
+            f.update(self)
+            f.update_stamina()
+            if f.jump or f.dunking or f.hang:
+                f.steer(0, 0)
+            f.protecting = False
+            self._warm_half(f)
+            self._update_ball()
+            ball = self.ball
+            mid = Court.W / 2
+            wrong = ball.x > mid if self.hoop_of(f.team) == 0 else ball.x < mid
+            if self.holder is None and wrong and ball.z < 20:
+                ball.reset(f.x, f.y)            # a bola que fugiu para o outro lado volta para a mão
+                self._give(f)
+            self._swap_out(f)
+        for i, a in enumerate(self.fighters):
+            for b in self.fighters[i + 1:]:
+                _separate(a, b)
+                self.arena.resolve(a)
+                self.arena.resolve(b)
+        humans = [f for f in self.fighters if not f.is_cpu]
+        if self.warmup <= 0 or (humans and all(f.warm_ready for f in humans)):
+            self._end_warmup()
+
+    def _warm_ai(self, f):
+        """CPU no aquecimento: anda até um lugar, arremessa (ou enterra) e vai buscar a bola."""
+        ball = self.ball
+        hx, hy = self.hoop_pos(self.hoop_of(f.team))
+        if self.holder is f:
+            if f.jump_shot:
+                f.steer(0, 0)
+                if f.jump >= f.warm_release:
+                    self.release_shot(f)
+                return
+            if f.jump or f.dunking or f.hang:
+                return
+            if f.warm_spot is None:
+                inward = 1 if hx < Court.W / 2 else -1
+                dist = random.choice((160, 380, 520, 720))
+                a = random.uniform(-1.2, 1.2)
+                f.warm_spot = (hx + inward * math.cos(a) * dist, hy + math.sin(a) * dist * 0.8)
+            tx, ty = f.warm_spot
+            d = math.hypot(tx - f.x, ty - f.y)
+            if d > 24:
+                f.steer((tx - f.x) / d, (ty - f.y) / d)
+                return
+            f.steer(0, 0)
+            f.facing = unit(hx - f.x, hy - f.y)
+            f.warm_spot = None
+            if self.start_shot(f) and f.jump_shot:
+                f.warm_release = round(JUMP_FRAMES * random.uniform(0.42, 0.58))
+            return
+        if ball.z > 120:
+            f.steer(0, 0)
+            return
+        tx, ty = ball.x + ball.vx * 8, ball.y + ball.vy * 8
+        d = math.hypot(tx - f.x, ty - f.y)
+        f.steer(*((tx - f.x) / d, (ty - f.y) / d) if d > 8 else (0, 0))
+
+    def _end_warmup(self):
+        self.warmup = 0
+        self.warm = {}
+        self._only = None
+        self.ball = self.main_ball
+        self.holder = None
+        self.shot = None
+        self.no_catch = {}
+        self.catch_lock = 0
+        self.alley = None
+        for f in self.fighters:
+            f.meter_flash = None
+            f.streak = f.fire_timer = 0
+        self.banner = ("BOLA AO ALTO", "VALENDO!", None)
+        self.banner_age = 0
+        self.assets.play("apito", 0.4)
+        self._tip_off()
+
     def _tip_off(self):
         """Bola ao alto no meio da quadra; cada time no seu lado (no 2º tempo, lados trocados)."""
         self.ball.reset(Court.W / 2, Court.MID_Y)
@@ -1248,7 +1420,7 @@ class BasketballMatch(Match):
     # ── desenho ──────────────────────────────
     def draw_under(self, view, cam):
         p = self.holder
-        if p is not None:
+        if p is not None and not self.warmup:
             rect = pygame.Rect(0, 0, 54, 18)
             rect.center = (round(p.x - cam.x), round(p.y - cam.y) + 22)
             pygame.draw.ellipse(view, (232, 232, 220), rect, 1)

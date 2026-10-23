@@ -330,7 +330,7 @@ class Partida(unittest.TestCase):
         match = create_match(g, g.session)
         screen = g.screen
         frames = 0
-        while not match.finished and frames < 2 * (B.HALF_SECONDS + 10) * config.FPS + 3000:
+        while not match.finished and frames < (2 * (B.HALF_SECONDS + 10) + B.WARMUP_SECONDS) * config.FPS + 3000:
             match.update()
             if frames % 300 == 0:
                 match.draw(screen, g.ui)
@@ -583,6 +583,69 @@ class QuadrasEPolimento(unittest.TestCase):
             match._power_rules()
         self.assertIs(match.holder, guerreiro)
         self.assertEqual(guerreiro.glue_timer, 0)               # rouba uma vez só
+
+
+class Aquecimento(unittest.TestCase):
+    def aquecendo(self, humans=()):
+        g = game()
+        slots = [SlotSetup(i + 1, char=c, cpu=(i + 1) not in humans) for i, c in enumerate((0, 1, 2, 3))]
+        g.session = Session("basket2", slots)
+        g.session.map_key = "quadra_ginasio"
+        match = create_match(g, g.session)
+        inputs = {}
+        for f in match.fighters:
+            if f.slot in humans:
+                inputs[f.slot] = match.controllers[f] = FakeInput()
+        return match, inputs
+
+    def test_cada_um_com_a_sua_bola_no_seu_lado(self):
+        random.seed(4)
+        match, _ = self.aquecendo()
+        self.assertEqual(match.warmup, B.WARMUP_SECONDS * config.FPS)
+        balls = [e for e in match.world_entities() if isinstance(e, B.BasketBall)]
+        self.assertEqual(len(balls), 4)
+        self.assertTrue(all(st["holder"] is f for f, st in match.warm.items()))
+        g = game()
+        for i in range(900):
+            match.update()
+            if i % 300 == 0:
+                match.draw(g.screen, g.ui)
+            for f in match.fighters:
+                right = match.hoop_of(f.team) == 1
+                self.assertTrue(f.x > Court.W / 2 if right else f.x < Court.W / 2)
+        self.assertEqual(match.score, [0, 0])                      # cesta no aquecimento não conta
+        self.assertGreater(sum(f.warm_makes for f in match.fighters), 0)
+
+    def test_termina_em_um_minuto_e_vem_a_bola_ao_alto(self):
+        match, _ = self.aquecendo()
+        run(match, B.WARMUP_SECONDS * config.FPS)
+        self.assertEqual(match.warmup, 0)
+        self.assertIs(match.ball, match.main_ball)
+        self.assertEqual(len([e for e in match.world_entities() if isinstance(e, B.BasketBall)]), 1)
+        self.assertEqual(match.clock, B.HALF_SECONDS * config.FPS)
+
+    def test_super_marca_pronto_e_comeca_antes(self):
+        match, inputs = self.aquecendo(humans=(1, 2))
+        inputs[1].tap("super")
+        run(match, 2, inputs)
+        self.assertGreater(match.warmup, 0)                       # falta o outro humano
+        inputs[2].tap("super")
+        run(match, 2, inputs)
+        self.assertEqual(match.warmup, 0)
+        self.assertTrue(all(f.super_cd == 0 for f in match.fighters if not f.is_cpu))   # SUPER não gasto
+
+    def test_humano_arremessa_no_aquecimento(self):
+        match, inputs = self.aquecendo(humans=(1,))
+        f = next(f for f in match.fighters if f.slot == 1)
+        side = match.hoop_of(f.team)
+        hx = Court.hoop_x(side)
+        f.x, f.y = hx + (-350 if side == 1 else 350), 600
+        inputs[1].hold("attack")
+        run(match, 20, inputs)
+        inputs[1].release("attack")
+        run(match, 200, inputs)
+        self.assertEqual(f.warm_makes, 1)
+        self.assertEqual(match.score, [0, 0])
 
 
 if __name__ == "__main__":
