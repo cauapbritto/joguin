@@ -648,5 +648,40 @@ class Aquecimento(unittest.TestCase):
         self.assertEqual(match.score, [0, 0])
 
 
+class PasseTeleguiado(unittest.TestCase):
+    def test_passe_chega_no_companheiro_correndo(self):
+        match, _ = basquete(chars=(4, 1, 2, 3))
+        f = de(match, "velocista")
+        mate = next(m for m in match.fighters if m.team == f.team and m is not f)
+        com_bola(match, f, 400, 600)
+        mate.x, mate.y = 800, 300
+
+        class Corre:                         # o companheiro dispara no contra-ataque
+            def update(self, me, m):
+                me.steer(1, 0.3)
+                me.sprint_held = True
+        match.controllers[mate] = Corre()
+        self.assertTrue(match.pass_ball(f, (0, 1)))         # apontou para o lado errado
+        for _ in range(120):
+            match.update()
+            if match.holder is not None:
+                break
+        self.assertIs(match.holder, mate)
+
+    def test_adversario_na_frente_ainda_corta(self):
+        match, _ = basquete(chars=(4, 1, 2, 3))
+        f = de(match, "velocista")
+        mate = next(m for m in match.fighters if m.team == f.team and m is not f)
+        foe = next(m for m in match.fighters if m.team != f.team)
+        com_bola(match, f, 400, 600)
+        mate.x, mate.y = 900, 600
+        foe.x, foe.y = 872, 600                       # na frente do companheiro, onde o passe desce
+        for m in match.fighters:
+            m.prev_pos = (m.x, m.y)
+        match.pass_ball(f, (1, 0))
+        run(match, 60)
+        self.assertIs(match.holder, foe)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -7,6 +7,11 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.4.1": [
+        "Basquete: o passe agora é teleguiado e vai certinho na mão do companheiro, mesmo no contra-ataque.",
+        "Apontou para o lado errado? O passe vai para o companheiro do mesmo jeito.",
+        "Quem estiver na frente de quem recebe ainda pode cortar o passe.",
+    ],
     "1.4.0": [
         "Basquete: 1 minuto de aquecimento antes da bola ao alto, cada time no seu lado e cada um com a sua bola.",
         "No aquecimento, a cesta não conta: é para treinar a barrinha, a enterrada e a finta.",
