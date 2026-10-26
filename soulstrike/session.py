@@ -12,6 +12,8 @@ MODES = {
     "basket2": {"title": "BASQUETE 2 x 2", "soccer": True, "basket": True, "slots": 4, "teams": True},
     "campaign": {"title": "CAMPANHA", "soccer": False, "slots": 4},
     "treino": {"title": "TREINO", "soccer": False, "slots": 2},
+    "treino_futebol": {"title": "TREINO DE FUTEBOL", "soccer": True, "slots": 2},
+    "treino_basquete": {"title": "TREINO DE BASQUETE", "soccer": True, "basket": True, "slots": 4, "teams": True},
 }
 
 # Como as vagas formam os times nos modos 2 x 2 (escolhido no lobby)

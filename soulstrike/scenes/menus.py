@@ -173,6 +173,12 @@ MODE_TEXT = {
     "treino": ("Para quem está começando: um boneco de treino parado e uma lição por vez na tela "
                "(andar, atacar, trocar de arma, esquivar, habilidade e itens). Ninguém perde.",
                "1 JOGADOR"),
+    "treino_futebol": ("Treino com bola contra um boneco parado: corte, chute, chute alto, marcar e gol, "
+                       "uma lição por vez.",
+                       "1 JOGADOR"),
+    "treino_basquete": ("Treino de basquete com bonecos parados: a barrinha do arremesso, a finta, o toco e a "
+                        "cesta, uma lição por vez.",
+                        "1 JOGADOR"),
     "campaign": ("Juntos contra as sombras: em cada fase, um acampamento e duas masmorras, com um baú "
                  "escondido de armas raras no caminho. No fim, o chefão Aryel Corrompido. Quem cair pode "
                  "ser levantado por um companheiro.",
@@ -189,11 +195,12 @@ class ModeScene(_MenuScene):
         from ..campaign import CampaignRun
         saved = progress.saved_campaign()
         self.saved_run = CampaignRun.from_save(saved) if saved else None
-        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2", "basket2", "treino")]
+        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2", "basket2", "treino",
+                                                     "treino_futebol", "treino_basquete")]
         if self.saved_run is not None:
             options.insert(0, ("CONTINUAR CAMPANHA", "continue"))
         options.append(("VOLTAR", "back"))
-        self.menu = MenuList(options, topleft=(56, 100), width=320, row_h=36)
+        self.menu = MenuList(options, topleft=(56, 96), width=320, row_h=30 if len(options) > 11 else 36)
 
     def handle(self, event):
         if self.is_back(event):
@@ -216,7 +223,8 @@ class ModeScene(_MenuScene):
             return
         count = MODES[choice]["slots"]
         teams = MODES[choice].get("teams", False)
-        slots = [SlotSetup(s, cpu=(choice in ("cpu", "treino") and s == 2) or (teams and s > 1))
+        training = choice.startswith("treino")
+        slots = [SlotSetup(s, cpu=(choice == "cpu" and s == 2) or (training and s > 1) or (teams and s > 1))
                  for s in range(1, count + 1)]
         if choice == "campaign":
             slots = slots[:1]           # P2 a P4 entram na tela de conexão
@@ -225,7 +233,7 @@ class ModeScene(_MenuScene):
         if previous is not None and teams:
             self.game.session.layout = previous.layout      # mantém a divisão de times escolhida
         from .select import CharSelectScene, LobbyScene
-        if choice in ("cpu", "treino"):
+        if choice == "cpu" or training:
             self.game.change(CharSelectScene(self.game))
         else:
             self.game.change(LobbyScene(self.game))
@@ -283,6 +291,8 @@ class ModeScene(_MenuScene):
         cast = {
             "cpu": [("guerreiro", "direita", -90), ("tanque", "esquerda", 90)],
             "treino": [("aryel", "direita", -70), ("tanque", "esquerda", 70)],
+            "treino_futebol": [("velocista", "direita", -70), ("tanque", "esquerda", 70)],
+            "treino_basquete": [("ninja", "direita", -70), ("tanque", "esquerda", 70)],
             "duel": [("aryel", "direita", -90), ("ninja", "esquerda", 90)],
             "duel2": [("pirata", "direita", -150), ("geada", "direita", -70),
                       ("atirador", "esquerda", 70), ("tanque", "esquerda", 150)],

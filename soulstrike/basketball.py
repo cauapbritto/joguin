@@ -610,6 +610,8 @@ class BasketballMatch(Match):
             # fora do cone: vai para o companheiro mais perto da direção apontada (no 2 x 2, o único)
             mate = max(mates, key=lambda m: unit(m.x - f.x, m.y - f.y)[0] * direction[0]
                        + unit(m.x - f.x, m.y - f.y)[1] * direction[1])
+        if mate is not None and self.cutting(mate) and not self.cutting(f):
+            return self.alley_oop(f, mate, plain=True)      # ele está correndo para a cesta: ponte aérea
         if mate is not None:
             vx, vy = _run_velocity(mate)
             dist = math.hypot(mate.x - f.x, mate.y - f.y)
@@ -786,16 +788,29 @@ class BasketballMatch(Match):
             self.burst(f.x + random.uniform(-12, 12), f.y - random.uniform(0, 44) - f.lift, glow, 1,
                        speed=1, gravity=-0.03, size=3)
 
-    def alley_oop(self, user, mate):
-        """Alley-oop Trovão: passe alto e forte para o companheiro, que sobe e crava."""
-        vx, vy = mate.x - mate.prev_pos[0], mate.y - mate.prev_pos[1]
+    def cutting(self, f):
+        """Está correndo para a cesta (perto dela e indo na direção do aro)?"""
+        hx, hy = self.hoop_pos(self.hoop_of(f.team))
+        d = math.hypot(hx - f.x, hy - f.y) or 1
+        toward = (f.vx * (hx - f.x) + f.vy * (hy - f.y)) / d
+        return d < Court.THREE_R + 60 and toward > 1.5
+
+    def alley_oop(self, user, mate, plain=False):
+        """Alley-oop: passe alto para o companheiro, que sobe e crava. O do SUPER (Trovão) é forte e
+        derruba quem entra na frente; o normal (PASSE para quem corre para a cesta) pode ser
+        cortado por quem pular na frente."""
+        vx, vy = (mate.vx, mate.vy) if plain else (mate.x - mate.prev_pos[0], mate.y - mate.prev_pos[1])
         dist = math.hypot(mate.x - user.x, mate.y - user.y)
         frames = max(14, round(dist / (PASS_SPEED * 1.3)))
         tx, ty = mate.x + vx * frames, mate.y + vy * frames
         user.jump_shot = False
         self._launch(user, tx, ty, CATCH_HEIGHT + 30, frames, z0=40 + user.lift)
-        self.alley = {"from": user, "to": mate, "age": 0, "hit": set()}
+        self.alley = {"from": user, "to": mate, "age": 0, "hit": set(), "plain": plain}
         self.catch_lock = 5
+        if plain:
+            self.popup(user.x, user.y - 90, "PONTE AÉREA", theme.BONE)
+            self.assets.play("chute", 0.3)
+            return True
         self.burst(self.ball.x, self.ball.y - 40, (255, 236, 120), 12, speed=5)
         self.camera.shake(5)
         return True
@@ -815,7 +830,7 @@ class BasketballMatch(Match):
                 self.grab(foe)
                 self.popup(foe.x, foe.y - 90, "INTERCEPTOU", theme.BRASS)
                 return
-            if d < foe.radius + 14 and ball.z < 110 and foe.stun(45):
+            if not alley["plain"] and d < foe.radius + 14 and ball.z < 110 and foe.stun(45):
                 alley["hit"].add(foe)
                 self.popup(foe.x, foe.y - 74, "DERRUBADO", theme.BONE)
                 self.burst(foe.x, foe.y - 30, (255, 236, 120), 10, speed=4)
@@ -1188,6 +1203,8 @@ class BasketballMatch(Match):
             if alley is not None:
                 if f is alley["to"]:
                     high, reach = high + 70, reach + 16    # o alley-oop vai alto, na mão dele
+                elif alley["plain"] and f.jump and f.team != alley["from"].team:
+                    high += 70                             # pulou na frente da ponte aérea: corta
                 elif ball.z > CATCH_HEIGHT * 0.6:
                     continue
             if ball.z >= high:
@@ -1204,6 +1221,8 @@ class BasketballMatch(Match):
                 self.popup(best.x, best.y - 110, "ALLEY-OOP!", theme.BRASS)
             return
         if best is not None:
+            if alley is not None and alley["plain"] and best.team != alley["from"].team:
+                self.popup(best.x, best.y - 74, "CORTOU", theme.BRASS)
             self.alley = None
             if self.shot is not None and best.team != self.shot["team"]:
                 self.popup(best.x, best.y - 74, "REBOTE", theme.BONE)

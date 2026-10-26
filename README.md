@@ -239,6 +239,11 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   **Empurrão:** CORTE sem a bola em quem está pulando para arremessar deixa a faixa verde dele pela
   metade. Quem está protegendo a bola (MARCAR) segura, e quem empurra à toa (ou empurra de novo o
   mesmo arremesso) fica parado um instante.
+  **Ponte aérea:** PASSE para o companheiro que está correndo para a cesta vira alley-oop, sem
+  precisar de SUPER: a bola vai alta e ele sobe e crava. Quem pular na frente do passe corta.
+- **Treino** — contra um boneco parado, uma lição por vez na tela. Tem o do duelo (andar, atacar,
+  trocar de arma, esquivar, habilidade e itens), o **de futebol** (corte, chute, chute alto, marcar e
+  gol) e o **de basquete** (barrinha do arremesso, finta, toco e cesta).
 
 ## Personagens
 

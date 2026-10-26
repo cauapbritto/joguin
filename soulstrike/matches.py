@@ -2177,6 +2177,9 @@ def create_match(game, session):
     if session.mode == "treino":
         from .training import TrainingMatch
         return TrainingMatch(game, session)
+    if session.mode.startswith("treino_"):
+        from .training import create_ball_training
+        return create_ball_training(game, session)
     if session.basket:
         from .basketball import BasketballMatch
         return BasketballMatch(game, session, warmup=True)     # com aquecimento antes da bola ao alto
