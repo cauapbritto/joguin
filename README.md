@@ -151,6 +151,11 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   | Raio     | Cetro da Tempestade      | Raio contínuo que pula em todos; segurando, fica mais forte. |
   | Alma     | Foice do Ceifador        | Cada abate cura 10% e dá +5% de dano (até +50%); arranca a armadura do chefão. |
 
+  **Altar das maldições:** no acampamento, antes de cada fase, o altar perto da fogueira deixa o
+  grupo escolher um desafio opcional para a fase seguinte: **inimigos rápidos** (25% mais velozes),
+  **inimigos fortes** (30% mais vida) ou **sem itens de vida**. Vencendo a fase amaldiçoada, a
+  escolha de melhorias dá **uma melhoria a mais**, sorteada entre as outras opções.
+
   **Armas raras do baú:** viram a 3ª arma do jogador (TROCAR ARMA passa pelas três) e ficam até o
   fim da campanha. Só dá para ter uma: quando o baú da fase seguinte dá outra, a antiga **fica
   no chão** (com o nome embaixo) e, perto dela, ATACAR **pega de volta** — trocando, e a outra

@@ -65,7 +65,7 @@ class AlmasTest(unittest.TestCase):
 
 class MercadoTest(unittest.TestCase):
     def test_so_aparece_na_volta(self):
-        self.assertFalse(acampamento(back=False)[0].stalls)
+        self.assertEqual([s.kind for s in acampamento(back=False)[0].stalls], ["altar"])
         self.assertEqual({s.kind for s in acampamento()[0].stalls}, {"loja", "ferreiro"})
 
     def test_pocao_cura_e_gasta_almas(self):

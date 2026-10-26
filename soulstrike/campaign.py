@@ -21,7 +21,7 @@ from .ui import darken
 from .data import PHASE_RELICS, RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
 from .dungeon import Campfire, Chest, ExitDoor, Gate, GroundWeapon, RelicDrop
 from .lobbies import cells_rect
-from .market import ENCHANTS, MAX_LEVEL, MAX_REROLLS, SOUL_COLOR, MarketMenu, Stall, souls_for
+from .market import CURSE_HP, CURSE_SPEED, CURSES, ENCHANTS, MAX_LEVEL, MAX_REROLLS, SOUL_COLOR, MarketMenu, Stall, souls_for
 from .upgrades import apply_all
 
 PLAYERS, ENEMIES = 0, 1
@@ -157,6 +157,7 @@ class CampaignRun:
         self.forge = {s: {} for s in self.slots}          # ferreiro: nome da arma -> [nível, encanto]
         self.rerolls = {s: 0 for s in self.slots}         # trocas das melhorias compradas na loja
         self.fused_phase = -1                             # fase em que o grupo já usou a fusão do ferreiro
+        self.curse = None                                 # desafio da fase (maldição do altar): market.CURSES
         self._snapshot = None
 
     @property
@@ -187,7 +188,7 @@ class CampaignRun:
         return {k: copy.deepcopy(getattr(self, k))
                 for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames",
                           "stage", "chest_open", "relics", "held", "loadouts", "souls", "forge", "rerolls",
-                          "fused_phase")}
+                          "fused_phase", "curse")}
 
     def begin_phase(self):
         """Começa a fase no acampamento e guarda como tudo estava (para TENTAR DE NOVO)."""
@@ -297,6 +298,9 @@ class CampaignRun:
                 run.loadouts[s] = names
             run.souls = max(0, int(state.get("souls", 0)))
             run.fused_phase = int(state.get("fused_phase", -1))
+            run.curse = state.get("curse")
+            if run.curse is not None and run.curse not in CURSES:
+                return None
             for s, entries in {int(k): v for k, v in state.get("forge", {}).items()}.items():
                 if s not in run.slots:
                     return None
@@ -919,6 +923,10 @@ class CampaignMatch(CoopMatch):
         scale = elite_hp_scale(kind, len(self.players))
         enemy.max_hp = enemy.hp = max(1, round(enemy.max_hp * self.enemy_hp * scale))
         enemy.damage_bonus *= self.enemy_dmg
+        if self.run.curse == "fortes":
+            enemy.max_hp = enemy.hp = round(enemy.max_hp * CURSE_HP)
+        elif self.run.curse == "rapidos":
+            enemy.speed *= CURSE_SPEED
         target = self.nearest_player(enemy)
         if target is not None:
             enemy.face(target)
@@ -975,7 +983,8 @@ class CampaignMatch(CoopMatch):
         if random.random() < chance:
             self._drop_hero_weapon(e)
         if random.random() < e.stats.drop_chance:
-            kind = random.choices(("vida", "furia", "energia", "municao"), weights=(46, 20, 16, 18))[0]
+            weights = (0 if self.run.curse == "sem_vida" else 46, 20, 16, 18)
+            kind = random.choices(("vida", "furia", "energia", "municao"), weights=weights)[0]
             x, y = self.arena.free_spot(e.x, e.y, 14)
             self.pickups.append(Pickup(kind, x, y))
 
@@ -1300,6 +1309,12 @@ class LobbyMatch(CoopMatch):
             self.props.append(self.chest)
         self.target_gate = 2 if self.back else 1
         self.stalls = []
+        if not self.back:                   # na chegada: o altar das maldições (desafio opcional)
+            x, y = self.arena.free_spot(fx + 230, fy + 150, 40)
+            altar = Stall("altar", x, y)
+            self.stalls.append(altar)
+            self.arena.walls.append(altar.wall)
+            self.props.append(altar)
         if self.back:                       # na volta da Masmorra 1: o mercado, perto da fogueira
             for kind, dx in (("loja", -260), ("ferreiro", 260)):
                 x, y = self.arena.free_spot(fx + dx, fy + 170, 40)

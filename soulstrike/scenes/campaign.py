@@ -1,5 +1,6 @@
 """Telas da campanha: história, escolha de melhorias, fim de jogo e final."""
 import math
+import random
 
 import pygame
 
@@ -298,6 +299,10 @@ class UpgradeScene(_MenuScene):
             if self.countdown == 45:
                 for s in self.run.slots:
                     self.run.add_upgrade(s, self.options[s][self.index[s]])
+                    if self.run.curse:              # venceu a maldição: mais uma, sorteada entre as outras
+                        others = [k for i, k in enumerate(self.options[s]) if i != self.index[s]]
+                        self.run.add_upgrade(s, random.choice(others))
+                self.run.curse = None
                 self.game.change(self.then())
         else:
             self.countdown = 0
@@ -307,6 +312,9 @@ class UpgradeScene(_MenuScene):
         self.draw_background(screen)
         done = self.run.phase_index + 1
         self.title(screen, "ESCOLHA UMA MELHORIA", y=40)
+        if self.run.curse:
+            self.ui.text(screen, "MALDIÇÃO VENCIDA: +1 MELHORIA", theme.XS, (190, 90, 230),
+                         (W - 64, 72), anchor="midright")
         self.ui.text(screen, f"FASE {done} CONCLUÍDA · TODO MUNDO RECUPERA {round(PHASE_HEAL * 100)}% DA VIDA",
                      theme.XS, theme.MOSS, (64, 72), anchor="midleft")
         self.ui.text(screen, f"PRÓXIMA: {PHASES[done].name}", theme.XS, theme.MUTED, (W - 64, 40), anchor="midright")

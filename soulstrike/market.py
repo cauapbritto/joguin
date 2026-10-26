@@ -30,6 +30,15 @@ BURN_FRAMES = 2 * config.FPS
 BURN_TICK = 20
 CHAIN_RANGE = 220
 SOUL_COLOR = (200, 170, 255)
+# desafios da campanha: uma maldição opcional por fase, escolhida no altar do acampamento
+CURSES = {
+    "rapidos": ("INIMIGOS RÁPIDOS", "inimigos 25% mais rápidos"),
+    "fortes": ("INIMIGOS FORTES", "inimigos com 30% mais vida"),
+    "sem_vida": ("SEM ITENS DE VIDA", "inimigos não deixam cair vida"),
+}
+CURSE_SPEED = 1.25
+CURSE_HP = 1.3
+CURSE_COLOR = (190, 90, 230)
 STICK = 0.55
 
 
@@ -87,7 +96,7 @@ class Stall(Entity):
     """Banca do mercado (loja ou ferreiro)."""
 
     REACH = 74
-    NAMES = {"loja": "LOJA", "ferreiro": "FERREIRO"}
+    NAMES = {"loja": "LOJA", "ferreiro": "FERREIRO", "altar": "ALTAR DAS MALDIÇÕES"}
 
     def __init__(self, kind, x, y):
         super().__init__(x, y)
@@ -108,6 +117,9 @@ class Stall(Entity):
             for _ in range(4):
                 match.particles.append(Particle(self.x + 14, self.y - 26, random.uniform(-1.6, 1.6),
                                                 random.uniform(-2.4, -0.8), (255, 200, 90), 16, 2, gravity=0.12))
+        elif self.kind == "altar" and self.age % 6 == 0:
+            match.particles.append(Particle(self.x + random.uniform(-6, 6), self.y - 36, random.uniform(-0.3, 0.3),
+                                            random.uniform(-1.2, -0.6), CURSE_COLOR, 20, 3))
         elif self.kind == "loja" and self.age % 60 == 0:
             match.particles.append(Particle(self.x + random.uniform(-20, 20), self.y - 30, 0, -0.5,
                                             SOUL_COLOR, 30, 3))
@@ -115,6 +127,14 @@ class Stall(Entity):
     def draw(self, surf, camera):
         sx, sy = round(self.x - camera.x), round(self.y - camera.y)
         pygame.draw.ellipse(surf, (10, 8, 12), (sx - 40, sy + 2, 80, 14))
+        if self.kind == "altar":
+            surf.fill((40, 36, 48), (sx - 26, sy - 26, 52, 28))         # pedra
+            surf.fill((80, 74, 92), (sx - 26, sy - 28, 52, 6))
+            surf.fill((60, 54, 70), (sx - 18, sy - 22, 36, 2))
+            flick = round(2 * math.sin(self.age * 0.3))
+            pygame.draw.polygon(surf, (120, 50, 170), [(sx - 8, sy - 28), (sx, sy - 48 - flick), (sx + 8, sy - 28)])
+            pygame.draw.polygon(surf, (220, 170, 255), [(sx - 3, sy - 28), (sx, sy - 38 - flick), (sx + 3, sy - 28)])
+            return
         # postes e toldo listrado
         stripes = ((70, 140, 90), (220, 214, 196)) if self.kind == "loja" else ((150, 50, 46), (60, 52, 60))
         for px in (sx - 32, sx + 28):
@@ -170,7 +190,25 @@ class MarketMenu:
         return self.match.run
 
     def entries(self):
+        if self.stall.kind == "altar":
+            return self._altar()
         return self._shop() if self.stall.kind == "loja" else self._forge()
+
+    def _altar(self):
+        run = self.run
+        out = []
+        for key, (name, desc) in CURSES.items():
+            label = ("> " if run.curse == key else "") + name
+            out.append(Entry(label, 0, desc + " · +1 melhoria no fim", True,
+                             lambda key=key: self._curse(key), CURSE_COLOR))
+        out.append(Entry(("> " if run.curse is None else "") + "SEM MALDIÇÃO", 0, "a fase normal", True,
+                         lambda: self._curse(None)))
+        return out
+
+    def _curse(self, key):
+        self.run.curse = key
+        self.match.camera.shake(3 if key else 0)
+        return CURSES[key][0] if key else "SEM MALDIÇÃO"
 
     def _shop(self):
         f, run = self.fighter, self.run
