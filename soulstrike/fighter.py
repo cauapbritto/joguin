@@ -8,6 +8,8 @@ from . import config, theme
 from .abilities import create_ability
 from .data import shot_sound
 from .entities import Entity, Particle, hostile
+from . import forged
+from .market import BURN_TICK, FORGE_DAMAGE, FORGE_MAG, enchant_hit
 from . import weapon_art
 
 ACCELERATION = 0.3          # quanto da velocidade-alvo é alcançada por quadro
@@ -34,6 +36,7 @@ WALL_STUN = 50       # arremessado contra a parede: fica tonto
 VIRUS_TICK = 15      # vírus do pendrive: um pouquinho de dano a cada tantos quadros
 RUSH_MULT = 2.2      # 100 metros (Cauanzera): corre muito
 MOTO_FRAMES = 18     # grau de moto (Aryel): esquiva mais longa
+MOTO_COOLDOWN = 1.3  # ... e demora mais para voltar
 MOTO_RIDE = 14       # o Aryel fica sentado em cima da moto
 
 
@@ -151,6 +154,7 @@ class Fighter(Entity):
         super().__init__(x, y)
         self.radius = self.base_radius = config.PLAYER_RADIUS
         self.stats = stats
+        self.speed = stats.speed        # no futebol e no basquete fica mais perto da média (config.ball_mode_speed)
         self.slot = slot
         self.label = label              # "P1", "CPU"...
         self.color = color              # cor da etiqueta acima da cabeça
@@ -161,6 +165,7 @@ class Fighter(Entity):
         self.max_hp = stats.max_hp      # pode crescer com melhorias (campanha)
         self.hp = self.max_hp
         self.weapon_index = weapon_index
+        self.loadout = None             # duelo com escolha de armas: (de tiro, de perto) deste round
         self.ability = create_ability(stats)
         self.on_moto = False            # esquiva de moto em andamento
         self.moto_timer = 0             # grau de moto no futebol (Aryel): anda de moto e atropela
@@ -176,9 +181,12 @@ class Fighter(Entity):
         self.dash_timer = 0
         self.dash_cd = 0
         self.dash_dir = (0.0, 0.0)
+        self.dodged = False             # esta esquiva já foi perfeita (só vale uma vez)
+        self.perfect_flash = 0
         self.charge_timer = 0
         self.charge_dir = (0.0, 0.0)
         self.charge_damage = 0
+        self.charge_stun = 0            # Investida do Guerreiro: quem leva fica tonto
         self.speed_timer = 0
         self.invulnerable_timer = 0
         self.super_cd = 0
@@ -262,6 +270,13 @@ class Fighter(Entity):
         self._dir = "direita" if self.facing[0] >= 0 else "esquerda"
         # munição das armas de tiro: um pente por arma (pente, recarga e o arco tensionando)
         self.relic = None               # arma rara do baú (campanha): vira a 3ª arma
+        self.forge = {}                 # ferreiro (campanha): nome da arma -> [nível, encanto]
+        self.burn_timer = 0             # encanto de fogo: queima aos poucos
+        self.burn_damage = 0
+        self.burn_owner = None
+        self.forged_count = 0           # golpes da Lâmina Solar (o 3º gira)
+        self.storm_hold = self.storm_last = 0   # Cetro da Tempestade: há quanto tempo segura
+        self.reaper = 0.0               # Foice do Ceifador: dano a mais até o fim da masmorra
         self.ammo_mult = 1.0            # melhoria da campanha: pente maior
         self.reload_mult = 1.0          # e recarga mais rápida
         self.clips = {}                 # arma → Clip
@@ -292,10 +307,15 @@ class Fighter(Entity):
 
     # ── propriedades ─────────────────────────
     @property
+    def base_weapons(self):
+        """As armas do personagem, ou as que o jogador escolheu antes do round (duelo)."""
+        return self.loadout or self.stats.weapons
+
+    @property
     def weapons(self):
         if self.relic is not None:
-            return self.stats.weapons + (self.relic,)
-        return self.stats.weapons
+            return self.base_weapons + (self.relic,)
+        return self.base_weapons
 
     @property
     def weapon(self):
@@ -316,7 +336,21 @@ class Fighter(Entity):
         """Tiros num pente cheio desta arma (0 = sem limite)."""
         if weapon is None or weapon.is_melee or weapon.mag <= 0:
             return 0
-        return max(1, round(weapon.mag * getattr(self, "ammo_mult", 1.0)))
+        level = self.forge.get(weapon.name, (0,))[0]
+        return max(1, round(weapon.mag * getattr(self, "ammo_mult", 1.0) * (1 + FORGE_MAG * level)))
+
+    def weapon_mult(self, weapon):
+        """Dano a mais do ferreiro nesta arma (+15% por nível)."""
+        return 1 + FORGE_DAMAGE * self.forge.get(weapon.name, (0,))[0] + self.reaper
+
+    def burn(self, owner, damage, frames):
+        """Encanto de fogo: perde ``damage`` de vida a cada BURN_TICK quadros, por ``frames``."""
+        if self.invulnerable or self.hp <= 0:
+            return False
+        self.burn_timer = max(self.burn_timer, frames)
+        self.burn_damage = max(self.burn_damage if self.burn_timer else 0, damage)
+        self.burn_owner = owner
+        return True
 
     def clip(self, weapon):
         clip = self.clips.get(weapon)
@@ -330,7 +364,7 @@ class Fighter(Entity):
         w = self.weapon
         if not w.is_melee:
             return w
-        for w in self.stats.weapons:
+        for w in self.base_weapons:
             if not w.is_melee:
                 return w
         return None
@@ -431,7 +465,7 @@ class Fighter(Entity):
 
     @property
     def max_speed(self):
-        base = self.stats.speed * MOVE_SCALE
+        base = self.speed * MOVE_SCALE
         if self.sprint_timer > 0:
             return base * 1.8
         if self.moto_timer > 0:
@@ -588,7 +622,8 @@ class Fighter(Entity):
                      "invulnerable_timer", "stun_timer", "fury_timer", "hit_flash", "melee_flash",
                      "shoot_flash", "teleport_flash", "slow_timer", "pull_timer", "windup", "aim_timer",
                      "down_age", "bow_draw", "haste_timer", "idle_shot", "hack_timer", "type_timer",
-                     "virus_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer"):
+                     "virus_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer",
+                     "perfect_flash", "burn_timer"):
             setattr(self, name, 0)
         self.end_exo()
         self.clips.clear()                            # pentes cheios de novo
@@ -623,14 +658,33 @@ class Fighter(Entity):
         self.dash_dir = (dx / mag, dy / mag)
         self.dash_timer = frames
         self.dash_len = frames
-        self.dash_cd = round(cooldown * self.dash_cd_mult)
+        moto = MOTO_COOLDOWN if self.on_moto else 1.0         # a moto vai mais longe: recarga maior
+        self.dash_cd = round(cooldown * self.dash_cd_mult * moto)
+        self.dodged = False
         self.kicked_dust = True
         return True
 
-    def start_charge(self, direction, damage):
+    def perfect_dodge(self, match):
+        """Esquivou no meio de um golpe de verdade: a esquiva volta na hora e a habilidade carrega
+        um pouco. Vale uma vez por esquiva (no duelo e na campanha)."""
+        if self.dash_timer <= 0 or self.dodged or self.hp <= 0 or match.session.soccer:
+            return False
+        if self.dash_len - self.dash_timer >= config.PERFECT_DODGE_WINDOW:
+            return False                # só no comecinho da esquiva (a moto do Aryel não ganha mais)
+        self.dodged = True
+        self.dash_cd = 0
+        self.ability_cd = max(0, self.ability_cd - round(self.ability_cooldown * config.PERFECT_DODGE_CHARGE))
+        self.perfect_flash = 18
+        match.popup(self.x, self.y - 60, "ESQUIVA PERFEITA!", (240, 248, 255))
+        match.burst(self.x, self.y - 14, (230, 244, 255), 12, speed=4)
+        match.assets.play("click", 0.5)
+        return True
+
+    def start_charge(self, direction, damage, stun=0):
         self.charge_dir = direction
         self.charge_timer = 20
         self.charge_damage = damage
+        self.charge_stun = stun
         self.facing = direction
 
     def start_windup(self, frames, color):
@@ -679,6 +733,8 @@ class Fighter(Entity):
             # acerta todos os adversários ao alcance na frente (no duelo, só existe um)
             fx, fy = self.facing
             reach = self.melee_reach(weapon)
+            hits = []
+            damage = round(weapon.damage * self.damage_mult * self.weapon_mult(weapon))
             for other in match.opponents_of(self):
                 if not other.alive_in_match:
                     continue
@@ -686,12 +742,16 @@ class Fighter(Entity):
                 d = math.hypot(dx, dy)
                 in_front = weapon.spin or other is target or d < other.radius + 6 or (dx * fx + dy * fy) > -0.2 * d
                 if d <= reach + other.radius and in_front:
-                    if other.take_damage(round(weapon.damage * self.damage_mult), self.x, self.y,
-                                         attacker=self, match=match) and self.exo_timer > 0:
-                        other.throw_from(self, match)
+                    if other.take_damage(damage, self.x, self.y, attacker=self, match=match):
+                        hits.append(other)
+                        enchant_hit(self, weapon, other, match, damage)
+                        if self.exo_timer > 0:
+                            other.throw_from(self, match)
+            if weapon.forjada:
+                forged.on_swing(self, weapon, match, hits, damage)
             return True
         base = proximity_damage(dist, weapon.damage) if weapon.close_bonus else weapon.damage
-        damage = round(base * self.damage_mult)
+        damage = round(base * self.damage_mult * self.weapon_mult(weapon))
         # armas antigas sem estilo (chefão): a granada do Aryel continua explodindo
         explosive = not weapon.style and self.stats.key in ("aryel", "aryel_corrompido")
         match.spawn_projectile(self, weapon, self.facing, damage, target, explosive=explosive)
@@ -718,7 +778,7 @@ class Fighter(Entity):
         if target is not None and getattr(target, "alive_in_match", True):
             self.face(target)
         weapon = self.weapon
-        damage = round(weapon.damage * (0.7 + 1.2 * power) * self.damage_mult)
+        damage = round(weapon.damage * (0.7 + 1.2 * power) * self.damage_mult * self.weapon_mult(weapon))
         match.spawn_projectile(self, weapon, self.facing, damage, target, power=power)
         self._spend_ammo()
         self.attack_cd = BOW_RECOVER
@@ -768,6 +828,9 @@ class Fighter(Entity):
 
     def take_damage(self, amount, sx=None, sy=None, attacker=None, match=None):
         if self.invulnerable or self.hp <= 0:
+            if (amount > 0 and match is not None and attacker is not None and attacker is not self
+                    and self.invulnerable_timer <= 0):
+                self.perfect_dodge(match)
             return False
         if self.vulnerability != 1.0:
             amount = max(1, round(amount * self.vulnerability))
@@ -803,6 +866,7 @@ class Fighter(Entity):
             self.last_attacker = attacker
             if self.hp <= 0:
                 attacker.kills += 1
+                forged.on_kill(attacker, self, match)
         if match is not None:
             match.popup(self.x, self.y - 46 * self.draw_scale, str(amount), theme.BONE if amount < 20 else theme.BRASS)
             match.burst(self.x, self.y - 10, (236, 230, 220), 5, speed=3)
@@ -835,7 +899,7 @@ class Fighter(Entity):
                      "magic_timer", "nose_timer", "zaga_timer", "moto_timer", "cut_timer", "hack_timer",
                      "type_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer",
                      "slow_timer", "windup", "aim_timer", "haste_timer", "dry_click",
-                     "hit_flash", "melee_flash", "shoot_flash", "teleport_flash"):
+                     "hit_flash", "melee_flash", "shoot_flash", "teleport_flash", "perfect_flash"):
             value = getattr(self, name)
             if value > 0:
                 setattr(self, name, value - 1)
@@ -847,6 +911,8 @@ class Fighter(Entity):
             self.radius = self.base_radius
         if self.virus_timer > 0:
             self._virus(match)
+        if self.burn_timer > 0:
+            self._burn(match)
         if self.kicked_dust:
             self.kicked_dust = False
             match.dust(self.x, self.y + FEET, 6)
@@ -901,6 +967,8 @@ class Fighter(Entity):
             for other in match.opponents_of(self):
                 if other.alive_in_match and self.distance_to(other) < self.radius + other.radius + 6:
                     other.take_damage(self.charge_damage, self.x, self.y, attacker=self, match=match)
+                    if self.charge_stun:
+                        other.stun(self.charge_stun)
                     self.charge_timer = 0
             moving_fast = True
         else:
@@ -911,7 +979,7 @@ class Fighter(Entity):
                 ix, iy = fx / fd, fy / fd                # com medo: foge
             if self.rush_timer > 0 and math.hypot(ix, iy) < 0.3 and not self.stunned:
                 ix, iy = self.facing                     # 100 metros: não para de correr
-            was_fast = math.hypot(self.vx, self.vy) > self.stats.speed * 0.8
+            was_fast = math.hypot(self.vx, self.vy) > self.speed * 0.8
             self.moving = abs(ix) > 0.05 or abs(iy) > 0.05
             if self.moving:
                 turning = ix * self.vx + iy * self.vy < 0
@@ -982,6 +1050,17 @@ class Fighter(Entity):
                     if other.stun(30):
                         other.knock = [ux * 9 * (1 - other.knock_resist), uy * 9 * (1 - other.knock_resist)]
                     match.popup(other.x, other.y - 74, "ATROPELOU", theme.BONE)
+
+    def _burn(self, match):
+        self.burn_timer -= 1
+        if self.hp <= 0:
+            self.burn_timer = 0
+            return
+        if match.frame % 3 == 0:
+            match.particles.append(Particle(self.x + random.uniform(-10, 10), self.y - random.uniform(0, 30),
+                                            0, -1.0, random.choice(((250, 140, 60), (255, 210, 110))), 14, 3))
+        if self.burn_timer % BURN_TICK == 0 and self.take_damage(self.burn_damage, attacker=self.burn_owner):
+            match.popup(self.x + 14, self.y - 46, str(self.burn_damage), (250, 140, 60))
 
     def _virus(self, match):
         """Vírus do pendrive: dano pequeno de tempos em tempos (sem empurrão nem pausa)."""
@@ -1223,6 +1302,14 @@ class Fighter(Entity):
                 fx = sx - 10 + ((ticks * 2 + k * 9) % 20)
                 fy = rect.top + ((ticks + k * 13) % rect.h)
                 surf.fill((230, 246, 255), (fx, fy, 2, 2))
+
+        if self.perfect_flash > 0:
+            # esquiva perfeita: um contorno branco que some
+            shine = self.sprites.flash(direction, index, kind).copy()
+            shine.fill((255, 255, 255, 12 * self.perfect_flash), special_flags=pygame.BLEND_RGBA_MULT)
+            surf.blit(shine, rect)
+            r = 22 + (18 - self.perfect_flash)
+            pygame.draw.circle(surf, (230, 244, 255), (sx, rect.centery), r, 2)
 
         if self.invulnerable_timer > 0 and (ticks // 4) % 2 == 0:
             glow = self.sprites.flash(direction, index, kind).copy()

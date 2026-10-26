@@ -15,6 +15,15 @@ DIFFICULTIES = {
 }
 DIFFICULTY_ORDER = ("facil", "normal", "dificil")
 
+# CPU do futebol e do basquete: speed = velocidade, press = vontade de roubar/dar toco,
+# power = vontade de usar o SUPER, aim = erro da mira no gol (px), shoot = de onde chuta,
+# hit = acerto da barrinha do arremesso (meia distância, de 3)
+BALL_DIFFICULTIES = {
+    "facil": {"speed": 0.9, "press": 0.5, "power": 0.5, "aim": 80, "shoot": 460, "hit": (0.6, 0.35)},
+    "normal": {"speed": 1.0, "press": 1.0, "power": 1.0, "aim": 50, "shoot": 540, "hit": (0.8, 0.55)},
+    "dificil": {"speed": 1.05, "press": 1.6, "power": 1.5, "aim": 30, "shoot": 600, "hit": (0.92, 0.75)},
+}
+
 
 class FighterAI:
     """Decide a cada poucos quadros (tempo de reação) e aplica a decisão em todos os quadros."""
@@ -159,13 +168,13 @@ class FighterAI:
         return None
 
 
-SHOOT_RANGE = 540        # a CPU chuta a gol mais perto que isso
 
 
 class SoccerAI:
     """Jogador de futebol controlado pela CPU."""
 
-    def __init__(self):
+    def __init__(self, difficulty="normal"):
+        self.cfg = BALL_DIFFICULTIES.get(difficulty, BALL_DIFFICULTIES["normal"])
         self.aim_y = None
         self.swerve = random.choice((-1, 1))
         self.wing = None          # no 2x2, às vezes abre pela ponta para cruzar (lado: -1 ou 1)
@@ -182,7 +191,8 @@ class SoccerAI:
         home_x = match.goal_x(me.team)
         mid_y = match.arena.height / 2
         if self.aim_y is None or random.random() < 0.01:
-            self.aim_y = mid_y + random.choice((-50, 0, 50))
+            aim = self.cfg["aim"]
+            self.aim_y = mid_y + random.choice((-aim, 0, aim))
         mates = [f for f in match.fighters if f.team == me.team and f is not me]
         foes = [f for f in match.fighters if f.team != me.team]
         near = lambda f: math.hypot(f.x - ball.x, f.y - ball.y) < 40
@@ -246,7 +256,7 @@ class SoccerAI:
             gx, gy = home_x - ball.x, mid_y - ball.y
             g = math.hypot(gx, gy) or 1
             tx, ty = ball.x + gx / g * 14, ball.y + gy / g * 14
-            if dist_ball < 40 and me.dash_cd <= 0 and random.random() < 0.04:
+            if dist_ball < 40 and me.dash_cd <= 0 and random.random() < 0.04 * self.cfg["press"]:
                 match.cut(me, ((ball.x - me.x) / (dist_ball or 1), (ball.y - me.y) / (dist_ball or 1)))
         elif any(near(f) for f in mates):
             tx, ty = attack_x, mid_y + (me.slot % 2 * 2 - 1) * 170
@@ -264,7 +274,7 @@ class SoccerAI:
         else:
             me.steer(0, 0)
         me.dribbling = me.sprint_timer > 0
-        chance = 0.35 if me.power.needs_ball and match.touching(me, 20) else 0.06
+        chance = (0.35 if me.power.needs_ball and match.touching(me, 20) else 0.06) * self.cfg["power"]
         if me.super_cd <= 0 and random.random() < chance and me.power.worth_using(me, match):
             match.use_power(me)
 
@@ -326,7 +336,7 @@ class SoccerAI:
         # campo aberto: arranca com a bola
         me.sprint_held = blocker is None and me.stamina > 0.5 and abs(attack_x - me.x) > 380
         me.steer(*move)
-        if me.super_cd <= 0 and random.random() < 0.08 and me.power.worth_using(me, match):
+        if me.super_cd <= 0 and random.random() < 0.08 * self.cfg["power"] and me.power.worth_using(me, match):
             if match.use_power(me):
                 return
         if self.wing is not None:
@@ -336,7 +346,7 @@ class SoccerAI:
         if near_goal < 600 and match.in_cross_position(me) and random.random() < 0.12:
             if match.cross_receiver(me, mates) is not None and match.pass_ball(me, high=random.random() < 0.65):
                 return
-        if near_goal < SHOOT_RANGE:
+        if near_goal < self.cfg["shoot"]:
             me.facing = aim
             # marcador colado na frente: tenta encobrir
             loft = 0.25 if blocker is not None and me.distance_to(blocker) < 80 and near_goal > 280 else 0.0
@@ -368,17 +378,17 @@ class BasketballAI:
     """Jogador de basquete controlado pela CPU: leva a bola para a cesta, arremessa quando está
     livre ou perto, passa quando é apertado e, sem a bola, marca ou se desmarca."""
 
-    def __init__(self):
+    def __init__(self, difficulty="normal"):
+        self.cfg = BALL_DIFFICULTIES.get(difficulty, BALL_DIFFICULTIES["normal"])
         self.wait = random.randint(10, 30)      # quadros com a bola antes de pensar em arremessar
         self.had_ball = False
         self.lane = random.choice((-1, 1))      # para que lado abre quando o companheiro tem a bola
         self.release_at = 20
 
-    @staticmethod
-    def _release_frame(me, three, jump_frames):
+    def _release_frame(self, me, three, jump_frames):
         """Quando soltar a barrinha: a CPU acerta o tempo na maioria das vezes, menos no de 3."""
         half = me.shot_half
-        if random.random() < (0.55 if three else 0.8):
+        if random.random() < self.cfg["hit"][1 if three else 0]:
             t = 0.5 + random.uniform(-0.8, 0.8) * half
         else:
             t = 0.5 + random.choice((-1, 1)) * (half + random.uniform(0.03, 0.2))
@@ -398,7 +408,7 @@ class BasketballAI:
                 match.release_shot(me)
             return
         power = me.power
-        if (power is not None and me.super_cd <= 0 and not me.dunking and random.random() < 0.05
+        if (power is not None and me.super_cd <= 0 and not me.dunking and random.random() < 0.05 * self.cfg["power"]
                 and power.worth_using(me, match) and match.use_power(me)):
             return
         side = match.hoop_of(me.team)
@@ -453,10 +463,13 @@ class BasketballAI:
         if not me.jump and not me.dunking:
             if owner is not None and owner.team != me.team:
                 d = me.distance_to(owner)
-                if (owner.jump_shot or owner.dunking) and d < 80 and random.random() < 0.12:
+                if owner.jump_shot and not owner.pushed and d < 120 and random.random() < 0.04 * self.cfg["press"]:
+                    match.steal(me, (owner.x - me.x, owner.y - me.y))   # empurrão no arremesso
+                    return
+                if (owner.jump_shot or owner.dunking) and d < 80 and random.random() < 0.12 * self.cfg["press"]:
                     match.jump(me)              # toco
                     return
-                if d < 60 and not owner.jump and random.random() < 0.006:
+                if d < 60 and not owner.jump and random.random() < 0.006 * self.cfg["press"]:
                     match.steal(me)
             elif (owner is None and match.shot is not None and match.shot.get("touched")
                   and dist_ball < 40 and 40 < ball.z < 110 and random.random() < 0.2):

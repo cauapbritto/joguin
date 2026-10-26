@@ -12,6 +12,8 @@ MODES = {
     "basket2": {"title": "BASQUETE 2 x 2", "soccer": True, "basket": True, "slots": 4, "teams": True},
     "campaign": {"title": "CAMPANHA", "soccer": False, "slots": 4},
     "treino": {"title": "TREINO", "soccer": False, "slots": 2},
+    "treino_futebol": {"title": "TREINO DE FUTEBOL", "soccer": True, "slots": 2},
+    "treino_basquete": {"title": "TREINO DE BASQUETE", "soccer": True, "basket": True, "slots": 4, "teams": True},
 }
 
 # Como as vagas formam os times nos modos 2 x 2 (escolhido no lobby)
@@ -50,6 +52,8 @@ class Session:
     difficulty: str = "normal"
     assist: str = "media"          # assistência do futebol: alta, media ou desligada
     layout: str = "alternado"      # times no 2 x 2 (veja TEAM_LAYOUTS)
+    weapon_pick: bool = False      # duelo: escolher as armas antes de cada round
+    soccer_length: str = "3"       # futebol: "3", "5" ou "7" gols, ou "tempo" (config.SOCCER_LENGTHS)
 
     @property
     def soccer(self):

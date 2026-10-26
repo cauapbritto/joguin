@@ -20,6 +20,7 @@ class WeaponStats:
     rare: bool = False      # arma rara do baú da campanha
     spin: bool = False      # golpe em giro de 360° (acerta em volta toda)
     roubada: bool = False   # arma rara da última fase (bem mais forte)
+    forjada: bool = False   # arma forjada na fusão do ferreiro (forged.py)
 
     @property
     def is_melee(self):
@@ -52,6 +53,9 @@ SHOT_SOUNDS = {
     "cristal": "gelo", "estalactite": "gelo", "espelho": "gelo",
     "raio": "eletrico", "raio_supremo": "eletrico", "pulso": "eletrico",
     "chama": "fogo",
+    # forjadas (forged.py)
+    "onda_solar": "fogo", "dragao": "fogo", "mil_almas": "arco", "vazio": "tiro_forte", "inverno": "gelo",
+    "tempestade": "eletrico", "martelo_trovao": "eletrico",
 }
 
 
@@ -70,7 +74,7 @@ def _melee(name, damage, reach, cooldown=16, **extra):
 
 CHARACTERS = (
     CharacterStats("guerreiro", "Guerreiro", 150, 3, (72, 112, 206),
-                   "Investida", "Avança contra o inimigo e causa 30 de dano.",
+                   "Investida", "Avança, causa 30 de dano e deixa o inimigo tonto.",
                    (_ranged("Arco", 10, 9, 22, "flecha", mag=6, reload=80, charge=True,
                             note="Segure para tensionar: a flecha tensa atravessa."), _melee("Espada", 22, 70)), "guerreiro"),
     CharacterStats("atirador", "Atirador", 105, 4, (70, 182, 190),
@@ -78,11 +82,11 @@ CHARACTERS = (
                    (_ranged("Rifle", 8, 14, 12, "bala", mag=18, reload=65,
                             note="Pente grande e tiro rápido."), _melee("Faca", 16, 50)), "atirador"),
     CharacterStats("tanque", "Tanque", 230, 2, (128, 136, 150),
-                   "Muralha", "Ergue uma barreira que bloqueia tiros por 4s.",
+                   "Muralha", "Barreira por 4s que segura os tiros e os devolve.",
                    (_ranged("Lança", 14, 9, 34, "lanca", mag=4, reload=70,
                             note="Arremesso que atravessa e empurra."), _melee("Maça", 26, 60)), "tanque"),
     CharacterStats("ninja", "Ninja", 95, 4.2, (64, 168, 124),
-                   "Shuriken", "Lança 3 shurikens de dano alto.",
+                   "Shuriken", "Leque fechado de 3 shurikens de dano alto.",
                    (_ranged("Shuriken", 9, 11, 18, "shuriken", mag=10, reload=50,
                             note="Gira e ricocheteia na parede."), _melee("Katana", 19, 65)), "ninja"),
     CharacterStats("velocista", "Velocista", 115, 4.5, (236, 198, 64),
@@ -133,11 +137,11 @@ CHARACTERS = (
                    (_ranged("Disquete", 10, 11, 18, "disquete", mag=6, reload=80,
                             note="Gira e quica uma vez na parede."), _melee("Cabo de Rede", 12, 73, cooldown=24)), "cauanzera"),
     CharacterStats("albeguinio", "Albeguinio", 140, 3.2, (222, 204, 160),
-                   "Hacker", "Digita 1s e trava todos os adversários por 5s.",
+                   "Hacker", "Digita 1s e trava os adversários (3s no 1x1, 5s em time).",
                    (_ranged("Pendrive", 7, 12, 26, "pendrive", mag=4, reload=80,
                             note="Passa vírus: o alvo perde vida aos poucos."), _melee("Notebook", 26, 60)), "albeguinio"),
     CharacterStats("borba", "Borba Jr", 125, 3.9, (236, 118, 84),
-                   "Exoesqueleto", "6s de armadura: metade do dano e golpe que arremessa.",
+                   "Exoesqueleto", "4,5s de armadura: metade do dano e golpe que arremessa.",
                    (_ranged("Canhão de Pulso", 12, 11, 26, "pulso", mag=4, reload=70, charge=True,
                             note="Segure para carregar: tiro maior que empurra."),
                     _melee("Punho Mecânico", 25, 58)), "borba"),
@@ -230,3 +234,47 @@ def roster_for_web():
         }
         for c in CHARACTERS
     ]
+
+
+def duel_arsenal():
+    """Armas que dá para escolher antes de cada round do duelo: as de tiro e as de perto dos heróis
+    (sem repetir nome e sem as raras do baú). Devolve (de tiro, de perto)."""
+    ranged, melee, seen = [], [], set()
+    for c in CHARACTERS:
+        if c.soccer_only:
+            continue
+        for w in c.weapons:
+            if w.name in seen:
+                continue
+            seen.add(w.name)
+            (melee if w.is_melee else ranged).append(w)
+    return tuple(ranged), tuple(melee)
+
+
+# raridade das armas da campanha: a cor do nome mostra de longe o que é cada uma
+RARITY_COLORS = {
+    "comum": (236, 230, 220),       # armas dos heróis (caem dos inimigos)
+    "rara": (110, 170, 255),        # baú das fases
+    "roubada": (255, 210, 90),      # baú do Templo Gelado
+    "forjada": (255, 110, 170),     # fusão do ferreiro
+}
+
+
+def rarity(weapon):
+    if weapon.forjada:
+        return "forjada"
+    if weapon.roubada:
+        return "roubada"
+    if weapon.rare:
+        return "rara"
+    return "comum"
+
+
+def rarity_color(weapon):
+    return RARITY_COLORS[rarity(weapon)]
+
+
+def common_weapon(name):
+    """Arma comum (de herói) pelo nome, ou None."""
+    ranged, melee = duel_arsenal()
+    return next((w for w in ranged + melee if w.name == name), None)

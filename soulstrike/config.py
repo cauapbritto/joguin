@@ -26,7 +26,9 @@ MELEE_BONUS_RANGE = 80      # tiros disparados de perto causam mais dano
 MAX_BULLET_DAMAGE = 30
 EXPLOSION_RADIUS = 60
 DASH_FRAMES = 12
-DASH_COOLDOWN = 45
+DASH_COOLDOWN = 60          # esquiva perfeita (desviar de um golpe de verdade) zera a recarga
+PERFECT_DODGE_CHARGE = 0.2  # ... e carrega 20% da habilidade
+PERFECT_DODGE_WINDOW = 6    # quadros do começo da esquiva em que o desvio é perfeito
 DASH_SPEED_MULT = 5
 DOUBLE_TAP_MS = 300
 DEATH_ANIM_FRAMES = 90
@@ -50,8 +52,19 @@ AMMO_PICKUP_EXTRA = 2       # item de munição: pente cheio + um pente extra
 FURY_FRAMES = 6 * FPS
 FURY_MULT = 1.5
 
+# ── Futebol e basquete ──
+BALL_SPEED_MID = 3.5        # com bola, a velocidade de todos fica mais perto da média do elenco...
+BALL_SPEED_SPREAD = 0.5     # ...guardando só metade da diferença (Tanque 2 vira 2,75; Velocista 4,5 vira 4)
+
+
+def ball_mode_speed(speed):
+    return BALL_SPEED_MID + (speed - BALL_SPEED_MID) * BALL_SPEED_SPREAD
+
+
 # ── Futebol ──
-WIN_SCORE = 3
+WIN_SCORE = 3               # padrão (dá para escolher 3, 5 ou 7 gols, ou jogar por tempo)
+SOCCER_LENGTHS = ("3", "5", "7", "tempo")
+SOCCER_MINUTES = 3
 GOAL_FREEZE = 120
 BALL_RADIUS = 12
 BALL_FRICTION = 0.989       # rolando: a bola perde 1,1% da velocidade por quadro (no ar, 0,4%)

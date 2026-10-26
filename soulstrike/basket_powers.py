@@ -106,7 +106,7 @@ class TocoVoador(BasketPower):
     description = "Teleporta para o seu aro e, por 4s, dá toco no próximo arremesso ou enterrada."
     kind = "defesa"
     passive = "Corpo fechado: dá toco de mais longe e a bola fantasma não passa por ele."
-    block_bonus = 12
+    block_bonus = 6
     ghost_proof = True
     FRAMES = 4 * config.FPS
 
@@ -203,12 +203,13 @@ class Congelar(BasketPower):
 
 class Gancho(BasketPower):
     """Pirata: puxa a bola de longe até a mão, até da mão do adversário (não no meio da enterrada,
-    nem do Drible Mágico ou do Exo)."""
+    nem do Drible Mágico ou do Exo). Bola no ar (arremesso, passe ou rebote) não dá para fisgar,
+    e quem protege a bola (MARCAR) segura o puxão: o gancho bate e volta vazio."""
     name = "GANCHO"
-    description = "Puxa a bola de longe para a mão, até da mão do adversário."
+    description = "Puxa a bola de longe para a mão, até da mão do adversário. Quem protege segura."
     kind = "defesa"
     sound = "dash"
-    RANGE = 380
+    RANGE = 280
 
     def activate(self, user, match):
         ball = match.ball
@@ -218,11 +219,16 @@ class Gancho(BasketPower):
             return False
         if owner is not None and (owner.dunking or owner.magic_timer > 0 or owner.exo_timer > 0):
             return False
+        if owner is None and ball.airborne:
+            return False
         steps = int(d // 14)
         for i in range(steps):                      # a corrente até a bola
             t = i / max(1, steps)
             match.burst(user.x + (ball.x - user.x) * t, user.y - 20 + (ball.y - ball.z - user.y) * t,
                         (176, 180, 192), 1, speed=0.5)
+        if owner is not None and owner.protecting:
+            match.popup(owner.x, owner.y - 74, "SEGUROU", theme.BONE)     # o contra do Gancho
+            return True
         if owner is not None:
             match.release_ball(owner, 30)
         match.grab(user)
@@ -234,8 +240,9 @@ class Gancho(BasketPower):
         owner = match.holder
         d = math.hypot(ball.x - user.x, ball.y - user.y)
         if owner is not None and owner.team != user.team:
-            return 90 < d < self.RANGE and not (owner.magic_timer > 0 or owner.exo_timer > 0)
-        return owner is None and 140 < d < self.RANGE
+            return (90 < d < self.RANGE and not owner.protecting
+                    and not (owner.magic_timer > 0 or owner.exo_timer > 0))
+        return owner is None and not ball.airborne and 140 < d < self.RANGE
 
 
 class Hack(BasketPower):

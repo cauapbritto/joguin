@@ -24,14 +24,19 @@ def load():
         grips = json.loads((WEAPON_DIR / "grips.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
+    from .forged import art_surfaces
+    sources = []
     for name, info in grips.items():
         try:
             small = pygame.image.load(str(WEAPON_DIR / info["file"])).convert_alpha()
         except (pygame.error, FileNotFoundError):
             continue
+        sources.append((name, small, info["grip"]))
+    sources += [(name, small, grip) for name, (small, grip) in art_surfaces().items()]
+    for name, small, grip in sources:
         _icons[name] = small
         img = pygame.transform.scale(small, (small.get_width() * SCALE, small.get_height() * SCALE))
-        gx, gy = info["grip"][0] * SCALE + SCALE // 2, info["grip"][1] * SCALE + SCALE // 2
+        gx, gy = grip[0] * SCALE + SCALE // 2, grip[1] * SCALE + SCALE // 2
         w, h = img.get_size()
         _base[name] = (img, (gx, gy))
         _variants[name] = {

@@ -10,7 +10,7 @@ import random
 import pygame
 
 from . import config, hud, theme
-from .ai import BasketballAI
+from .ai import BALL_DIFFICULTIES, BasketballAI
 from .arena import BASKET_MAPS, Court
 from .basket_powers import create_basket_power
 from .basket_assist import (JUMP_FRAMES, aim_point, board_hit, bounce, flight_frames, green_half, miss_distance,
@@ -23,6 +23,8 @@ from .soccer_assist import pick_receiver, unit
 HALF_SECONDS = 120              # dois tempos de 2 minutos
 WARMUP_SECONDS = 60             # aquecimento antes da bola ao alto: cada um com a sua bola
 WARM_STATE = ("ball", "holder", "shot", "no_catch", "catch_lock", "alley")   # o que cada bola tem
+COMEBACK_GAP = 10              # perdendo por tanto ou mais: o time ganha uma ajuda (estilo NBA Jam)
+COMEBACK_GREEN = (0.05, 0.02)   # faixa verde a mais (meia distância, de 3)
 SHOT_CLOCK = 10                 # segundos com a bola sem arremessar: perde a posse
 CATCH_HEIGHT = 56               # bola mais baixa que isso pode ser pega
 HAND_Z = 40                     # altura de onde sai o arremesso
@@ -39,6 +41,8 @@ STEAL_REACH = 14                # o roubo pega encostando (folga além dos corpo
 STEAL_COOLDOWN = 36
 FEINT_FRAMES = 20               # quem tenta roubar nesse tempo erra e fica parado
 FEINT_STUN = 30                 # 0,5 s parado
+PUSH_SHRINK = 0.5               # empurrão no arremesso: a faixa verde cai pela metade
+PUSH_STUN = 24                  # empurrão que não pega (segurou, ou já tinha levado um)
 FIRE_STREAK = 3                 # cestas seguidas do mesmo jogador para pegar fogo
 FIRE_SECONDS = 20
 # tipos de enterrada: os mais vistosos só com fogo, Enterrada Voadora ou alley-oop
@@ -247,6 +251,7 @@ class BasketballMatch(Match):
             fighter.dunk_move = ""            # tipo da enterrada (DUNKS ou SHOW_DUNKS)
             fighter.hang = 0                 # quadros pendurado no aro depois de cravar
             fighter.shot_half = 0.3          # meia largura da faixa verde deste arremesso
+            fighter.pushed = False           # já levou empurrão neste arremesso
             fighter.meter_flash = None       # (soltou em, faixa, quadros) para mostrar o resultado
             fighter.feint_timer = 0
             fighter.steal_timer = 0
@@ -256,7 +261,8 @@ class BasketballMatch(Match):
             fighter.fire_timer = 0
             self.spawn_of[fighter] = pos
             if setup.cpu:
-                self.controllers[fighter] = BasketballAI()
+                self.controllers[fighter] = BasketballAI(session.difficulty)
+                fighter.speed *= BALL_DIFFICULTIES[session.difficulty]["speed"]
             else:
                 game.inputs[setup.slot].set_layout("soccer")      # mesmas teclas do futebol
                 self.controllers[fighter] = game.inputs[setup.slot]
@@ -390,12 +396,16 @@ class BasketballMatch(Match):
             self.popup(f.x, f.y - 90, "SEM ENTERRADA", theme.MUTED)   # marcação colada
         f.jump = 1
         f.jump_shot = True
-        half = green_half(dist, Court.is_three(side, f.x, f.y), self.on_fire(f)) + f.power.green_bonus
+        three = Court.is_three(side, f.x, f.y)
+        half = green_half(dist, three, self.on_fire(f)) + f.power.green_bonus
+        if self.comeback(f.team):
+            half += COMEBACK_GREEN[1 if three else 0]
         if f.hot_timer > 0:
             half = 0.5                        # Mão Quente: a faixa inteira
         if f.frost_timer > 0:
             half *= 0.4                       # Congelar: faixa estreita
         f.shot_half = half
+        f.pushed = False
         f.facing = unit(hx - f.x, hy - f.y)
         return True
 
@@ -549,6 +559,8 @@ class BasketballMatch(Match):
                 or f.distance_to(owner) > f.radius + owner.radius + STEAL_REACH):
             return False
         f.steal_timer = 0
+        if owner.jump_shot:
+            return self._push(f, owner)
         if owner.feint_timer > 0 or owner.lift > 0:
             # caiu na finta (ou o outro já estava no ar)
             f.dash_timer = 0
@@ -571,6 +583,21 @@ class BasketballMatch(Match):
         self.assets.play("hit", 0.3)
         return True
 
+    def _push(self, f, shooter):
+        """CORTE sem a bola em quem está arremessando: atrapalha o arremesso (a faixa verde fica
+        menor). Quem protege a bola (MARCAR) segura o empurrão, e quem erra fica parado um instante."""
+        f.dash_timer = 0
+        if shooter.protecting or shooter.pushed or shooter.magic_timer > 0 or shooter.exo_timer > 0:
+            f.stun(PUSH_STUN)
+            self.popup(shooter.x, shooter.y - 90, "SEGUROU", theme.MUTED)
+            return False
+        shooter.pushed = True
+        shooter.shot_half *= PUSH_SHRINK
+        self.popup(shooter.x, shooter.y - 90, "EMPURRÃO!", theme.BRASS)
+        self.burst(shooter.x, shooter.y - 20, (236, 230, 220), 6, speed=3)
+        self.assets.play("hit", 0.3)
+        return True
+
     def pass_ball(self, f, direction=None):
         if self.holder is not f or self.freeze or self.ending or self.warmup:
             return False
@@ -583,6 +610,8 @@ class BasketballMatch(Match):
             # fora do cone: vai para o companheiro mais perto da direção apontada (no 2 x 2, o único)
             mate = max(mates, key=lambda m: unit(m.x - f.x, m.y - f.y)[0] * direction[0]
                        + unit(m.x - f.x, m.y - f.y)[1] * direction[1])
+        if mate is not None and self.cutting(mate) and not self.cutting(f):
+            return self.alley_oop(f, mate, plain=True)      # ele está correndo para a cesta: ponte aérea
         if mate is not None:
             vx, vy = _run_velocity(mate)
             dist = math.hypot(mate.x - f.x, mate.y - f.y)
@@ -615,6 +644,10 @@ class BasketballMatch(Match):
         ball.vx, ball.vy, ball.vz = shot_velocity(ball.x, ball.y, ball.z, tx, ty, tz, frames, config.GRAVITY)
 
     # ── ciclo ────────────────────────────────
+    def comeback(self, team):
+        """O time está perdendo por COMEBACK_GAP pontos ou mais (a ajuda some quando encosta)."""
+        return not self.warmup and self.score[1 - team] - self.score[team] >= COMEBACK_GAP
+
     def step(self):
         if self.banner:
             self.banner_age += 1
@@ -634,6 +667,8 @@ class BasketballMatch(Match):
         for f in self.fighters:
             f.prev_pos = (f.x, f.y)
             self._update_moves(f)
+            if f.super_cd > 0 and self.frame % 2 == 0 and self.comeback(f.team):
+                f.super_cd -= 1                 # perdendo de muito: o SUPER volta 50% mais rápido
         for side in (0, 1):
             if self.lids[side] > 0:
                 self.lids[side] -= 1
@@ -753,16 +788,29 @@ class BasketballMatch(Match):
             self.burst(f.x + random.uniform(-12, 12), f.y - random.uniform(0, 44) - f.lift, glow, 1,
                        speed=1, gravity=-0.03, size=3)
 
-    def alley_oop(self, user, mate):
-        """Alley-oop Trovão: passe alto e forte para o companheiro, que sobe e crava."""
-        vx, vy = mate.x - mate.prev_pos[0], mate.y - mate.prev_pos[1]
+    def cutting(self, f):
+        """Está correndo para a cesta (perto dela e indo na direção do aro)?"""
+        hx, hy = self.hoop_pos(self.hoop_of(f.team))
+        d = math.hypot(hx - f.x, hy - f.y) or 1
+        toward = (f.vx * (hx - f.x) + f.vy * (hy - f.y)) / d
+        return d < Court.THREE_R + 60 and toward > 1.5
+
+    def alley_oop(self, user, mate, plain=False):
+        """Alley-oop: passe alto para o companheiro, que sobe e crava. O do SUPER (Trovão) é forte e
+        derruba quem entra na frente; o normal (PASSE para quem corre para a cesta) pode ser
+        cortado por quem pular na frente."""
+        vx, vy = (mate.vx, mate.vy) if plain else (mate.x - mate.prev_pos[0], mate.y - mate.prev_pos[1])
         dist = math.hypot(mate.x - user.x, mate.y - user.y)
         frames = max(14, round(dist / (PASS_SPEED * 1.3)))
         tx, ty = mate.x + vx * frames, mate.y + vy * frames
         user.jump_shot = False
         self._launch(user, tx, ty, CATCH_HEIGHT + 30, frames, z0=40 + user.lift)
-        self.alley = {"from": user, "to": mate, "age": 0, "hit": set()}
+        self.alley = {"from": user, "to": mate, "age": 0, "hit": set(), "plain": plain}
         self.catch_lock = 5
+        if plain:
+            self.popup(user.x, user.y - 90, "PONTE AÉREA", theme.BONE)
+            self.assets.play("chute", 0.3)
+            return True
         self.burst(self.ball.x, self.ball.y - 40, (255, 236, 120), 12, speed=5)
         self.camera.shake(5)
         return True
@@ -782,7 +830,7 @@ class BasketballMatch(Match):
                 self.grab(foe)
                 self.popup(foe.x, foe.y - 90, "INTERCEPTOU", theme.BRASS)
                 return
-            if d < foe.radius + 14 and ball.z < 110 and foe.stun(45):
+            if not alley["plain"] and d < foe.radius + 14 and ball.z < 110 and foe.stun(45):
                 alley["hit"].add(foe)
                 self.popup(foe.x, foe.y - 74, "DERRUBADO", theme.BONE)
                 self.burst(foe.x, foe.y - 30, (255, 236, 120), 10, speed=4)
@@ -1155,6 +1203,8 @@ class BasketballMatch(Match):
             if alley is not None:
                 if f is alley["to"]:
                     high, reach = high + 70, reach + 16    # o alley-oop vai alto, na mão dele
+                elif alley["plain"] and f.jump and f.team != alley["from"].team:
+                    high += 70                             # pulou na frente da ponte aérea: corta
                 elif ball.z > CATCH_HEIGHT * 0.6:
                     continue
             if ball.z >= high:
@@ -1171,6 +1221,8 @@ class BasketballMatch(Match):
                 self.popup(best.x, best.y - 110, "ALLEY-OOP!", theme.BRASS)
             return
         if best is not None:
+            if alley is not None and alley["plain"] and best.team != alley["from"].team:
+                self.popup(best.x, best.y - 74, "CORTOU", theme.BRASS)
             self.alley = None
             if self.shot is not None and best.team != self.shot["team"]:
                 self.popup(best.x, best.y - 74, "REBOTE", theme.BONE)

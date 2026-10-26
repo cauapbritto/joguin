@@ -121,6 +121,41 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   esqueletos e as sombras do Tanque e do Ninja) e **Templo Gelado** (Pátio do Templo e Altar do
   Cristal, com o chefão **Aryel Corrompido**).
 
+  **Armas que caem dos inimigos:** de vez em quando um inimigo (quase sempre os elites) deixa cair a
+  arma de outro herói, uma que ninguém do grupo está usando. Perto dela, ATACAR pega: ela entra no
+  lugar da arma do herói do mesmo tipo (de tiro ou de perto) e a antiga fica no chão. A troca vale
+  até o fim da campanha e fica salva. A cor do nome mostra a raridade: **comum branca**, **rara
+  azul** e **roubada dourada** (no chão e no HUD).
+  **Almas, loja e ferreiro:** cada inimigo derrotado dá almas para o grupo todo (3 o comum, 12 o
+  elite, 60 o chefão). Na volta da Masmorra 1, o acampamento tem o **mercado** perto da fogueira.
+  Perto da banca, ATACAR abre o menu (cima e baixo escolhem, ATACAR compra, ESQUIVA fecha).
+  A **loja** vende poção (cura metade da vida, 20), arma sorteada de outro herói (30), uma troca das
+  melhorias do fim da fase (25: na escolha, TROCAR ARMA sorteia de novo) e continue (120). O
+  **ferreiro** sobe a arma de +1 a +3 (40, 80 e 140): cada nível dá 15% de dano e pente 20% maior, e
+  o +3 vem com um encanto: **fogo** (queima aos poucos), **gelo** (deixa lento) ou **raio** (pula
+  para outro inimigo). Almas, níveis e trocas ficam salvos com a campanha.
+  **Fusão no ferreiro:** quem tem a arma rara pode fundir as **três armas** que carrega numa
+  **arma forjada** (150 almas, uma vez por mercado). A receita é a família que mais aparece nas três;
+  com uma rara a forjada sai no +1, com uma roubada no +2 e já encantada. As armas do herói voltam
+  ao +0, a forjada entra na vaga da rara e não entra em outra fusão. Receita nunca feita aparece
+  como ???. Contra o chefão de armadura de sombra, o efeito especial vale metade.
+
+  | Família  | Forjada                  | O que faz                                                    |
+  |----------|--------------------------|--------------------------------------------------------------|
+  | Corte    | Lâmina Solar             | Cada golpe solta uma onda de fogo que atravessa tudo; o 3º gira. |
+  | Impacto  | Martelo do Trovão Eterno | Bate no chão e cai um raio em cada inimigo perto (fica tonto); o 3º golpe arremessa o martelo, que volta acertando de novo. |
+  | Flecha   | Arco das Mil Almas       | Segure e solte: 12 flechas de alma, uma em cada inimigo.     |
+  | Explosão | Canhão do Vazio          | Buraco negro que puxa todo mundo por 2 s e explode.          |
+  | Gelo     | Coração do Inverno       | Três tiros viram estátua de gelo; o próximo estoura em volta. |
+  | Fogo     | Lança do Dragão          | Dragão de fogo que serpenteia 3 s queimando quem toca.       |
+  | Raio     | Cetro da Tempestade      | Raio contínuo que pula em todos; segurando, fica mais forte. |
+  | Alma     | Foice do Ceifador        | Cada abate cura 10% e dá +5% de dano (até +50%); arranca a armadura do chefão. |
+
+  **Altar das maldições:** no acampamento, antes de cada fase, o altar perto da fogueira deixa o
+  grupo escolher um desafio opcional para a fase seguinte: **inimigos rápidos** (25% mais velozes),
+  **inimigos fortes** (30% mais vida) ou **sem itens de vida**. Vencendo a fase amaldiçoada, a
+  escolha de melhorias dá **uma melhoria a mais**, sorteada entre as outras opções.
+
   **Armas raras do baú:** viram a 3ª arma do jogador (TROCAR ARMA passa pelas três) e ficam até o
   fim da campanha. Só dá para ter uma: quando o baú da fase seguinte dá outra, a antiga **fica
   no chão** (com o nome embaixo) e, perto dela, ATACAR **pega de volta** — trocando, e a outra
@@ -175,6 +210,11 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   adversário para onde você está apontando. No lobby, **TAB** (ou o botão TIMES) troca a divisão:
   `P1+P3 x P2+P4` (os dois do teclado se enfrentam) ou `P1+P2 x P3+P4` (os dois do teclado juntos,
   por exemplo contra a CPU). A divisão vale também para o futebol 2 x 2.
+- **Escolha de armas no duelo** (contra CPU, local e 2 x 2): antes de cada round, cada jogador monta o
+  par de armas, uma de tiro e uma de perto. Ele vê a que já tem (MANTER) e mais 3 sorteadas de cada
+  tipo; quem perdeu o round anterior vê 4. Setas escolhem, ATACAR confirma e ESQUIVA volta. A
+  habilidade continua a do herói. Na escolha de personagem, **V** alterna entre armas a cada round e
+  armas fixas (fica salvo).
 - Duelos em **melhor de 3 rounds** (60 s cada; no fim do tempo vence quem tiver mais vida).
   Itens aparecem na arena: **vida**, **fúria** (+50% de dano por 6 s), **energia**
   (habilidade pronta) e **munição** (pente cheio na hora e mais um pente extra, que aparece em
@@ -186,22 +226,38 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   recarregam: a carga volta aos poucos.
 - **Futebol 1 x 1 / 2 x 2** — passe, corte, condução, chute e passe pelo alto, cabeçada,
   **correr** (com fôlego), **marcar**, **chutão**, **carrinho de bloqueio** e um **poder
-  próprio de cada personagem** no botão SUPER. Primeiro a 3 gols vence. Cada time joga de
+  próprio de cada personagem** no botão SUPER. Primeiro a 3 gols vence; na escolha de personagem,
+  **T** troca para 5 ou 7 gols, ou para **3 minutos** (o relógio para com a bola parada e, se
+  terminar empatado, vale o **gol de ouro**). Com CPU em campo, **1 2 3** escolhem a dificuldade
+  dela (velocidade, mira, vontade de roubar a bola e de usar o SUPER). Cada time joga de
   **uniforme**: o time da esquerda de azul e o da direita de vermelho (a roupa do personagem
   muda de cor, o resto continua igual), já na seleção e na tela de VS. O campo é grande
   (2240 x 1260, 40% maior que o primeiro) e a câmera nunca perde a bola: quem fica fora da tela
   aparece como uma setinha na cor do time, na borda.
+  No futebol e no basquete a velocidade de todo mundo fica mais perto da média (o Tanque e o Titã
+  não ficam para trás, e o Velocista continua o mais rápido).
   No 2 x 2 dá para jogar com 1 a 4 pessoas: quem faltar vira CPU para fechar o time. O jogador 2
   entra apertando `;` no teclado (ou pelo celular) e sai com `/`; o 3 e o 4 entram pelo celular.
+- **Basquete 2 x 2** — a CPU também tem dificuldade (1 2 3), que muda o acerto da barrinha do
+  arremesso, os tocos e os roubos. Time perdendo por 10 ou mais entra em **REAÇÃO!**: a faixa verde
+  do arremesso fica um pouco maior e o SUPER volta 50% mais rápido, até encostar no placar.
+  **Empurrão:** CORTE sem a bola em quem está pulando para arremessar deixa a faixa verde dele pela
+  metade. Quem está protegendo a bola (MARCAR) segura, e quem empurra à toa (ou empurra de novo o
+  mesmo arremesso) fica parado um instante.
+  **Ponte aérea:** PASSE para o companheiro que está correndo para a cesta vira alley-oop, sem
+  precisar de SUPER: a bola vai alta e ele sobe e crava. Quem pular na frente do passe corta.
+- **Treino** — contra um boneco parado, uma lição por vez na tela. Tem o do duelo (andar, atacar,
+  trocar de arma, esquivar, habilidade e itens), o **de futebol** (corte, chute, chute alto, marcar e
+  gol) e o **de basquete** (barrinha do arremesso, finta, toco e cesta).
 
 ## Personagens
 
 | Personagem | Vida | Habilidade (duelo)                                        | Super (futebol)                                  |
 |------------|------|-----------------------------------------------------------|--------------------------------------------------|
-| Guerreiro  | 150  | Investida: avança e causa 30 de dano                      | Zagueirão: 5 s no seu campo sem cair, roubando só de encostar (veja abaixo) |
+| Guerreiro  | 150  | Investida: avança, causa 30 de dano e deixa tonto 0,5 s  | Zagueirão: 5 s no seu campo sem cair, roubando só de encostar (veja abaixo) |
 | Atirador   | 105  | Rajada: 5 balas em leque                                  | Chute certeiro: chute com curva para o gol       |
-| Tanque     | 230  | Muralha: barreira que bloqueia tiros por 4 s              | Muralha: barreira na frente do próprio gol por 6 s (segura até a enterrada) |
-| Ninja      | 95   | Shuriken: 3 shurikens de dano alto                        | Sombra: aparece atrás da bola, virado para o gol |
+| Tanque     | 230  | Muralha: barreira de 4 s que segura os tiros e os devolve | Muralha: barreira na frente do próprio gol por 6 s (segura até a enterrada) |
+| Ninja      | 95   | Shuriken: leque fechado de 3 shurikens de dano alto      | Sombra: aparece atrás da bola, virado para o gol |
 | Velocista  | 115  | Turbo: 2x mais rápido por 4 s                             | Arrancada: corre muito com a bola colada         |
 | Aryel      | 120  | Aposta: roleta de GREEN, meio green ou RED (veja abaixo)  | Grau de moto: 3 s de moto, bola colada, e quem ele atropela cai |
 | Fantasma   | 110  | Teletransporte: some e reaparece                          | Bola fantasma: atravessa os adversários          |
@@ -209,8 +265,8 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
 | Pirata     | 140  | Gancho: puxa o inimigo para a frente do sabre e o atordoa | Gancho: puxa a bola, até do pé do adversário (e do drible mágico) |
 | Geada      | 100  | Nevasca: onda de gelo, dano em volta e inimigo lento      | Congelar: adversários perto ficam lentos         |
 | Cauanzera  | 100  | Multiesportista: basquete, vôlei e 100 metros, nessa ordem (veja abaixo) | Enterrada: perto da área, pula todo mundo e crava a bola no gol |
-| Albeguinio | 140  | Hacker: digita 1 s no notebook e trava todos os adversários por 5 s | Hack: digita e trava os adversários por 2,5 s (recarga de 26 s) |
-| Borba Jr   | 125  | Exoesqueleto: 6 s de armadura (veja abaixo)               | Exoesqueleto: 4 s em que ninguém toma a bola dele |
+| Albeguinio | 140  | Hacker: digita 1 s no notebook e trava todos os adversários por 5 s (3 s no duelo 1 x 1) | Hack: digita e trava os adversários por 2,5 s (recarga de 26 s) |
+| Borba Jr   | 125  | Exoesqueleto: 4,5 s de armadura (veja abaixo)             | Exoesqueleto: 4 s em que ninguém toma a bola dele |
 | Aryel Corrompido* | 135 | Chuva Sombria: 5 bombas caem em cima e em volta do inimigo | Bomba sombria: maior, atordoa e deixa lento |
 
 \* Liberado ao zerar a campanha.
@@ -252,9 +308,9 @@ que derruba quem está com a bola. Recarga de 14 s.
   erguida (**toco**). Recarga de 25 s.
 - **Albeguinio — Hacker.** Abre o notebook e digita por 1 s, parado. Se apanhar enquanto digita, o
   hack falha. Terminando, o sinal de Wi-Fi sai dele e **todos** os adversários em jogo ficam
-  HACKEADOS por 5 s: não andam, não atiram e não usam nada (pega até o exoesqueleto; o chefão da
+  HACKEADOS por 5 s (3 s no duelo 1 x 1): não andam, não atiram e não usam nada (pega até o exoesqueleto; o chefão da
   campanha fica menos tempo). Recarga de 20 s.
-- **Borba Jr — Exoesqueleto.** As placas de metal se montam nele (faíscas e vapor) e por 6 s ele fica
+- **Borba Jr — Exoesqueleto.** As placas de metal se montam nele (faíscas e vapor) e por 4,5 s ele fica
   um pouco maior, leva metade do dano, não é empurrado nem fica tonto, e o golpe corpo a corpo
   arremessa longe — quem bate na parede fica tonto. Velocidade normal. No futebol (4 s): ninguém
   toma a bola dele, quem tromba nele cai e o corpo blindado segura qualquer chute.
@@ -313,6 +369,10 @@ exoesqueleto, arremessa o inimigo).
 | Conduzir colado (futebol)     | E         | L           |
 
 Toque duas vezes numa seta para esquivar (dá para desligar na tela de Controles, tecla T).
+
+**Esquiva perfeita** (duelo e campanha): esquivar bem na hora de um tiro ou golpe de verdade faz a
+esquiva voltar na hora e carrega 20% da habilidade (o lutador brilha e aparece ESQUIVA PERFEITA!).
+Esquivar à toa custa caro: a recarga da esquiva é de 1 s (a moto do Aryel, que vai mais longe, 1,3 s).
 
 As teclas do jogador 1 e do jogador 2 podem ser trocadas em **Controles → K (Trocar teclas)**. Trocar
 ATACAR troca também o confirmar dos menus; se a tecla já era de outra ação do mesmo jogador, as duas
@@ -399,6 +459,8 @@ soulstrike/
   campaign.py           CampaignRun (a campanha toda), LobbyMatch (acampamento), CampaignMatch
                         (masmorra), as fases e a história
   dungeon.py            entradas com grade, fogueira, baú escondido, arma no chão e a porta de volta
+  market.py             almas, mercado da campanha (loja e ferreiro) e os encantos das armas
+  forged.py             fusão do ferreiro e as 8 armas forjadas (receitas, efeitos e arte)
   lobbies.py            os acampamentos desenhados como texto (# parede, . chão, F fogueira...)
   enemies.py            inimigos da campanha e o cérebro de cada um
   boss.py               o chefão Aryel Corrompido
@@ -422,6 +484,7 @@ tools/gerar_armas.py    gera os sprites das armas
 tools/gerar_sons.py     gera os efeitos novos (armas, futebol, campanha) e as músicas do acampamento e do chefão
 tools/build_exe.py      gera dist/SoulStrike.exe
 tools/build_deb.py      gera o pacote .deb para Linux
+tools/simular.py        partidas CPU x CPU sem janela: taxa de vitória no duelo, gols e pontos por personagem
 linux/instalar.sh       instalador do Linux (chamado pelo INSTALAR.sh)
 linux/teste_instalador.sh, linux/ver_janela.sh
                         testes do instalador no Linux Mint (GitHub Actions)

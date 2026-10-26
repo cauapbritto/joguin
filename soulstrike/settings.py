@@ -17,6 +17,8 @@ DEFAULTS = {
     "duplo_toque": True,    # duplo toque numa seta = esquiva/corte
     "controle_comeca_no_p2": False,     # 1º controle USB é o P2 (o P1 fica no teclado)
     "teclas": {},           # teclas trocadas: {"1": {"attack": código}, ...} (controls.py)
+    "armas_por_round": True,    # duelo: escolher as armas antes de cada round (V na escolha de personagem)
+    "futebol_partida": "3",     # futebol: 3, 5 ou 7 gols, ou "tempo" (T na escolha de personagem)
     "versao_vista": "",     # última versão cujas novidades o jogador já viu (novidades.py)
 }
 VOLUME_KEYS = ("volume_geral", "volume_musica", "volume_efeitos")

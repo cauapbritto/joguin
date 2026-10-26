@@ -4,6 +4,7 @@ import math
 import pygame
 
 from . import config, theme
+from .data import rarity_color
 from .ui import mix
 
 
@@ -26,7 +27,9 @@ def ammo_text(f):
 def _weapon_label(screen, ui, f, pos, right):
     """Nome da arma e, ao lado, a munição (alinhado à direita ou à esquerda)."""
     anchor = "midright" if right else "midleft"
-    rect = ui.text(screen, f.weapon.name.upper(), theme.XS, theme.MUTED, pos, anchor=anchor, shadow=True)
+    weapon = f.weapon
+    color = rarity_color(weapon) if weapon.rare else theme.MUTED       # rara azul, roubada dourada
+    rect = ui.text(screen, weapon.name.upper(), theme.XS, color, pos, anchor=anchor, shadow=True)
     ammo = ammo_text(f)
     if ammo:
         text, color = ammo
@@ -284,7 +287,8 @@ def draw_soccer(screen, ui, match):
         score_x = block.right - 28 if team == 0 else block.x + 28
         ui.text(screen, str(match.score[team]), theme.L, theme.BONE, (score_x, block.centery + 1))
     ui.text(screen, "x", theme.S, theme.MUTED, board.center)
-    ui.text(screen, f"PRIMEIRO A {config.WIN_SCORE}", theme.XS, theme.MUTED, (W // 2, board.bottom + 12))
+    ui.text(screen, match.length_text, theme.XS, theme.BRASS if match.golden_goal else theme.MUTED,
+            (W // 2, board.bottom + 12))
 
     _draw_powers(screen, ui, match)
 
@@ -326,6 +330,10 @@ def draw_basket(screen, ui, match):
                 anchor="midleft" if team == 0 else "midright")
         score_x = block.right - 28 if team == 0 else block.x + 28
         ui.text(screen, str(match.score[team]), theme.L, theme.BONE, (score_x, block.centery + 1))
+        if match.comeback(team) and (match.frame // 20) % 2:
+            # perdendo de muito: faixa verde maior e SUPER mais rápido
+            ui.text(screen, "REAÇÃO!", theme.XS, theme.BRASS, (name_x, block.y + 26),
+                    anchor="midleft" if team == 0 else "midright")
     ui.text(screen, "x", theme.S, theme.MUTED, board.center)
     if match.warmup:
         secs = max(0, -(-match.warmup // config.FPS))
@@ -446,6 +454,7 @@ def draw_campaign(screen, ui, match):
     ui.text(screen, "CONTINUES", theme.XS, theme.MUTED, (W - 16, 16), anchor="midright")
     for k in range(3):
         _soul_icon(screen, (W - 22 - k * 16, 34), k < run.continues)
+    ui.text(screen, f"{run.souls} ALMAS", theme.XS, (200, 170, 255), (W - 16, 52), anchor="midright")
     secs = match.elapsed // config.FPS
     ui.text(screen, f"{secs // 60}:{secs % 60:02d}", theme.XS, theme.BONE, (16, 16), anchor="midleft")
 

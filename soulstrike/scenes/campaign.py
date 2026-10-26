@@ -1,5 +1,6 @@
 """Telas da campanha: história, escolha de melhorias, fim de jogo e final."""
 import math
+import random
 
 import pygame
 
@@ -278,6 +279,10 @@ class UpgradeScene(_MenuScene):
                 if inp.pressed("cancel"):
                     self._lock(s, False)
                 continue
+            if inp.pressed("switch") and self.run.rerolls.get(s, 0) > 0:
+                self.run.rerolls[s] -= 1              # comprado na loja: sorteia as 3 de novo
+                self.options[s] = choices(self.run.upgrades[s])
+                self.sfx("select", 0.4)
             for i in range(3):
                 if inp.pressed(f"opt{i + 1}") and self.index[s] != i:
                     self.index[s] = i                     # tocou no cartão pelo celular
@@ -294,6 +299,10 @@ class UpgradeScene(_MenuScene):
             if self.countdown == 45:
                 for s in self.run.slots:
                     self.run.add_upgrade(s, self.options[s][self.index[s]])
+                    if self.run.curse:              # venceu a maldição: mais uma, sorteada entre as outras
+                        others = [k for i, k in enumerate(self.options[s]) if i != self.index[s]]
+                        self.run.add_upgrade(s, random.choice(others))
+                self.run.curse = None
                 self.game.change(self.then())
         else:
             self.countdown = 0
@@ -303,6 +312,9 @@ class UpgradeScene(_MenuScene):
         self.draw_background(screen)
         done = self.run.phase_index + 1
         self.title(screen, "ESCOLHA UMA MELHORIA", y=40)
+        if self.run.curse:
+            self.ui.text(screen, "MALDIÇÃO VENCIDA: +1 MELHORIA", theme.XS, (190, 90, 230),
+                         (W - 64, 72), anchor="midright")
         self.ui.text(screen, f"FASE {done} CONCLUÍDA · TODO MUNDO RECUPERA {round(PHASE_HEAL * 100)}% DA VIDA",
                      theme.XS, theme.MOSS, (64, 72), anchor="midleft")
         self.ui.text(screen, f"PRÓXIMA: {PHASES[done].name}", theme.XS, theme.MUTED, (W - 64, 40), anchor="midright")
@@ -333,6 +345,9 @@ class UpgradeScene(_MenuScene):
             _icon(screen, UPGRADES[key], (row.x + 98 + (i % 3) * 22, row.y + 58 + (i // 3) * 22), 2)
         if self.locked[slot]:
             ui.text(screen, "PRONTO", theme.XS, theme.MOSS, (row.x + 92, row.bottom - 16), anchor="midleft")
+        elif self.run.rerolls.get(slot, 0):
+            ui.text(screen, f"TROCAR ARMA: SORTEAR ({self.run.rerolls[slot]})", theme.XS, theme.BRASS,
+                    (row.x + 92, row.bottom - 16), anchor="midleft")
         for i, (card, key) in enumerate(zip(self._cards(slot), self.options[slot])):
             up = UPGRADES[key]
             hot = i == self.index[slot]

@@ -7,12 +7,13 @@ from dataclasses import dataclass, field
 import pygame
 
 from . import config, hud, theme
-from .ai import FighterAI, SoccerAI
+from .ai import BALL_DIFFICULTIES, FighterAI, SoccerAI
 from .arena import MAPS_BY_KEY, SOCCER_MAP, Arena, Pitch
 from .camera import Camera
 from .data import CHARACTERS, SHADOW_CHARACTERS
 from .entities import Barrier, Bullet, Entity, Explosion, FloatingText, Particle, Pickup, hostile
 from .fighter import Fighter
+from .market import enchant_hit
 from .net.remote import hub
 from .projectiles import projectile_class
 from .soccer_assist import (ASSIST_LEVELS, closest_approach, pick_receiver, segment_contact, shot_assist,
@@ -60,6 +61,8 @@ class Match(ABC):
                           setup.label, color or setup.color, team=team,
                           weapon_index=setup.weapon, is_cpu=setup.cpu)
         fighter.facing = (1.0, 0.0) if x < self.arena.width / 2 else (-1.0, 0.0)
+        if self.session.soccer:                 # futebol e basquete: o lento não fica para trás
+            fighter.speed = config.ball_mode_speed(stats.speed)
         if stats.key in SHADOW_CHARACTERS:
             from .enemies import SHADOW_RIM
             fighter.aura = SHADOW_RIM          # Aryel Corrompido jogável também solta a sombra
@@ -67,6 +70,19 @@ class Match(ABC):
         return fighter
 
     # ── serviços usados por entidades e habilidades ──
+    def _reflect(self, barrier, bullet):
+        """Muralha do Tanque: o tiro que bate nela volta como um tiro de gelo, do lado do Tanque."""
+        if not barrier.reflects or barrier.owner is None:
+            return
+        speed = math.hypot(bullet.vx, bullet.vy)
+        if speed < 1:
+            return
+        dx, dy = -bullet.vx / speed, -bullet.vy / speed
+        back = Bullet(barrier.owner, bullet.x + dx * 10, bullet.y + dy * 10, dx, dy, max(8.0, speed),
+                      max(4, round(bullet.damage * barrier.REFLECT_DAMAGE)), (150, 226, 240))
+        back.hit.add(barrier.owner)
+        self.bullets.append(back)
+
     def spawn_bullet(self, owner, dx, dy, speed, damage, explosive=False):
         color = owner.stats.color
         self.bullets.append(Bullet(owner, owner.x + dx * 18, owner.y + dy * 18 - 4, dx, dy, speed, damage, color, explosive))
@@ -134,14 +150,18 @@ class Match(ABC):
                     if isinstance(e, Barrier) and hostile(e.owner, b.owner) and e.rect.colliderect(b.rect):
                         b.alive = False
                         self.burst(b.x, b.y, (150, 226, 240), 4, speed=2)
+                        self._reflect(e, b)
                         break
             if b.alive:
                 for f in self.fighters:
-                    if f in b.hit or not hostile(b.owner, f) or not f.alive_in_match or f.dash_timer > 0:
+                    if f in b.hit or not hostile(b.owner, f) or not f.alive_in_match:
                         continue
                     if not b.can_hit(f):
                         continue
                     if math.hypot(f.x - b.x, f.y - 6 - b.y) < f.radius + b.radius + 4:
+                        if f.dash_timer > 0:
+                            f.perfect_dodge(self)       # o tiro passa por quem esquiva
+                            continue
                         b.hit.add(f)
                         b.alive = b.survives_hit()      # atravessa (lança, flecha tensa, melhoria)?
                         if not b.explosive:
@@ -149,6 +169,7 @@ class Match(ABC):
                                 self.popup(f.x, f.y - 46, "IMUNE", theme.BRASS)
                             if f.take_damage(b.damage, b.x, b.y, attacker=b.owner, match=self):
                                 b.on_hit(f, self)
+                                enchant_hit(b.owner, getattr(b, "weapon", None), f, self, b.damage)
                         break
             if not b.alive and b.explosive:
                 self.effects.append(Explosion(b.owner, b.x, b.y, b.damage,
@@ -303,6 +324,8 @@ class BattleMatch(Match):
     Cada "lado" disputa os rounds: no 1 x 1 o lado é o próprio lutador; no 2 x 2
     (TeamBattleMatch) é o time."""
 
+    single_duel = True          # 1 x 1: algumas habilidades são mais curtas (o Hack, por exemplo)
+
     def __init__(self, game, session):
         super().__init__(game, session, session.map_key)
         self._create_fighters(session)
@@ -312,6 +335,9 @@ class BattleMatch(Match):
         self.rounds_played = 0
         self.pickups = []
         self.loser = None
+        self.weapon_pick = session.weapon_pick      # escolher as armas antes de cada round
+        self.pick = None
+        self.round_losers = ()
         self._start_round()
 
     def _create_fighters(self, session):
@@ -357,6 +383,9 @@ class BattleMatch(Match):
         self.loser = None
         self.pickups.clear()
         self.pickup_timer = config.PICKUP_FIRST
+        if self.weapon_pick:
+            from .weapon_pick import WeaponPick
+            self.pick = WeaponPick(self, losers=self.round_losers)
 
     @property
     def active(self):
@@ -385,6 +414,14 @@ class BattleMatch(Match):
         return self.fighters + self.pickups
 
     def step(self):
+        if self.pick is not None:
+            # escolhendo as armas: a arena fica parada até todo mundo confirmar (ou o tempo acabar)
+            for fighter in self.fighters:
+                fighter.steer(0, 0)
+            self.pick.update(self.controllers)
+            if self.pick.done:
+                self.pick = None
+            return
         if self.intro > 0:
             self.intro -= 1
         if self.round_end:
@@ -436,6 +473,8 @@ class BattleMatch(Match):
         self.bullets.clear()
         if winner is not None:
             self.wins[winner] += 1
+        self.round_losers = tuple(f for s in self.sides() if winner is not None and s != winner
+                                  for f in self.members(s))
         if reason == "ko":
             self.slowmo = 50
             self.burst(self.loser.x, self.loser.y - 16, self.loser.stats.color, 30, speed=7)
@@ -536,7 +575,14 @@ class BattleMatch(Match):
 
     def draw(self, screen, ui):
         super().draw(screen, ui)
-        hud.draw_round_banner(screen, ui, self)
+        self._draw_round_layer(screen, ui)
+
+    def _draw_round_layer(self, screen, ui):
+        """Por cima de tudo: a escolha das armas (entre um round e outro) ou a faixa do round."""
+        if self.pick is not None:
+            self.pick.draw(screen, ui)
+        else:
+            hud.draw_round_banner(screen, ui, self)
 
     def draw_hud(self, screen, ui):
         hud.draw_battle(screen, ui, self)
@@ -557,6 +603,8 @@ TEAM_SPREAD = 110           # distância entre os dois do mesmo time na largada
 class TeamBattleMatch(BattleMatch):
     """Duelo 2 x 2: dois times, sem fogo amigo. O round acaba quando o time inteiro cai,
     e dá para levantar o companheiro caído ficando perto dele."""
+
+    single_duel = False
 
     min_zoom = 0.6
 
@@ -682,7 +730,7 @@ class TeamBattleMatch(BattleMatch):
                 if self.can_revive(f) and self.active:
                     sx, sy = cam.to_screen(f.x, f.y - 34)
                     ui.text(screen, "LEVANTE!", theme.XS, theme.TEAM_COLORS[f.team], (round(sx), round(sy)))
-        hud.draw_round_banner(screen, ui, self)
+        self._draw_round_layer(screen, ui)
 
     def draw_hud(self, screen, ui):
         hud.draw_team_battle(screen, ui, self)
@@ -899,7 +947,8 @@ class SoccerMatch(Match):
             fighter.power = create_power(fighter.stats)
             self.spawn_of[fighter] = pos
             if setup.cpu:
-                self.controllers[fighter] = SoccerAI()
+                self.controllers[fighter] = SoccerAI(session.difficulty)
+                fighter.speed *= BALL_DIFFICULTIES[session.difficulty]["speed"]
             else:
                 game.inputs[setup.slot].set_layout("soccer")      # CORRER e MARCAR no teclado
                 self.controllers[fighter] = game.inputs[setup.slot]
@@ -919,6 +968,41 @@ class SoccerMatch(Match):
         self.contest = {}
         self.dunk = None            # enterrada do Cauanzera em andamento (ela segura a bola)
         self.assist = ASSIST_LEVELS.get(getattr(session, "assist", "media"), ASSIST_LEVELS["media"])
+        # tamanho da partida: primeiro a 3, 5 ou 7 gols, ou 3 minutos (empate: gol de ouro)
+        length = session.soccer_length
+        self.win_score = None if length == "tempo" else int(length)
+        self.clock = config.SOCCER_MINUTES * 60 * config.FPS if length == "tempo" else 0
+        self.golden_goal = False
+
+    @property
+    def length_text(self):
+        if self.golden_goal:
+            return "GOL DE OURO"
+        if self.win_score is None:
+            secs = -(-self.clock // config.FPS)
+            return f"{secs // 60}:{secs % 60:02d}"
+        return f"PRIMEIRO A {self.win_score}"
+
+    def _tick_clock(self):
+        """Partida por tempo: o relógio só anda com a bola rolando. Acabou empatado: gol de ouro."""
+        if not self.clock or self.freeze:
+            return
+        self.clock -= 1
+        if self.clock:
+            return
+        if self.score[0] == self.score[1]:
+            self.golden_goal = True
+            self.popup(self.ball.x, self.ball.y - 60, "GOL DE OURO", theme.BRASS)
+            self.assets.play("apito", 0.4)
+        else:
+            self._whistle(0 if self.score[0] > self.score[1] else 1)
+
+    def _whistle(self, team):
+        self.assets.play("apito", 0.4)
+        self.result_team = team
+        self.ending = config.DEATH_ANIM_FRAMES + 30
+        self.freeze = 0
+        self.assets.stop_music(1800)
 
     @staticmethod
     def goal_x(team):
@@ -1505,6 +1589,8 @@ class SoccerMatch(Match):
                 self._finish()
                 return
 
+        if not self.ending:
+            self._tick_clock()
         for f in self.fighters:
             f.prev_pos = (f.x, f.y)
         for f, ctrl in self.controllers.items():
@@ -1931,12 +2017,8 @@ class SoccerMatch(Match):
         self.slowmo = max(self.slowmo, GOAL_SLOWMO)
         self.assets.play("victory", 0.5)
         self.assets.play("torcida", 0.45)
-        if self.score[scoring_team] >= config.WIN_SCORE:
-            self.assets.play("apito", 0.4)
-            self.result_team = scoring_team
-            self.ending = config.DEATH_ANIM_FRAMES + 30
-            self.freeze = 0
-            self.assets.stop_music(1800)
+        if self.golden_goal or (self.win_score is not None and self.score[scoring_team] >= self.win_score):
+            self._whistle(scoring_team)
 
     def _kickoff(self):
         self.assets.play("apito", 0.35)
@@ -2095,6 +2177,9 @@ def create_match(game, session):
     if session.mode == "treino":
         from .training import TrainingMatch
         return TrainingMatch(game, session)
+    if session.mode.startswith("treino_"):
+        from .training import create_ball_training
+        return create_ball_training(game, session)
     if session.basket:
         from .basketball import BasketballMatch
         return BasketballMatch(game, session, warmup=True)     # com aquecimento antes da bola ao alto
