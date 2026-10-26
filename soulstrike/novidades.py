@@ -16,6 +16,7 @@ NEWS = {
         "Campanha: inimigos derrubam armas de outros heróis, com cor de raridade.",
         "Almas, mercado com loja e ferreiro, encantos de fogo, gelo e raio.",
         "Ferreiro: funda as três armas numa das 8 armas forjadas, novas e muito fortes.",
+        "O Martelo do Trovão Eterno é arremessado no 3º golpe e volta para a mão, soltando raios.",
         "Altar das maldições: aceite um desafio e ganhe uma melhoria a mais.",
         "Em grupo, a câmera afasta mais e a coleira ficou maior e visível.",
     ],

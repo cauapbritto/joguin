@@ -55,7 +55,7 @@ SHOT_SOUNDS = {
     "chama": "fogo",
     # forjadas (forged.py)
     "onda_solar": "fogo", "dragao": "fogo", "mil_almas": "arco", "vazio": "tiro_forte", "inverno": "gelo",
-    "tempestade": "eletrico",
+    "tempestade": "eletrico", "martelo_trovao": "eletrico",
 }
 
 

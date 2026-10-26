@@ -45,7 +45,7 @@ FORGED = {
     "lamina_solar": _forged("Lâmina Solar", "melee", 40, "solar", reach=82, cooldown=18,
                             note="Cada golpe solta uma onda de fogo que atravessa tudo; o 3º gira."),
     "martelo_trovao": _forged("Martelo do Trovão Eterno", "melee", 46, "trovao", reach=72, cooldown=30,
-                              note="Bate no chão e cai um raio em cada inimigo perto, que fica tonto."),
+                              note="Bate no chão e cai um raio em cada inimigo perto; o 3º golpe arremessa o martelo, que volta."),
     "arco_mil_almas": _forged("Arco das Mil Almas", "ranged", 14, "mil_almas", bullet_speed=9, cooldown=40,
                               charge=True, note="Segure e solte: 12 flechas de alma, uma em cada inimigo."),
     "canhao_vazio": _forged("Canhão do Vazio", "ranged", 40, "vazio", bullet_speed=7, cooldown=50, mag=2,
@@ -127,6 +127,15 @@ def on_swing(fighter, weapon, match, hits, damage):
                                                 math.cos(a) * 4, math.sin(a) * 3, (255, 190, 80), 16, 4))
     elif style == "trovao":
         from .projectiles import LightningArc
+        fighter.forged_count += 1
+        if fighter.forged_count % 3 == 0 and not any(getattr(b.weapon, "style", "") == "trovao" and
+                                                     b.owner is fighter for b in match.bullets):
+            from .projectiles import projectile_class      # o 3º golpe arremessa o martelo, que volta
+            fx, fy = fighter.facing
+            match.bullets.append(projectile_class("martelo_trovao")(fighter, weapon, fighter.x + fx * 24,
+                                                                    fighter.y - 10 + fy * 24, fx, fy, 13,
+                                                                    round(damage * 0.8)))
+            match.popup(fighter.x, fighter.y - 70, "ARREMESSO!", (246, 214, 70))
         for other in match.opponents_of(fighter):
             if other.alive_in_match and fighter.distance_to(other) < 230:
                 k = special(other, match)
@@ -330,6 +339,63 @@ def _make_projectiles():
                 match.add_effect(LightningArc(points))
             return proj
 
+    class ThunderHammer(Projectile):
+        """Martelo do Trovão Eterno arremessado: vai girando, cai um raio em quem ele bate e volta para a
+        mão do dono, acertando de novo no caminho de volta."""
+        ghost = True
+        sprite = "Martelo do Trovão Eterno"
+        OUT = 26                 # quadros indo antes de voltar
+        LIFE = 4 * config.FPS    # se não conseguir voltar, some
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.radius = 18
+            self.returning = False
+
+        def survives_hit(self):
+            return True
+
+        def on_wall(self, wall, match):
+            if not self.returning:
+                self._turn()
+            return True
+
+        def _turn(self):
+            self.returning = True
+            self.hit.clear()                         # na volta acerta de novo
+
+        def on_hit(self, target, match):
+            k = special(target, match)
+            target.stun(round(24 * k))
+            match.add_effect(LightningArc([(target.x + random.uniform(-20, 20), target.y - 240),
+                                           (target.x, target.y - 40), (target.x, target.y)]))
+            match.camera.shake(4)
+
+        def update(self, match):
+            if not self.returning and self.age >= self.OUT:
+                self._turn()
+            if self.returning:
+                o = self.owner
+                dx, dy = o.x - self.x, o.y - 10 - self.y
+                d = math.hypot(dx, dy) or 1
+                speed = math.hypot(self.vx, self.vy) or 13
+                self.vx, self.vy = dx / d * speed, dy / d * speed
+                if d < 26 or o.hp <= 0:
+                    self.alive = False
+                    if o.hp > 0:
+                        match.burst(o.x, o.y - 14, (246, 214, 70), 8, speed=3)
+                    return
+            super().update(match)
+            if self.age > self.LIFE:
+                self.alive = False
+            if self.age % 3 == 0:
+                match.particles.append(Particle(self.x + random.uniform(-8, 8), self.y + random.uniform(-8, 8),
+                                                random.uniform(-1, 1), random.uniform(-1, 1),
+                                                random.choice(((246, 214, 70), (200, 220, 255))), 10, 2))
+
+        def draw(self, surf, camera):
+            self.draw_sprite(surf, camera, angle=(self.age * 40) % 360)
+
     class SolarWave(Projectile):
         """Onda de fogo da Lâmina Solar: atravessa paredes e todos os inimigos."""
         ghost = True
@@ -369,7 +435,7 @@ def _make_projectiles():
                 pygame.draw.lines(surf, color, False, pts, max(2, round(r / 3)))
 
     return {"onda_solar": SolarWave, "mil_almas": SoulArrow, "vazio": VoidShot, "inverno": IceHeart, "dragao": Dragon,
-            "tempestade": StormBolt}
+            "tempestade": StormBolt, "martelo_trovao": ThunderHammer}
 
 
 class VoidHole(Entity):

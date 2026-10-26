@@ -107,6 +107,28 @@ class ForjadasTest(unittest.TestCase):
         self.assertTrue(all(f.hp < 2000 for f in foes))
         self.assertTrue(foes[2].stunned)
 
+    def test_martelo_arremessa_no_terceiro_e_volta(self):
+        match, p, foes = masmorra("martelo_trovao")
+        far = foes[2]
+        far.x = p.x + 300                                    # longe da batida no chão
+        for _ in range(3):
+            p.attack_cd = 0
+            p.attack(match, foes[0])
+        hammers = [b for b in match.bullets if b.weapon.style == "trovao"]
+        self.assertEqual(len(hammers), 1)
+        p.attack_cd = 0
+        for _ in range(3):
+            p.attack(match, foes[0])
+            p.attack_cd = 0
+        self.assertEqual(sum(1 for b in match.bullets if b.weapon.style == "trovao"), 1)   # um de cada vez
+        hp = far.hp
+        passo(match, 30)
+        self.assertLess(far.hp, hp)                           # o martelo chega no de longe
+        self.assertTrue(hammers[0].returning)
+        passo(match, 90)
+        self.assertFalse(hammers[0].alive)                    # voltou para a mão
+        self.assertNotIn(hammers[0], match.bullets)
+
     def test_arco_das_mil_almas_solta_doze(self):
         match, p, foes = masmorra("arco_mil_almas")
         p.bow_draw = 999

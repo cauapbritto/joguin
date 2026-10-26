@@ -143,7 +143,7 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   | Família  | Forjada                  | O que faz                                                    |
   |----------|--------------------------|--------------------------------------------------------------|
   | Corte    | Lâmina Solar             | Cada golpe solta uma onda de fogo que atravessa tudo; o 3º gira. |
-  | Impacto  | Martelo do Trovão Eterno | Bate no chão e cai um raio em cada inimigo perto (fica tonto). |
+  | Impacto  | Martelo do Trovão Eterno | Bate no chão e cai um raio em cada inimigo perto (fica tonto); o 3º golpe arremessa o martelo, que volta acertando de novo. |
   | Flecha   | Arco das Mil Almas       | Segure e solte: 12 flechas de alma, uma em cada inimigo.     |
   | Explosão | Canhão do Vazio          | Buraco negro que puxa todo mundo por 2 s e explode.          |
   | Gelo     | Coração do Inverno       | Três tiros viram estátua de gelo; o próximo estoura em volta. |
