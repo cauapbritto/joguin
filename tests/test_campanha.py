@@ -301,6 +301,53 @@ class CaidosTest(unittest.TestCase):
         from soulstrike.campaign import LEASH_X
         self.assertLessEqual(abs(p2.x - p1.x), LEASH_X + 1)
 
+    def test_coleira_cabe_na_camera_afastada(self):
+        from soulstrike import config
+        from soulstrike.campaign import LEASH_X, LEASH_Y
+        match, _ = campanha()
+        cam = match.camera
+        self.assertAlmostEqual(cam.min_zoom, 0.5)
+        self.assertLessEqual(LEASH_X + cam.margin * 2, config.SCREEN_W / cam.min_zoom)
+        self.assertLessEqual(LEASH_Y + cam.margin * 2, config.SCREEN_H / cam.min_zoom)
+        p1, p2 = match.players
+        p1.x, p1.y = 300, 700
+        p2.x, p2.y = 300 + LEASH_X, 700
+        cam.focus(match.focus_points(), instant=True)
+        self.assertGreaterEqual(cam.zoom, 0.5)
+        cam.end(cam.begin(), match.game.screen)
+        self.assertTrue(0 <= cam.to_screen(p1.x, p1.y)[0] <= config.SCREEN_W)
+        self.assertTrue(0 <= cam.to_screen(p2.x, p2.y)[0] <= config.SCREEN_W)
+
+    def test_quem_forca_o_limite_aparece_no_grupo(self):
+        from soulstrike.campaign import LEASH_PULL_FRAMES, LEASH_X
+        match, inputs = campanha()
+        pular_intro(match)
+        p1, p2 = match.players
+        p1.x, p1.y = 300, 700
+        p2.x, p2.y = 300 + LEASH_X + 30, 700
+        inputs[2].stick = (1.0, 0.0)               # continua andando para longe
+        passo(match, 30)
+        self.assertGreater(match.strain[p2], 0)
+        passo(match, LEASH_PULL_FRAMES // 2)
+        match.draw(match.game.screen, match.game.ui)     # borda brilhando, seta e barrinha
+        for _ in range(LEASH_PULL_FRAMES):
+            match.update()
+            if match.strain[p2] == 0:
+                break
+        self.assertEqual(match.strain[p2], 0)
+        self.assertLess(p1.distance_to(p2), 100)    # foi puxado para perto do companheiro
+
+    def test_parado_no_limite_nao_e_puxado(self):
+        from soulstrike.campaign import LEASH_PULL_FRAMES, LEASH_X
+        match, inputs = campanha()
+        pular_intro(match)
+        p1, p2 = match.players
+        p1.x, p1.y = 300, 700
+        p2.x, p2.y = 300 + LEASH_X, 700
+        passo(match, LEASH_PULL_FRAMES + 20)
+        self.assertEqual(match.strain[p2], 0)
+        self.assertGreater(p1.distance_to(p2), LEASH_X - 50)
+
 
 class MelhoriasTest(unittest.TestCase):
     def test_tres_opcoes_diferentes(self):

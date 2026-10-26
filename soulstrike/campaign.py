@@ -31,7 +31,8 @@ REVIVE_RADIUS = 56
 REVIVE_HP = 0.4
 CONTINUE_HP = 0.5
 LAST_BREATH_FRAMES = 90       # invencível depois do último fôlego (campanha solo)
-LEASH_X, LEASH_Y = 1150, 500  # quão longe os jogadores podem ficar uns dos outros (cabe na câmera)
+LEASH_X, LEASH_Y = 1500, 700  # quão longe os jogadores podem ficar uns dos outros (cabe na câmera a 50%)
+LEASH_PULL_FRAMES = 3 * config.FPS  # forçando o limite por tanto tempo: aparece ao lado do grupo
 INTRO_FRAMES = 150
 BETWEEN_FRAMES = 110
 CLEAR_FRAMES = 200
@@ -306,7 +307,7 @@ class CoopMatch(Match):
     """Base das etapas da campanha (acampamento e masmorra): os jogadores do mesmo time,
     a mira, levantar quem caiu, os itens, o escurecer entre uma etapa e outra e o HUD."""
 
-    min_zoom = 0.6
+    min_zoom = 0.5            # bem de longe, a pixel art fica no tamanho original (2 por 1)
     lobby = False
 
     def __init__(self, game, run, map_key, starts, facing):
@@ -326,6 +327,7 @@ class CoopMatch(Match):
         self.pickups = []
         self.props = []                 # entrada, fogueira, baú, porta, portal...
         self.revive_progress = {f: 0.0 for f in self.players}
+        self.strain = {f: 0 for f in self.players}     # quadros forçando o limite do grupo
         self.was_down = set()
         self.wave = -1
         self.banner = None              # (título, subtítulo, cor, idade)
@@ -492,22 +494,48 @@ class CoopMatch(Match):
 
     def _leash(self):
         """Ninguém se afasta demais do grupo: todos cabem na câmera.
-        A correção pequena (a de todo quadro) anda passo a passo, para ninguém atravessar parede."""
+        A correção pequena (a de todo quadro) anda passo a passo, para ninguém atravessar parede.
+        Quem fica forçando o limite vê a seta do grupo e, depois de um tempo, aparece ao lado dele."""
         if len(self.players) < 2:
             return
-        for p in self.alive_players:
+        for p in self.players:
+            if not p.alive_in_match:
+                self.strain[p] = 0
+                continue
             others = [q for q in self.players if q is not p]
             min_x, max_x = min(q.x for q in others), max(q.x for q in others)
             min_y, max_y = min(q.y for q in others), max(q.y for q in others)
             x = min(max(p.x, max_x - LEASH_X), min_x + LEASH_X)
             y = min(max(p.y, max_y - LEASH_Y), min_y + LEASH_Y)
             if (x, y) == (p.x, p.y):
+                self.strain[p] = max(0, self.strain[p] - 3)
                 continue
-            if abs(x - p.x) + abs(y - p.y) > LEASH_STEP:
+            pushing = (x - p.x) * p.input[0] + (y - p.y) * p.input[1] < 0     # andando para fora
+            self.strain[p] = self.strain[p] + 1 if pushing else max(0, self.strain[p] - 3)
+            if self.strain[p] >= LEASH_PULL_FRAMES:
+                self._pull_to_group(p, others)
+            elif abs(x - p.x) + abs(y - p.y) > LEASH_STEP:
                 p.x, p.y = x, y
                 self.arena.resolve(p)
             else:
                 p._move(self, x - p.x, y - p.y)
+
+    def group_center(self, p):
+        others = [q for q in self.players if q is not p] or [p]
+        return sum(q.x for q in others) / len(others), sum(q.y for q in others) / len(others)
+
+    def _pull_to_group(self, p, others):
+        """Preso no limite (atrás de uma parede, por exemplo): some na fumaça e aparece no grupo."""
+        anchor = min((q for q in others if q.alive_in_match), key=p.distance_to, default=others[0])
+        self.burst(p.x, p.y - 16, (200, 200, 210), 18, speed=4)
+        x, y = self.arena.free_spot(anchor.x - 40 * (1 if p.x < anchor.x else -1), anchor.y, p.radius)
+        p.x, p.y = x, y
+        p.prev_pos = (x, y)
+        p.vx = p.vy = 0.0
+        p.teleport_flash = 20
+        self.burst(x, y - 16, p.color, 18, speed=4)
+        self.strain[p] = 0
+        self.assets.play("dash", 0.4)
 
     def _update_pickups(self):
         for item in self.pickups:
@@ -563,6 +591,7 @@ class CoopMatch(Match):
     def draw(self, screen, ui):
         super().draw(screen, ui)
         self.draw_screen_layer(screen, ui)
+        self._draw_leash(screen, self.camera)
         self._draw_objective_arrow(screen, self.camera)
         hud.draw_campaign_banners(screen, ui, self)
         dark = 0
@@ -575,6 +604,46 @@ class CoopMatch(Match):
 
     def draw_screen_layer(self, screen, ui):
         """Textos presos no mundo (nomes das entradas, ABRIR, prontos do portal...)."""
+
+    def _draw_leash(self, screen, cam):
+        """Quem força o limite do grupo: a borda da tela brilha na cor dele e uma seta do lado do
+        corpo aponta para o grupo (assim fica claro por que ele parou)."""
+        W, H = config.SCREEN_W, config.SCREEN_H
+        for p, frames in self.strain.items():
+            if frames <= 0 or not p.alive_in_match:
+                continue
+            k = min(1.0, frames / 20)
+            pulse = 0.6 + 0.4 * math.sin(self.frame * 0.25)
+            sx, sy = cam.to_screen(p.x, p.y)
+            gx, gy = cam.to_screen(*self.group_center(p))
+            dx, dy = gx - sx, gy - sy
+            d = math.hypot(dx, dy) or 1
+            ux, uy = dx / d, dy / d
+            # brilho na borda da tela do lado em que ele está
+            glow = pygame.Surface((W, H), pygame.SRCALPHA)
+            alpha = round(150 * k * pulse)
+            band = 12
+            if abs(ux) >= abs(uy):
+                rect = (0, 0, band, H) if ux > 0 else (W - band, 0, band, H)
+            else:
+                rect = (0, 0, W, band) if uy > 0 else (0, H - band, W, band)
+            glow.fill((*p.color[:3], alpha), rect)
+            screen.blit(glow, (0, 0))
+            # seta do lado do corpo, apontando para o grupo
+            hx, hy = sx + ux * 26, sy - 32 * cam.zoom + uy * 26
+            size = 7
+            tip = (hx + ux * size * 1.6, hy + uy * size * 1.6)
+            left = (hx - uy * size * 0.8, hy + ux * size * 0.8)
+            right = (hx + uy * size * 0.8, hy - ux * size * 0.8)
+            pygame.draw.polygon(screen, theme.SHADOW, [(x + 1, y + 1) for x, y in (tip, left, right)])
+            pygame.draw.polygon(screen, p.color, (tip, left, right))
+            if frames > LEASH_PULL_FRAMES // 3:
+                # barrinha: quanto falta para ser puxado para o grupo
+                w = 30
+                fill = frames / LEASH_PULL_FRAMES
+                bx, by = sx - w / 2, sy + 8
+                pygame.draw.rect(screen, theme.SHADOW, (bx, by, w, 4))
+                pygame.draw.rect(screen, p.color, (bx, by, w * fill, 4))
 
     def _draw_objective_arrow(self, screen, cam):
         point = self.objective()
