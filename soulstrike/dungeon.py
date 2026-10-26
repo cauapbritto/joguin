@@ -6,6 +6,7 @@ import random
 import pygame
 
 from . import theme, weapon_art
+from .data import rarity_color
 from .entities import Entity, Particle, Wall
 
 GATE_LIFT = 26               # quadros da grade subindo (ou descendo)
@@ -379,8 +380,9 @@ class RelicDrop(Entity):
 
 
 class GroundWeapon(Entity):
-    """Arma rara no chão: quem pegou outra arma rara solta a que tinha (só dá para ter uma).
-    Perto dela, ATACAR pega de volta — e quem pega solta a dele no lugar (troca)."""
+    """Arma no chão: a rara que alguém largou ou a comum que um inimigo derrubou. Perto dela,
+    ATACAR pega — e quem pega solta no lugar a que tinha do mesmo tipo (troca). O nome e o brilho
+    têm a cor da raridade (comum branca, rara azul, roubada dourada)."""
 
     REACH = 58
     TOSS = 22                    # quadros do arremesso até o chão
@@ -393,6 +395,7 @@ class GroundWeapon(Entity):
         self.t = 0
         self.z = 0.0
         self.x, self.y = start
+        self.color = rarity_color(weapon)
 
     @property
     def landed(self):
@@ -417,13 +420,13 @@ class GroundWeapon(Entity):
                 match.dust(self.x, self.y + 6, 5)
                 match.assets.play("click", 0.4)
         elif self.t % 24 == 0:
-            match.particles.append(Particle(self.x + random.uniform(-14, 14), self.y - 4, 0, -0.5, GOLD_L, 22, 2))
+            match.particles.append(Particle(self.x + random.uniform(-14, 14), self.y - 4, 0, -0.5, self.color, 22, 2))
 
     def draw(self, surf, camera):
         sx, sy = round(self.x - camera.x), round(self.y - camera.y)
         pygame.draw.ellipse(surf, (0, 0, 0), (sx - 18, sy + 2, 36, 10))
         bob = 0 if not self.landed else round(math.sin(self.t * 0.08) * 2) - 6
-        g = glow(20, (255, 210, 120), 0.45 + 0.15 * math.sin(self.t * 0.1))
+        g = glow(20, self.color, 0.45 + 0.15 * math.sin(self.t * 0.1))
         surf.blit(g, g.get_rect(center=(sx, sy - 8 + bob)), special_flags=pygame.BLEND_ADD)
         angle = self.t * 24 if not self.landed else -25
         img = weapon_art.rotated(self.weapon.name, angle)
@@ -435,7 +438,7 @@ class GroundWeapon(Entity):
             return
         # embaixo da arma (em cima ficam os nomes dos jogadores)
         sx, sy = camera.to_screen(self.x, self.y + 14)
-        ui.text(screen, self.weapon.name.upper(), theme.XS, (255, 220, 120), (round(sx), round(sy)))
+        ui.text(screen, self.weapon.name.upper(), theme.XS, self.color, (round(sx), round(sy)))
         if near:
             color = theme.BRASS if (frame // 15) % 2 else theme.BONE
             ui.text(screen, "ATACAR: PEGAR", theme.XS, color, (round(sx), round(sy) + 12))

@@ -245,3 +245,29 @@ def duel_arsenal():
             seen.add(w.name)
             (melee if w.is_melee else ranged).append(w)
     return tuple(ranged), tuple(melee)
+
+
+# raridade das armas da campanha: a cor do nome mostra de longe o que é cada uma
+RARITY_COLORS = {
+    "comum": (236, 230, 220),       # armas dos heróis (caem dos inimigos)
+    "rara": (110, 170, 255),        # baú das fases
+    "roubada": (255, 210, 90),      # baú do Templo Gelado
+}
+
+
+def rarity(weapon):
+    if weapon.roubada:
+        return "roubada"
+    if weapon.rare:
+        return "rara"
+    return "comum"
+
+
+def rarity_color(weapon):
+    return RARITY_COLORS[rarity(weapon)]
+
+
+def common_weapon(name):
+    """Arma comum (de herói) pelo nome, ou None."""
+    ranged, melee = duel_arsenal()
+    return next((w for w in ranged + melee if w.name == name), None)

@@ -121,6 +121,11 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   esqueletos e as sombras do Tanque e do Ninja) e **Templo Gelado** (Pátio do Templo e Altar do
   Cristal, com o chefão **Aryel Corrompido**).
 
+  **Armas que caem dos inimigos:** de vez em quando um inimigo (quase sempre os elites) deixa cair a
+  arma de outro herói, uma que ninguém do grupo está usando. Perto dela, ATACAR pega: ela entra no
+  lugar da arma do herói do mesmo tipo (de tiro ou de perto) e a antiga fica no chão. A troca vale
+  até o fim da campanha e fica salva. A cor do nome mostra a raridade: **comum branca**, **rara
+  azul** e **roubada dourada** (no chão e no HUD).
   **Armas raras do baú:** viram a 3ª arma do jogador (TROCAR ARMA passa pelas três) e ficam até o
   fim da campanha. Só dá para ter uma: quando o baú da fase seguinte dá outra, a antiga **fica
   no chão** (com o nome embaixo) e, perto dela, ATACAR **pega de volta** — trocando, e a outra

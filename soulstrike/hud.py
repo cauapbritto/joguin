@@ -4,6 +4,7 @@ import math
 import pygame
 
 from . import config, theme
+from .data import rarity_color
 from .ui import mix
 
 
@@ -26,7 +27,9 @@ def ammo_text(f):
 def _weapon_label(screen, ui, f, pos, right):
     """Nome da arma e, ao lado, a munição (alinhado à direita ou à esquerda)."""
     anchor = "midright" if right else "midleft"
-    rect = ui.text(screen, f.weapon.name.upper(), theme.XS, theme.MUTED, pos, anchor=anchor, shadow=True)
+    weapon = f.weapon
+    color = rarity_color(weapon) if weapon.rare else theme.MUTED       # rara azul, roubada dourada
+    rect = ui.text(screen, weapon.name.upper(), theme.XS, color, pos, anchor=anchor, shadow=True)
     ammo = ammo_text(f)
     if ammo:
         text, color = ammo

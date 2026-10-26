@@ -18,7 +18,7 @@ from .arena import MAPS_BY_KEY
 from .matches import Match, Result, _separate
 from .net.remote import hub
 from .ui import darken
-from .data import PHASE_RELICS, RARE_WEAPONS
+from .data import PHASE_RELICS, RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
 from .dungeon import Campfire, Chest, ExitDoor, Gate, GroundWeapon, RelicDrop
 from .lobbies import cells_rect
 from .upgrades import apply_all
@@ -41,6 +41,9 @@ GAMEOVER_FRAMES = 220
 CORPSE_FRAMES = 80
 CORPSE_FADE = 32              # últimos quadros do corpo: vai sumindo
 SOLO_DAMAGE = 0.85
+WEAPON_DROP = 0.04             # chance de um inimigo comum derrubar a arma de outro herói
+ELITE_WEAPON_DROP = 0.4       # ... e de um elite (golem, sombra)
+MAX_GROUND = 6                # armas no chão ao mesmo tempo (a mais velha some)
 
 # dificuldade da campanha: (vida dos inimigos, dano dos inimigos)
 DIFFICULTY = {"facil": (0.75, 0.7), "normal": (1.0, 1.0), "dificil": (1.3, 1.25)}
@@ -148,6 +151,7 @@ class CampaignRun:
         self.chest_open = False
         self.relics = {s: None for s in self.slots}       # arma rara do baú de cada jogador
         self.held = {s: 0 for s in self.slots}            # arma na mão de uma etapa para a outra
+        self.loadouts = {s: None for s in self.slots}     # armas comuns que pegou no chão (de tiro, de perto)
         self._snapshot = None
 
     @property
@@ -177,7 +181,7 @@ class CampaignRun:
     def _state(self):
         return {k: copy.deepcopy(getattr(self, k))
                 for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames",
-                          "stage", "chest_open", "relics", "held")}
+                          "stage", "chest_open", "relics", "held", "loadouts")}
 
     def begin_phase(self):
         """Começa a fase no acampamento e guarda como tudo estava (para TENTAR DE NOVO)."""
@@ -194,6 +198,9 @@ class CampaignRun:
 
     def prepare(self, fighter):
         """Aplica as melhorias, a arma rara do baú e a vida que sobrou da etapa anterior."""
+        names = self.loadouts.get(fighter.slot)
+        if names:
+            fighter.loadout = tuple(common_weapon(n) for n in names)
         apply_all(fighter, self.upgrades.get(fighter.slot, ()))
         relic = RARE_WEAPONS.get(self.relics.get(fighter.slot))
         if relic is not None:
@@ -209,6 +216,7 @@ class CampaignRun:
             self.damage[f.slot] += f.damage_dealt
             self.held[f.slot] = f.weapon_index
             self.relics[f.slot] = relic_key(f.relic)
+            self.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
         self.frames += match.frame
 
     def finish_phase(self, match):
@@ -228,7 +236,7 @@ class CampaignRun:
     def to_save(self):
         """O estado do começo da fase, num formato que cabe no progresso.json."""
         state = self._state()
-        for k in self._BY_SLOT:
+        for k in self._BY_SLOT + ("loadouts",):
             state[k] = {str(s): v for s, v in state[k].items()}
         return {"versao": self.SAVE_VERSION, "dificuldade": self.session.difficulty,
                 "jogadores": [{"slot": s.slot, "char": s.char, "weapon": s.weapon} for s in self.session.slots],
@@ -271,6 +279,15 @@ class CampaignRun:
             run.kills = {s: int(v) for s, v in run.kills.items()}
             run.damage = {s: int(v) for s, v in run.damage.items()}
             run.held = {s: int(v) for s, v in run.held.items()}
+            loadouts = {int(s): v for s, v in state.get("loadouts", {}).items()}   # saves antigos não têm
+            for s in run.slots:
+                names = loadouts.get(s)
+                if names is not None:
+                    weapons = [common_weapon(n) for n in names]
+                    if len(weapons) != 2 or None in weapons or [w.is_melee for w in weapons] != [False, True]:
+                        return None
+                    names = list(names)
+                run.loadouts[s] = names
         except (KeyError, TypeError, ValueError, AttributeError):
             return None
         return run
@@ -326,6 +343,7 @@ class CoopMatch(Match):
         self.portals = []
         self.pickups = []
         self.props = []                 # entrada, fogueira, baú, porta, portal...
+        self.ground = []                # armas no chão (largadas ou derrubadas por inimigos)
         self.revive_progress = {f: 0.0 for f in self.players}
         self.strain = {f: 0 for f in self.players}     # quadros forçando o limite do grupo
         self.was_down = set()
@@ -458,7 +476,75 @@ class CoopMatch(Match):
 
     def interact(self, f):
         """ATACAR perto de algo (baú, portal): devolve True se usou o botão para isso."""
-        return False
+        return self.pick_ground(f)
+
+    # ── armas no chão ────────────────────────
+    def pick_ground(self, f):
+        """Pega a arma do chão mais perto. A rara troca com a rara; a comum troca com a arma do
+        herói do mesmo tipo (de tiro ou de perto). A que ele tinha fica no lugar."""
+        near = [g for g in self.ground if g.alive and g.can_pick(f)]
+        if not near:
+            return False
+        item = min(near, key=f.distance_to)
+        item.alive = False
+        self.ground.remove(item)
+        if item.weapon.rare:
+            self.give_relic(f, item.weapon, drop_at=(item.x, item.y))
+        else:
+            self.give_common(f, item.weapon, drop_at=(item.x, item.y))
+        return True
+
+    def give_relic(self, fighter, weapon, drop_at=None):
+        """Arma rara na mão. Só dá para ter uma: a que ele tinha cai no chão (ATACAR pega de volta)."""
+        old = fighter.give_relic(weapon)
+        self.run.relics[fighter.slot] = relic_key(weapon)
+        if old is not None and old is not weapon:
+            self.drop_weapon(fighter, old, drop_at)
+        self._got_weapon(fighter, weapon)
+
+    def give_common(self, fighter, weapon, drop_at=None):
+        """Arma de outro herói: entra no lugar da de mesmo tipo e já vem na mão."""
+        base = list(fighter.base_weapons)
+        i = next(k for k, w in enumerate(base) if w.is_melee == weapon.is_melee)
+        old = base[i]
+        base[i] = weapon
+        fighter.loadout = None if tuple(base) == fighter.stats.weapons else tuple(base)
+        fighter.clips.pop(old, None)
+        fighter.weapon_index = i
+        fighter.bow_draw = 0
+        self.run.loadouts[fighter.slot] = [w.name for w in fighter.loadout] if fighter.loadout else None
+        self.drop_weapon(fighter, old, drop_at)
+        self._got_weapon(fighter, weapon)
+
+    def _got_weapon(self, fighter, weapon):
+        color = rarity_color(weapon)
+        self.popup(fighter.x, fighter.y - 80, weapon.name.upper(), color)
+        self.burst(fighter.x, fighter.y - 20, color, 18, speed=4)
+        self.assets.play("select", 0.5)
+
+    def drop_weapon(self, fighter, weapon, at=None, start=None):
+        """Joga a arma no chão: atrás de quem largou, ou no lugar da que ele pegou (troca)."""
+        if at is None:
+            fx, fy = fighter.facing
+            at = (fighter.x - fx * 52, fighter.y - fy * 52 + 10)
+        x, y = self.arena.free_spot(at[0], at[1], 16)
+        item = GroundWeapon(weapon, start or (fighter.x, fighter.y - 20), (x, y))
+        self.ground.append(item)
+        self.props.append(item)
+        while len(self.ground) > MAX_GROUND:
+            old = self.ground.pop(0)
+            old.alive = False
+            if old in self.props:
+                self.props.remove(old)
+
+    def draw_ground(self, screen, cam, ui):
+        nearest = set()                     # "ATACAR: PEGAR" só na arma mais perto de cada um
+        for p in self.alive_players:
+            items = [g for g in self.ground if g.can_pick(p)]
+            if items:
+                nearest.add(min(items, key=p.distance_to))
+        for item in self.ground:
+            item.draw_prompt(screen, cam, ui, self.frame, item in nearest)
 
     def _human(self, f, inp):
         f.steer(*inp.axis())
@@ -851,10 +937,23 @@ class CampaignMatch(CoopMatch):
             self.burst(e.x, e.y - 30, SHADOW_AURA, 60, speed=8)
             self.bullets.clear()
             return
+        chance = ELITE_WEAPON_DROP if is_elite(getattr(e, "kind", "")) else WEAPON_DROP
+        if random.random() < chance:
+            self._drop_hero_weapon(e)
         if random.random() < e.stats.drop_chance:
             kind = random.choices(("vida", "furia", "energia", "municao"), weights=(46, 20, 16, 18))[0]
             x, y = self.arena.free_spot(e.x, e.y, 14)
             self.pickups.append(Pickup(kind, x, y))
+
+    def _drop_hero_weapon(self, e):
+        """O inimigo derruba a arma de outro herói: uma que ninguém do grupo está usando."""
+        ranged, melee = duel_arsenal()
+        held = {w.name for p in self.players for w in p.weapons} | {g.weapon.name for g in self.ground}
+        pool = [w for w in ranged + melee if w.name not in held]
+        if not pool:
+            return
+        weapon = random.choice(pool)
+        self.drop_weapon(e, weapon, at=(e.x + random.uniform(-30, 30), e.y + 20), start=(e.x, e.y - 20))
 
     def last_breath(self, fighter):
         """Jogando sozinho não tem quem levante: o primeiro golpe fatal da masmorra deixa com 1 de vida."""
@@ -1026,7 +1125,7 @@ class CampaignMatch(CoopMatch):
         if self.voting:
             self.vote(f)
             return True
-        return False
+        return self.pick_ground(f)
 
     def click(self, pos):
         """Clique no botão da tela: confirma o próximo jogador do teclado que ainda não confirmou."""
@@ -1085,6 +1184,7 @@ class CampaignMatch(CoopMatch):
                 if (self.frame // 20) % 2:
                     ui.text(screen, "LEVANTE!" if len(self.players) > 1 else "", theme.XS, p.color, (round(sx), round(sy)))
         self._draw_offscreen(screen, cam)
+        self.draw_ground(screen, cam, ui)
         if self.voting:
             self.vote_button = hud.draw_teleport_vote(screen, ui, self)
         else:
@@ -1165,7 +1265,6 @@ class LobbyMatch(CoopMatch):
             self.arena.walls.append(self.chest.wall)
             self.props.append(self.chest)
         self.target_gate = 2 if self.back else 1
-        self.ground = []                    # armas raras largadas no chão (dá para pegar de volta)
         hub_vote(self, 0)
         for p in self.players:              # chegando (teletransporte ou saindo da masmorra)
             self.burst(p.x, p.y - 20, (200, 180, 255), 14, speed=3)
@@ -1209,14 +1308,7 @@ class LobbyMatch(CoopMatch):
             self.chest.open(self)
             self.run.chest_open = True
             return True
-        near = [g for g in self.ground if g.alive and g.can_pick(f)]
-        if near:
-            item = min(near, key=f.distance_to)
-            item.alive = False
-            self.ground.remove(item)
-            self.give_relic(f, item.weapon, drop_at=(item.x, item.y))     # troca: a dele fica ali
-            return True
-        return False
+        return self.pick_ground(f)
 
     def launch_relics(self, chest):
         """O baú solta uma arma rara para cada jogador: armas diferentes entre si e, se der, que
@@ -1234,26 +1326,6 @@ class LobbyMatch(CoopMatch):
                 pool.remove(weapon)
             self.props.append(RelicDrop(chest, p, weapon))
 
-    def give_relic(self, fighter, weapon, drop_at=None):
-        """Arma rara na mão. Só dá para ter uma: a que ele tinha cai no chão (ATACAR pega de volta)."""
-        old = fighter.give_relic(weapon)
-        self.run.relics[fighter.slot] = relic_key(weapon)
-        if old is not None and old is not weapon:
-            self.drop_weapon(fighter, old, drop_at)
-        self.popup(fighter.x, fighter.y - 80, weapon.name.upper(), (255, 220, 120))
-        self.burst(fighter.x, fighter.y - 20, (255, 220, 120), 18, speed=4)
-        self.assets.play("select", 0.5)
-
-    def drop_weapon(self, fighter, weapon, at=None):
-        """Joga a arma no chão: atrás de quem largou, ou no lugar da que ele pegou (troca)."""
-        if at is None:
-            fx, fy = fighter.facing
-            at = (fighter.x - fx * 52, fighter.y - fy * 52 + 10)
-        x, y = self.arena.free_spot(at[0], at[1], 16)
-        item = GroundWeapon(weapon, (fighter.x, fighter.y - 20), (x, y))
-        self.ground.append(item)
-        self.props.append(item)
-
     def next_scene(self):
         from .scenes.campaign import next_stage
         return next_stage(self.game, self.run, DUNGEON_2 if self.back else DUNGEON_1)
@@ -1265,13 +1337,7 @@ class LobbyMatch(CoopMatch):
         if self.chest is not None:
             near = any(self.chest.can_open(p) for p in self.alive_players)
             self.chest.draw_prompt(screen, cam, ui, self.frame, near)
-        nearest = set()                     # "ATACAR: PEGAR" só na arma mais perto de cada um
-        for p in self.alive_players:
-            items = [g for g in self.ground if g.can_pick(p)]
-            if items:
-                nearest.add(min(items, key=p.distance_to))
-        for item in self.ground:
-            item.draw_prompt(screen, cam, ui, self.frame, item in nearest)
+        self.draw_ground(screen, cam, ui)
         gate = self.gates[self.target_gate]
         alive = self.alive_players
         inside = [p for p in alive if gate.rect.inflate(20, 30).collidepoint(p.x, p.y)]
