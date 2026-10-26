@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import pygame
 
 from . import config, hud, theme
-from .ai import FighterAI, SoccerAI
+from .ai import BALL_DIFFICULTIES, FighterAI, SoccerAI
 from .arena import MAPS_BY_KEY, SOCCER_MAP, Arena, Pitch
 from .camera import Camera
 from .data import CHARACTERS, SHADOW_CHARACTERS
@@ -942,7 +942,8 @@ class SoccerMatch(Match):
             fighter.power = create_power(fighter.stats)
             self.spawn_of[fighter] = pos
             if setup.cpu:
-                self.controllers[fighter] = SoccerAI()
+                self.controllers[fighter] = SoccerAI(session.difficulty)
+                fighter.speed *= BALL_DIFFICULTIES[session.difficulty]["speed"]
             else:
                 game.inputs[setup.slot].set_layout("soccer")      # CORRER e MARCAR no teclado
                 self.controllers[fighter] = game.inputs[setup.slot]
@@ -962,6 +963,41 @@ class SoccerMatch(Match):
         self.contest = {}
         self.dunk = None            # enterrada do Cauanzera em andamento (ela segura a bola)
         self.assist = ASSIST_LEVELS.get(getattr(session, "assist", "media"), ASSIST_LEVELS["media"])
+        # tamanho da partida: primeiro a 3, 5 ou 7 gols, ou 3 minutos (empate: gol de ouro)
+        length = session.soccer_length
+        self.win_score = None if length == "tempo" else int(length)
+        self.clock = config.SOCCER_MINUTES * 60 * config.FPS if length == "tempo" else 0
+        self.golden_goal = False
+
+    @property
+    def length_text(self):
+        if self.golden_goal:
+            return "GOL DE OURO"
+        if self.win_score is None:
+            secs = -(-self.clock // config.FPS)
+            return f"{secs // 60}:{secs % 60:02d}"
+        return f"PRIMEIRO A {self.win_score}"
+
+    def _tick_clock(self):
+        """Partida por tempo: o relógio só anda com a bola rolando. Acabou empatado: gol de ouro."""
+        if not self.clock or self.freeze:
+            return
+        self.clock -= 1
+        if self.clock:
+            return
+        if self.score[0] == self.score[1]:
+            self.golden_goal = True
+            self.popup(self.ball.x, self.ball.y - 60, "GOL DE OURO", theme.BRASS)
+            self.assets.play("apito", 0.4)
+        else:
+            self._whistle(0 if self.score[0] > self.score[1] else 1)
+
+    def _whistle(self, team):
+        self.assets.play("apito", 0.4)
+        self.result_team = team
+        self.ending = config.DEATH_ANIM_FRAMES + 30
+        self.freeze = 0
+        self.assets.stop_music(1800)
 
     @staticmethod
     def goal_x(team):
@@ -1548,6 +1584,8 @@ class SoccerMatch(Match):
                 self._finish()
                 return
 
+        if not self.ending:
+            self._tick_clock()
         for f in self.fighters:
             f.prev_pos = (f.x, f.y)
         for f, ctrl in self.controllers.items():
@@ -1974,12 +2012,8 @@ class SoccerMatch(Match):
         self.slowmo = max(self.slowmo, GOAL_SLOWMO)
         self.assets.play("victory", 0.5)
         self.assets.play("torcida", 0.45)
-        if self.score[scoring_team] >= config.WIN_SCORE:
-            self.assets.play("apito", 0.4)
-            self.result_team = scoring_team
-            self.ending = config.DEATH_ANIM_FRAMES + 30
-            self.freeze = 0
-            self.assets.stop_music(1800)
+        if self.golden_goal or (self.win_score is not None and self.score[scoring_team] >= self.win_score):
+            self._whistle(scoring_team)
 
     def _kickoff(self):
         self.assets.play("apito", 0.35)

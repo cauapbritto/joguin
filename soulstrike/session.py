@@ -51,6 +51,7 @@ class Session:
     assist: str = "media"          # assistência do futebol: alta, media ou desligada
     layout: str = "alternado"      # times no 2 x 2 (veja TEAM_LAYOUTS)
     weapon_pick: bool = False      # duelo: escolher as armas antes de cada round
+    soccer_length: str = "3"       # futebol: "3", "5" ou "7" gols, ou "tempo" (config.SOCCER_LENGTHS)
 
     @property
     def soccer(self):

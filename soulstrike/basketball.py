@@ -10,7 +10,7 @@ import random
 import pygame
 
 from . import config, hud, theme
-from .ai import BasketballAI
+from .ai import BALL_DIFFICULTIES, BasketballAI
 from .arena import BASKET_MAPS, Court
 from .basket_powers import create_basket_power
 from .basket_assist import (JUMP_FRAMES, aim_point, board_hit, bounce, flight_frames, green_half, miss_distance,
@@ -23,6 +23,8 @@ from .soccer_assist import pick_receiver, unit
 HALF_SECONDS = 120              # dois tempos de 2 minutos
 WARMUP_SECONDS = 60             # aquecimento antes da bola ao alto: cada um com a sua bola
 WARM_STATE = ("ball", "holder", "shot", "no_catch", "catch_lock", "alley")   # o que cada bola tem
+COMEBACK_GAP = 10              # perdendo por tanto ou mais: o time ganha uma ajuda (estilo NBA Jam)
+COMEBACK_GREEN = (0.05, 0.02)   # faixa verde a mais (meia distância, de 3)
 SHOT_CLOCK = 10                 # segundos com a bola sem arremessar: perde a posse
 CATCH_HEIGHT = 56               # bola mais baixa que isso pode ser pega
 HAND_Z = 40                     # altura de onde sai o arremesso
@@ -256,7 +258,8 @@ class BasketballMatch(Match):
             fighter.fire_timer = 0
             self.spawn_of[fighter] = pos
             if setup.cpu:
-                self.controllers[fighter] = BasketballAI()
+                self.controllers[fighter] = BasketballAI(session.difficulty)
+                fighter.speed *= BALL_DIFFICULTIES[session.difficulty]["speed"]
             else:
                 game.inputs[setup.slot].set_layout("soccer")      # mesmas teclas do futebol
                 self.controllers[fighter] = game.inputs[setup.slot]
@@ -390,7 +393,10 @@ class BasketballMatch(Match):
             self.popup(f.x, f.y - 90, "SEM ENTERRADA", theme.MUTED)   # marcação colada
         f.jump = 1
         f.jump_shot = True
-        half = green_half(dist, Court.is_three(side, f.x, f.y), self.on_fire(f)) + f.power.green_bonus
+        three = Court.is_three(side, f.x, f.y)
+        half = green_half(dist, three, self.on_fire(f)) + f.power.green_bonus
+        if self.comeback(f.team):
+            half += COMEBACK_GREEN[1 if three else 0]
         if f.hot_timer > 0:
             half = 0.5                        # Mão Quente: a faixa inteira
         if f.frost_timer > 0:
@@ -615,6 +621,10 @@ class BasketballMatch(Match):
         ball.vx, ball.vy, ball.vz = shot_velocity(ball.x, ball.y, ball.z, tx, ty, tz, frames, config.GRAVITY)
 
     # ── ciclo ────────────────────────────────
+    def comeback(self, team):
+        """O time está perdendo por COMEBACK_GAP pontos ou mais (a ajuda some quando encosta)."""
+        return not self.warmup and self.score[1 - team] - self.score[team] >= COMEBACK_GAP
+
     def step(self):
         if self.banner:
             self.banner_age += 1
@@ -634,6 +644,8 @@ class BasketballMatch(Match):
         for f in self.fighters:
             f.prev_pos = (f.x, f.y)
             self._update_moves(f)
+            if f.super_cd > 0 and self.frame % 2 == 0 and self.comeback(f.team):
+                f.super_cd -= 1                 # perdendo de muito: o SUPER volta 50% mais rápido
         for side in (0, 1):
             if self.lids[side] > 0:
                 self.lids[side] -= 1

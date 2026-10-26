@@ -290,6 +290,30 @@ class CharSelectScene(_MenuScene):
         return self.game.session.mode in ("cpu", "campaign", "duel2")
 
     @property
+    def _cpu_level_mode(self):
+        """Modos em que 1, 2 e 3 escolhem a dificuldade da CPU."""
+        return self.game.session.mode in ("cpu", "duel2", "soccer1", "soccer2", "basket2")
+
+    @property
+    def _length_mode(self):
+        """Futebol (não o basquete): dá para escolher o tamanho da partida."""
+        return self.soccer and not self.basket
+
+    @staticmethod
+    def _length_label():
+        length = settings.get("futebol_partida")
+        if length == "tempo":
+            return f"{config.SOCCER_MINUTES} MINUTOS (EMPATE: GOL DE OURO)"
+        return f"PRIMEIRO A {length} GOLS"
+
+    def _cycle_length(self):
+        order = config.SOCCER_LENGTHS
+        now = settings.get("futebol_partida")
+        i = order.index(now) if now in order else 0
+        settings.change("futebol_partida", order[(i + 1) % len(order)])
+        self.sfx("click", 0.4)
+
+    @property
     def _weapon_pick_mode(self):
         """Duelos (contra a CPU, local e 2 x 2): dá para escolher as armas antes de cada round."""
         return self.game.session.mode in ("cpu", "duel", "duel2")
@@ -405,7 +429,9 @@ class CharSelectScene(_MenuScene):
             elif self._weapon_pick_mode and event.key == pygame.K_v:
                 settings.change("armas_por_round", not settings.get("armas_por_round"))
                 self.sfx("click", 0.4)
-            elif self._has_difficulty and event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
+            elif self._length_mode and event.key == pygame.K_t:
+                self._cycle_length()
+            elif self._cpu_level_mode and event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
                 self.game.session.difficulty = DIFFICULTY_ORDER[event.key - pygame.K_1]
                 self.sfx("click", 0.4)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -485,6 +511,8 @@ class CharSelectScene(_MenuScene):
                 session = self.game.session
                 session.map_key = self.court_key if session.basket else self.map_key
                 session.weapon_pick = self._weapon_pick_mode and settings.get("armas_por_round")
+                if settings.get("futebol_partida") in config.SOCCER_LENGTHS:
+                    session.soccer_length = settings.get("futebol_partida")
                 from .play import VersusScene
                 self.game.change(VersusScene(self.game))
         else:
@@ -526,9 +554,12 @@ class CharSelectScene(_MenuScene):
                 items.insert(0, ("TAB", "ASSISTÊNCIA: " + ASSIST_LEVELS[self.game.session.assist].label))
             if self._weapon_pick_mode:
                 items.insert(1, ("V", "ARMAS: " + ("A CADA ROUND" if settings.get("armas_por_round") else "FIXAS")))
+            if self._length_mode:
+                length = settings.get("futebol_partida")
+                items.insert(1, ("T", "PARTIDA: " + ("3 MIN" if length == "tempo" else f"{length} GOLS")))
             if self.game.session.mode == "cpu":
                 items.insert(1, ("1 2 3", "DIFICULDADE"))
-            elif self.game.session.mode == "duel2" and any(c.setup.cpu for c in self.cards):
+            elif self._cpu_level_mode and any(c.setup.cpu for c in self.cards):
                 items.insert(1, ("1 2 3", "CPU: " + DIFFICULTIES[self.game.session.difficulty]["label"]))
             self.footer(screen, items)
 
@@ -574,7 +605,7 @@ class CharSelectScene(_MenuScene):
         ui.text(screen, setup.name, theme.XS, theme.BONE, (head.x + 8, head.centery), anchor="midleft")
         if setup.cpu:
             source = (DIFFICULTIES[self.game.session.difficulty]["label"]
-                      if self.game.session.mode in ("cpu", "duel2")
+                      if self._cpu_level_mode
                       else "BONECO" if self.game.session.mode == "treino" else "AUTO")
         else:
             source = self.game.device_of(setup.slot)
@@ -699,7 +730,7 @@ class CharSelectScene(_MenuScene):
             ui.text(screen, "ESTÁDIO", theme.S, theme.BONE, (c.centerx, c.y + 30))
             thumb = self.game.thumbnail(MAPS_BY_KEY["campo_futebol"], (220, 124))
             screen.blit(thumb, thumb.get_rect(midtop=(c.centerx, c.y + 56)))
-            ui.text(screen, f"PRIMEIRO A {config.WIN_SCORE} GOLS", theme.XS, theme.BRASS, (c.centerx, c.y + 188))
+            ui.text(screen, self._length_label(), theme.XS, theme.BRASS, (c.centerx, c.y + 188))
             ui.paragraph(screen, "Cada personagem tem um poder próprio no botão SUPER.", theme.XS,
                          theme.MUTED, (c.x + 16, c.y + 204), c.w - 32, spacing=14)
             screen.fill(theme.LINE, (c.x + 16, c.y + 258, c.w - 32, 1))

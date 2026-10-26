@@ -191,7 +191,10 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   recarregam: a carga volta aos poucos.
 - **Futebol 1 x 1 / 2 x 2** — passe, corte, condução, chute e passe pelo alto, cabeçada,
   **correr** (com fôlego), **marcar**, **chutão**, **carrinho de bloqueio** e um **poder
-  próprio de cada personagem** no botão SUPER. Primeiro a 3 gols vence. Cada time joga de
+  próprio de cada personagem** no botão SUPER. Primeiro a 3 gols vence; na escolha de personagem,
+  **T** troca para 5 ou 7 gols, ou para **3 minutos** (o relógio para com a bola parada e, se
+  terminar empatado, vale o **gol de ouro**). Com CPU em campo, **1 2 3** escolhem a dificuldade
+  dela (velocidade, mira, vontade de roubar a bola e de usar o SUPER). Cada time joga de
   **uniforme**: o time da esquerda de azul e o da direita de vermelho (a roupa do personagem
   muda de cor, o resto continua igual), já na seleção e na tela de VS. O campo é grande
   (2240 x 1260, 40% maior que o primeiro) e a câmera nunca perde a bola: quem fica fora da tela
@@ -200,6 +203,9 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   não ficam para trás, e o Velocista continua o mais rápido).
   No 2 x 2 dá para jogar com 1 a 4 pessoas: quem faltar vira CPU para fechar o time. O jogador 2
   entra apertando `;` no teclado (ou pelo celular) e sai com `/`; o 3 e o 4 entram pelo celular.
+- **Basquete 2 x 2** — a CPU também tem dificuldade (1 2 3), que muda o acerto da barrinha do
+  arremesso, os tocos e os roubos. Time perdendo por 10 ou mais entra em **REAÇÃO!**: a faixa verde
+  do arremesso fica um pouco maior e o SUPER volta 50% mais rápido, até encostar no placar.
 
 ## Personagens
 

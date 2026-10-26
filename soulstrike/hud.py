@@ -284,7 +284,8 @@ def draw_soccer(screen, ui, match):
         score_x = block.right - 28 if team == 0 else block.x + 28
         ui.text(screen, str(match.score[team]), theme.L, theme.BONE, (score_x, block.centery + 1))
     ui.text(screen, "x", theme.S, theme.MUTED, board.center)
-    ui.text(screen, f"PRIMEIRO A {config.WIN_SCORE}", theme.XS, theme.MUTED, (W // 2, board.bottom + 12))
+    ui.text(screen, match.length_text, theme.XS, theme.BRASS if match.golden_goal else theme.MUTED,
+            (W // 2, board.bottom + 12))
 
     _draw_powers(screen, ui, match)
 
@@ -326,6 +327,10 @@ def draw_basket(screen, ui, match):
                 anchor="midleft" if team == 0 else "midright")
         score_x = block.right - 28 if team == 0 else block.x + 28
         ui.text(screen, str(match.score[team]), theme.L, theme.BONE, (score_x, block.centery + 1))
+        if match.comeback(team) and (match.frame // 20) % 2:
+            # perdendo de muito: faixa verde maior e SUPER mais rápido
+            ui.text(screen, "REAÇÃO!", theme.XS, theme.BRASS, (name_x, block.y + 26),
+                    anchor="midleft" if team == 0 else "midright")
     ui.text(screen, "x", theme.S, theme.MUTED, board.center)
     if match.warmup:
         secs = max(0, -(-match.warmup // config.FPS))
