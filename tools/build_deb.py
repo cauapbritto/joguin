@@ -67,8 +67,9 @@ Description: Soul Strike - um duelo de heróis em pixel art
 """
 
 
-def build_binary():
-    """Pasta dist/SoulStrike com o executável (onedir: abre mais rápido que onefile)."""
+def build_binary(extra=()):
+    """Pasta build/pyinstaller-dist/SoulStrike com o executável (onedir: abre mais rápido que
+    onefile). `extra`: opções a mais do PyInstaller (o tools/build_itch.py usa)."""
     try:
         import PyInstaller.__main__
     except ImportError:
@@ -89,6 +90,7 @@ def build_binary():
         "--distpath", str(BUILD / "pyinstaller-dist"),
         "--workpath", str(BUILD / "pyinstaller"),
         "--specpath", str(BUILD),
+        *extra,
     ])
     return BUILD / "pyinstaller-dist" / "SoulStrike"
 
