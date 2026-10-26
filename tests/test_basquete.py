@@ -420,9 +420,22 @@ class Poderes(unittest.TestCase):
         atk = de(match, "velocista")
         com_bola(match, atk, 1000, 600)
         pirata = de(match, "pirata")
-        pirata.x, pirata.y = 1300, 600
+        pirata.x, pirata.y = 1250, 600
         self.assertTrue(match.use_power(pirata))
         self.assertIs(match.holder, pirata)
+
+    def test_gancho_nao_pega_bola_no_ar_nem_de_quem_protege(self):
+        match, _ = basquete(chars=(4, 8, 2, 3))
+        atk = de(match, "velocista")
+        pirata = de(match, "pirata")
+        pirata.x, pirata.y = 1250, 600
+        match.ball.reset(1100, 600)
+        match.ball.z, match.ball.vz = 80, 2           # passe ou arremesso voando
+        self.assertFalse(match.use_power(pirata))
+        com_bola(match, atk, 1000, 600)
+        atk.protecting = True
+        self.assertTrue(match.use_power(pirata))      # gastou o SUPER...
+        self.assertIs(match.holder, atk)              # ...mas a bola ficou
 
     def test_hack_derruba_a_bola(self):
         match, _ = basquete(chars=(4, 16, 2, 3))

@@ -86,7 +86,7 @@ class MarcarTest(unittest.TestCase):
         run(match, 3, inputs)
         self.assertIs(match.possessor, p2)
         inputs[1].hold("mark")
-        run(match, 120, inputs)
+        run(match, 150, inputs)                      # (com bola, a velocidade fica mais perto da média)
         gx, gy = match.goal_center(0)
         # P1 está no caminho entre o atacante e o gol
         ax, ay = gx - p2.x, gy - p2.y
@@ -103,7 +103,7 @@ class MarcarTest(unittest.TestCase):
         p1.x, p1.y = 300, MEIO + 300                 # vem de baixo, sem passar pela bola
         match.ball.x, match.ball.y = 260, MEIO - 150  # bola perto do gol da esquerda, parada
         inputs[1].hold("mark")
-        run(match, 120, inputs)
+        run(match, 150, inputs)                      # (com bola, a velocidade fica mais perto da média)
         gx, gy = match.goal_center(0)
         # entre a bola e o centro do gol, perto do gol
         self.assertLess(p1.distance_to(match.ball) + math.hypot(p1.x - gx, p1.y - gy),

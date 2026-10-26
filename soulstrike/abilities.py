@@ -63,10 +63,12 @@ def _fan(user, match, target, count, spread_deg, speed, damage):
 
 
 class Investida(Ability):
+    """Guerreiro: avança, causa 30 de dano e deixa o alvo tonto por meio segundo."""
     DAMAGE = 30
+    STUN = config.FPS // 2
 
     def activate(self, user, match, target):
-        user.start_charge(_aim(user, target), _dmg(user, self.DAMAGE))
+        user.start_charge(_aim(user, target), _dmg(user, self.DAMAGE), stun=self.STUN)
 
     def worth_using(self, user, target, dist):
         return 100 < dist < 360
@@ -92,8 +94,9 @@ class Muralha(Ability):
 
 
 class ShurikenTripla(Ability):
+    """Ninja: leque de shurikens. Eram 3 de 12, abertas demais para acertar mais de uma de longe."""
     def activate(self, user, match, target):
-        _fan(user, match, target, 3, 45, user.weapons[0].bullet_speed + 2, 12)
+        _fan(user, match, target, 3, 24, user.weapons[0].bullet_speed + 2, 15)
 
     def worth_using(self, user, target, dist):
         return dist < 380
@@ -299,14 +302,17 @@ class Multiesportista(Ability):
 
 class Hacker(Ability):
     """Albeguinio: abre o notebook e digita por 1s (se apanhar enquanto digita, falha); depois o
-    sinal de Wi-Fi sai dele e todos os adversários ficam HACKEADOS — travados por 5s."""
+    sinal de Wi-Fi sai dele e todos os adversários ficam HACKEADOS — travados por 5s (3s no duelo
+    1 x 1, onde travar o único adversário por 5s era quase um K.O. de graça)."""
     sound = "barrier"
     cooldown_mult = 2.0             # 20s
     TYPING = config.FPS
     FREEZE = 5 * config.FPS
+    DUEL_FREEZE = 3 * config.FPS
 
     def activate(self, user, match, target):
-        match.add_effect(Hack(user, self.TYPING, self.FREEZE))
+        freeze = self.DUEL_FREEZE if getattr(match, "single_duel", False) else self.FREEZE
+        match.add_effect(Hack(user, self.TYPING, freeze))
 
     def worth_using(self, user, target, dist):
         # longe o bastante para digitar em paz (ou com o inimigo recarregando)
@@ -316,11 +322,11 @@ class Hacker(Ability):
 
 
 class Exoesqueleto(Ability):
-    """Borba Jr: as placas de metal se montam nele. Por 6s fica maior, leva metade do dano, não é
+    """Borba Jr: as placas de metal se montam nele. Por 4,5s fica maior, leva metade do dano, não é
     empurrado e o golpe arremessa longe (quem bate na parede fica tonto)."""
     sound = "barrier"
-    cooldown_mult = 1.3
-    FRAMES = 6 * config.FPS
+    cooldown_mult = 1.6             # 16s
+    FRAMES = round(4.5 * config.FPS)
 
     def activate(self, user, match, target):
         start_exo(user, match, self.FRAMES)

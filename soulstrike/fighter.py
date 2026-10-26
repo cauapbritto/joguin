@@ -151,6 +151,7 @@ class Fighter(Entity):
         super().__init__(x, y)
         self.radius = self.base_radius = config.PLAYER_RADIUS
         self.stats = stats
+        self.speed = stats.speed        # no futebol e no basquete fica mais perto da média (config.ball_mode_speed)
         self.slot = slot
         self.label = label              # "P1", "CPU"...
         self.color = color              # cor da etiqueta acima da cabeça
@@ -179,6 +180,7 @@ class Fighter(Entity):
         self.charge_timer = 0
         self.charge_dir = (0.0, 0.0)
         self.charge_damage = 0
+        self.charge_stun = 0            # Investida do Guerreiro: quem leva fica tonto
         self.speed_timer = 0
         self.invulnerable_timer = 0
         self.super_cd = 0
@@ -431,7 +433,7 @@ class Fighter(Entity):
 
     @property
     def max_speed(self):
-        base = self.stats.speed * MOVE_SCALE
+        base = self.speed * MOVE_SCALE
         if self.sprint_timer > 0:
             return base * 1.8
         if self.moto_timer > 0:
@@ -627,10 +629,11 @@ class Fighter(Entity):
         self.kicked_dust = True
         return True
 
-    def start_charge(self, direction, damage):
+    def start_charge(self, direction, damage, stun=0):
         self.charge_dir = direction
         self.charge_timer = 20
         self.charge_damage = damage
+        self.charge_stun = stun
         self.facing = direction
 
     def start_windup(self, frames, color):
@@ -901,6 +904,8 @@ class Fighter(Entity):
             for other in match.opponents_of(self):
                 if other.alive_in_match and self.distance_to(other) < self.radius + other.radius + 6:
                     other.take_damage(self.charge_damage, self.x, self.y, attacker=self, match=match)
+                    if self.charge_stun:
+                        other.stun(self.charge_stun)
                     self.charge_timer = 0
             moving_fast = True
         else:
@@ -911,7 +916,7 @@ class Fighter(Entity):
                 ix, iy = fx / fd, fy / fd                # com medo: foge
             if self.rush_timer > 0 and math.hypot(ix, iy) < 0.3 and not self.stunned:
                 ix, iy = self.facing                     # 100 metros: não para de correr
-            was_fast = math.hypot(self.vx, self.vy) > self.stats.speed * 0.8
+            was_fast = math.hypot(self.vx, self.vy) > self.speed * 0.8
             self.moving = abs(ix) > 0.05 or abs(iy) > 0.05
             if self.moving:
                 turning = ix * self.vx + iy * self.vy < 0

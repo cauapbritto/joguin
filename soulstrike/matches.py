@@ -60,6 +60,8 @@ class Match(ABC):
                           setup.label, color or setup.color, team=team,
                           weapon_index=setup.weapon, is_cpu=setup.cpu)
         fighter.facing = (1.0, 0.0) if x < self.arena.width / 2 else (-1.0, 0.0)
+        if self.session.soccer:                 # futebol e basquete: o lento não fica para trás
+            fighter.speed = config.ball_mode_speed(stats.speed)
         if stats.key in SHADOW_CHARACTERS:
             from .enemies import SHADOW_RIM
             fighter.aura = SHADOW_RIM          # Aryel Corrompido jogável também solta a sombra
@@ -67,6 +69,19 @@ class Match(ABC):
         return fighter
 
     # ── serviços usados por entidades e habilidades ──
+    def _reflect(self, barrier, bullet):
+        """Muralha do Tanque: o tiro que bate nela volta como um tiro de gelo, do lado do Tanque."""
+        if not barrier.reflects or barrier.owner is None:
+            return
+        speed = math.hypot(bullet.vx, bullet.vy)
+        if speed < 1:
+            return
+        dx, dy = -bullet.vx / speed, -bullet.vy / speed
+        back = Bullet(barrier.owner, bullet.x + dx * 10, bullet.y + dy * 10, dx, dy, max(8.0, speed),
+                      max(4, round(bullet.damage * barrier.REFLECT_DAMAGE)), (150, 226, 240))
+        back.hit.add(barrier.owner)
+        self.bullets.append(back)
+
     def spawn_bullet(self, owner, dx, dy, speed, damage, explosive=False):
         color = owner.stats.color
         self.bullets.append(Bullet(owner, owner.x + dx * 18, owner.y + dy * 18 - 4, dx, dy, speed, damage, color, explosive))
@@ -134,6 +149,7 @@ class Match(ABC):
                     if isinstance(e, Barrier) and hostile(e.owner, b.owner) and e.rect.colliderect(b.rect):
                         b.alive = False
                         self.burst(b.x, b.y, (150, 226, 240), 4, speed=2)
+                        self._reflect(e, b)
                         break
             if b.alive:
                 for f in self.fighters:
@@ -302,6 +318,8 @@ class BattleMatch(Match):
 
     Cada "lado" disputa os rounds: no 1 x 1 o lado é o próprio lutador; no 2 x 2
     (TeamBattleMatch) é o time."""
+
+    single_duel = True          # 1 x 1: algumas habilidades são mais curtas (o Hack, por exemplo)
 
     def __init__(self, game, session):
         super().__init__(game, session, session.map_key)
@@ -557,6 +575,8 @@ TEAM_SPREAD = 110           # distância entre os dois do mesmo time na largada
 class TeamBattleMatch(BattleMatch):
     """Duelo 2 x 2: dois times, sem fogo amigo. O round acaba quando o time inteiro cai,
     e dá para levantar o companheiro caído ficando perto dele."""
+
+    single_duel = False
 
     min_zoom = 0.6
 

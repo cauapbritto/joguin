@@ -604,10 +604,13 @@ class ShadowBomb(GroundMark):
 
 
 class Barrier(Entity):
-    """Muralha do Tanque: bloqueia os tiros do adversário por alguns segundos."""
+    """Muralha do Tanque: bloqueia os tiros do adversário por alguns segundos e devolve cada um
+    (com um pouco menos de dano) para quem atirou."""
+    REFLECT_DAMAGE = 0.7
 
-    def __init__(self, owner, x, y, dx, dy, duration):
+    def __init__(self, owner, x, y, dx, dy, duration, reflects=True):
         super().__init__(x, y)
+        self.reflects = reflects
         self.owner = owner
         w, h = (16, 64) if abs(dx) > abs(dy) else (64, 16)
         self.rect = pygame.Rect(0, 0, w, h)

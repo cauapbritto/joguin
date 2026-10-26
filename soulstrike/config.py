@@ -50,6 +50,15 @@ AMMO_PICKUP_EXTRA = 2       # item de munição: pente cheio + um pente extra
 FURY_FRAMES = 6 * FPS
 FURY_MULT = 1.5
 
+# ── Futebol e basquete ──
+BALL_SPEED_MID = 3.5        # com bola, a velocidade de todos fica mais perto da média do elenco...
+BALL_SPEED_SPREAD = 0.5     # ...guardando só metade da diferença (Tanque 2 vira 2,75; Velocista 4,5 vira 4)
+
+
+def ball_mode_speed(speed):
+    return BALL_SPEED_MID + (speed - BALL_SPEED_MID) * BALL_SPEED_SPREAD
+
+
 # ── Futebol ──
 WIN_SCORE = 3
 GOAL_FREEZE = 120

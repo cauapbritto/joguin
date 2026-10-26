@@ -191,6 +191,8 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   muda de cor, o resto continua igual), já na seleção e na tela de VS. O campo é grande
   (2240 x 1260, 40% maior que o primeiro) e a câmera nunca perde a bola: quem fica fora da tela
   aparece como uma setinha na cor do time, na borda.
+  No futebol e no basquete a velocidade de todo mundo fica mais perto da média (o Tanque e o Titã
+  não ficam para trás, e o Velocista continua o mais rápido).
   No 2 x 2 dá para jogar com 1 a 4 pessoas: quem faltar vira CPU para fechar o time. O jogador 2
   entra apertando `;` no teclado (ou pelo celular) e sai com `/`; o 3 e o 4 entram pelo celular.
 
@@ -198,10 +200,10 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
 
 | Personagem | Vida | Habilidade (duelo)                                        | Super (futebol)                                  |
 |------------|------|-----------------------------------------------------------|--------------------------------------------------|
-| Guerreiro  | 150  | Investida: avança e causa 30 de dano                      | Zagueirão: 5 s no seu campo sem cair, roubando só de encostar (veja abaixo) |
+| Guerreiro  | 150  | Investida: avança, causa 30 de dano e deixa tonto 0,5 s  | Zagueirão: 5 s no seu campo sem cair, roubando só de encostar (veja abaixo) |
 | Atirador   | 105  | Rajada: 5 balas em leque                                  | Chute certeiro: chute com curva para o gol       |
-| Tanque     | 230  | Muralha: barreira que bloqueia tiros por 4 s              | Muralha: barreira na frente do próprio gol por 6 s (segura até a enterrada) |
-| Ninja      | 95   | Shuriken: 3 shurikens de dano alto                        | Sombra: aparece atrás da bola, virado para o gol |
+| Tanque     | 230  | Muralha: barreira de 4 s que segura os tiros e os devolve | Muralha: barreira na frente do próprio gol por 6 s (segura até a enterrada) |
+| Ninja      | 95   | Shuriken: leque fechado de 3 shurikens de dano alto      | Sombra: aparece atrás da bola, virado para o gol |
 | Velocista  | 115  | Turbo: 2x mais rápido por 4 s                             | Arrancada: corre muito com a bola colada         |
 | Aryel      | 120  | Aposta: roleta de GREEN, meio green ou RED (veja abaixo)  | Grau de moto: 3 s de moto, bola colada, e quem ele atropela cai |
 | Fantasma   | 110  | Teletransporte: some e reaparece                          | Bola fantasma: atravessa os adversários          |
@@ -209,8 +211,8 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
 | Pirata     | 140  | Gancho: puxa o inimigo para a frente do sabre e o atordoa | Gancho: puxa a bola, até do pé do adversário (e do drible mágico) |
 | Geada      | 100  | Nevasca: onda de gelo, dano em volta e inimigo lento      | Congelar: adversários perto ficam lentos         |
 | Cauanzera  | 100  | Multiesportista: basquete, vôlei e 100 metros, nessa ordem (veja abaixo) | Enterrada: perto da área, pula todo mundo e crava a bola no gol |
-| Albeguinio | 140  | Hacker: digita 1 s no notebook e trava todos os adversários por 5 s | Hack: digita e trava os adversários por 2,5 s (recarga de 26 s) |
-| Borba Jr   | 125  | Exoesqueleto: 6 s de armadura (veja abaixo)               | Exoesqueleto: 4 s em que ninguém toma a bola dele |
+| Albeguinio | 140  | Hacker: digita 1 s no notebook e trava todos os adversários por 5 s (3 s no duelo 1 x 1) | Hack: digita e trava os adversários por 2,5 s (recarga de 26 s) |
+| Borba Jr   | 125  | Exoesqueleto: 4,5 s de armadura (veja abaixo)             | Exoesqueleto: 4 s em que ninguém toma a bola dele |
 | Aryel Corrompido* | 135 | Chuva Sombria: 5 bombas caem em cima e em volta do inimigo | Bomba sombria: maior, atordoa e deixa lento |
 
 \* Liberado ao zerar a campanha.
@@ -252,9 +254,9 @@ que derruba quem está com a bola. Recarga de 14 s.
   erguida (**toco**). Recarga de 25 s.
 - **Albeguinio — Hacker.** Abre o notebook e digita por 1 s, parado. Se apanhar enquanto digita, o
   hack falha. Terminando, o sinal de Wi-Fi sai dele e **todos** os adversários em jogo ficam
-  HACKEADOS por 5 s: não andam, não atiram e não usam nada (pega até o exoesqueleto; o chefão da
+  HACKEADOS por 5 s (3 s no duelo 1 x 1): não andam, não atiram e não usam nada (pega até o exoesqueleto; o chefão da
   campanha fica menos tempo). Recarga de 20 s.
-- **Borba Jr — Exoesqueleto.** As placas de metal se montam nele (faíscas e vapor) e por 6 s ele fica
+- **Borba Jr — Exoesqueleto.** As placas de metal se montam nele (faíscas e vapor) e por 4,5 s ele fica
   um pouco maior, leva metade do dano, não é empurrado nem fica tonto, e o golpe corpo a corpo
   arremessa longe — quem bate na parede fica tonto. Velocidade normal. No futebol (4 s): ninguém
   toma a bola dele, quem tromba nele cai e o corpo blindado segura qualquer chute.
@@ -422,6 +424,7 @@ tools/gerar_armas.py    gera os sprites das armas
 tools/gerar_sons.py     gera os efeitos novos (armas, futebol, campanha) e as músicas do acampamento e do chefão
 tools/build_exe.py      gera dist/SoulStrike.exe
 tools/build_deb.py      gera o pacote .deb para Linux
+tools/simular.py        partidas CPU x CPU sem janela: taxa de vitória no duelo, gols e pontos por personagem
 linux/instalar.sh       instalador do Linux (chamado pelo INSTALAR.sh)
 linux/teste_instalador.sh, linux/ver_janela.sh
                         testes do instalador no Linux Mint (GitHub Actions)
