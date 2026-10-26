@@ -230,3 +230,18 @@ def roster_for_web():
         }
         for c in CHARACTERS
     ]
+
+
+def duel_arsenal():
+    """Armas que dá para escolher antes de cada round do duelo: as de tiro e as de perto dos heróis
+    (sem repetir nome e sem as raras do baú). Devolve (de tiro, de perto)."""
+    ranged, melee, seen = [], [], set()
+    for c in CHARACTERS:
+        if c.soccer_only:
+            continue
+        for w in c.weapons:
+            if w.name in seen:
+                continue
+            seen.add(w.name)
+            (melee if w.is_melee else ranged).append(w)
+    return tuple(ranged), tuple(melee)

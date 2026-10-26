@@ -162,6 +162,7 @@ class Fighter(Entity):
         self.max_hp = stats.max_hp      # pode crescer com melhorias (campanha)
         self.hp = self.max_hp
         self.weapon_index = weapon_index
+        self.loadout = None             # duelo com escolha de armas: (de tiro, de perto) deste round
         self.ability = create_ability(stats)
         self.on_moto = False            # esquiva de moto em andamento
         self.moto_timer = 0             # grau de moto no futebol (Aryel): anda de moto e atropela
@@ -294,10 +295,15 @@ class Fighter(Entity):
 
     # ── propriedades ─────────────────────────
     @property
+    def base_weapons(self):
+        """As armas do personagem, ou as que o jogador escolheu antes do round (duelo)."""
+        return self.loadout or self.stats.weapons
+
+    @property
     def weapons(self):
         if self.relic is not None:
-            return self.stats.weapons + (self.relic,)
-        return self.stats.weapons
+            return self.base_weapons + (self.relic,)
+        return self.base_weapons
 
     @property
     def weapon(self):
@@ -332,7 +338,7 @@ class Fighter(Entity):
         w = self.weapon
         if not w.is_melee:
             return w
-        for w in self.stats.weapons:
+        for w in self.base_weapons:
             if not w.is_melee:
                 return w
         return None

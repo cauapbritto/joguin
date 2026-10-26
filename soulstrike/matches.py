@@ -330,6 +330,9 @@ class BattleMatch(Match):
         self.rounds_played = 0
         self.pickups = []
         self.loser = None
+        self.weapon_pick = session.weapon_pick      # escolher as armas antes de cada round
+        self.pick = None
+        self.round_losers = ()
         self._start_round()
 
     def _create_fighters(self, session):
@@ -375,6 +378,9 @@ class BattleMatch(Match):
         self.loser = None
         self.pickups.clear()
         self.pickup_timer = config.PICKUP_FIRST
+        if self.weapon_pick:
+            from .weapon_pick import WeaponPick
+            self.pick = WeaponPick(self, losers=self.round_losers)
 
     @property
     def active(self):
@@ -403,6 +409,14 @@ class BattleMatch(Match):
         return self.fighters + self.pickups
 
     def step(self):
+        if self.pick is not None:
+            # escolhendo as armas: a arena fica parada até todo mundo confirmar (ou o tempo acabar)
+            for fighter in self.fighters:
+                fighter.steer(0, 0)
+            self.pick.update(self.controllers)
+            if self.pick.done:
+                self.pick = None
+            return
         if self.intro > 0:
             self.intro -= 1
         if self.round_end:
@@ -454,6 +468,8 @@ class BattleMatch(Match):
         self.bullets.clear()
         if winner is not None:
             self.wins[winner] += 1
+        self.round_losers = tuple(f for s in self.sides() if winner is not None and s != winner
+                                  for f in self.members(s))
         if reason == "ko":
             self.slowmo = 50
             self.burst(self.loser.x, self.loser.y - 16, self.loser.stats.color, 30, speed=7)
@@ -554,7 +570,14 @@ class BattleMatch(Match):
 
     def draw(self, screen, ui):
         super().draw(screen, ui)
-        hud.draw_round_banner(screen, ui, self)
+        self._draw_round_layer(screen, ui)
+
+    def _draw_round_layer(self, screen, ui):
+        """Por cima de tudo: a escolha das armas (entre um round e outro) ou a faixa do round."""
+        if self.pick is not None:
+            self.pick.draw(screen, ui)
+        else:
+            hud.draw_round_banner(screen, ui, self)
 
     def draw_hud(self, screen, ui):
         hud.draw_battle(screen, ui, self)
@@ -702,7 +725,7 @@ class TeamBattleMatch(BattleMatch):
                 if self.can_revive(f) and self.active:
                     sx, sy = cam.to_screen(f.x, f.y - 34)
                     ui.text(screen, "LEVANTE!", theme.XS, theme.TEAM_COLORS[f.team], (round(sx), round(sy)))
-        hud.draw_round_banner(screen, ui, self)
+        self._draw_round_layer(screen, ui)
 
     def draw_hud(self, screen, ui):
         hud.draw_team_battle(screen, ui, self)

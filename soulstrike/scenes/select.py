@@ -3,7 +3,7 @@ import random
 
 import pygame
 
-from .. import config, theme
+from .. import config, settings, theme
 from ..ai import DIFFICULTIES, DIFFICULTY_ORDER
 from ..controls import key_label
 from ..arena import BASKET_MAPS, BATTLE_MAPS, MAPS_BY_KEY
@@ -290,6 +290,11 @@ class CharSelectScene(_MenuScene):
         return self.game.session.mode in ("cpu", "campaign", "duel2")
 
     @property
+    def _weapon_pick_mode(self):
+        """Duelos (contra a CPU, local e 2 x 2): dá para escolher as armas antes de cada round."""
+        return self.game.session.mode in ("cpu", "duel", "duel2")
+
+    @property
     def map_key(self):
         return BATTLE_MAPS[self.map_index].key
 
@@ -397,6 +402,9 @@ class CharSelectScene(_MenuScene):
                 self._cycle_map(1)
             elif not self.soccer and not self.campaign and event.key == pygame.K_LEFTBRACKET:
                 self._cycle_map(-1)
+            elif self._weapon_pick_mode and event.key == pygame.K_v:
+                settings.change("armas_por_round", not settings.get("armas_por_round"))
+                self.sfx("click", 0.4)
             elif self._has_difficulty and event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
                 self.game.session.difficulty = DIFFICULTY_ORDER[event.key - pygame.K_1]
                 self.sfx("click", 0.4)
@@ -476,6 +484,7 @@ class CharSelectScene(_MenuScene):
                     return
                 session = self.game.session
                 session.map_key = self.court_key if session.basket else self.map_key
+                session.weapon_pick = self._weapon_pick_mode and settings.get("armas_por_round")
                 from .play import VersusScene
                 self.game.change(VersusScene(self.game))
         else:
@@ -515,6 +524,8 @@ class CharSelectScene(_MenuScene):
                 items.insert(0, ("TAB", label))
             else:
                 items.insert(0, ("TAB", "ASSISTÊNCIA: " + ASSIST_LEVELS[self.game.session.assist].label))
+            if self._weapon_pick_mode:
+                items.insert(1, ("V", "ARMAS: " + ("A CADA ROUND" if settings.get("armas_por_round") else "FIXAS")))
             if self.game.session.mode == "cpu":
                 items.insert(1, ("1 2 3", "DIFICULDADE"))
             elif self.game.session.mode == "duel2" and any(c.setup.cpu for c in self.cards):

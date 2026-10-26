@@ -175,6 +175,11 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   adversário para onde você está apontando. No lobby, **TAB** (ou o botão TIMES) troca a divisão:
   `P1+P3 x P2+P4` (os dois do teclado se enfrentam) ou `P1+P2 x P3+P4` (os dois do teclado juntos,
   por exemplo contra a CPU). A divisão vale também para o futebol 2 x 2.
+- **Escolha de armas no duelo** (contra CPU, local e 2 x 2): antes de cada round, cada jogador monta o
+  par de armas, uma de tiro e uma de perto. Ele vê a que já tem (MANTER) e mais 3 sorteadas de cada
+  tipo; quem perdeu o round anterior vê 4. Setas escolhem, ATACAR confirma e ESQUIVA volta. A
+  habilidade continua a do herói. Na escolha de personagem, **V** alterna entre armas a cada round e
+  armas fixas (fica salvo).
 - Duelos em **melhor de 3 rounds** (60 s cada; no fim do tempo vence quem tiver mais vida).
   Itens aparecem na arena: **vida**, **fúria** (+50% de dano por 6 s), **energia**
   (habilidade pronta) e **munição** (pente cheio na hora e mais um pente extra, que aparece em
