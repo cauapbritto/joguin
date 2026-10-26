@@ -1,0 +1,104 @@
+# Gera o jogo para o itch.io (Windows e Linux, sem precisar de Python) e envia com o butler.
+# Roda em todo PR (só gera e testa), pela aba Actions ("Run workflow") ou numa tag v1.2.3.
+# O envio só acontece nas tags e no "Run workflow", e só se o repositório tiver:
+#   - o segredo BUTLER_API_KEY (chave em https://itch.io/user/settings/api-keys)
+#   - a variável ITCH_GAME, no formato usuario/jogo (o endereço usuario.itch.io/jogo)
+# As duas ficam em Settings > Secrets and variables > Actions.
+name: itch.io
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - canal: windows
+            os: windows-latest
+          # Ubuntu 22.04 (glibc 2.35): roda no Linux Mint 21 e mais novos
+          - canal: linux
+            os: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
+    env:
+      SDL_VIDEODRIVER: dummy
+      SDL_AUDIODRIVER: dummy
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Bibliotecas
+        run: pip install -r requirements.txt pyinstaller
+      - name: Gerar a pasta do itch.io
+        run: python tools/build_itch.py
+        env:
+          ITCH_GAME: ${{ vars.ITCH_GAME }}
+      # O jogo precisa abrir e continuar aberto (sem tela de verdade: SDL dummy)
+      - name: Abrir o jogo (Windows)
+        if: matrix.canal == 'windows'
+        shell: pwsh
+        run: |
+          $jogo = Start-Process dist/itch/windows/SoulStrike.exe -ArgumentList "--janela" -PassThru
+          Start-Sleep -Seconds 20
+          if ($jogo.HasExited) { Write-Error "O jogo fechou sozinho (código $($jogo.ExitCode))"; exit 1 }
+          Stop-Process -Id $jogo.Id
+          Write-Host "O jogo abriu e ficou aberto"
+      - name: Abrir o jogo (Linux)
+        if: matrix.canal == 'linux'
+        run: |
+          dist/itch/linux/SoulStrike --janela > jogo.log 2>&1 &
+          sleep 20
+          if ! kill -0 $! 2>/dev/null; then echo "O jogo fechou sozinho"; cat jogo.log; exit 1; fi
+          kill $!
+          echo "O jogo abriu e ficou aberto"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: soulstrike-itch-${{ matrix.canal }}
+          path: dist/itch/${{ matrix.canal }}
+          include-hidden-files: true     # o .itch.toml
+
+  enviar:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+      ITCH_GAME: ${{ vars.ITCH_GAME }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Conferir a configuração
+        id: config
+        run: |
+          if [ -z "$BUTLER_API_KEY" ] || [ -z "$ITCH_GAME" ]; then
+            echo "::warning::Sem BUTLER_API_KEY ou ITCH_GAME: as pastas estão nos artefatos, mas nada foi enviado ao itch.io."
+            echo "enviar=nao" >> "$GITHUB_OUTPUT"
+          else
+            echo "enviar=sim" >> "$GITHUB_OUTPUT"
+          fi
+          echo "versao=$(python3 -c 'import soulstrike; print(soulstrike.__version__)')" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v7
+        if: steps.config.outputs.enviar == 'sim'
+        with:
+          pattern: soulstrike-itch-*
+          path: pastas
+      - name: Instalar o butler
+        if: steps.config.outputs.enviar == 'sim'
+        run: |
+          curl -sSfL -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          unzip -q butler.zip -d butler
+          chmod +x butler/butler
+          butler/butler -V
+      - name: Enviar ao itch.io
+        if: steps.config.outputs.enviar == 'sim'
+        run: |
+          # o download do GitHub perde a permissão de executar do arquivo do Linux
+          chmod +x pastas/soulstrike-itch-linux/SoulStrike
+          for canal in windows linux; do
+            butler/butler push "pastas/soulstrike-itch-$canal" "$ITCH_GAME:$canal" \
+              --userversion "${{ steps.config.outputs.versao }}"
+          done

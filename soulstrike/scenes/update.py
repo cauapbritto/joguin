@@ -105,7 +105,7 @@ class UpdateScene(_InfoScene):
             self.start_apply()
         elif choice == "page":
             url = (self.info.deb_url if self.info and self.info.deb_url and self.kind == "executavel"
-                   else self.info.page_url if self.info else updater.RELEASES_PAGE)
+                   else self.info.page_url if self.info else updater.page_url())
             webbrowser.open(url)
 
     # ── desenho ──
@@ -125,6 +125,9 @@ class UpdateScene(_InfoScene):
             if info.status == "nova":
                 if self.kind == "git":
                     out.append(("ESTA PASTA É UM CLONE DO GIT: USE  git pull", theme.MUTED))
+                elif self.kind == "itch":
+                    out.append(("O APP DO ITCH.IO ATUALIZA O JOGO SOZINHO,", theme.MUTED))
+                    out.append(("OU BAIXE A VERSÃO NOVA NA PÁGINA DO ITCH.IO.", theme.MUTED))
                 elif self.kind != "fonte":
                     out.append(("ESTA INSTALAÇÃO NÃO SE ATUALIZA SOZINHA:", theme.MUTED))
                     out.append(("BAIXE A VERSÃO NOVA NA PÁGINA DO GITHUB.", theme.MUTED))

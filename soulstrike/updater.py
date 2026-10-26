@@ -5,7 +5,9 @@ soulstrike.__version__. Na instalação feita pelo INSTALAR.bat/INSTALAR.sh (pas
 código e o .venv) baixa o código da Release e troca os arquivos no lugar; o .venv, os logs
 e o progresso salvo (que fica fora da pasta) não são tocados. Se algo der errado no meio,
 os arquivos antigos voltam. No executável (.deb em /opt ou .exe) não dá para trocar os
-arquivos, então só avisa e abre a página da Release.
+arquivos, então só avisa e abre a página da Release. A cópia do itch.io (o executável com o
+loja.json dentro, gerado pelo tools/build_itch.py) abre a página do jogo no itch.io, porque o
+app do itch.io é quem atualiza essa cópia.
 
 Só usa a biblioteca padrão e nunca levanta exceção para quem chama: sem internet, o
 resultado vem com status "offline".
@@ -34,6 +36,9 @@ MAX_ZIP = 300 * 1024 * 1024
 # nunca sobrescritos nem copiados do zip: ambiente do Python, git, logs e sobras de build
 KEEP = {".venv", "venv", ".git", "build", "dist", "__pycache__", ".backup_atualizacao"}
 KEEP_SUFFIXES = (".log", ".pyc")
+
+# Gravado pelo tools/build_itch.py dentro do executável: {"loja": "itch", "pagina": "https://..."}
+STORE_FILE = "loja.json"
 
 
 @dataclass
@@ -74,9 +79,26 @@ def is_newer(latest, current=__version__):
     return parse_version(latest) > parse_version(current)
 
 
+def store(root=None):
+    """O loja.json do executável do itch.io, ou {} nas outras instalações."""
+    try:
+        data = json.loads((Path(root or config.ROOT) / STORE_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def page_url(root=None):
+    """Onde baixar a versão nova: a página do itch.io na cópia de lá, a Release nas outras."""
+    return str(store(root).get("pagina") or RELEASES_PAGE)
+
+
 def install_kind(root=None):
     """'fonte' (pasta do INSTALAR com o código), 'git' (clone de quem programa),
-    'executavel' (.deb em /opt ou .exe do PyInstaller) ou 'somente_leitura'."""
+    'itch' (executável baixado do itch.io), 'executavel' (.deb em /opt ou .exe do
+    PyInstaller) ou 'somente_leitura'."""
+    if store(root).get("loja") == "itch":
+        return "itch"
     if getattr(sys, "frozen", False):
         return "executavel"
     root = Path(root or config.ROOT)
@@ -117,10 +139,12 @@ def check(opener=_get):
     latest = ".".join(str(n) for n in parse_version(tag))
     deb = next((a.get("browser_download_url", "") for a in data.get("assets") or []
                 if str(a.get("name", "")).endswith(".deb")), "")
+    itch = store().get("pagina")
     info = Check("nova" if is_newer(tag) else "atual", latest=latest,
                  notes=str(data.get("body") or "").strip(),
                  zip_url=str(data.get("zipball_url") or ""),
-                 page_url=str(data.get("html_url") or RELEASES_PAGE), deb_url=deb)
+                 page_url=str(itch or data.get("html_url") or RELEASES_PAGE),
+                 deb_url="" if itch else deb)
     info.message = (f"Versão {latest} disponível (você tem a {__version__})." if info.status == "nova"
                     else f"Você já tem a versão mais nova ({__version__}).")
     return info

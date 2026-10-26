@@ -96,6 +96,15 @@ class TestConsulta(unittest.TestCase):
         self.assertEqual(self.consulta(http_erro(403)).status, "erro")
         self.assertEqual(self.consulta(http_erro(500)).status, "erro")
 
+    def test_copia_do_itch_abre_a_pagina_do_itch(self):
+        deb = {"name": "soulstrike_9.0.0_amd64.deb", "browser_download_url": "https://x/a.deb"}
+        loja = {"loja": "itch", "pagina": "https://fulano.itch.io/soul-strike"}
+        with mock.patch.object(updater, "store", return_value=loja):
+            info = self.consulta(release(assets=[deb]))
+        self.assertEqual(info.status, "nova")
+        self.assertEqual(info.page_url, "https://fulano.itch.io/soul-strike")
+        self.assertEqual(info.deb_url, "")
+
     def test_resposta_estranha(self):
         self.assertEqual(self.consulta(b"<html>").status, "erro")
         self.assertEqual(self.consulta(b"[]").status, "erro")
@@ -227,6 +236,22 @@ class TestAplicar(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(self.ler("main.py"), "velho")
 
+    def test_copia_do_itch_so_avisa(self):
+        (self.root / updater.STORE_FILE).write_text(
+            json.dumps({"loja": "itch", "pagina": "https://fulano.itch.io/soul-strike"}), encoding="utf-8")
+        with mock.patch.object(updater.sys, "frozen", True, create=True):
+            self.assertEqual(updater.install_kind(self.root), "itch")
+            result, _ = self.aplicar(self.novo_zip())
+        self.assertFalse(result.ok)
+        self.assertEqual(self.ler("main.py"), "velho")
+        self.assertEqual(updater.page_url(self.root), "https://fulano.itch.io/soul-strike")
+
+    def test_loja_json_estragado_e_ignorado(self):
+        (self.root / updater.STORE_FILE).write_text("{nao e json", encoding="utf-8")
+        self.assertEqual(updater.store(self.root), {})
+        self.assertEqual(updater.install_kind(self.root), "fonte")
+        self.assertEqual(updater.page_url(self.root), updater.RELEASES_PAGE)
+
     def test_tipo_de_instalacao(self):
         self.assertEqual(updater.install_kind(self.root), "fonte")
         self.assertEqual(updater.install_kind(self.root / "soulstrike"), "somente_leitura")
@@ -271,6 +296,15 @@ class TestTela(unittest.TestCase):
     def test_executavel_oferece_pagina(self):
         scene = self.tela(updater.Check("nova", latest="9.0.0"), kind="executavel")
         self.assertEqual(self.valores(scene), ["page", "back"])
+
+    def test_itch_oferece_pagina_do_itch(self):
+        info = updater.Check("nova", latest="9.0.0", page_url="https://fulano.itch.io/soul-strike")
+        scene = self.tela(info, kind="itch")
+        self.assertEqual(self.valores(scene), ["page", "back"])
+        self.assertTrue(any("ITCH.IO" in t for t, _ in scene.lines()))
+        with mock.patch("webbrowser.open") as abrir:
+            scene.handle(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN))
+        abrir.assert_called_once_with("https://fulano.itch.io/soul-strike")
 
     def test_sem_internet_oferece_tentar_de_novo(self):
         scene = self.tela(updater.Check("offline", message="Sem conexão com a internet."))

@@ -77,6 +77,25 @@ gera o pacote no Ubuntu 22.04 (serve para o Linux Mint 21 e mais novos) e deixa 
 Esse mesmo workflow roda em todo PR: testa o `INSTALAR.sh` e o `.deb` no Linux Mint 21 e
 22 (instala, abre o jogo pelo atalho numa tela virtual e remove).
 
+### itch.io (Windows e Linux)
+
+```
+pip install -r requirements.txt pyinstaller
+python tools/build_itch.py
+```
+
+Gera `dist/itch/windows` ou `dist/itch/linux` (conforme o PC): uma pasta com o executável,
+que não precisa de Python, o `.itch.toml` (o app do itch.io mostra "Jogar" e "Jogar em
+janela") e o `LICENCAS.md`. Com `ITCH_GAME=usuario/jogo`, a página `usuario.itch.io/jogo`
+fica gravada no jogo, e o ATUALIZAR dessa cópia abre essa página.
+
+O workflow **itch.io** (aba Actions) gera as duas pastas e confere que o jogo abre. Numa
+tag `v1.2.3` (ou pelo "Run workflow"), ele envia as duas ao itch.io com o butler, nos canais
+`windows` e `linux`, com a versão do `__version__`. Para isso o repositório precisa do
+segredo `BUTLER_API_KEY` (a chave de https://itch.io/user/settings/api-keys) e da variável
+`ITCH_GAME`, em *Settings → Secrets and variables → Actions*. Sem eles, as pastas ficam só
+nos artefatos da execução.
+
 ## Atualizar o jogo
 
 No menu principal, **ATUALIZAR** procura no GitHub se saiu versão nova (é a única função
@@ -89,13 +108,16 @@ do jogo que usa a internet; sem conexão ela só avisa e nada muda).
   errado no meio, os arquivos antigos voltam.
 - **Executável (.exe ou .deb em /opt):** o jogo avisa que tem versão nova e abre a página
   para baixar (no Linux, é só abrir o .deb novo por cima do antigo).
+- **Baixado do itch.io:** o app do itch.io atualiza sozinho; quem baixou pelo site recebe
+  o aviso e o botão abre a página do jogo no itch.io.
 - **Clone do git:** use `git pull`.
 
 ### Publicar uma versão nova
 
 1. Suba o número em `soulstrike/__init__.py` (`__version__ = "1.1.0"`).
 2. No GitHub, em *Releases → Draft a new release*, crie a tag `v1.1.0` (mesmo número) e
-   publique. O texto da Release aparece na tela de atualização.
+   publique. O texto da Release aparece na tela de atualização. A tag também gera o `.deb`
+   e envia a versão nova ao itch.io (veja acima).
 
 O botão compara a tag da última Release com o `__version__` de quem está jogando.
 
@@ -422,6 +444,7 @@ tools/gerar_armas.py    gera os sprites das armas
 tools/gerar_sons.py     gera os efeitos novos (armas, futebol, campanha) e as músicas do acampamento e do chefão
 tools/build_exe.py      gera dist/SoulStrike.exe
 tools/build_deb.py      gera o pacote .deb para Linux
+tools/build_itch.py     gera a pasta do jogo para o itch.io (Windows ou Linux)
 linux/instalar.sh       instalador do Linux (chamado pelo INSTALAR.sh)
 linux/teste_instalador.sh, linux/ver_janela.sh
                         testes do instalador no Linux Mint (GitHub Actions)
@@ -451,7 +474,8 @@ como projétil. Rode os scripts de novo depois de editá-los.
 
 ## Créditos
 
-Desenvolvido por Cauã Pedrozo Brito.
+Desenvolvido por Cauã Pedrozo Brito. A fonte, a música das partidas e as bibliotecas são de
+terceiros: autores e licenças em [LICENCAS.md](LICENCAS.md).
 
 Toda a honra e glória a Jesus.
 
