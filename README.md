@@ -134,6 +134,23 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   **ferreiro** sobe a arma de +1 a +3 (40, 80 e 140): cada nível dá 15% de dano e pente 20% maior, e
   o +3 vem com um encanto: **fogo** (queima aos poucos), **gelo** (deixa lento) ou **raio** (pula
   para outro inimigo). Almas, níveis e trocas ficam salvos com a campanha.
+  **Fusão no ferreiro:** quem tem a arma rara pode fundir as **três armas** que carrega numa
+  **arma forjada** (150 almas, uma vez por mercado). A receita é a família que mais aparece nas três;
+  com uma rara a forjada sai no +1, com uma roubada no +2 e já encantada. As armas do herói voltam
+  ao +0, a forjada entra na vaga da rara e não entra em outra fusão. Receita nunca feita aparece
+  como ???. Contra o chefão de armadura de sombra, o efeito especial vale metade.
+
+  | Família  | Forjada                  | O que faz                                                    |
+  |----------|--------------------------|--------------------------------------------------------------|
+  | Corte    | Lâmina Solar             | Cada golpe solta uma onda de fogo que atravessa tudo; o 3º gira. |
+  | Impacto  | Martelo do Trovão Eterno | Bate no chão e cai um raio em cada inimigo perto (fica tonto). |
+  | Flecha   | Arco das Mil Almas       | Segure e solte: 12 flechas de alma, uma em cada inimigo.     |
+  | Explosão | Canhão do Vazio          | Buraco negro que puxa todo mundo por 2 s e explode.          |
+  | Gelo     | Coração do Inverno       | Três tiros viram estátua de gelo; o próximo estoura em volta. |
+  | Fogo     | Lança do Dragão          | Dragão de fogo que serpenteia 3 s queimando quem toca.       |
+  | Raio     | Cetro da Tempestade      | Raio contínuo que pula em todos; segurando, fica mais forte. |
+  | Alma     | Foice do Ceifador        | Cada abate cura 10% e dá +5% de dano (até +50%); arranca a armadura do chefão. |
+
   **Armas raras do baú:** viram a 3ª arma do jogador (TROCAR ARMA passa pelas três) e ficam até o
   fim da campanha. Só dá para ter uma: quando o baú da fase seguinte dá outra, a antiga **fica
   no chão** (com o nome embaixo) e, perto dela, ATACAR **pega de volta** — trocando, e a outra
@@ -433,6 +450,7 @@ soulstrike/
                         (masmorra), as fases e a história
   dungeon.py            entradas com grade, fogueira, baú escondido, arma no chão e a porta de volta
   market.py             almas, mercado da campanha (loja e ferreiro) e os encantos das armas
+  forged.py             fusão do ferreiro e as 8 armas forjadas (receitas, efeitos e arte)
   lobbies.py            os acampamentos desenhados como texto (# parede, . chão, F fogueira...)
   enemies.py            inimigos da campanha e o cérebro de cada um
   boss.py               o chefão Aryel Corrompido

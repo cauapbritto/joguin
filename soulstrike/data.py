@@ -20,6 +20,7 @@ class WeaponStats:
     rare: bool = False      # arma rara do baú da campanha
     spin: bool = False      # golpe em giro de 360° (acerta em volta toda)
     roubada: bool = False   # arma rara da última fase (bem mais forte)
+    forjada: bool = False   # arma forjada na fusão do ferreiro (forged.py)
 
     @property
     def is_melee(self):
@@ -52,6 +53,9 @@ SHOT_SOUNDS = {
     "cristal": "gelo", "estalactite": "gelo", "espelho": "gelo",
     "raio": "eletrico", "raio_supremo": "eletrico", "pulso": "eletrico",
     "chama": "fogo",
+    # forjadas (forged.py)
+    "onda_solar": "fogo", "dragao": "fogo", "mil_almas": "arco", "vazio": "tiro_forte", "inverno": "gelo",
+    "tempestade": "eletrico",
 }
 
 
@@ -252,10 +256,13 @@ RARITY_COLORS = {
     "comum": (236, 230, 220),       # armas dos heróis (caem dos inimigos)
     "rara": (110, 170, 255),        # baú das fases
     "roubada": (255, 210, 90),      # baú do Templo Gelado
+    "forjada": (255, 110, 170),     # fusão do ferreiro
 }
 
 
 def rarity(weapon):
+    if weapon.forjada:
+        return "forjada"
     if weapon.roubada:
         return "roubada"
     if weapon.rare:

@@ -156,6 +156,7 @@ class CampaignRun:
         self.souls = 0                                    # almas do grupo (moeda do mercado)
         self.forge = {s: {} for s in self.slots}          # ferreiro: nome da arma -> [nível, encanto]
         self.rerolls = {s: 0 for s in self.slots}         # trocas das melhorias compradas na loja
+        self.fused_phase = -1                             # fase em que o grupo já usou a fusão do ferreiro
         self._snapshot = None
 
     @property
@@ -185,7 +186,8 @@ class CampaignRun:
     def _state(self):
         return {k: copy.deepcopy(getattr(self, k))
                 for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames",
-                          "stage", "chest_open", "relics", "held", "loadouts", "souls", "forge", "rerolls")}
+                          "stage", "chest_open", "relics", "held", "loadouts", "souls", "forge", "rerolls",
+                          "fused_phase")}
 
     def begin_phase(self):
         """Começa a fase no acampamento e guarda como tudo estava (para TENTAR DE NOVO)."""
@@ -294,6 +296,7 @@ class CampaignRun:
                     names = list(names)
                 run.loadouts[s] = names
             run.souls = max(0, int(state.get("souls", 0)))
+            run.fused_phase = int(state.get("fused_phase", -1))
             for s, entries in {int(k): v for k, v in state.get("forge", {}).items()}.items():
                 if s not in run.slots:
                     return None
@@ -1358,13 +1361,14 @@ class LobbyMatch(CoopMatch):
         """O baú solta uma arma rara para cada jogador: armas diferentes entre si e, se der, que
         ninguém do grupo já tenha (a que cada um tinha fica no chão)."""
         held = {p.relic for p in self.players if p.relic is not None}
+        # quem tem forjada também ganha uma rara do baú, e escolhe com qual fica (a outra fica no chão)
         phase = [RARE_WEAPONS[k] for k in PHASE_RELICS.get(self.run.phase.key, RARE_WEAPONS)]
         pool = [w for w in phase if w not in held]
         random.shuffle(pool)
         for p in self.players:
             choices = [w for w in pool if w is not p.relic] or \
                 [w for w in phase if w is not p.relic] or \
-                [w for w in RARE_WEAPONS.values() if w is not p.relic]
+                [w for w in RARE_WEAPONS.values() if w is not p.relic and not w.forjada]
             weapon = choices[0]
             if weapon in pool:
                 pool.remove(weapon)

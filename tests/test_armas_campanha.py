@@ -25,7 +25,7 @@ class RaridadeTest(unittest.TestCase):
         self.assertEqual(rarity(RARE_WEAPONS["besta"]), "rara")
         self.assertEqual(rarity(RARE_WEAPONS["bola_neve"]), "roubada")
         self.assertEqual(rarity_color(RARE_WEAPONS["besta"]), RARITY_COLORS["rara"])
-        self.assertEqual(len(set(RARITY_COLORS.values())), 3)
+        self.assertEqual(len(set(RARITY_COLORS.values())), len(RARITY_COLORS))
 
 
 class DerrubarTest(unittest.TestCase):

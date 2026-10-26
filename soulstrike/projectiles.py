@@ -1401,5 +1401,10 @@ PROJECTILES = {
 }
 
 
+from .forged import register_projectiles  # noqa: E402  (as forjadas usam as classes daqui)
+
+register_projectiles(PROJECTILES)
+
+
 def projectile_class(style):
     return PROJECTILES.get(style, Projectile)

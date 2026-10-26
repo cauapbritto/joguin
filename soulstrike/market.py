@@ -197,7 +197,44 @@ class MarketMenu:
             else:
                 out.append(Entry(f"{weapon_label(f, w)} > +{level + 1}", FORGE_COST[level],
                                  "+15% de dano e pente maior", True, lambda w=w: self._upgrade(w), color))
+        fusion = self._fusion_entry()
+        if fusion is not None:
+            out.append(fusion)
         return out
+
+    def _fusion_entry(self):
+        """Fusão: as três armas viram uma forjada (uma vez por mercado; a forjada não entra em outra)."""
+        from .forged import FORGED, FUSION_COST, discovered, preview_text, recipe
+        f, run = self.fighter, self.run
+        if f.relic is None or f.relic.forjada:
+            return None
+        key, level, _ = recipe(f.weapons)
+        name, _ = preview_text(key, discovered())
+        done = run.fused_phase == run.phase_index
+        desc = "só uma fusão por mercado" if done else f"sai: {name}" + (f" +{level}" if level else "")
+        return Entry("FUNDIR AS 3 ARMAS", FUSION_COST, desc, not done, self._fuse, rarity_color(FORGED[key]))
+
+    def _fuse(self):
+        from .forged import FORGED, discover, recipe
+        f, run = self.fighter, self.run
+        key, level, enchant = recipe(f.weapons)
+        weapon = FORGED[key]
+        for w in f.base_weapons:
+            f.forge.pop(w.name, None)               # as do herói voltam ao +0
+        if f.relic is not None:
+            f.forge.pop(f.relic.name, None)
+        f.give_relic(weapon)
+        run.relics[f.slot] = key
+        if level:
+            f.forge[weapon.name] = [level, enchant]
+        run.fused_phase = run.phase_index
+        discover(key)
+        m = self.match
+        for k in range(3):
+            m.burst(self.stall.x + 14, self.stall.y - 30, rarity_color(weapon), 24, speed=6 + k)
+        m.camera.shake(8)
+        m.assets.play("bau", 0.6)
+        return weapon_label(f, weapon)
 
     # compras
     def _potion(self):

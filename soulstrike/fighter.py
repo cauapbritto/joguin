@@ -8,6 +8,7 @@ from . import config, theme
 from .abilities import create_ability
 from .data import shot_sound
 from .entities import Entity, Particle, hostile
+from . import forged
 from .market import BURN_TICK, FORGE_DAMAGE, FORGE_MAG, enchant_hit
 from . import weapon_art
 
@@ -273,6 +274,9 @@ class Fighter(Entity):
         self.burn_timer = 0             # encanto de fogo: queima aos poucos
         self.burn_damage = 0
         self.burn_owner = None
+        self.forged_count = 0           # golpes da Lâmina Solar (o 3º gira)
+        self.storm_hold = self.storm_last = 0   # Cetro da Tempestade: há quanto tempo segura
+        self.reaper = 0.0               # Foice do Ceifador: dano a mais até o fim da masmorra
         self.ammo_mult = 1.0            # melhoria da campanha: pente maior
         self.reload_mult = 1.0          # e recarga mais rápida
         self.clips = {}                 # arma → Clip
@@ -337,7 +341,7 @@ class Fighter(Entity):
 
     def weapon_mult(self, weapon):
         """Dano a mais do ferreiro nesta arma (+15% por nível)."""
-        return 1 + FORGE_DAMAGE * self.forge.get(weapon.name, (0,))[0]
+        return 1 + FORGE_DAMAGE * self.forge.get(weapon.name, (0,))[0] + self.reaper
 
     def burn(self, owner, damage, frames):
         """Encanto de fogo: perde ``damage`` de vida a cada BURN_TICK quadros, por ``frames``."""
@@ -729,6 +733,8 @@ class Fighter(Entity):
             # acerta todos os adversários ao alcance na frente (no duelo, só existe um)
             fx, fy = self.facing
             reach = self.melee_reach(weapon)
+            hits = []
+            damage = round(weapon.damage * self.damage_mult * self.weapon_mult(weapon))
             for other in match.opponents_of(self):
                 if not other.alive_in_match:
                     continue
@@ -736,11 +742,13 @@ class Fighter(Entity):
                 d = math.hypot(dx, dy)
                 in_front = weapon.spin or other is target or d < other.radius + 6 or (dx * fx + dy * fy) > -0.2 * d
                 if d <= reach + other.radius and in_front:
-                    damage = round(weapon.damage * self.damage_mult * self.weapon_mult(weapon))
                     if other.take_damage(damage, self.x, self.y, attacker=self, match=match):
+                        hits.append(other)
                         enchant_hit(self, weapon, other, match, damage)
                         if self.exo_timer > 0:
                             other.throw_from(self, match)
+            if weapon.forjada:
+                forged.on_swing(self, weapon, match, hits, damage)
             return True
         base = proximity_damage(dist, weapon.damage) if weapon.close_bonus else weapon.damage
         damage = round(base * self.damage_mult * self.weapon_mult(weapon))
@@ -858,6 +866,7 @@ class Fighter(Entity):
             self.last_attacker = attacker
             if self.hp <= 0:
                 attacker.kills += 1
+                forged.on_kill(attacker, self, match)
         if match is not None:
             match.popup(self.x, self.y - 46 * self.draw_scale, str(amount), theme.BONE if amount < 20 else theme.BRASS)
             match.burst(self.x, self.y - 10, (236, 230, 220), 5, speed=3)
