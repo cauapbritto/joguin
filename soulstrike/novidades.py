@@ -7,6 +7,18 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.5.0": [
+        "Duelo: antes de cada round, escolha a arma de tiro e a de perto. Quem perdeu ganha mais uma opção.",
+        "Esquiva perfeita: esquive bem na hora do golpe e a esquiva volta na hora, com a habilidade mais carregada.",
+        "Futebol e basquete: CPU com dificuldade, tamanho da partida de futebol (tecla T) e reação para quem toma lavada.",
+        "Basquete: empurrão no arremesso e ponte aérea sem SUPER para quem corta para a cesta.",
+        "Treino novo de futebol e de basquete, com lições passo a passo.",
+        "Campanha: inimigos derrubam armas de outros heróis, com cor de raridade.",
+        "Almas, mercado com loja e ferreiro, encantos de fogo, gelo e raio.",
+        "Ferreiro: funda as três armas numa das 8 armas forjadas, novas e muito fortes.",
+        "Altar das maldições: aceite um desafio e ganhe uma melhoria a mais.",
+        "Em grupo, a câmera afasta mais e a coleira ficou maior e visível.",
+    ],
     "1.4.1": [
         "Basquete: o passe agora é teleguiado e vai certinho na mão do companheiro, mesmo no contra-ataque.",
         "Apontou para o lado errado? O passe vai para o companheiro do mesmo jeito.",
