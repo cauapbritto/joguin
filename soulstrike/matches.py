@@ -153,11 +153,14 @@ class Match(ABC):
                         break
             if b.alive:
                 for f in self.fighters:
-                    if f in b.hit or not hostile(b.owner, f) or not f.alive_in_match or f.dash_timer > 0:
+                    if f in b.hit or not hostile(b.owner, f) or not f.alive_in_match:
                         continue
                     if not b.can_hit(f):
                         continue
                     if math.hypot(f.x - b.x, f.y - 6 - b.y) < f.radius + b.radius + 4:
+                        if f.dash_timer > 0:
+                            f.perfect_dodge(self)       # o tiro passa por quem esquiva
+                            continue
                         b.hit.add(f)
                         b.alive = b.survives_hit()      # atravessa (lança, flecha tensa, melhoria)?
                         if not b.explosive:

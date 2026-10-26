@@ -34,6 +34,7 @@ WALL_STUN = 50       # arremessado contra a parede: fica tonto
 VIRUS_TICK = 15      # vírus do pendrive: um pouquinho de dano a cada tantos quadros
 RUSH_MULT = 2.2      # 100 metros (Cauanzera): corre muito
 MOTO_FRAMES = 18     # grau de moto (Aryel): esquiva mais longa
+MOTO_COOLDOWN = 1.3  # ... e demora mais para voltar
 MOTO_RIDE = 14       # o Aryel fica sentado em cima da moto
 
 
@@ -178,6 +179,8 @@ class Fighter(Entity):
         self.dash_timer = 0
         self.dash_cd = 0
         self.dash_dir = (0.0, 0.0)
+        self.dodged = False             # esta esquiva já foi perfeita (só vale uma vez)
+        self.perfect_flash = 0
         self.charge_timer = 0
         self.charge_dir = (0.0, 0.0)
         self.charge_damage = 0
@@ -596,7 +599,8 @@ class Fighter(Entity):
                      "invulnerable_timer", "stun_timer", "fury_timer", "hit_flash", "melee_flash",
                      "shoot_flash", "teleport_flash", "slow_timer", "pull_timer", "windup", "aim_timer",
                      "down_age", "bow_draw", "haste_timer", "idle_shot", "hack_timer", "type_timer",
-                     "virus_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer"):
+                     "virus_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer",
+                     "perfect_flash"):
             setattr(self, name, 0)
         self.end_exo()
         self.clips.clear()                            # pentes cheios de novo
@@ -631,8 +635,26 @@ class Fighter(Entity):
         self.dash_dir = (dx / mag, dy / mag)
         self.dash_timer = frames
         self.dash_len = frames
-        self.dash_cd = round(cooldown * self.dash_cd_mult)
+        moto = MOTO_COOLDOWN if self.on_moto else 1.0         # a moto vai mais longe: recarga maior
+        self.dash_cd = round(cooldown * self.dash_cd_mult * moto)
+        self.dodged = False
         self.kicked_dust = True
+        return True
+
+    def perfect_dodge(self, match):
+        """Esquivou no meio de um golpe de verdade: a esquiva volta na hora e a habilidade carrega
+        um pouco. Vale uma vez por esquiva (no duelo e na campanha)."""
+        if self.dash_timer <= 0 or self.dodged or self.hp <= 0 or match.session.soccer:
+            return False
+        if self.dash_len - self.dash_timer >= config.PERFECT_DODGE_WINDOW:
+            return False                # só no comecinho da esquiva (a moto do Aryel não ganha mais)
+        self.dodged = True
+        self.dash_cd = 0
+        self.ability_cd = max(0, self.ability_cd - round(self.ability_cooldown * config.PERFECT_DODGE_CHARGE))
+        self.perfect_flash = 18
+        match.popup(self.x, self.y - 60, "ESQUIVA PERFEITA!", (240, 248, 255))
+        match.burst(self.x, self.y - 14, (230, 244, 255), 12, speed=4)
+        match.assets.play("click", 0.5)
         return True
 
     def start_charge(self, direction, damage, stun=0):
@@ -777,6 +799,9 @@ class Fighter(Entity):
 
     def take_damage(self, amount, sx=None, sy=None, attacker=None, match=None):
         if self.invulnerable or self.hp <= 0:
+            if (amount > 0 and match is not None and attacker is not None and attacker is not self
+                    and self.invulnerable_timer <= 0):
+                self.perfect_dodge(match)
             return False
         if self.vulnerability != 1.0:
             amount = max(1, round(amount * self.vulnerability))
@@ -844,7 +869,7 @@ class Fighter(Entity):
                      "magic_timer", "nose_timer", "zaga_timer", "moto_timer", "cut_timer", "hack_timer",
                      "type_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer",
                      "slow_timer", "windup", "aim_timer", "haste_timer", "dry_click",
-                     "hit_flash", "melee_flash", "shoot_flash", "teleport_flash"):
+                     "hit_flash", "melee_flash", "shoot_flash", "teleport_flash", "perfect_flash"):
             value = getattr(self, name)
             if value > 0:
                 setattr(self, name, value - 1)
@@ -1234,6 +1259,14 @@ class Fighter(Entity):
                 fx = sx - 10 + ((ticks * 2 + k * 9) % 20)
                 fy = rect.top + ((ticks + k * 13) % rect.h)
                 surf.fill((230, 246, 255), (fx, fy, 2, 2))
+
+        if self.perfect_flash > 0:
+            # esquiva perfeita: um contorno branco que some
+            shine = self.sprites.flash(direction, index, kind).copy()
+            shine.fill((255, 255, 255, 12 * self.perfect_flash), special_flags=pygame.BLEND_RGBA_MULT)
+            surf.blit(shine, rect)
+            r = 22 + (18 - self.perfect_flash)
+            pygame.draw.circle(surf, (230, 244, 255), (sx, rect.centery), r, 2)
 
         if self.invulnerable_timer > 0 and (ticks // 4) % 2 == 0:
             glow = self.sprites.flash(direction, index, kind).copy()

@@ -206,6 +206,9 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
 - **Basquete 2 x 2** — a CPU também tem dificuldade (1 2 3), que muda o acerto da barrinha do
   arremesso, os tocos e os roubos. Time perdendo por 10 ou mais entra em **REAÇÃO!**: a faixa verde
   do arremesso fica um pouco maior e o SUPER volta 50% mais rápido, até encostar no placar.
+  **Empurrão:** CORTE sem a bola em quem está pulando para arremessar deixa a faixa verde dele pela
+  metade. Quem está protegendo a bola (MARCAR) segura, e quem empurra à toa (ou empurra de novo o
+  mesmo arremesso) fica parado um instante.
 
 ## Personagens
 
@@ -326,6 +329,10 @@ exoesqueleto, arremessa o inimigo).
 | Conduzir colado (futebol)     | E         | L           |
 
 Toque duas vezes numa seta para esquivar (dá para desligar na tela de Controles, tecla T).
+
+**Esquiva perfeita** (duelo e campanha): esquivar bem na hora de um tiro ou golpe de verdade faz a
+esquiva voltar na hora e carrega 20% da habilidade (o lutador brilha e aparece ESQUIVA PERFEITA!).
+Esquivar à toa custa caro: a recarga da esquiva é de 1 s (a moto do Aryel, que vai mais longe, 1,3 s).
 
 As teclas do jogador 1 e do jogador 2 podem ser trocadas em **Controles → K (Trocar teclas)**. Trocar
 ATACAR troca também o confirmar dos menus; se a tecla já era de outra ação do mesmo jogador, as duas

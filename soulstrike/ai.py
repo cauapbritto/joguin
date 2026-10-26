@@ -463,6 +463,9 @@ class BasketballAI:
         if not me.jump and not me.dunking:
             if owner is not None and owner.team != me.team:
                 d = me.distance_to(owner)
+                if owner.jump_shot and not owner.pushed and d < 120 and random.random() < 0.04 * self.cfg["press"]:
+                    match.steal(me, (owner.x - me.x, owner.y - me.y))   # empurrão no arremesso
+                    return
                 if (owner.jump_shot or owner.dunking) and d < 80 and random.random() < 0.12 * self.cfg["press"]:
                     match.jump(me)              # toco
                     return

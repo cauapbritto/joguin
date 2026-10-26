@@ -41,6 +41,8 @@ STEAL_REACH = 14                # o roubo pega encostando (folga além dos corpo
 STEAL_COOLDOWN = 36
 FEINT_FRAMES = 20               # quem tenta roubar nesse tempo erra e fica parado
 FEINT_STUN = 30                 # 0,5 s parado
+PUSH_SHRINK = 0.5               # empurrão no arremesso: a faixa verde cai pela metade
+PUSH_STUN = 24                  # empurrão que não pega (segurou, ou já tinha levado um)
 FIRE_STREAK = 3                 # cestas seguidas do mesmo jogador para pegar fogo
 FIRE_SECONDS = 20
 # tipos de enterrada: os mais vistosos só com fogo, Enterrada Voadora ou alley-oop
@@ -249,6 +251,7 @@ class BasketballMatch(Match):
             fighter.dunk_move = ""            # tipo da enterrada (DUNKS ou SHOW_DUNKS)
             fighter.hang = 0                 # quadros pendurado no aro depois de cravar
             fighter.shot_half = 0.3          # meia largura da faixa verde deste arremesso
+            fighter.pushed = False           # já levou empurrão neste arremesso
             fighter.meter_flash = None       # (soltou em, faixa, quadros) para mostrar o resultado
             fighter.feint_timer = 0
             fighter.steal_timer = 0
@@ -402,6 +405,7 @@ class BasketballMatch(Match):
         if f.frost_timer > 0:
             half *= 0.4                       # Congelar: faixa estreita
         f.shot_half = half
+        f.pushed = False
         f.facing = unit(hx - f.x, hy - f.y)
         return True
 
@@ -555,6 +559,8 @@ class BasketballMatch(Match):
                 or f.distance_to(owner) > f.radius + owner.radius + STEAL_REACH):
             return False
         f.steal_timer = 0
+        if owner.jump_shot:
+            return self._push(f, owner)
         if owner.feint_timer > 0 or owner.lift > 0:
             # caiu na finta (ou o outro já estava no ar)
             f.dash_timer = 0
@@ -574,6 +580,21 @@ class BasketballMatch(Match):
         f.steals += 1
         self.popup(f.x, f.y - 74, "ROUBO!", theme.BRASS)
         self.burst(self.ball.x, self.ball.y - 10, (236, 230, 220), 8, speed=3)
+        self.assets.play("hit", 0.3)
+        return True
+
+    def _push(self, f, shooter):
+        """CORTE sem a bola em quem está arremessando: atrapalha o arremesso (a faixa verde fica
+        menor). Quem protege a bola (MARCAR) segura o empurrão, e quem erra fica parado um instante."""
+        f.dash_timer = 0
+        if shooter.protecting or shooter.pushed or shooter.magic_timer > 0 or shooter.exo_timer > 0:
+            f.stun(PUSH_STUN)
+            self.popup(shooter.x, shooter.y - 90, "SEGUROU", theme.MUTED)
+            return False
+        shooter.pushed = True
+        shooter.shot_half *= PUSH_SHRINK
+        self.popup(shooter.x, shooter.y - 90, "EMPURRÃO!", theme.BRASS)
+        self.burst(shooter.x, shooter.y - 20, (236, 230, 220), 6, speed=3)
         self.assets.play("hit", 0.3)
         return True
 
