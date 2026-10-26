@@ -27,6 +27,7 @@ SHOT_CLOCK = 10                 # segundos com a bola sem arremessar: perde a po
 CATCH_HEIGHT = 56               # bola mais baixa que isso pode ser pega
 HAND_Z = 40                     # altura de onde sai o arremesso
 PASS_SPEED = 11.0
+PASS_HOMING = 120               # quadros no máximo que o passe persegue o companheiro
 DUNK_RANGE = 280                # dentro do garrafão e até tão longe do aro: enterrada automática
 DUNK_REACH = 36                 # de onde a mão solta a bola na enterrada (do centro do aro)
 RIM_KEEP = 0.55                 # quanto da força sobra quando a bola bate no aro
@@ -119,6 +120,13 @@ class BasketBall(Entity):
         w = max(2, round(abs(k) * r))
         pygame.draw.ellipse(surf, SEAM_COLOR, (sx - w // 2, sy - r + 1, w, r * 2 - 2), 2)
         pygame.draw.circle(surf, (250, 170, 110), (sx - 4, sy - 4), 2)
+
+
+def _run_velocity(f):
+    """Quanto o jogador andou no último quadro (com limite: um teleporte não conta como corrida)."""
+    vx, vy = f.x - f.prev_pos[0], f.y - f.prev_pos[1]
+    speed = math.hypot(vx, vy)
+    return (vx, vy) if speed <= 12 else (0.0, 0.0)
 
 
 def who(f):
@@ -273,6 +281,7 @@ class BasketballMatch(Match):
         self.freeze = 0
         self.lids = {0: 0, 1: 0}             # Tampa no Aro: quadros que faltam em cada aro
         self.alley = None                    # alley-oop no ar: quem passou, para quem, quem caiu
+        self.pass_to = None                  # passe teleguiado no ar: para quem e a que velocidade
         self.warmup = 0                      # quadros que faltam do aquecimento (0 = jogo valendo)
         self.warm = {}                       # aquecimento: o estado da bola de cada jogador
         self._only = None                    # aquecimento: só este jogador pega a bola da vez
@@ -318,6 +327,7 @@ class BasketballMatch(Match):
     def _give(self, f):
         self.holder = f
         self.shot = None
+        self.pass_to = None
         ball = self.ball
         ball.vx = ball.vy = ball.vz = 0.0
         if f.team != getattr(self, "_shot_team", None):
@@ -567,9 +577,14 @@ class BasketballMatch(Match):
         if direction is None or math.hypot(*direction) < 0.2:
             direction = f.facing
         direction = unit(*direction)
-        mate = pick_receiver(f.x, f.y, direction, self.mates_of(f), 60)
+        mates = self.mates_of(f)
+        mate = pick_receiver(f.x, f.y, direction, mates, 60)
+        if mate is None and mates:
+            # fora do cone: vai para o companheiro mais perto da direção apontada (no 2 x 2, o único)
+            mate = max(mates, key=lambda m: unit(m.x - f.x, m.y - f.y)[0] * direction[0]
+                       + unit(m.x - f.x, m.y - f.y)[1] * direction[1])
         if mate is not None:
-            vx, vy = mate.x - mate.prev_pos[0], mate.y - mate.prev_pos[1]
+            vx, vy = _run_velocity(mate)
             dist = math.hypot(mate.x - f.x, mate.y - f.y)
             frames = max(8, round(dist / (PASS_SPEED * f.power.pass_speed)))
             tx, ty = mate.x + vx * frames, mate.y + vy * frames
@@ -579,6 +594,9 @@ class BasketballMatch(Match):
         f.jump_shot = False
         self._launch(f, tx, ty, 30, max(8, round(math.hypot(tx - f.x, ty - f.y) / PASS_SPEED)), z0=30 + f.lift)
         self.catch_lock = 5                  # quem está colado não rouba o passe na saída da mão
+        if mate is not None:
+            # passe teleguiado: a bola corrige o caminho até a mão do companheiro, mesmo correndo
+            self.pass_to = {"to": mate, "speed": PASS_SPEED * f.power.pass_speed, "frames": PASS_HOMING}
         self.assets.play("chute", 0.25)
         return True
 
@@ -961,6 +979,7 @@ class BasketballMatch(Match):
             self._update_alley()
             if self.holder is not None:
                 return
+        self._steer_pass()
         if self.warmup:
             self._catch()                       # aquecimento: sem toco e sem puxar o rebote
             return
@@ -969,6 +988,25 @@ class BasketballMatch(Match):
         self._faro_pull()
         self._rebound_pull()
         self._catch()
+
+    def _steer_pass(self):
+        """Passe teleguiado: a cada quadro a bola refaz a trajetória até o companheiro (pela frente
+        dele, se estiver correndo). Quem estiver no caminho ainda pode cortar o passe."""
+        p = self.pass_to
+        if p is None:
+            return
+        mate, ball = p["to"], self.ball
+        p["frames"] -= 1
+        if p["frames"] <= 0 or mate.stunned or self.shot is not None or self.alley is not None:
+            self.pass_to = None
+            return
+        mvx, mvy = _run_velocity(mate)
+        speed = max(p["speed"], math.hypot(mvx, mvy) * 1.8)
+        dist = math.hypot(mate.x - ball.x, mate.y - ball.y)
+        frames = max(2, round(dist / speed))
+        tx, ty = mate.x + mvx * frames, mate.y + mvy * frames
+        ball.vx, ball.vy, ball.vz = shot_velocity(ball.x, ball.y, ball.z, tx, ty, 30 + mate.lift, frames,
+                                                  config.GRAVITY)
 
     def _block_dunk(self):
         if self.warmup:
@@ -1380,6 +1418,7 @@ class BasketballMatch(Match):
         self.ball.z, self.ball.vz = 60.0, 6.0
         self.holder = None
         self.shot = None
+        self.pass_to = None
         self.shot_clock = 0
         self.no_catch.clear()
         flip = self.attack[0] == 0
