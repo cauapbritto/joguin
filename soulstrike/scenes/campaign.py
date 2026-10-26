@@ -278,6 +278,10 @@ class UpgradeScene(_MenuScene):
                 if inp.pressed("cancel"):
                     self._lock(s, False)
                 continue
+            if inp.pressed("switch") and self.run.rerolls.get(s, 0) > 0:
+                self.run.rerolls[s] -= 1              # comprado na loja: sorteia as 3 de novo
+                self.options[s] = choices(self.run.upgrades[s])
+                self.sfx("select", 0.4)
             for i in range(3):
                 if inp.pressed(f"opt{i + 1}") and self.index[s] != i:
                     self.index[s] = i                     # tocou no cartão pelo celular
@@ -333,6 +337,9 @@ class UpgradeScene(_MenuScene):
             _icon(screen, UPGRADES[key], (row.x + 98 + (i % 3) * 22, row.y + 58 + (i // 3) * 22), 2)
         if self.locked[slot]:
             ui.text(screen, "PRONTO", theme.XS, theme.MOSS, (row.x + 92, row.bottom - 16), anchor="midleft")
+        elif self.run.rerolls.get(slot, 0):
+            ui.text(screen, f"TROCAR ARMA: SORTEAR ({self.run.rerolls[slot]})", theme.XS, theme.BRASS,
+                    (row.x + 92, row.bottom - 16), anchor="midleft")
         for i, (card, key) in enumerate(zip(self._cards(slot), self.options[slot])):
             up = UPGRADES[key]
             hot = i == self.index[slot]

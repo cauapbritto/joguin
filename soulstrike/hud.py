@@ -454,6 +454,7 @@ def draw_campaign(screen, ui, match):
     ui.text(screen, "CONTINUES", theme.XS, theme.MUTED, (W - 16, 16), anchor="midright")
     for k in range(3):
         _soul_icon(screen, (W - 22 - k * 16, 34), k < run.continues)
+    ui.text(screen, f"{run.souls} ALMAS", theme.XS, (200, 170, 255), (W - 16, 52), anchor="midright")
     secs = match.elapsed // config.FPS
     ui.text(screen, f"{secs // 60}:{secs % 60:02d}", theme.XS, theme.BONE, (16, 16), anchor="midleft")
 

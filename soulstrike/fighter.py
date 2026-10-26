@@ -8,6 +8,7 @@ from . import config, theme
 from .abilities import create_ability
 from .data import shot_sound
 from .entities import Entity, Particle, hostile
+from .market import BURN_TICK, FORGE_DAMAGE, FORGE_MAG, enchant_hit
 from . import weapon_art
 
 ACCELERATION = 0.3          # quanto da velocidade-alvo é alcançada por quadro
@@ -268,6 +269,10 @@ class Fighter(Entity):
         self._dir = "direita" if self.facing[0] >= 0 else "esquerda"
         # munição das armas de tiro: um pente por arma (pente, recarga e o arco tensionando)
         self.relic = None               # arma rara do baú (campanha): vira a 3ª arma
+        self.forge = {}                 # ferreiro (campanha): nome da arma -> [nível, encanto]
+        self.burn_timer = 0             # encanto de fogo: queima aos poucos
+        self.burn_damage = 0
+        self.burn_owner = None
         self.ammo_mult = 1.0            # melhoria da campanha: pente maior
         self.reload_mult = 1.0          # e recarga mais rápida
         self.clips = {}                 # arma → Clip
@@ -327,7 +332,21 @@ class Fighter(Entity):
         """Tiros num pente cheio desta arma (0 = sem limite)."""
         if weapon is None or weapon.is_melee or weapon.mag <= 0:
             return 0
-        return max(1, round(weapon.mag * getattr(self, "ammo_mult", 1.0)))
+        level = self.forge.get(weapon.name, (0,))[0]
+        return max(1, round(weapon.mag * getattr(self, "ammo_mult", 1.0) * (1 + FORGE_MAG * level)))
+
+    def weapon_mult(self, weapon):
+        """Dano a mais do ferreiro nesta arma (+15% por nível)."""
+        return 1 + FORGE_DAMAGE * self.forge.get(weapon.name, (0,))[0]
+
+    def burn(self, owner, damage, frames):
+        """Encanto de fogo: perde ``damage`` de vida a cada BURN_TICK quadros, por ``frames``."""
+        if self.invulnerable or self.hp <= 0:
+            return False
+        self.burn_timer = max(self.burn_timer, frames)
+        self.burn_damage = max(self.burn_damage if self.burn_timer else 0, damage)
+        self.burn_owner = owner
+        return True
 
     def clip(self, weapon):
         clip = self.clips.get(weapon)
@@ -600,7 +619,7 @@ class Fighter(Entity):
                      "shoot_flash", "teleport_flash", "slow_timer", "pull_timer", "windup", "aim_timer",
                      "down_age", "bow_draw", "haste_timer", "idle_shot", "hack_timer", "type_timer",
                      "virus_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer",
-                     "perfect_flash"):
+                     "perfect_flash", "burn_timer"):
             setattr(self, name, 0)
         self.end_exo()
         self.clips.clear()                            # pentes cheios de novo
@@ -717,12 +736,14 @@ class Fighter(Entity):
                 d = math.hypot(dx, dy)
                 in_front = weapon.spin or other is target or d < other.radius + 6 or (dx * fx + dy * fy) > -0.2 * d
                 if d <= reach + other.radius and in_front:
-                    if other.take_damage(round(weapon.damage * self.damage_mult), self.x, self.y,
-                                         attacker=self, match=match) and self.exo_timer > 0:
-                        other.throw_from(self, match)
+                    damage = round(weapon.damage * self.damage_mult * self.weapon_mult(weapon))
+                    if other.take_damage(damage, self.x, self.y, attacker=self, match=match):
+                        enchant_hit(self, weapon, other, match, damage)
+                        if self.exo_timer > 0:
+                            other.throw_from(self, match)
             return True
         base = proximity_damage(dist, weapon.damage) if weapon.close_bonus else weapon.damage
-        damage = round(base * self.damage_mult)
+        damage = round(base * self.damage_mult * self.weapon_mult(weapon))
         # armas antigas sem estilo (chefão): a granada do Aryel continua explodindo
         explosive = not weapon.style and self.stats.key in ("aryel", "aryel_corrompido")
         match.spawn_projectile(self, weapon, self.facing, damage, target, explosive=explosive)
@@ -749,7 +770,7 @@ class Fighter(Entity):
         if target is not None and getattr(target, "alive_in_match", True):
             self.face(target)
         weapon = self.weapon
-        damage = round(weapon.damage * (0.7 + 1.2 * power) * self.damage_mult)
+        damage = round(weapon.damage * (0.7 + 1.2 * power) * self.damage_mult * self.weapon_mult(weapon))
         match.spawn_projectile(self, weapon, self.facing, damage, target, power=power)
         self._spend_ammo()
         self.attack_cd = BOW_RECOVER
@@ -881,6 +902,8 @@ class Fighter(Entity):
             self.radius = self.base_radius
         if self.virus_timer > 0:
             self._virus(match)
+        if self.burn_timer > 0:
+            self._burn(match)
         if self.kicked_dust:
             self.kicked_dust = False
             match.dust(self.x, self.y + FEET, 6)
@@ -1018,6 +1041,17 @@ class Fighter(Entity):
                     if other.stun(30):
                         other.knock = [ux * 9 * (1 - other.knock_resist), uy * 9 * (1 - other.knock_resist)]
                     match.popup(other.x, other.y - 74, "ATROPELOU", theme.BONE)
+
+    def _burn(self, match):
+        self.burn_timer -= 1
+        if self.hp <= 0:
+            self.burn_timer = 0
+            return
+        if match.frame % 3 == 0:
+            match.particles.append(Particle(self.x + random.uniform(-10, 10), self.y - random.uniform(0, 30),
+                                            0, -1.0, random.choice(((250, 140, 60), (255, 210, 110))), 14, 3))
+        if self.burn_timer % BURN_TICK == 0 and self.take_damage(self.burn_damage, attacker=self.burn_owner):
+            match.popup(self.x + 14, self.y - 46, str(self.burn_damage), (250, 140, 60))
 
     def _virus(self, match):
         """Vírus do pendrive: dano pequeno de tempos em tempos (sem empurrão nem pausa)."""

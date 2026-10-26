@@ -21,6 +21,7 @@ from .ui import darken
 from .data import PHASE_RELICS, RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
 from .dungeon import Campfire, Chest, ExitDoor, Gate, GroundWeapon, RelicDrop
 from .lobbies import cells_rect
+from .market import ENCHANTS, MAX_LEVEL, MAX_REROLLS, SOUL_COLOR, MarketMenu, Stall, souls_for
 from .upgrades import apply_all
 
 PLAYERS, ENEMIES = 0, 1
@@ -152,6 +153,9 @@ class CampaignRun:
         self.relics = {s: None for s in self.slots}       # arma rara do baú de cada jogador
         self.held = {s: 0 for s in self.slots}            # arma na mão de uma etapa para a outra
         self.loadouts = {s: None for s in self.slots}     # armas comuns que pegou no chão (de tiro, de perto)
+        self.souls = 0                                    # almas do grupo (moeda do mercado)
+        self.forge = {s: {} for s in self.slots}          # ferreiro: nome da arma -> [nível, encanto]
+        self.rerolls = {s: 0 for s in self.slots}         # trocas das melhorias compradas na loja
         self._snapshot = None
 
     @property
@@ -181,7 +185,7 @@ class CampaignRun:
     def _state(self):
         return {k: copy.deepcopy(getattr(self, k))
                 for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames",
-                          "stage", "chest_open", "relics", "held", "loadouts")}
+                          "stage", "chest_open", "relics", "held", "loadouts", "souls", "forge", "rerolls")}
 
     def begin_phase(self):
         """Começa a fase no acampamento e guarda como tudo estava (para TENTAR DE NOVO)."""
@@ -198,6 +202,7 @@ class CampaignRun:
 
     def prepare(self, fighter):
         """Aplica as melhorias, a arma rara do baú e a vida que sobrou da etapa anterior."""
+        fighter.forge = self.forge.setdefault(fighter.slot, {})      # o mesmo dicionário: o ferreiro mexe nele
         names = self.loadouts.get(fighter.slot)
         if names:
             fighter.loadout = tuple(common_weapon(n) for n in names)
@@ -236,7 +241,7 @@ class CampaignRun:
     def to_save(self):
         """O estado do começo da fase, num formato que cabe no progresso.json."""
         state = self._state()
-        for k in self._BY_SLOT + ("loadouts",):
+        for k in self._BY_SLOT + ("loadouts", "forge", "rerolls"):
             state[k] = {str(s): v for s, v in state[k].items()}
         return {"versao": self.SAVE_VERSION, "dificuldade": self.session.difficulty,
                 "jogadores": [{"slot": s.slot, "char": s.char, "weapon": s.weapon} for s in self.session.slots],
@@ -288,6 +293,21 @@ class CampaignRun:
                         return None
                     names = list(names)
                 run.loadouts[s] = names
+            run.souls = max(0, int(state.get("souls", 0)))
+            for s, entries in {int(k): v for k, v in state.get("forge", {}).items()}.items():
+                if s not in run.slots:
+                    return None
+                forge = {}
+                for name, (level, enchant) in entries.items():
+                    level = int(level)
+                    if not 1 <= level <= MAX_LEVEL or (enchant is not None and enchant not in ENCHANTS):
+                        return None
+                    forge[str(name)] = [level, enchant]
+                run.forge[s] = forge
+            for s, n in {int(k): v for k, v in state.get("rerolls", {}).items()}.items():
+                if s not in run.slots:
+                    return None
+                run.rerolls[s] = max(0, min(MAX_REROLLS, int(n)))
         except (KeyError, TypeError, ValueError, AttributeError):
             return None
         return run
@@ -344,6 +364,7 @@ class CoopMatch(Match):
         self.pickups = []
         self.props = []                 # entrada, fogueira, baú, porta, portal...
         self.ground = []                # armas no chão (largadas ou derrubadas por inimigos)
+        self.menus = {}                 # menu do mercado aberto, por jogador
         self.revive_progress = {f: 0.0 for f in self.players}
         self.strain = {f: 0 for f in self.players}     # quadros forçando o limite do grupo
         self.was_down = set()
@@ -547,6 +568,12 @@ class CoopMatch(Match):
             item.draw_prompt(screen, cam, ui, self.frame, item in nearest)
 
     def _human(self, f, inp):
+        menu = self.menus.get(f)
+        if menu is not None:
+            f.steer(0, 0)                   # parado no balcão enquanto escolhe
+            if not menu.handle(inp) or not f.alive_in_match:
+                del self.menus[f]
+            return
         f.steer(*inp.axis())
         if (inp.pressed("attack") or inp.pressed("confirm")) and self.interact(f):
             return
@@ -930,6 +957,10 @@ class CampaignMatch(CoopMatch):
         for _ in range(10):
             self.particles.append(_soul_particle(e.x, e.y - 20))
         self.assets.play("hit", 0.5)
+        souls = souls_for(getattr(e, "kind", ""))
+        self.run.souls += souls
+        if souls >= 10:
+            self.popup(e.x, e.y - 60, f"+{souls} ALMAS", SOUL_COLOR)
         if e is self.boss:
             self.slain_boss = True
             self.slowmo = 80
@@ -1265,6 +1296,14 @@ class LobbyMatch(CoopMatch):
             self.arena.walls.append(self.chest.wall)
             self.props.append(self.chest)
         self.target_gate = 2 if self.back else 1
+        self.stalls = []
+        if self.back:                       # na volta da Masmorra 1: o mercado, perto da fogueira
+            for kind, dx in (("loja", -260), ("ferreiro", 260)):
+                x, y = self.arena.free_spot(fx + dx, fy + 170, 40)
+                stall = Stall(kind, x, y)
+                self.stalls.append(stall)
+                self.arena.walls.append(stall.wall)
+                self.props.append(stall)
         hub_vote(self, 0)
         for p in self.players:              # chegando (teletransporte ou saindo da masmorra)
             self.burst(p.x, p.y - 20, (200, 180, 255), 14, speed=3)
@@ -1308,6 +1347,11 @@ class LobbyMatch(CoopMatch):
             self.chest.open(self)
             self.run.chest_open = True
             return True
+        stall = next((s for s in self.stalls if s.can_use(f)), None)
+        if stall is not None:
+            self.menus[f] = MarketMenu(self, f, stall)
+            self.assets.play("click", 0.4)
+            return True
         return self.pick_ground(f)
 
     def launch_relics(self, chest):
@@ -1338,6 +1382,11 @@ class LobbyMatch(CoopMatch):
             near = any(self.chest.can_open(p) for p in self.alive_players)
             self.chest.draw_prompt(screen, cam, ui, self.frame, near)
         self.draw_ground(screen, cam, ui)
+        for stall in self.stalls:
+            near = any(stall.can_use(p) and p not in self.menus for p in self.alive_players)
+            stall.draw_prompt(screen, cam, ui, self.frame, near)
+        for f, menu in self.menus.items():
+            menu.draw(screen, ui, cam.to_screen(f.x, f.y))
         gate = self.gates[self.target_gate]
         alive = self.alive_players
         inside = [p for p in alive if gate.rect.inflate(20, 30).collidepoint(p.x, p.y)]

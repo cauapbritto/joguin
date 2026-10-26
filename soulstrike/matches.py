@@ -13,6 +13,7 @@ from .camera import Camera
 from .data import CHARACTERS, SHADOW_CHARACTERS
 from .entities import Barrier, Bullet, Entity, Explosion, FloatingText, Particle, Pickup, hostile
 from .fighter import Fighter
+from .market import enchant_hit
 from .net.remote import hub
 from .projectiles import projectile_class
 from .soccer_assist import (ASSIST_LEVELS, closest_approach, pick_receiver, segment_contact, shot_assist,
@@ -168,6 +169,7 @@ class Match(ABC):
                                 self.popup(f.x, f.y - 46, "IMUNE", theme.BRASS)
                             if f.take_damage(b.damage, b.x, b.y, attacker=b.owner, match=self):
                                 b.on_hit(f, self)
+                                enchant_hit(b.owner, getattr(b, "weapon", None), f, self, b.damage)
                         break
             if not b.alive and b.explosive:
                 self.effects.append(Explosion(b.owner, b.x, b.y, b.damage,

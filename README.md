@@ -126,6 +126,14 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   lugar da arma do herói do mesmo tipo (de tiro ou de perto) e a antiga fica no chão. A troca vale
   até o fim da campanha e fica salva. A cor do nome mostra a raridade: **comum branca**, **rara
   azul** e **roubada dourada** (no chão e no HUD).
+  **Almas, loja e ferreiro:** cada inimigo derrotado dá almas para o grupo todo (3 o comum, 12 o
+  elite, 60 o chefão). Na volta da Masmorra 1, o acampamento tem o **mercado** perto da fogueira.
+  Perto da banca, ATACAR abre o menu (cima e baixo escolhem, ATACAR compra, ESQUIVA fecha).
+  A **loja** vende poção (cura metade da vida, 20), arma sorteada de outro herói (30), uma troca das
+  melhorias do fim da fase (25: na escolha, TROCAR ARMA sorteia de novo) e continue (120). O
+  **ferreiro** sobe a arma de +1 a +3 (40, 80 e 140): cada nível dá 15% de dano e pente 20% maior, e
+  o +3 vem com um encanto: **fogo** (queima aos poucos), **gelo** (deixa lento) ou **raio** (pula
+  para outro inimigo). Almas, níveis e trocas ficam salvos com a campanha.
   **Armas raras do baú:** viram a 3ª arma do jogador (TROCAR ARMA passa pelas três) e ficam até o
   fim da campanha. Só dá para ter uma: quando o baú da fase seguinte dá outra, a antiga **fica
   no chão** (com o nome embaixo) e, perto dela, ATACAR **pega de volta** — trocando, e a outra
@@ -424,6 +432,7 @@ soulstrike/
   campaign.py           CampaignRun (a campanha toda), LobbyMatch (acampamento), CampaignMatch
                         (masmorra), as fases e a história
   dungeon.py            entradas com grade, fogueira, baú escondido, arma no chão e a porta de volta
+  market.py             almas, mercado da campanha (loja e ferreiro) e os encantos das armas
   lobbies.py            os acampamentos desenhados como texto (# parede, . chão, F fogueira...)
   enemies.py            inimigos da campanha e o cérebro de cada um
   boss.py               o chefão Aryel Corrompido
