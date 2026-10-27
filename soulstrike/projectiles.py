@@ -577,7 +577,7 @@ class Boomerang(Projectile):
 
 
 class LightningArc(Entity):
-    """Desenho do raio: linhas tortas que piscam e somem."""
+    """Desenho do raio: linhas tortas com galhos, um brilho em volta e um clarão onde cai."""
 
     LIFE = 12
 
@@ -587,6 +587,7 @@ class LightningArc(Entity):
         self.life = self.LIFE
         rng = random.Random(len(points) * 7919 + int(points[0][0]))
         self.paths = []
+        self.forks = []                          # galhinhos que saem do raio
         for a, b in zip(points, points[1:]):
             steps = max(3, int(math.hypot(b[0] - a[0], b[1] - a[1]) // 22))
             path = [a]
@@ -596,6 +597,12 @@ class LightningArc(Entity):
                              a[1] + (b[1] - a[1]) * t + rng.uniform(-9, 9)))
             path.append(b)
             self.paths.append(path)
+            for k in range(1, len(path) - 1, 2):
+                x, y = path[k]
+                ang = math.atan2(b[1] - a[1], b[0] - a[0]) + rng.choice((-1, 1)) * rng.uniform(0.5, 1.1)
+                size = rng.uniform(12, 22)
+                mid = (x + math.cos(ang) * size * 0.5 + rng.uniform(-4, 4), y + math.sin(ang) * size * 0.5)
+                self.forks.append([(x, y), mid, (x + math.cos(ang) * size, y + math.sin(ang) * size)])
 
     def update(self, match):
         self.life -= 1
@@ -603,8 +610,26 @@ class LightningArc(Entity):
             self.alive = False
 
     def draw(self, surf, camera):
+        from .rare_fx import glow
+        k = self.life / self.LIFE
+        g = glow(16, (246, 214, 90), 0.25 + 0.35 * k)
+        for path in self.paths:                  # brilho em volta do raio
+            for x, y in path[::2]:
+                surf.blit(g, g.get_rect(center=(round(x - camera.x), round(y - camera.y))),
+                          special_flags=pygame.BLEND_ADD)
+        end = self.points[-1]
+        ex, ey = round(end[0] - camera.x), round(end[1] - camera.y)
+        flash = glow(34, (255, 240, 170), 0.8 * k)
+        surf.blit(flash, flash.get_rect(center=(ex, ey)), special_flags=pygame.BLEND_ADD)
+        if self.life > self.LIFE - 5:            # anel do impacto
+            r = 8 + (self.LIFE - self.life) * 5
+            pygame.draw.ellipse(surf, (255, 236, 150), (ex - r, ey - r // 3, r * 2, r * 2 // 3), 2)
         if self.life < 4 and self.life % 2:
             return
+        for fork in self.forks:
+            pts = [(round(x - camera.x), round(y - camera.y)) for x, y in fork]
+            pygame.draw.lines(surf, (246, 214, 70), False, pts, 2)
+            pygame.draw.lines(surf, (255, 252, 230), False, pts[:2], 1)
         for path in self.paths:
             pts = [(round(x - camera.x), round(y - camera.y)) for x, y in path]
             pygame.draw.lines(surf, (120, 100, 30), False, pts, 5)
@@ -840,6 +865,14 @@ class BeamFx(Entity):
         pygame.draw.lines(layer, (*self.color, 230), False, local, w)
         pygame.draw.lines(layer, (*self.core, 255), False, local, max(1, w // 3))
         surf.blit(layer, box.topleft)
+        from .rare_fx import glow
+        g = glow(10 + w, self.color, 0.4 * self.life / self.total)
+        for (x0, y0), (x1, y1) in zip(pts, pts[1:]):              # brilho ao longo do feixe
+            steps = max(1, int(math.hypot(x1 - x0, y1 - y0) // 14))
+            for k in range(steps + 1):
+                t = k / steps
+                surf.blit(g, g.get_rect(center=(round(x0 + (x1 - x0) * t), round(y0 + (y1 - y0) * t))),
+                          special_flags=pygame.BLEND_ADD)
 
 
 def _ray_hits(match, owner, start, direction, length, width):

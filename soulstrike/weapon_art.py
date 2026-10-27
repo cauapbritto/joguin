@@ -24,7 +24,6 @@ def load():
         grips = json.loads((WEAPON_DIR / "grips.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
-    from .forged import art_surfaces
     sources = []
     for name, info in grips.items():
         try:
@@ -32,7 +31,6 @@ def load():
         except (pygame.error, FileNotFoundError):
             continue
         sources.append((name, small, info["grip"]))
-    sources += [(name, small, grip) for name, (small, grip) in art_surfaces().items()]
     for name, small, grip in sources:
         _icons[name] = small
         img = pygame.transform.scale(small, (small.get_width() * SCALE, small.get_height() * SCALE))
@@ -126,8 +124,9 @@ def weapon_length(name):
     return img.get_width() - gx
 
 
-def draw_slash(surf, pivot, facing, radius, progress, color):
-    """Rastro fino do golpe: segue a ponta da arma e some rápido."""
+def draw_slash(surf, pivot, facing, radius, progress, color, glow=False):
+    """Rastro fino do golpe: segue a ponta da arma e some rápido. ``glow``: arma rara, o rastro
+    fica mais largo, com uma faixa de luz da cor da arma por dentro."""
     if progress >= 1:
         return
     base = math.atan2(facing[1], facing[0])
@@ -147,6 +146,11 @@ def draw_slash(surf, pivot, facing, radius, progress, color):
         alpha = int(220 * t1 * fade)
         p0 = (c + math.cos(a0) * radius, c + math.sin(a0) * radius)
         p1 = (c + math.cos(a1) * radius, c + math.sin(a1) * radius)
+        if glow:
+            for w, k in ((9, 0.25), (6, 0.5)):
+                g0 = (c + math.cos(a0) * (radius - 3), c + math.sin(a0) * (radius - 3))
+                g1 = (c + math.cos(a1) * (radius - 3), c + math.sin(a1) * (radius - 3))
+                pygame.draw.line(layer, (*color[:3], int(alpha * k)), g0, g1, w)
         pygame.draw.line(layer, (255, 255, 255, alpha), p0, p1, 3)
         q0 = (c + math.cos(a0) * (radius - 4), c + math.sin(a0) * (radius - 4))
         q1 = (c + math.cos(a1) * (radius - 4), c + math.sin(a1) * (radius - 4))

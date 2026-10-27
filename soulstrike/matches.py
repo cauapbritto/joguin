@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import pygame
 
-from . import config, hud, theme
+from . import config, hud, rare_fx, theme
 from .ai import BALL_DIFFICULTIES, FighterAI, SoccerAI
 from .arena import MAPS_BY_KEY, SOCCER_MAP, Arena, Pitch
 from .camera import Camera
@@ -141,6 +141,7 @@ class Match(ABC):
         for b in self.bullets:
             if b.alive:
                 b.update(self)
+                rare_fx.emit_trail(b, self)
             if b.alive and not (b.ghost or b.lobbed):
                 wall = next((w for w in self.arena.walls if w.rect.colliderect(b.rect)), None)
                 if wall is not None:
@@ -259,6 +260,7 @@ class Match(ABC):
         for entity in sorted(self.world_entities(), key=lambda e: getattr(e, "sort_y", e.y)):
             entity.draw(view, cam)
         for b in self.bullets:
+            rare_fx.draw_bullet_glow(view, cam, b)
             b.draw(view, cam)
         for effect in self.effects:
             if hasattr(effect, "draw_over"):

@@ -8,7 +8,7 @@ from . import config, theme
 from .abilities import create_ability
 from .data import shot_sound
 from .entities import Entity, Particle, hostile
-from . import forged
+from . import forged, rare_fx
 from .market import BURN_TICK, FORGE_DAMAGE, FORGE_MAG, enchant_hit
 from . import weapon_art
 
@@ -730,6 +730,7 @@ class Fighter(Entity):
             self.attack_cd = weapon.cooldown
             match.assets.play("golpe", 0.45)
             self._deflect_bullets(match)
+            rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
             # acerta todos os adversários ao alcance na frente (no duelo, só existe um)
             fx, fy = self.facing
             reach = self.melee_reach(weapon)
@@ -758,6 +759,7 @@ class Fighter(Entity):
         self._spend_ammo()
         self.attack_cd = weapon.cooldown
         self.shoot_flash = 5
+        rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
         match.assets.play(shot_sound(weapon, match.frame), 0.3)
         return True
 
@@ -783,6 +785,7 @@ class Fighter(Entity):
         self._spend_ammo()
         self.attack_cd = BOW_RECOVER
         self.shoot_flash = 5
+        rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
         self.aim_timer = max(self.aim_timer, AIM_HOLD)
         match.assets.play("arco", 0.45 if power >= 1 else 0.3)
 
@@ -894,6 +897,7 @@ class Fighter(Entity):
     def update(self, match):
         self.age += 1
         self.ability.tick(self)
+        rare_fx.emit_held(self, match)
         for name in ("attack_cd", "ability_cd", "dash_cd", "speed_timer", "invulnerable_timer",
                      "super_cd", "kick_cd", "stun_timer", "fury_timer", "giant_timer", "sprint_timer",
                      "magic_timer", "nose_timer", "zaga_timer", "moto_timer", "cut_timer", "hack_timer",
@@ -1221,6 +1225,10 @@ class Fighter(Entity):
         recoil = 3 if self.shoot_flash > 2 else 0
         if self.reloading and not self.weapon.is_melee and (self.reload_timer // 8) % 2:
             recoil = 2                               # mexendo na arma para recarregar
+        if show_weapon:
+            vx, vy = self.facing if swinging else weapon_art.DIRECTION_VECTORS[direction]
+            half = weapon_art.weapon_length(art) / 2
+            rare_fx.draw_held(surf, self.weapon, (hand[0] + vx * half, hand[1] + vy * half), ticks)
         if show_weapon and direction == "costas" and not swinging:
             weapon_art.draw_weapon(surf, art, hand, direction, self.facing, recoil=recoil)
 
@@ -1334,18 +1342,21 @@ class Fighter(Entity):
             if self.shoot_flash > 0 and not self.weapon.charge:
                 fx, fy = round(tip[0]), round(tip[1])
                 r = 1 + self.shoot_flash
-                pygame.draw.rect(surf, (255, 236, 170), (fx - r, fy - r, r * 2, r * 2))
+                pygame.draw.rect(surf, rare_fx.accent(self.weapon) or (255, 236, 170), (fx - r, fy - r, r * 2, r * 2))
                 pygame.draw.rect(surf, (255, 255, 255), (fx - r // 2, fy - r // 2, r, r))
 
         if swinging:
+            rare = rare_fx.accent(self.weapon)          # rara: o rastro tem a cor e o brilho da arma
+            color = rare or self.stats.color
             if self.weapon.spin:                       # giro: o rastro dá a volta inteira
                 for k in range(4):
                     a = swing * math.tau + k * math.pi / 2
                     weapon_art.draw_slash(surf, (sx, sy - 12), (math.cos(a), math.sin(a)),
-                                          weapon_art.weapon_length(self.weapon.name) + 14, swing, self.stats.color)
+                                          weapon_art.weapon_length(self.weapon.name) + 14, swing, color,
+                                          glow=rare is not None)
             else:
                 weapon_art.draw_slash(surf, hand, self.facing, weapon_art.weapon_length(self.weapon.name) + 2,
-                                      swing, self.stats.color)
+                                      swing, color, glow=rare is not None)
 
         if self.teleport_flash > 0:
             r = 14 + (20 - self.teleport_flash) * 2
