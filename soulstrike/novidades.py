@@ -7,6 +7,13 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.5.1": [
+        "Treino: o arsenal tem todas as armas do jogo para testar, até as roubadas e as 8 forjadas.",
+        "Chegue perto do suporte de armas e aperte ATACAR. HABILIDADE devolve as armas do herói.",
+        "Arte nova para as 8 forjadas e para várias raras e roubadas.",
+        "As armas raras brilham na mão, soltam faíscas e deixam rastro de luz nos tiros e nos golpes.",
+        "Raios com galhos e clarão, feixes que brilham, onda solar e dragão de fogo mais bonitos.",
+    ],
     "1.5.0": [
         "Duelo: antes de cada round, escolha a arma de tiro e a de perto. Quem perdeu ganha mais uma opção.",
         "Esquiva perfeita: esquive bem na hora do golpe e a esquiva volta na hora, com a habilidade mais carregada.",

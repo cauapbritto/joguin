@@ -119,7 +119,7 @@ class TreinoTest(unittest.TestCase):
                 break
         self.assertTrue(match.done_timer)
         rodar(match, inp, DONE_FRAMES + 30)      # + quadros de pausa de impacto
-        self.assertTrue(match.finished_lessons)
+        self.assertEqual(match.lesson, 7)        # a última: o arsenal (ver test_arsenal.py)
 
     def test_ninguem_perde_e_nao_acaba(self):
         match, inp = treino()

@@ -36,6 +36,13 @@ class Sprite:
     def px(self, x, y, color):
         self.surf.set_at((x, y), color)
 
+    def paint(self, rows, palette, x=0, y=0):
+        """Desenho em texto: cada letra é uma cor da paleta ("." fica vazio)."""
+        for j, row in enumerate(rows):
+            for i, c in enumerate(row):
+                if c in palette:
+                    self.surf.set_at((x + i, y + j), palette[c])
+
     def finish(self):
         """Adiciona o contorno escuro de 1 px (fica com 1 px de margem em volta)."""
         w, h = self.surf.get_size()
@@ -434,22 +441,24 @@ def bumerangue():
 
 
 def cajado_raio():
-    """Cajado do Raio: haste escura e uma pedra amarela soltando faíscas."""
-    s = Sprite(27, 11)
-    s.rect(0, 5, 19, 2, (90, 70, 110))
-    s.rect(0, 6, 19, 1, (60, 44, 76))
-    s.rect(16, 3, 2, 6, GOLD_D)                  # garras que seguram a pedra
-    s.px(18, 2, GOLD)
-    s.px(18, 8, GOLD)
-    rows = [(21, 22), (20, 23), (19, 24), (20, 23), (21, 22)]
-    for i, (x0, x1) in enumerate(rows):
-        s.rect(x0, i + 3, x1 - x0 + 1, 1, BOLT)
-    s.rect(20, 4, 2, 1, BOLT_L)
-    s.px(25, 1, BOLT_L)                          # faíscas
-    s.px(26, 0, BOLT)
-    s.px(25, 9, BOLT)
-    s.px(26, 10, BOLT_L)
-    return s.finish(), (7, 6)
+    """Cajado do Raio: haste escura com aro de ouro segurando uma pedra de raio que solta faíscas."""
+    s = Sprite(27, 13)
+    s.paint([
+        "........................y..",
+        "...................gg..yw..",
+        "..................gG.yy.y..",
+        "..................g.ywwy...",
+        "..................gywwwwy.w",
+        "PPPPPPPPPPPPPPPPGggywwwwyyy",
+        "vvvvvvvvvvvvvvvvGGgyywwyy..",
+        "..................g.yyyy...",
+        "..................gG..y.y..",
+        "...................gg..yw..",
+        "........................y..",
+        "...........................",
+        "...........................",
+    ], FORGE)
+    return s.finish(), (7, 5)
 
 
 def canhao():
@@ -528,16 +537,26 @@ def espinho():
 
 
 def machado():
-    """Machado do Lenhador: cabo comprido e lâmina larga."""
-    s = Sprite(22, 12)
-    s.rect(0, 5, 17, 2, WOOD)
-    s.rect(0, 6, 17, 1, WOOD_D)
-    s.rect(15, 0, 6, 9, STEEL_M)                 # lâmina
-    s.rect(15, 0, 6, 2, STEEL)
-    s.rect(20, 0, 2, 11, STEEL)                  # fio
-    s.rect(14, 3, 2, 5, STEEL_D)
-    s.px(17, 5, (60, 60, 70))
-    return s.finish(), (3, 5)
+    """Machado do Lenhador: cabo de madeira com cinta de couro e lâmina larga em meia-lua."""
+    s = Sprite(23, 15)
+    s.paint([
+        "................dds....",
+        "...............dmmss...",
+        "..............dmmmssw..",
+        ".............dmmmmmssw.",
+        "............ddmmmmmmsw.",
+        ".............dmmmmmmsw.",
+        "xxxxxhhxxxxxxdkdmmmmsw.",
+        "XXXXXHHXXXXXXdkdmmmmsw.",
+        ".............dmmmmmmsw.",
+        "............ddmmmmmmsw.",
+        ".............dmmmmmssw.",
+        "..............dmmmssw..",
+        "...............dmmss...",
+        "................dds....",
+        ".......................",
+    ], FORGE)
+    return s.finish(), (3, 6)
 
 
 def lanterna():
@@ -574,70 +593,114 @@ def cranio():
 
 
 def foice_espectral():
-    """Foice Espectral: cabo escuro e uma lâmina roxa em meia-lua que brilha."""
-    s = Sprite(20, 13)
-    s.rect(0, 10, 15, 2, (60, 44, 76))           # cabo
-    s.rect(0, 11, 15, 1, (40, 28, 52))
-    s.rect(14, 5, 2, 7, (60, 44, 76))            # encaixe da lâmina
-    rows = [(9, 17), (6, 18), (4, 19), (3, 9), (2, 6), (2, 4)]
-    for i, (x0, x1) in enumerate(rows):          # meia-lua
-        s.rect(x0, 1 + i, x1 - x0 + 1, 1, SPECTRAL)
-    s.rect(9, 1, 8, 1, SPECTRAL_L)               # fio brilhando
-    s.rect(6, 2, 4, 1, SPECTRAL_L)
-    s.px(2, 6, SPECTRAL_L)
+    """Foice Espectral: cabo escuro e uma lâmina roxa em meia-lua, translúcida e com fio brilhante."""
+    s = Sprite(21, 14)
+    s.paint([
+        "..........lllllll....",
+        ".......lllppppppplll.",
+        ".....llppppPPPPPPppl.",
+        "....lpppPPP.......Pl.",
+        "...lppPP.........vPl.",
+        "..lpPP...........vk..",
+        "..lP.............vk..",
+        "..l..............vk..",
+        "..................k..",
+        "..................k..",
+        "kkkkkkkkkkkkkkkkkkk..",
+        "KKKKKKKKKKKKKKKKKKK..",
+        ".....................",
+        ".....................",
+    ], FORGE)
     return s.finish(), (3, 10)
 
 
 def estalactites():
-    """Estalactites: cetro de gelo com três pontas penduradas."""
-    s = Sprite(24, 12)
-    s.rect(0, 5, 14, 2, (120, 150, 190))
-    s.rect(0, 6, 14, 1, (80, 104, 140))
-    s.rect(14, 2, 8, 3, ICE)
-    s.rect(14, 2, 8, 1, ICE_L)
-    for x, h in ((15, 8), (18, 9), (21, 7)):
-        for k in range(h):
-            s.rect(x, 5 + k, max(1, 2 - k // 4), 1, ICE if k < h - 2 else ICE_L)
-    return s.finish(), (5, 6)
+    """Estalactites: cetro de prata com coroa de ouro e três pontas de gelo penduradas."""
+    s = Sprite(25, 15)
+    s.paint([
+        "...............g..g..g...",
+        "..............gYggYggYg..",
+        "..............GgIIIIIIIi.",
+        "gsmmmmmmmmmmmmGIiiiiiiiij",
+        "GddddddddddddddGjiiijiiij",
+        "...............gJIiJIiJIj",
+        "................JIiJIiJIj",
+        ".................IiJ.iJIj",
+        ".................IiJ.iJ.j",
+        ".................Ij..iJ..",
+        "..................j..iJ..",
+        "..................j..I...",
+        ".....................I...",
+        "..........................",
+        "..........................",
+    ], FORGE)
+    return s.finish(), (4, 3)
 
 
 def espelho():
-    """Espelho de Cristal: espelho oval de prata com cristal azul."""
-    s = Sprite(16, 13)
-    s.rect(0, 5, 5, 3, (120, 150, 190))          # cabo
-    s.rect(5, 1, 10, 11, STEEL_M)
-    s.rect(4, 3, 12, 7, STEEL_M)
-    s.rect(6, 2, 8, 9, ICE)
-    s.rect(5, 4, 10, 5, ICE)
-    s.rect(7, 3, 2, 5, (250, 254, 255))          # reflexo
-    s.px(12, 8, ICE_L)
+    """Espelho de Cristal: moldura de ouro trabalhada, cristal azul com reflexo e um rubi no cabo."""
+    s = Sprite(18, 15)
+    s.paint([
+        "........gYYg......",
+        "......gYggggYg....",
+        ".....gGIIiiiiGg...",
+        "....gGIIiiiiijGg..",
+        "....gIIwiiiiijjg..",
+        "...gGIwIiiiijjjGg.",
+        "gGhhgIIiiiiiijjjg.",
+        "GGHHgIiiiiiijjjJgr",
+        "...gGiiiiiijjjJJGg",
+        "....giiiiijjjJJJg.",
+        "....gGijjjjjJJJGg.",
+        ".....gGjjjJJJJGg..",
+        "......gYggggYg....",
+        "........gGGg......",
+        "..................",
+    ], FORGE)
     return s.finish(), (2, 6)
 
 
 def bola_neve():
-    """Bola de Neve na mão."""
-    s = Sprite(10, 10)
-    s.rect(2, 0, 6, 10, SNOW)
-    s.rect(0, 2, 10, 6, SNOW)
-    s.rect(1, 1, 8, 8, SNOW)
-    s.rect(2, 7, 7, 2, SNOW_D)
-    s.rect(8, 3, 1, 5, SNOW_D)
-    s.rect(2, 2, 2, 2, (255, 255, 255))
-    return s.finish(), (1, 5)
+    """Bola de Neve: neve batida com sombra azulada, brilho de gelo e uns cristais em volta."""
+    s = Sprite(12, 12)
+    s.paint([
+        "....IIII....",
+        "..IIwwIIIc..",
+        ".IwwIIIIIIc.",
+        ".IwIIIIIIcc.",
+        "IIIIIIIIIccj",
+        "IIIIIIIIcccj",
+        "IIIIIIIccccj",
+        "cIIIIIcccccj",
+        ".ccIccccccj.",
+        ".cccccccjjj.",
+        "..jjcccjjj..",
+        "....jjjj....",
+    ], {**FORGE, "c": (196, 220, 240)})
+    return s.finish(), (2, 6)
 
 
 def raio_supremo():
-    """Cajado do Raio Supremo: haste dourada, três pedras de raio e faíscas."""
+    """Cajado do Raio Supremo: haste dourada com cabeça em tridente e três pedras de raio acesas."""
     s = Sprite(30, 15)
-    s.rect(0, 7, 20, 2, GOLD_D)
-    s.rect(0, 7, 20, 1, GOLD)
-    s.rect(18, 3, 2, 10, GOLD)
-    for cx, cy in ((22, 7), (25, 3), (25, 11)):
-        s.rect(cx - 1, cy - 1, 3, 3, BOLT)
-        s.px(cx, cy - 1, BOLT_L)
-    for x, y in ((28, 0), (29, 7), (28, 14), (21, 1), (21, 13)):
-        s.px(x, y, BOLT_L)
-    return s.finish(), (7, 7)
+    s.paint([
+        "..........................w...",
+        ".....................gg..yw...",
+        "....................gYwy.yy...",
+        "...................gG.yywy....",
+        "...................g...yy...w.",
+        "..................gG......wy..",
+        "gYgggYgggYgggYggggGgGyywyyyyyw",
+        "GGGGGGGGGGGGGGGGGGGgGyyyyyyyy.",
+        "..................gG......wy..",
+        "...................g...yy...w.",
+        "...................gG.yywy....",
+        "....................gYwy.yy...",
+        ".....................gg..yw...",
+        "..........................w...",
+        "..............................",
+    ], FORGE)
+    return s.finish(), (7, 6)
 
 
 # ── armas do Cauanzera, do Albeguinio e do Borba Jr ──
@@ -756,6 +819,199 @@ def punho_mecanico():
     return s.finish(), (2, 5)
 
 
+# ── armas forjadas (fusão do ferreiro) ───────
+# paleta das forjadas: cada letra é uma cor (as maiúsculas são as versões escuras)
+FORGE = {
+    "k": (40, 34, 52), "K": (24, 20, 32),
+    "h": LEATHER, "H": LEATHER_D, "x": WOOD, "X": WOOD_D,
+    "g": GOLD, "G": GOLD_D, "Y": (255, 232, 150),
+    "w": (255, 252, 236), "y": (255, 214, 80), "o": (255, 146, 44), "r": (222, 72, 36), "R": (140, 36, 24),
+    "s": STEEL, "m": STEEL_M, "d": STEEL_D,
+    "c": (196, 232, 255), "u": (92, 140, 226), "U": (48, 70, 142),
+    "l": (226, 204, 255), "p": (160, 104, 230), "P": (94, 54, 150), "v": (34, 16, 54),
+    "I": (236, 250, 255), "i": (150, 212, 240), "j": (84, 140, 196), "J": (46, 86, 140),
+    "n": BONE_C, "N": BONE_D, "z": (130, 255, 190),
+}
+
+
+def lamina_solar():
+    """Lâmina Solar: guarda em forma de sol e a lâmina em brasa, com labaredas no fio."""
+    s = Sprite(27, 11)
+    s.paint([
+        "....g......................",
+        ".g..Y..g.......o.....o.....",
+        "..gYYYg.......oy....oyo....",
+        "..YgwgY.......oy.o..oy..o..",
+        "..YgwgY.wwwwwwwwwwwwwwwww..",
+        "HhgYwwYgyyyyyyyyyyyyyyyyyyw",
+        "HhgYwwYgooooooooooooooooyw.",
+        "..YgwgY.rrrrrrrrrrrrrrrrr..",
+        "..gYYYg........RRRRRRRR....",
+        ".g..Y..g...................",
+        "....g......................",
+    ], FORGE)
+    return s.finish(), (1, 5)
+
+
+def martelo_trovao():
+    """Martelo do Trovão Eterno: cabeça de aço azulado com cintas de ouro e a runa do raio acesa."""
+    s = Sprite(26, 14)
+    s.paint([
+        ".............dsssssssssssd",
+        "............dsccccccccccsd",
+        "............sgcuuuuuuuucgs",
+        "............sguuuuyuuuuugs",
+        "............sguuuyyuuuuugs",
+        "gKkhhkhhkhhkdguuyyyyyuuugd",
+        "GKkHhkHhkHhkdguuuuyyuuuugd",
+        "............sguuuuyuuuuugs",
+        "............sguuuyuuuuuugs",
+        "............sgUuuuuuuuuUgs",
+        "............dsUUUUUUUUUUsd",
+        ".............dddddddddddd.",
+        "...........................",
+        "...........................",
+    ], FORGE)
+    return s.finish(), (2, 5)
+
+
+def arco_mil_almas():
+    """Arco das Mil Almas: arco de osso roxo com chamas de alma nas pontas e a corda de luz."""
+    s = Sprite(11, 25)
+    s.paint([
+        "...l.......",
+        "..lpl......",
+        "..cPP......",
+        "..c.pP.....",
+        "..c..pP....",
+        "..c..npP...",
+        "..c...nP...",
+        "..c...np...",
+        "..c....nP..",
+        "..c....nP..",
+        "..c...gg...",
+        "..c...hh...",
+        "..c...Gg...",
+        "..c...hh...",
+        "..c...gg...",
+        "..c....nP..",
+        "..c....nP..",
+        "..c...np...",
+        "..c...nP...",
+        "..c..npP...",
+        "..c..pP....",
+        "..c.pP.....",
+        "..cPP......",
+        "..lpl......",
+        "...l.......",
+    ], FORGE)
+    return s.finish(), (6, 12)
+
+
+def canhao_vazio():
+    """Canhão do Vazio: cano roxo com anéis de ouro e um buraco negro girando na boca."""
+    s = Sprite(24, 12)
+    s.paint([
+        "...............gg.......",
+        "..........PPPPPggPPPPP..",
+        ".........PppppplgpppplP.",
+        "....kk..PplllllgllllppPv",
+        "hhhhkKkPppppppggpppppPvl",
+        "HHhhkKkPpPPPPPggPPPPpPvp",
+        "...kkk.PPPPPPPggPPPPPPvl",
+        "...K.K..PPPPPPggPPPPPPv.",
+        "...K.K...PPPPPGGPPPPP...",
+        "..........kkkkkkkkkk....",
+        "........................",
+        "........................",
+    ], FORGE)
+    return s.finish(), (2, 4)
+
+
+def coracao_inverno():
+    """Coração do Inverno: cetro de prata com um coração de gelo facetado preso por garras."""
+    s = Sprite(25, 13)
+    s.paint([
+        "...................I.I...",
+        "................m.IiiI...",
+        "...............m.IiIiiI..",
+        "..............m.IIiiiijI.",
+        "..............sIIiiiiijjI",
+        "gdmmmmmmmmmmmsmIiiiiijjJ.",
+        "GdddddddddddddmIiiiijjJ..",
+        "..............sIiiijjJ...",
+        "..............m.IijjJ....",
+        "...............m.ijJ.....",
+        "................m.J......",
+        ".........................",
+        ".........................",
+    ], FORGE)
+    return s.finish(), (2, 5)
+
+
+def lanca_dragao():
+    """Lança do Dragão: haste vermelha com escamas de ouro e a ponta em forma de cabeça de dragão."""
+    s = Sprite(30, 9)
+    s.paint([
+        "........................ry....",
+        "......................rroo....",
+        "...................ggrooooRo..",
+        "RrrRrrRrrRrrRrrRrrgGrrowooooy.",
+        "RRrRRrRRrRRrRRrRRrgGRrooooooo y".replace(" ", ""),
+        "...................ggRroooR...",
+        "......................RRrr....",
+        "........................Ry....",
+        "..............................",
+    ], FORGE)
+    return s.finish(), (4, 3)
+
+
+def cetro_tempestade():
+    """Cetro da Tempestade: haste de ouro e uma nuvem de tempestade presa num aro, com raios."""
+    s = Sprite(28, 15)
+    s.paint([
+        "...................y........",
+        "..................y..mmmm...",
+        "..................ymmssssm..",
+        "................mmmsssssssm.",
+        "...............msssddsssddsm",
+        "...............gsddddddddddm",
+        "gYggggggggggggGg.dddddddddm.",
+        "GGGGGGGGGGGGGGGg..y..y..y...",
+        "...............g..yy.y..yy..",
+        "................g..y..y..y..",
+        "...................y..yy..y.",
+        ".......................y....",
+        "............................",
+        "............................",
+        "............................",
+    ], FORGE)
+    return s.finish(), (3, 6)
+
+
+def foice_ceifador():
+    """Foice do Ceifador: cabo de osso com crânio e a lâmina larga de aço escuro com fio pálido."""
+    s = Sprite(24, 15)
+    s.paint([
+        ".............mmmm.......",
+        "..........mmmsssssm.....",
+        "........mmdddddddssmm...",
+        "......mdddkkkkkkkddssm..",
+        ".....mddk.........dddsm.",
+        "....mdk.............ddm.",
+        "...md................dm.",
+        "...m..................m.",
+        "..................nnnmd.",
+        "Gkkkkkkkkkkkkkkkkknzn...",
+        "GKKKKKKKKKKKKKKKKKnnn...",
+        "...................N....",
+        "........................",
+        "........................",
+        "........................",
+    ], FORGE)
+    return s.finish(), (2, 9)
+
+
 WEAPONS = {
     "Espada": espada, "Faca": faca, "Katana": katana, "Espadão": espadao,
     "Maça": maca, "Martelo": martelo, "Foice": foice, "Lança": lanca,
@@ -774,6 +1030,11 @@ WEAPONS = {
     "Bola de Neve": bola_neve, "Cajado do Raio Supremo": raio_supremo,
     "Capacete": capacete, "Disquete": disquete, "Cabo de Rede": cabo_de_rede, "Pendrive": pendrive, "Notebook": notebook,
     "Canhão de Pulso": canhao_de_pulso, "Punho Mecânico": punho_mecanico,
+    # forjadas do ferreiro
+    "Lâmina Solar": lamina_solar, "Martelo do Trovão Eterno": martelo_trovao,
+    "Arco das Mil Almas": arco_mil_almas, "Canhão do Vazio": canhao_vazio,
+    "Coração do Inverno": coracao_inverno, "Lança do Dragão": lanca_dragao,
+    "Cetro da Tempestade": cetro_tempestade, "Foice do Ceifador": foice_ceifador,
 }
 
 

@@ -171,7 +171,8 @@ MODE_TEXT = {
                 "No empate, a próxima cesta vence. Quem faltar vira CPU.",
                 "1 A 4 JOGADORES"),
     "treino": ("Para quem está começando: um boneco de treino parado e uma lição por vez na tela "
-               "(andar, atacar, trocar de arma, esquivar, habilidade e itens). Ninguém perde.",
+               "(andar, atacar, trocar de arma, esquivar, habilidade e itens) e um arsenal com todas as armas, "
+               "até as mais raras. Ninguém perde.",
                "1 JOGADOR"),
     "treino_futebol": ("Treino com bola contra um boneco parado: corte, chute, chute alto, marcar e gol, "
                        "uma lição por vez.",

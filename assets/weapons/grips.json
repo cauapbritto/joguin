@@ -192,7 +192,7 @@
   "file": "cajado_do_raio.png",
   "grip": [
    8,
-   7
+   6
   ]
  },
  "Canhão de Mão": {
@@ -234,7 +234,7 @@
   "file": "machado_do_lenhador.png",
   "grip": [
    4,
-   6
+   7
   ]
  },
  "Lanterna das Almas": {
@@ -261,8 +261,8 @@
  "Estalactites": {
   "file": "estalactites.png",
   "grip": [
-   6,
-   7
+   5,
+   4
   ]
  },
  "Espelho de Cristal": {
@@ -275,15 +275,15 @@
  "Bola de Neve": {
   "file": "bola_de_neve.png",
   "grip": [
-   2,
-   6
+   3,
+   7
   ]
  },
  "Cajado do Raio Supremo": {
   "file": "cajado_do_raio_supremo.png",
   "grip": [
    8,
-   8
+   7
   ]
  },
  "Capacete": {
@@ -333,6 +333,62 @@
   "grip": [
    3,
    6
+  ]
+ },
+ "Lâmina Solar": {
+  "file": "lamina_solar.png",
+  "grip": [
+   2,
+   6
+  ]
+ },
+ "Martelo do Trovão Eterno": {
+  "file": "martelo_do_trovao_eterno.png",
+  "grip": [
+   3,
+   6
+  ]
+ },
+ "Arco das Mil Almas": {
+  "file": "arco_das_mil_almas.png",
+  "grip": [
+   7,
+   13
+  ]
+ },
+ "Canhão do Vazio": {
+  "file": "canhao_do_vazio.png",
+  "grip": [
+   3,
+   5
+  ]
+ },
+ "Coração do Inverno": {
+  "file": "coracao_do_inverno.png",
+  "grip": [
+   3,
+   6
+  ]
+ },
+ "Lança do Dragão": {
+  "file": "lanca_do_dragao.png",
+  "grip": [
+   5,
+   4
+  ]
+ },
+ "Cetro da Tempestade": {
+  "file": "cetro_da_tempestade.png",
+  "grip": [
+   4,
+   7
+  ]
+ },
+ "Foice do Ceifador": {
+  "file": "foice_do_ceifador.png",
+  "grip": [
+   3,
+   10
   ]
  }
 }

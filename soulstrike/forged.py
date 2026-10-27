@@ -297,17 +297,34 @@ def _make_projectiles():
                                                 random.choice(((255, 140, 40), (255, 210, 90))), 14, 3))
 
         def draw(self, surf, camera):
-            for i, (x, y) in enumerate(reversed(self.body)):
-                r = 4 + round(8 * (i + 1) / max(1, len(self.body)))
+            from .rare_fx import glow
+            body = list(reversed(self.body))
+            g = glow(18, (255, 110, 30), 0.35)
+            for x, y in body[::3]:                    # o corpo em brasa ilumina o chão
+                surf.blit(g, g.get_rect(center=(round(x - camera.x), round(y - camera.y))),
+                          special_flags=pygame.BLEND_ADD)
+            for i, (x, y) in enumerate(body):
+                r = 4 + round(8 * (i + 1) / max(1, len(body)))
                 sx, sy = round(x - camera.x), round(y - camera.y)
-                pygame.draw.circle(surf, (150, 30, 20), (sx, sy), r + 1)
+                pygame.draw.circle(surf, (120, 24, 16), (sx, sy), r + 1)
                 pygame.draw.circle(surf, (230, 90, 30) if i % 2 else (250, 150, 50), (sx, sy), r)
+                surf.fill((255, 220, 140), (sx - r // 3, sy - r // 2, max(1, r // 3), max(1, r // 4)))   # escama
             sx, sy = round(self.x - camera.x), round(self.y - camera.y)
-            pygame.draw.circle(surf, (255, 220, 120), (sx, sy), 6)
             ang = math.atan2(self.vy, self.vx)
+            head = glow(26, (255, 170, 60), 0.6)
+            surf.blit(head, head.get_rect(center=(sx, sy)), special_flags=pygame.BLEND_ADD)
             for side in (-1, 1):                      # chifres
                 a = ang + math.pi + side * 0.6
-                pygame.draw.line(surf, (255, 240, 200), (sx, sy), (sx + math.cos(a) * 12, sy + math.sin(a) * 12), 2)
+                pygame.draw.line(surf, (255, 240, 200), (sx, sy), (sx + math.cos(a) * 13, sy + math.sin(a) * 13), 3)
+            ca, sa = math.cos(ang), math.sin(ang)
+            snout = [(sx + ca * 14, sy + sa * 14), (sx - sa * 7 - ca * 2, sy + ca * 7 - sa * 2),
+                     (sx + sa * 7 - ca * 2, sy - ca * 7 - sa * 2)]          # focinho apontando para a frente
+            pygame.draw.polygon(surf, (150, 30, 20), snout)
+            pygame.draw.polygon(surf, (255, 190, 80), [((x - sx) * 0.8 + sx, (y - sy) * 0.8 + sy) for x, y in snout])
+            pygame.draw.line(surf, (255, 240, 200), (sx, sy), (round(sx + ca * 10), round(sy + sa * 10)), 2)
+            for side in (-1, 1):                      # olhos
+                ex, ey = sx - sa * 4 * side, sy + ca * 4 * side
+                surf.fill((255, 250, 210), (round(ex) - 1, round(ey) - 1, 2, 2))
 
     class StormBolt(Projectile):
         """Cetro da Tempestade: acerta na hora e pula entre todos os inimigos; segurando, cresce."""
@@ -424,15 +441,21 @@ def _make_projectiles():
                                                 14, 4))
 
         def draw(self, surf, camera):
+            from .rare_fx import glow
             sx, sy = round(self.x - camera.x), round(self.y - camera.y)
             ang = math.atan2(self.vy, self.vx)
-            for r, color in ((18, (200, 70, 20)), (13, (255, 170, 60)), (7, (255, 240, 180))):
-                pts = []
-                for k in range(-3, 4):
-                    a = ang + math.pi / 2 + k * 0.22
-                    pts.append((sx + math.cos(a) * r * 1.3 - math.cos(ang) * abs(k) * 3,
-                                sy + math.sin(a) * r * 1.3 - math.sin(ang) * abs(k) * 3))
-                pygame.draw.lines(surf, color, False, pts, max(2, round(r / 3)))
+            fade = max(0.0, 1 - self.age / self.LIFE)
+            g = glow(30, (255, 140, 40), 0.35 + 0.35 * fade)
+            surf.blit(g, g.get_rect(center=(sx, sy)), special_flags=pygame.BLEND_ADD)
+            # meia-lua de fogo: cada camada é mais fina e mais quente que a de fora
+            for r, thick, color in ((20, 9, (190, 50, 20)), (18, 6, (255, 140, 40)), (17, 3, (255, 236, 170))):
+                outer, inner = [], []
+                for k in range(-6, 7):
+                    a = ang + k * 0.2
+                    bend = (1 - abs(k) / 6) * thick
+                    outer.append((sx + math.cos(a) * r, sy + math.sin(a) * r))
+                    inner.append((sx + math.cos(a) * (r - bend), sy + math.sin(a) * (r - bend)))
+                pygame.draw.polygon(surf, color, outer + inner[::-1])
 
     return {"onda_solar": SolarWave, "mil_almas": SoulArrow, "vazio": VoidShot, "inverno": IceHeart, "dragao": Dragon,
             "tempestade": StormBolt, "martelo_trovao": ThunderHammer}
@@ -481,89 +504,6 @@ class VoidHole(Entity):
 
 def register_projectiles(table):
     table.update(_make_projectiles())
-
-
-# ─────────────────────────────────────────────
-#  Arte (desenhada aqui, no mesmo tamanho das outras armas)
-# ─────────────────────────────────────────────
-ART = {
-    # nome: (desenho, pegada); "#" escuro, "o" metal/cor principal, "+" brilho, "w" cabo
-    "Lâmina Solar": ([
-        "..............ooo.",
-        "...........oooo++o",
-        "#.......oooo+++oo.",
-        "##wwwwoooo+++oo...",
-        "#.......oooo+oo...",
-        "...........ooo....",
-    ], (3, 3), (255, 170, 60), (255, 236, 160)),
-    "Martelo do Trovão Eterno": ([
-        "............oooooo",
-        "............o+++oo",
-        "#wwwwwwwwwwwoo+ooo",
-        "#wwwwwwwwwwwo+oooo",
-        "............o++ooo",
-        "............oooooo",
-    ], (2, 2), (120, 150, 210), (246, 214, 70)),
-    "Arco das Mil Almas": ([
-        "...oo....",
-        "..o..+...",
-        ".o....+..",
-        "o......+.",
-        "ww.....+.",
-        "o......+.",
-        ".o....+..",
-        "..o..+...",
-        "...oo....",
-    ], (0, 4), (150, 100, 230), (230, 214, 255)),
-    "Canhão do Vazio": ([
-        "....oooooooooo.",
-        "..oo##########o",
-        "wwoo#++++#####o",
-        "wwoo##########o",
-        "..oooooooooooo.",
-    ], (1, 2), (110, 60, 180), (200, 150, 250)),
-    "Coração do Inverno": ([
-        "..........++.",
-        ".........+oo+",
-        "#wwwwwwww+oo+",
-        ".........+oo+",
-        "..........++.",
-    ], (2, 2), (120, 190, 240), (240, 250, 255)),
-    "Lança do Dragão": ([
-        ".....................o..",
-        "ww#wwwwwwwwwwwwwwwwoo++o",
-        ".....................o..",
-    ], (4, 1), (230, 80, 30), (255, 210, 90)),
-    "Cetro da Tempestade": ([
-        "..................+o",
-        "................++o.",
-        "#wwwwwwwwwwwwwwoo+..",
-        "................++o.",
-        "..................+o",
-    ], (3, 2), (246, 214, 70), (255, 252, 230)),
-    "Foice do Ceifador": ([
-        "..........oooooo....",
-        "...........oo++oooo.",
-        "....................",
-        "#wwwwwwwwwwwwwwwwo..",
-        "..............ooo...",
-    ], (2, 3), (170, 160, 190), (220, 196, 255)),
-}
-
-
-def art_surfaces():
-    """{nome: (superfície pequena, pegada)} para o weapon_art carregar junto das outras."""
-    out = {}
-    for name, (rows, grip, main, shine) in ART.items():
-        w, h = max(len(r) for r in rows), len(rows)
-        surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        colors = {"#": (30, 22, 30), "o": main, "+": shine, "w": (96, 62, 36)}
-        for y, row in enumerate(rows):
-            for x, c in enumerate(row):
-                if c in colors:
-                    surf.set_at((x, y), (*colors[c], 255))
-        out[name] = (surf, grip)
-    return out
 
 
 def preview_text(key, known):
