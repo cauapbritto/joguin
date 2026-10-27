@@ -9,6 +9,7 @@ import pygame
 
 from . import config, hud, theme
 from .ai import FighterAI, SoccerAI
+from .arsenal import ArsenalPick, WeaponRack
 from .controls import key_label, move_label
 from .entities import Pickup
 from .matches import BattleMatch
@@ -64,6 +65,8 @@ LESSONS = (
            lambda m, st: m.player.ability_cd > st["ability_cd"]),
     Lesson(lambda m: "PEGUE O ITEM QUE APARECEU NA ARENA",
            lambda m, st: not m.pickups, item=True),
+    Lesson(lambda m: f"NO ARSENAL, {_keys(m, 'attack')} ESCOLHE QUALQUER ARMA DO JOGO, ATÉ AS FORJADAS",
+           lambda m, st: m.arsenal_picks > st["picks"]),
 )
 
 
@@ -74,6 +77,8 @@ class TrainingMatch(BattleMatch):
         super().__init__(game, session)
         self.player = next(f for f in self.fighters if not f.is_cpu)
         self.dummy = next(f for f in self.fighters if f.is_cpu)
+        self.rack = self._place_rack()
+        self.arsenal_picks = 0
         self.lesson = 0
         self.done_timer = 0
         self.state = {}
@@ -90,10 +95,27 @@ class TrainingMatch(BattleMatch):
     def finished_lessons(self):
         return self.lesson >= len(LESSONS)
 
+    def _place_rack(self):
+        """O arsenal fica entre os dois, mais para cima (longe do boneco)."""
+        p, d = self.player, self.dummy
+        x, y = self.arena.free_spot((p.x + d.x) / 2, min(p.y, d.y) - 140, 44)
+        return WeaponRack(x, y)
+
+    def world_entities(self):
+        return super().world_entities() + [self.rack]
+
+    def _human(self, fighter, inp, target):
+        if (inp.pressed("attack") or inp.pressed("confirm")) and self.rack.can_use(fighter):
+            fighter.steer(0, 0)
+            self.pick = ArsenalPick(self, fighter)
+            self.assets.play("confirm", 0.4)
+            return
+        super()._human(fighter, inp, target)
+
     def _begin_lesson(self):
         p = self.player
         self.state = {"moved": 0, "dealt": p.damage_dealt, "weapon": p.weapon_index,
-                      "ability_cd": p.ability_cd}
+                      "ability_cd": p.ability_cd, "picks": self.arsenal_picks}
         if not self.finished_lessons and LESSONS[self.lesson].item:
             self._spawn_pickup()
 
@@ -113,7 +135,13 @@ class TrainingMatch(BattleMatch):
             if f.alive_in_match and f.hp < f.max_hp * REFILL_AT:
                 f.hp = f.max_hp
                 self.popup(f.x, f.y - 70, "VIDA CHEIA", theme.MOSS)
+        pick = self.pick
+        self.rack.update(self)
         super().step()
+        if isinstance(pick, ArsenalPick) and pick.done and pick.chosen is not None:
+            self.arsenal_picks += 1
+            name = "ARMAS DO HERÓI" if pick.chosen == ArsenalPick.HERO else pick.chosen.name.upper()
+            self.popup(self.player.x, self.player.y - 70, name, theme.BRASS)
         self.time_left = config.ROUND_SECONDS * config.FPS       # o relógio não anda
         self._check_lesson()
 
@@ -143,6 +171,9 @@ class TrainingMatch(BattleMatch):
 
     def draw(self, screen, ui):
         super().draw(screen, ui)
+        if self.pick is not None:
+            return                                    # a escolha do arsenal cobre a tela
+        self.rack.draw_prompt(screen, self.camera, ui, self.frame, self.rack.can_use(self.player))
         W, H = config.SCREEN_W, config.SCREEN_H
         panel = pygame.Rect(0, 0, W - 160, 52)
         panel.midbottom = (W // 2, H - 12)
