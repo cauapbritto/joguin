@@ -45,7 +45,7 @@ FORGED = {
     "lamina_solar": _forged("Lâmina Solar", "melee", 40, "solar", reach=82, cooldown=18,
                             note="Cada golpe solta uma onda de fogo que atravessa tudo; o 3º gira."),
     "martelo_trovao": _forged("Martelo do Trovão Eterno", "melee", 46, "trovao", reach=72, cooldown=30,
-                              note="Bate no chão e cai um raio em cada inimigo perto; o 3º golpe arremessa o martelo, que volta."),
+                              note="Raio em cada inimigo perto; o 3º golpe arremessa o martelo atrás de 3 inimigos e ele volta."),
     "arco_mil_almas": _forged("Arco das Mil Almas", "ranged", 14, "mil_almas", bullet_speed=9, cooldown=40,
                               charge=True, note="Segure e solte: 12 flechas de alma, uma em cada inimigo."),
     "canhao_vazio": _forged("Canhão do Vazio", "ranged", 40, "vazio", bullet_speed=7, cooldown=50, mag=2,
@@ -132,9 +132,10 @@ def on_swing(fighter, weapon, match, hits, damage):
                                                      b.owner is fighter for b in match.bullets):
             from .projectiles import projectile_class      # o 3º golpe arremessa o martelo, que volta
             fx, fy = fighter.facing
-            match.bullets.append(projectile_class("martelo_trovao")(fighter, weapon, fighter.x + fx * 24,
-                                                                    fighter.y - 10 + fy * 24, fx, fy, 13,
-                                                                    round(damage * 0.8)))
+            hammer = projectile_class("martelo_trovao")(fighter, weapon, fighter.x + fx * 24, fighter.y - 10 + fy * 24,
+                                                        fx, fy, 14, round(damage * 0.8))
+            hammer.pick_targets(match)
+            match.bullets.append(hammer)
             match.popup(fighter.x, fighter.y - 70, "ARREMESSO!", (246, 214, 70))
         for other in match.opponents_of(fighter):
             if other.alive_in_match and fighter.distance_to(other) < 230:
@@ -357,28 +358,55 @@ def _make_projectiles():
             return proj
 
     class ThunderHammer(Projectile):
-        """Martelo do Trovão Eterno arremessado: vai girando, cai um raio em quem ele bate e volta para a
-        mão do dono, acertando de novo no caminho de volta."""
+        """Martelo do Trovão Eterno arremessado: vai girando atrás de até três inimigos, um depois do
+        outro (teleguiado), cai um raio em cada um que ele bate e volta para a mão do dono, acertando
+        de novo no caminho de volta. Sem ninguém por perto, vai reto e longe antes de voltar."""
         ghost = True
         sprite = "Martelo do Trovão Eterno"
-        OUT = 26                 # quadros indo antes de voltar
-        LIFE = 4 * config.FPS    # se não conseguir voltar, some
+        OUT = 40                 # quadros indo reto (sem alvo) antes de voltar
+        TARGETS = 3              # inimigos que ele persegue, um depois do outro
+        RANGE = 700              # distância do dono até o primeiro alvo
+        HOP = 520                # distância de um alvo até o próximo
+        CHASE = 60               # quadros perseguindo um alvo antes de desistir dele
+        LIFE = 6 * config.FPS    # se não conseguir voltar, some
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.radius = 18
             self.returning = False
+            self.targets = []
+            self.chase = 0
+
+        def pick_targets(self, match):
+            """A fila de alvos: o mais perto do dono (de preferência na frente) e, a partir dele, o
+            mais perto de cada um."""
+            o = self.owner
+            foes = [f for f in match.opponents_of(o) if f.alive_in_match]
+            fx, fy = o.facing
+
+            def first(f):
+                d = o.distance_to(f) or 1.0
+                return d * (1.6 - 0.6 * ((f.x - o.x) * fx + (f.y - o.y) * fy) / d)
+            last, reach, key = o, self.RANGE, first
+            while foes and len(self.targets) < self.TARGETS:
+                nxt = min(foes, key=key)
+                if last.distance_to(nxt) > reach:
+                    break
+                foes.remove(nxt)
+                self.targets.append(nxt)
+                last, reach, key = nxt, self.HOP, nxt.distance_to
 
         def survives_hit(self):
             return True
 
         def on_wall(self, wall, match):
-            if not self.returning:
+            if not self.returning and not self.targets:
                 self._turn()
             return True
 
         def _turn(self):
             self.returning = True
+            self.targets = []
             self.hit.clear()                         # na volta acerta de novo
 
         def on_hit(self, target, match):
@@ -388,16 +416,29 @@ def _make_projectiles():
                                            (target.x, target.y - 40), (target.x, target.y)]))
             match.camera.shake(4)
 
+        def _steer(self, x, y):
+            dx, dy = x - self.x, y - self.y
+            d = math.hypot(dx, dy) or 1
+            speed = math.hypot(self.vx, self.vy) or 13
+            self.vx, self.vy = dx / d * speed, dy / d * speed
+            return d
+
         def update(self, match):
-            if not self.returning and self.age >= self.OUT:
+            while self.targets and (self.targets[0] in self.hit or not self.targets[0].alive_in_match
+                                    or self.chase > self.CHASE):
+                self.targets.pop(0)                  # acertou (ou perdeu) este: vai para o próximo
+                self.chase = 0
+                if not self.targets:
+                    self._turn()
+            if self.targets:
+                t = self.targets[0]
+                self.chase += 1
+                self._steer(t.x, t.y - 10)
+            elif not self.returning and self.age >= self.OUT:
                 self._turn()
             if self.returning:
                 o = self.owner
-                dx, dy = o.x - self.x, o.y - 10 - self.y
-                d = math.hypot(dx, dy) or 1
-                speed = math.hypot(self.vx, self.vy) or 13
-                self.vx, self.vy = dx / d * speed, dy / d * speed
-                if d < 26 or o.hp <= 0:
+                if self._steer(o.x, o.y - 10) < 26 or o.hp <= 0:
                     self.alive = False
                     if o.hp > 0:
                         match.burst(o.x, o.y - 14, (246, 214, 70), 8, speed=3)

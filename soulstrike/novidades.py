@@ -7,6 +7,9 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.5.2": [
+        "Martelo do Trovão Eterno: o arremesso vai mais longe e persegue até 3 inimigos, um depois do outro, antes de voltar.",
+    ],
     "1.5.1": [
         "Treino: o arsenal tem todas as armas do jogo para testar, até as roubadas e as 8 forjadas.",
         "Chegue perto do suporte de armas e aperte ATACAR. HABILIDADE devolve as armas do herói.",

@@ -122,12 +122,46 @@ class ForjadasTest(unittest.TestCase):
             p.attack_cd = 0
         self.assertEqual(sum(1 for b in match.bullets if b.weapon.style == "trovao"), 1)   # um de cada vez
         hp = far.hp
-        passo(match, 30)
+        passo(match, 60)
         self.assertLess(far.hp, hp)                           # o martelo chega no de longe
         self.assertTrue(hammers[0].returning)
-        passo(match, 90)
+        passo(match, 120)
         self.assertFalse(hammers[0].alive)                    # voltou para a mão
         self.assertNotIn(hammers[0], match.bullets)
+
+    def test_martelo_arremessado_persegue_tres_inimigos(self):
+        match, p, foes = masmorra("martelo_trovao")
+        for k, f in enumerate(foes):                         # longe da batida no chão e espalhados
+            f.x, f.y = p.x + 320 + 90 * k, p.y + (-150 if k == 1 else 140 * (k == 2))
+            match.arena.resolve(f)
+        p.forged_count = 2
+        p.attack_cd = 0
+        p.attack(match, foes[0])
+        hammer = next(b for b in match.bullets if b.weapon.style == "trovao")
+        self.assertEqual(len(hammer.targets), 3)
+        hp = [f.hp for f in foes]
+        for _ in range(150):
+            passo(match, 1)
+            if hammer.returning:
+                break
+        self.assertTrue(all(f.hp < h for f, h in zip(foes, hp)), "o martelo não acertou os três")
+        self.assertTrue(hammer.returning)
+
+    def test_martelo_sem_alvo_vai_longe(self):
+        match, p, foes = masmorra("martelo_trovao")
+        for f in foes:
+            f.x = p.x + 2000
+        p.forged_count = 2
+        p.attack_cd = 0
+        p.attack(match, foes[0])
+        hammer = next(b for b in match.bullets if b.weapon.style == "trovao")
+        self.assertEqual(hammer.targets, [])
+        x0 = hammer.x
+        best = 0
+        for _ in range(60):
+            passo(match, 1)
+            best = max(best, abs(hammer.x - x0))
+        self.assertGreater(best, 450)                        # antes ia uns 340 px
 
     def test_arco_das_mil_almas_solta_doze(self):
         match, p, foes = masmorra("arco_mil_almas")
