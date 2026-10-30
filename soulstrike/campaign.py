@@ -21,7 +21,7 @@ from .ui import darken
 from .data import PHASE_RELICS, RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
 from .dungeon import Campfire, Chest, ExitDoor, Gate, GroundWeapon, RelicDrop
 from .lobbies import cells_rect
-from .market import CURSE_HP, CURSE_SPEED, CURSES, ENCHANTS, MAX_LEVEL, MAX_REROLLS, SOUL_COLOR, MarketMenu, Stall, souls_for
+from .market import CURSE_HP, CURSE_SPEED, CURSES, ENCHANTS, MAX_LEVEL, MAX_REROLLS, SOUL_COLOR, MarketMenu, Stall, soul_split
 from .upgrades import apply_all
 
 PLAYERS, ENEMIES = 0, 1
@@ -153,7 +153,7 @@ class CampaignRun:
         self.relics = {s: None for s in self.slots}       # arma rara do baú de cada jogador
         self.held = {s: 0 for s in self.slots}            # arma na mão de uma etapa para a outra
         self.loadouts = {s: None for s in self.slots}     # armas comuns que pegou no chão (de tiro, de perto)
-        self.souls = 0                                    # almas do grupo (moeda do mercado)
+        self.souls = {s: 0 for s in self.slots}           # carteira de almas de cada jogador (moeda do mercado)
         self.forge = {s: {} for s in self.slots}          # ferreiro: nome da arma -> [nível, encanto]
         self.rerolls = {s: 0 for s in self.slots}         # trocas das melhorias compradas na loja
         self.fused_phase = -1                             # fase em que o grupo já usou a fusão do ferreiro
@@ -189,6 +189,21 @@ class CampaignRun:
                 for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames",
                           "stage", "chest_open", "relics", "held", "loadouts", "souls", "forge", "rerolls",
                           "fused_phase", "curse")}
+
+    # ── almas ────────────────────────────────
+    def wallet(self, slot):
+        return self.souls.get(slot, 0)
+
+    def earn(self, slot, amount):
+        if slot in self.souls:
+            self.souls[slot] += amount
+
+    def spend(self, slot, amount):
+        """Tira da carteira de quem comprou. False (e nada muda) se não der."""
+        if self.wallet(slot) < amount:
+            return False
+        self.souls[slot] -= amount
+        return True
 
     def begin_phase(self):
         """Começa a fase no acampamento e guarda como tudo estava (para TENTAR DE NOVO)."""
@@ -238,13 +253,13 @@ class CampaignRun:
             self.hp_ratio[f.slot] = min(1.0, ratio + PHASE_HEAL)
 
     # ── salvar entre fases ───────────────────
-    SAVE_VERSION = 1
+    SAVE_VERSION = 2              # 2: almas por jogador (no 1 eram do grupo)
     _BY_SLOT = ("upgrades", "hp_ratio", "kills", "damage", "relics", "held")
 
     def to_save(self):
         """O estado do começo da fase, num formato que cabe no progresso.json."""
         state = self._state()
-        for k in self._BY_SLOT + ("loadouts", "forge", "rerolls"):
+        for k in self._BY_SLOT + ("loadouts", "forge", "rerolls", "souls"):
             state[k] = {str(s): v for s, v in state[k].items()}
         return {"versao": self.SAVE_VERSION, "dificuldade": self.session.difficulty,
                 "jogadores": [{"slot": s.slot, "char": s.char, "weapon": s.weapon} for s in self.session.slots],
@@ -257,7 +272,7 @@ class CampaignRun:
         from .session import Session, SlotSetup
         from .upgrades import UPGRADES
         try:
-            if data.get("versao") != cls.SAVE_VERSION or data.get("dificuldade") not in DIFFICULTY:
+            if data.get("versao") not in (1, cls.SAVE_VERSION) or data.get("dificuldade") not in DIFFICULTY:
                 return None
             slots = []
             for p in data["jogadores"]:
@@ -296,7 +311,16 @@ class CampaignRun:
                         return None
                     names = list(names)
                 run.loadouts[s] = names
-            run.souls = max(0, int(state.get("souls", 0)))
+            souls = state.get("souls", 0)
+            if isinstance(souls, dict):
+                for s, n in souls.items():
+                    if int(s) not in run.slots:
+                        return None
+                    run.souls[int(s)] = max(0, int(n))
+            else:
+                # save antigo: as almas do grupo são divididas igualmente
+                share = max(0, int(souls)) // len(run.slots)
+                run.souls = {s: share for s in run.slots}
             run.fused_phase = int(state.get("fused_phase", -1))
             run.curse = state.get("curse")
             if run.curse is not None and run.curse not in CURSES:
@@ -968,10 +992,14 @@ class CampaignMatch(CoopMatch):
         for _ in range(10):
             self.particles.append(_soul_particle(e.x, e.y - 20))
         self.assets.play("hit", 0.5)
-        souls = souls_for(getattr(e, "kind", ""))
-        self.run.souls += souls
-        if souls >= 10:
-            self.popup(e.x, e.y - 60, f"+{souls} ALMAS", SOUL_COLOR)
+        killer = e.last_attacker if e.last_attacker in self.players else None
+        alive = [p.slot for p in self.players if p.alive_in_match]
+        gains = soul_split(getattr(e, "kind", ""), killer.slot if killer else None, alive)
+        for slot, souls in gains.items():
+            self.run.earn(slot, souls)
+        best = gains.get(killer.slot) if killer else max(gains.values(), default=0)
+        if best and best >= 10:
+            self.popup(e.x, e.y - 60, f"+{best} ALMAS", killer.color if killer else SOUL_COLOR)
         if e is self.boss:
             self.slain_boss = True
             self.slowmo = 80

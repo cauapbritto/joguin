@@ -1,6 +1,7 @@
 """Mercado da campanha: almas, a loja e o ferreiro.
 
-Cada inimigo derrotado solta almas, que vão para o grupo todo (ninguém briga por elas). Na volta
+Cada inimigo derrotado solta almas. Cada jogador tem a sua carteira: quem deu o golpe final leva
+a maior parte e os outros vivos ganham um pouco, para ninguém ficar sem nada. Na volta
 da Masmorra 1, o acampamento tem duas bancas perto da fogueira: a LOJA (poção, arma sorteada,
 trocar as melhorias do fim da fase e continue) e o FERREIRO, que sobe a arma de +1 até +3
 (+15% de dano e pente maior a cada nível) e, no +3, põe um encanto: fogo, gelo ou raio.
@@ -15,7 +16,9 @@ from . import config, theme
 from .data import duel_arsenal, rarity_color
 from .entities import Entity, Particle, Wall
 
-SOULS = {"comum": 3, "elite": 12, "chefe": 60}      # almas por inimigo derrotado
+SOULS = {"comum": 3, "elite": 12, "chefe": 60}      # almas por inimigo derrotado (quem deu o golpe final)
+SHARE = {"comum": 1, "elite": 4, "chefe": 60}       # ... e para cada um dos outros vivos
+GIFT = 20                                           # DOAR: almas passadas a um companheiro
 FORGE_COST = (40, 80, 140)                          # +1, +2, +3
 FORGE_DAMAGE = 0.15                                 # dano a mais por nível
 FORGE_MAG = 0.2                                     # pente a mais por nível
@@ -58,14 +61,29 @@ def weapon_label(fighter, weapon):
     return name
 
 
-def souls_for(kind):
+def soul_tier(kind):
+    """comum, elite ou chefe."""
     if kind == "chefe":
-        return SOULS["chefe"]
+        return "chefe"
     if kind.startswith("sombra:"):
-        return SOULS["elite"]
+        return "elite"
     from .enemies import CREATURES
     creature = CREATURES.get(kind)
-    return SOULS["elite"] if creature is not None and creature.elite else SOULS["comum"]
+    return "elite" if creature is not None and creature.elite else "comum"
+
+
+def souls_for(kind):
+    return SOULS[soul_tier(kind)]
+
+
+def soul_split(kind, killer, alive):
+    """Quanto cada jogador ganha: {slot: almas}. ``killer`` é o slot de quem deu o golpe final
+    (None se o inimigo morreu sem dono: aí todo mundo ganha a parte dos outros)."""
+    tier = soul_tier(kind)
+    out = {slot: SHARE[tier] for slot in alive}
+    if killer is not None:
+        out[killer] = SOULS[tier]
+    return out
 
 
 # ─────────────────────────────────────────────
@@ -218,7 +236,9 @@ class MarketMenu:
             Entry("TROCAR MELHORIAS", 25, "no fim da fase, TROCAR ARMA sorteia de novo",
                   run.rerolls[f.slot] < MAX_REROLLS, self._reroll),
             Entry("CONTINUE", 120, "uma vida a mais para o grupo", run.continues < 3, self._continue),
-        ]
+        ] + [Entry(f"DOAR {GIFT} > {m.label}", GIFT, f"passa {GIFT} almas para {m.label}", True,
+                   lambda m=m: self._gift(m), m.color)
+             for m in self.match.players if m is not f]
 
     def _forge(self):
         f = self.fighter
@@ -293,6 +313,11 @@ class MarketMenu:
     def _continue(self):
         self.run.continues += 1
 
+    def _gift(self, mate):
+        self.run.earn(mate.slot, GIFT)
+        self.match.popup(mate.x, mate.y - 80, f"+{GIFT} ALMAS", SOUL_COLOR)
+        return f"DOOU {GIFT} PARA {mate.label}"
+
     def _upgrade(self, weapon, enchant=None):
         f = self.fighter
         level, _ = forge_of(f, weapon)
@@ -310,11 +335,10 @@ class MarketMenu:
         if not e.ok or e.action is None:
             self.match.assets.play("cancel", 0.3)
             return False
-        if self.run.souls < e.cost:
+        if not self.run.spend(self.fighter.slot, e.cost):
             self.match.popup(self.fighter.x, self.fighter.y - 80, "FALTAM ALMAS", theme.BLOOD)
             self.match.assets.play("cancel", 0.3)
             return False
-        self.run.souls -= e.cost
         text = e.action() or e.label
         self.match.popup(self.fighter.x, self.fighter.y - 80, text, e.color)
         self.match.assets.play("select", 0.5)
@@ -350,7 +374,7 @@ class MarketMenu:
         ui.panel(screen, rect, fill=theme.INK_2, accent=f.color)
         ui.text(screen, f"{f.label} · {Stall.NAMES[self.stall.kind]}", theme.XS, theme.BONE,
                 (rect.x + 10, rect.y + 14), anchor="midleft")
-        ui.text(screen, f"{self.run.souls} ALMAS", theme.XS, SOUL_COLOR, (rect.right - 10, rect.y + 14),
+        ui.text(screen, f"{self.run.wallet(f.slot)} ALMAS", theme.XS, SOUL_COLOR, (rect.right - 10, rect.y + 14),
                 anchor="midright")
         for k, e in enumerate(entries):
             r = pygame.Rect(rect.x + 6, rect.y + 28 + k * row, w - 12, row - 2)
@@ -358,7 +382,7 @@ class MarketMenu:
             if picked:
                 screen.fill(theme.INK_3, r)
                 pygame.draw.rect(screen, f.color, r, 1)
-            afford = e.ok and self.run.souls >= e.cost
+            afford = e.ok and self.run.wallet(f.slot) >= e.cost
             color = e.color if afford else theme.FAINT
             ui.text(screen, e.label, theme.XS, color, (r.x + 6, r.centery), anchor="midleft")
             if e.cost:

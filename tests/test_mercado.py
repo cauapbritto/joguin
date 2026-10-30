@@ -22,7 +22,7 @@ def acampamento(back=True, souls=500):
     run = CampaignRun(g.session)
     run.begin_phase()
     run.stage = LOBBY_BACK if back else LOBBY_START
-    run.souls = souls
+    run.souls = {s: souls for s in run.slots}
     match = LobbyMatch(g, run)
     inputs = {}
     for f in match.players:
@@ -53,14 +53,29 @@ def apertar(match, inp, action=None, stick=None):
 
 
 class AlmasTest(unittest.TestCase):
-    def test_inimigo_derrotado_da_almas_ao_grupo(self):
+    def test_inimigo_sem_dono_da_a_parte_de_todos(self):
         match, _ = campanha()
         pular_intro(match)
         e = inimigo(match, "esqueleto", 600, 600)
         g = inimigo(match, "golem", 800, 600)
         e.hp = g.hp = 0
         passo(match, 1)
-        self.assertEqual(match.run.souls, M.SOULS["comum"] + M.SOULS["elite"])
+        share = M.SHARE["comum"] + M.SHARE["elite"]
+        self.assertEqual(set(match.run.souls.values()), {share})
+
+    def test_golpe_final_leva_mais(self):
+        match, _ = campanha()
+        pular_intro(match)
+        a, b = match.players[0], match.players[1]
+        g = inimigo(match, "golem", 800, 600)
+        g.take_damage(g.hp + 10, a.x, a.y, attacker=a, match=match)
+        passo(match, 6)                                  # passa o congelamento do golpe
+        self.assertEqual(match.run.souls[a.slot], M.SOULS["elite"])
+        self.assertEqual(match.run.souls[b.slot], M.SHARE["elite"])
+
+    def test_chefao_da_igual_para_todos(self):
+        self.assertEqual(M.soul_split("chefe", 1, [1, 2]), {1: 60, 2: 60})
+        self.assertEqual(M.soul_split("diabrete", 2, [1, 2, 3]), {1: 1, 2: 3, 3: 1})
 
 
 class MercadoTest(unittest.TestCase):
@@ -75,7 +90,7 @@ class MercadoTest(unittest.TestCase):
         x = p.x
         apertar(match, inputs[1], "attack")
         self.assertEqual(p.hp, 20 + p.max_hp // 2)
-        self.assertEqual(match.run.souls, 30)
+        self.assertEqual(match.run.souls, {1: 30, 2: 50})
         self.assertEqual(p.x, x)                         # parado no balcão
 
     def test_sem_almas_nao_compra(self):
@@ -84,7 +99,7 @@ class MercadoTest(unittest.TestCase):
         p.hp = 20
         apertar(match, inputs[1], "attack")
         self.assertEqual(p.hp, 20)
-        self.assertEqual(match.run.souls, 5)
+        self.assertEqual(match.run.souls[1], 5)
 
     def test_esquiva_fecha(self):
         match, inputs = acampamento()
@@ -121,8 +136,26 @@ class MercadoTest(unittest.TestCase):
         apertar(match, inputs[1], stick=(0.0, 1.0))       # gelo
         apertar(match, inputs[1], "attack")
         self.assertEqual(p.forge[arco.name], [3, "gelo"])
-        self.assertEqual(match.run.souls, 1000 - sum(M.FORGE_COST))
+        self.assertEqual(match.run.souls[1], 1000 - sum(M.FORGE_COST))
         self.assertIs(match.run.forge[1], p.forge)       # fica com a campanha
+
+    def test_doar_passa_almas_para_o_companheiro(self):
+        match, inputs = acampamento(souls=50)
+        p, menu = abrir(match, inputs[1], "loja")
+        k = next(i for i, e in enumerate(menu.entries()) if e.label.startswith("DOAR"))
+        for _ in range(k):
+            apertar(match, inputs[1], stick=(0.0, 1.0))
+        apertar(match, inputs[1], "attack")
+        self.assertEqual(match.run.souls, {1: 50 - M.GIFT, 2: 50 + M.GIFT})
+
+    def test_save_antigo_divide_as_almas(self):
+        match, _ = acampamento(souls=10)
+        match.run.begin_phase()
+        data = json.loads(json.dumps(match.run.to_save()))
+        data["versao"] = 1
+        data["estado"]["souls"] = 81
+        back = CampaignRun.from_save(data)
+        self.assertEqual(back.souls, {1: 40, 2: 40})
 
     def test_salva_almas_ferreiro_e_trocas(self):
         match, _ = acampamento(souls=77)
@@ -130,7 +163,7 @@ class MercadoTest(unittest.TestCase):
         match.run.rerolls[2] = 2
         match.run.begin_phase()
         back = CampaignRun.from_save(json.loads(json.dumps(match.run.to_save())))
-        self.assertEqual(back.souls, 77)
+        self.assertEqual(back.souls, {1: 77, 2: 77})
         self.assertEqual(back.forge[1], {"Arco": [3, "raio"]})
         self.assertEqual(back.rerolls[2], 2)
         data = json.loads(json.dumps(match.run.to_save()))

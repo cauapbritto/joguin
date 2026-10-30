@@ -59,7 +59,7 @@ class FusaoTest(unittest.TestCase):
         self.assertIs(p.relic, FORGED["arco_mil_almas"])
         self.assertEqual(match.run.relics[1], "arco_mil_almas")
         self.assertEqual(p.forge, {"Arco das Mil Almas": [1, None]})   # as do herói voltaram ao +0
-        self.assertEqual(match.run.souls, 1000 - FUSION_COST)
+        self.assertEqual(match.run.souls[1], 1000 - FUSION_COST)
         self.assertIn("arco_mil_almas", forged.discovered())
         self.assertIsNone(menu._fusion_entry())                # forjada não entra em outra fusão
         match.run.begin_phase()
