@@ -124,6 +124,27 @@ class RotaInputTest(unittest.TestCase):
         html = server.app.test_client().get("/").get_data(as_text=True)
         self.assertIn("controller.js?v=", html)
 
+    def test_pagina_tem_configurar_hud(self):
+        from soulstrike.net import server
+        html = server.app.test_client().get("/").get_data(as_text=True)
+        for el in ("hud-btn", "hud-bar", "hud-save", "hud-lefty", "hud-fixed", "view-shop"):
+            self.assertIn(f'id="{el}"', html)
+
+
+class DisposicaoHudTest(unittest.TestCase):
+    def test_cada_modo_tem_a_sua(self):
+        from soulstrike.net.remote import hub
+        from soulstrike.scenes.base import Scene
+        from soulstrike.session import Session, SlotSetup
+        from apoio import game
+        g = game()
+        scene = Scene(g)
+        for mode, hud in (("duel", "battle"), ("soccer1", "soccer"), ("basket2", "basket"), ("campaign", "battle")):
+            g.session = Session(mode, [SlotSetup(1), SlotSetup(2)])
+            self.assertEqual(scene.hud_layout(), hud, mode)
+        scene.enter()
+        self.assertEqual(hub.status()["hud"], "battle")
+
 
 if __name__ == "__main__":
     unittest.main()

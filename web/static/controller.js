@@ -11,7 +11,7 @@
   var failures = 0;
 
   var $ = function (id) { return document.getElementById(id); };
-  var views = ["join", "wait", "select", "pad", "choose"];
+  var views = ["join", "wait", "select", "pad", "choose", "shop"];
 
   function loadToken() {
     var t = null;
@@ -24,6 +24,7 @@
   }
 
   function show(name) {
+    if (name !== "pad" && editing) closeHudEditor(true);
     views.forEach(function (v) { $("view-" + v).classList.toggle("on", v === name); });
     document.body.classList.toggle("in-pad", name === "pad");
   }
@@ -42,7 +43,7 @@
     });
   }
 
-  function buzz() { if (navigator.vibrate) navigator.vibrate(8); }
+  function buzz() { if (navigator.vibrate && !(hud && hud.vibrate === false)) navigator.vibrate(8); }
 
   function capture(el, id) {
     try { el.setPointerCapture(id); } catch (e) { /* ponteiro já liberado */ }
@@ -244,6 +245,17 @@
           x = ox + Math.cos(a) * r;
           y = oy - Math.sin(a) * r;
         }
+        if (hud && hud.lefty) x = zr.width - x;          // canhoto: o arco espelhado
+        var own = hud && set.classList.contains("on") ? hud.btns[b.dataset.act] : null;
+        if (own) {                                       // CONFIGURAR HUD: posição e tamanho do jogador
+          size = clamp(size * (own.s || 1), 40, 200);
+          if (own.x !== undefined) {
+            x = clamp(own.x * zr.width, size / 2, zr.width - size / 2);
+            y = clamp(own.y * zr.height, size / 2, zr.height - size / 2);
+          }
+        }
+        b.dataset.x = x;
+        b.dataset.y = y;
         b.style.left = x + "px";
         b.style.top = y + "px";
         b.style.setProperty("--s", size + "px");
@@ -313,15 +325,20 @@
   btnZone.addEventListener("pointerdown", function (e) {
     e.preventDefault();
     capture(btnZone, e.pointerId);
+    if (editing) { editGrabButton(e); return; }
     setFinger(e.pointerId, pickButton(e.clientX, e.clientY, null));
   });
   btnZone.addEventListener("pointermove", function (e) {
+    if (editing) { editDrag(e); return; }
     if (!(e.pointerId in fingers)) return;
     e.preventDefault();
     setFinger(e.pointerId, pickButton(e.clientX, e.clientY, fingers[e.pointerId]));
   });
   ["pointerup", "pointercancel"].forEach(function (t) {
-    btnZone.addEventListener(t, function (e) { setFinger(e.pointerId, null); });
+    btnZone.addEventListener(t, function (e) {
+      if (editing) { editDrop(e); return; }
+      setFinger(e.pointerId, null);
+    });
   });
 
   // ── analógico ──────────────────────────────
@@ -376,19 +393,27 @@
     setDir("down", active && ny > 0.38);
   }
 
+  function placeStick(cx, cy) {
+    // põe o centro do analógico em (cx, cy) da zona, sem sair da tela
+    var zr = zone.getBoundingClientRect();
+    var size = base.offsetWidth;
+    var left = Math.max(8, Math.min(cx - size / 2, zr.width - size - 8));
+    var top = Math.max(56, Math.min(cy - size / 2, zr.height - size - 8));
+    base.style.left = left + "px";
+    base.style.top = top + "px";
+    base.style.bottom = "auto";
+    return { x: (left + size / 2) / zr.width, y: (top + size / 2) / zr.height };
+  }
+
   zone.addEventListener("pointerdown", function (e) {
+    if (editing) { e.preventDefault(); capture(zone, e.pointerId); editGrabStick(e); return; }
     if (stickId !== null) return;
     e.preventDefault();
     stickId = e.pointerId;
     capture(zone, e.pointerId);
-    // o analógico aparece onde o polegar encostou
+    // o analógico aparece onde o polegar encostou (ou fica parado no lugar, se for FIXO)
     var zr = zone.getBoundingClientRect();
-    var size = base.offsetWidth;
-    var left = Math.max(8, Math.min(e.clientX - zr.left - size / 2, zr.width - size - 8));
-    var top = Math.max(56, Math.min(e.clientY - zr.top - size / 2, zr.height - size - 8));
-    base.style.left = left + "px";
-    base.style.top = top + "px";
-    base.style.bottom = "auto";
+    if (!(hud && hud.fixed)) placeStick(e.clientX - zr.left, e.clientY - zr.top);
     var br = base.getBoundingClientRect();
     origin = { x: br.left + br.width / 2, y: br.top + br.height / 2 };
     base.classList.add("live");
@@ -396,12 +421,14 @@
   });
 
   zone.addEventListener("pointermove", function (e) {
+    if (editing) { editDrag(e); return; }
     if (e.pointerId !== stickId) return;
     e.preventDefault();
     moveStick(e.clientX, e.clientY);
   });
 
   function endStick(e) {
+    if (editing) { editDrop(e); return; }
     if (e.pointerId !== stickId) return;
     stickId = null;
     knob.style.transform = "";
@@ -417,6 +444,174 @@
   document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   document.addEventListener("visibilitychange", function () { if (document.hidden) releaseAll(); });
   window.addEventListener("pagehide", releaseAll);
+
+  // ── CONFIGURAR HUD ─────────────────────────
+  // Cada jogador arruma o controle do seu jeito: arrasta os botões e o analógico, muda o
+  // tamanho (70% a 150%) e a transparência, analógico fixo ou solto, lado de canhoto e
+  // vibração. Fica salvo neste celular, separado por modo (duelo/campanha, futebol, basquete).
+  var HUD_PREFIX = "ss_hud_";
+  var hud = null;
+  var hudName = null;
+  var editing = false;
+  var editSel = null;        // "stick" ou a ação do botão escolhido
+  var editPointer = null;
+  var STICK_SIZE = 140, KNOB_SIZE = 56;
+
+  function hudDefaults() {
+    return { btns: {}, stick: null, stickScale: 1, fixed: false, opacity: 1, lefty: false, vibrate: true };
+  }
+
+  function loadHud(name) {
+    var h = hudDefaults();
+    try {
+      var saved = JSON.parse(localStorage.getItem(HUD_PREFIX + name) || "null");
+      if (saved && typeof saved === "object") Object.keys(h).forEach(function (k) { if (k in saved) h[k] = saved[k]; });
+    } catch (e) { /* modo privado ou salvo estragado: usa o padrão */ }
+    return h;
+  }
+
+  function saveHud() {
+    try { localStorage.setItem(HUD_PREFIX + hudName, JSON.stringify(hud)); } catch (e) { /* ignora */ }
+  }
+
+  function useHud(name) {
+    if (name === hudName || editing) return;
+    hudName = name;
+    hud = loadHud(name);
+    applyHud();
+  }
+
+  function applyHud() {
+    if (!hud) return;
+    document.body.classList.toggle("lefty", !!hud.lefty);
+    $("view-pad").style.setProperty("--hud-op", hud.opacity);
+    var sz = Math.round(STICK_SIZE * hud.stickScale), kz = Math.round(KNOB_SIZE * hud.stickScale);
+    base.style.width = base.style.height = sz + "px";
+    knob.style.width = knob.style.height = kz + "px";
+    knob.style.margin = (-kz / 2) + "px 0 0 " + (-kz / 2) + "px";
+    var zr = zone.getBoundingClientRect();
+    if (hud.stick && zr.width) placeStick(hud.stick.x * zr.width, hud.stick.y * zr.height);
+    else { base.style.left = ""; base.style.top = ""; base.style.bottom = ""; }
+    if (stickId === null) {
+      var br = base.getBoundingClientRect();
+      origin = { x: br.left + br.width / 2, y: br.top + br.height / 2 };
+    }
+    layoutButtons();
+    renderHudBar();
+  }
+
+  function editButton(act) {
+    return document.querySelector('.pad-set.on .pb[data-act="' + act + '"]');
+  }
+
+  function selectEdit(what) {
+    editSel = what;
+    padButtons().forEach(function (b) { b.classList.toggle("editing-sel", b.dataset.act === what); });
+    base.classList.toggle("editing-sel", what === "stick");
+    renderHudBar();
+  }
+
+  function editGrabButton(e) {
+    var b = pickButton(e.clientX, e.clientY, null);
+    if (!b) { selectEdit(null); return; }
+    buzz();
+    selectEdit(b.dataset.act);
+    editPointer = e.pointerId;
+  }
+
+  function editGrabStick(e) {
+    buzz();
+    selectEdit("stick");
+    editPointer = e.pointerId;
+    editDrag(e);
+  }
+
+  function editDrag(e) {
+    if (e.pointerId !== editPointer || !editSel) return;
+    e.preventDefault();
+    if (editSel === "stick") {
+      var zr = zone.getBoundingClientRect();
+      hud.stick = placeStick(e.clientX - zr.left, e.clientY - zr.top);
+      return;
+    }
+    var br = btnZone.getBoundingClientRect();
+    var own = hud.btns[editSel] || (hud.btns[editSel] = { s: 1 });
+    own.x = clamp((e.clientX - br.left) / br.width, 0, 1);
+    own.y = clamp((e.clientY - br.top) / br.height, 0, 1);
+    layoutButtons();
+  }
+
+  function editDrop(e) {
+    if (e.pointerId === editPointer) editPointer = null;
+  }
+
+  function resize(step) {
+    if (editSel === "stick") {
+      hud.stickScale = Math.round(clamp(hud.stickScale + step, 0.7, 1.5) * 10) / 10;
+    } else if (editSel) {
+      var own = hud.btns[editSel] || (hud.btns[editSel] = { s: 1 });
+      own.s = Math.round(clamp((own.s || 1) + step, 0.7, 1.5) * 10) / 10;
+    }
+    applyHud();
+  }
+
+  function renderHudBar() {
+    if (!hud) return;
+    var sel = editSel === "stick" ? "ANALÓGICO"
+      : editSel ? ((editButton(editSel) || {}).dataset || {}).label || editSel.toUpperCase() : null;
+    var scale = editSel === "stick" ? hud.stickScale : editSel ? ((hud.btns[editSel] || {}).s || 1) : null;
+    $("hud-sel").textContent = sel ? sel + " · " + Math.round(scale * 100) + "%" : "TOQUE EM UM BOTÃO";
+    $("hud-smaller").disabled = $("hud-bigger").disabled = !sel;
+    $("hud-op").textContent = Math.round(hud.opacity * 100) + "%";
+    $("hud-fixed").textContent = hud.fixed ? "ANALÓG. FIXO" : "ANALÓG. SOLTO";
+    $("hud-lefty").classList.toggle("is-on", !!hud.lefty);
+    $("hud-vibrate").classList.toggle("is-on", hud.vibrate !== false);
+  }
+
+  function openHudEditor() {
+    if (!hud) return;
+    releaseAll();                    // nada fica segurado enquanto arruma
+    if (stickId !== null) { stickId = null; knob.style.transform = ""; base.classList.remove("live"); }
+    editing = true;
+    document.body.classList.add("editing");
+    selectEdit(null);
+  }
+
+  function closeHudEditor(keep) {
+    if (keep) saveHud(); else hud = loadHud(hudName);
+    editing = false;
+    editPointer = null;
+    document.body.classList.remove("editing");
+    selectEdit(null);
+    applyHud();
+  }
+
+  function hudButton(id, fn) {
+    $(id).addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if ($(id).disabled) return;
+      buzz();
+      fn();
+    });
+  }
+  hudButton("hud-btn", openHudEditor);
+  hudButton("hud-smaller", function () { resize(-0.1); });
+  hudButton("hud-bigger", function () { resize(0.1); });
+  hudButton("hud-op-down", function () { hud.opacity = Math.round(clamp(hud.opacity - 0.1, 0.3, 1) * 10) / 10; applyHud(); });
+  hudButton("hud-op-up", function () { hud.opacity = Math.round(clamp(hud.opacity + 0.1, 0.3, 1) * 10) / 10; applyHud(); });
+  hudButton("hud-fixed", function () { hud.fixed = !hud.fixed; applyHud(); });
+  hudButton("hud-lefty", function () {
+    hud.lefty = !hud.lefty;
+    Object.keys(hud.btns).forEach(function (k) { var b = hud.btns[k]; if (b.x !== undefined) b.x = 1 - b.x; });
+    hud.stick = null;                // o analógico volta para o canto do outro lado
+    applyHud();
+  });
+  hudButton("hud-vibrate", function () { hud.vibrate = hud.vibrate === false; renderHudBar(); });
+  hudButton("hud-reset", function () { hud = hudDefaults(); selectEdit(null); applyHud(); });
+  hudButton("hud-cancel", function () { closeHudEditor(false); });
+  hudButton("hud-save", function () { closeHudEditor(true); });
+  window.addEventListener("resize", function () { setTimeout(applyHud, 50); });
 
   // ── espelho da seleção de personagem ──────
   function renderSelect(me, mode) {
@@ -468,6 +663,159 @@
     ok.dataset.tap = me.ready ? "cancel" : "confirm";
   }
 
+  // ── campanha: loja no celular ──────────────
+  // Só abre depois do ATACAR perto da banca. Um toque marca o item (aparece marcado na TV
+  // também), COMPRAR compra. As doações viram uma linha só, que abre a escolha de quem recebe.
+  var shopOpen = null;       // tipo da banca aberta (loja, ferreiro, altar)
+  var shopPick = null;       // item marcado aqui no celular
+  var shopServerPick = null; // último marcado que o jogo mandou
+  var shopKey = "";
+  var giftTo = null;
+  var shopData = null;
+
+  function shopRow(id) { return id && id.indexOf("doar:") === 0 ? "doar" : id; }
+
+  function shopRows(shop) {
+    var rows = [], gift = null;
+    shop.items.forEach(function (it) {
+      if (shopRow(it.id) === "doar") {
+        if (!gift) {
+          gift = { id: "doar", label: "DOAR " + it.cost + " ALMAS", cost: it.cost, ok: true,
+                   afford: it.afford, color: "#c8aaff", desc: "passa almas para um companheiro" };
+          rows.push(gift);
+        }
+      } else {
+        rows.push(it);
+      }
+    });
+    return rows;
+  }
+
+  function order(item, buy) {
+    post("/api/shop", { slot: slot, token: token, item: item, buy: !!buy }).catch(function () {});
+    setTimeout(refresh, 90);
+  }
+
+  function renderShop(shop) {
+    shopData = shop;
+    var rows = shopRows(shop);
+    if (shopOpen !== shop.kind) {          // acabou de abrir
+      shopOpen = shop.kind;
+      shopPick = shopRow(shop.picked);
+      shopServerPick = shop.picked;
+      giftTo = null;
+      $("view-shop").classList.remove("gifting");
+      $("shop-note").textContent = "";
+    } else if (shop.picked !== shopServerPick) {
+      shopServerPick = shop.picked;        // mexeram pelo analógico na TV
+      if (shopRow(shop.picked) !== shopPick && !$("view-shop").classList.contains("gifting")) {
+        shopPick = shopRow(shop.picked);
+      }
+    }
+    if (!rows.some(function (r) { return r.id === shopPick; })) shopPick = rows.length ? rows[0].id : null;
+    $("shop-title").textContent = shop.title;
+    $("shop-souls").textContent = shop.souls;
+    var key = JSON.stringify(rows) + "|" + shopPick;
+    if (key !== shopKey) {
+      shopKey = key;
+      var list = $("shop-list");
+      list.innerHTML = "";
+      rows.forEach(function (r) {
+        var b = document.createElement("button");
+        b.className = "shop-item" + (r.id === shopPick ? " on" : "") + (r.ok && r.afford ? "" : " off");
+        b.style.setProperty("--c", r.color);
+        b.innerHTML = "<span></span><i></i>";
+        b.firstChild.textContent = r.label;
+        b.lastChild.textContent = r.cost ? r.cost : "";
+        b.addEventListener("pointerdown", function (e) {
+          e.preventDefault();
+          buzz();
+          shopPick = r.id;
+          $("shop-note").textContent = "";
+          order(r.id === "doar" ? shopData.items.filter(function (it) { return shopRow(it.id) === "doar"; })[0].id : r.id, false);
+          renderShop(shopData);
+        });
+        list.appendChild(b);
+      });
+    }
+    var cur = rows.filter(function (r) { return r.id === shopPick; })[0];
+    var name = $("shop-name");
+    name.textContent = cur ? cur.label : "";
+    name.style.setProperty("--c", cur ? cur.color : "");
+    $("shop-desc").textContent = cur ? cur.desc.toUpperCase() : "";
+    $("shop-cost").textContent = cur && cur.cost ? cur.cost + " ALMAS" : cur ? "GRÁTIS" : "";
+    $("shop-left").textContent = cur && cur.cost && cur.afford ? "SOBRAM " + (shop.souls - cur.cost) : "";
+    var buy = $("shop-buy");
+    buy.disabled = !cur || !cur.ok || !cur.afford;
+    buy.textContent = shop.kind === "altar" ? "ESCOLHER" : cur && cur.id === "doar" ? "DOAR…" : "COMPRAR";
+    if (cur && !cur.ok) $("shop-note").textContent = "INDISPONÍVEL";
+    else if (cur && !cur.afford) $("shop-note").textContent = "FALTAM " + (cur.cost - shop.souls) + " ALMAS";
+    renderGift(shop);
+  }
+
+  function renderGift(shop) {
+    var mates = shop.mates || [];
+    var gift = shop.items.filter(function (it) { return shopRow(it.id) === "doar"; })[0];
+    var list = $("gift-list");
+    var key = JSON.stringify(mates) + "|" + giftTo;
+    if (list.dataset.key !== key) {
+      list.dataset.key = key;
+      list.innerHTML = "";
+      mates.forEach(function (m) {
+        var b = document.createElement("button");
+        b.className = "gift-card" + (m.slot === giftTo ? " on" : "");
+        b.dataset.slot = m.slot;
+        b.innerHTML = "<b></b><span></span><em></em>";
+        b.children[0].textContent = m.label + " · " + m.name;
+        b.children[1].textContent = m.souls + " ALMAS";
+        b.children[2].textContent = "FICA COM " + (m.souls + (gift ? gift.cost : 0));
+        b.addEventListener("pointerdown", function (e) {
+          e.preventDefault();
+          buzz();
+          giftTo = m.slot;
+          renderGift(shopData);
+        });
+        list.appendChild(b);
+      });
+    }
+    var ok = $("gift-ok");
+    ok.disabled = giftTo === null || !gift || !gift.afford;
+    ok.textContent = giftTo === null ? "DOAR" : "DOAR PARA P" + giftTo;
+  }
+
+  function onPress(el, fn) {
+    el.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      if (el.disabled) return;
+      buzz();
+      el.classList.add("down");
+      fn();
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (t) {
+      el.addEventListener(t, function () { el.classList.remove("down"); });
+    });
+  }
+
+  onPress($("shop-close"), function () { order("fechar", false); });
+  onPress($("shop-buy"), function () {
+    if (shopPick === "doar") {
+      giftTo = null;
+      $("view-shop").classList.add("gifting");
+      renderGift(shopData);
+      return;
+    }
+    order(shopPick, true);
+    $("shop-note").textContent = "PEDIDO ENVIADO";
+    if (navigator.vibrate) navigator.vibrate([10, 40, 20]);
+  });
+  onPress($("gift-back"), function () { $("view-shop").classList.remove("gifting"); });
+  onPress($("gift-ok"), function () {
+    order("doar:" + giftTo, true);
+    $("view-shop").classList.remove("gifting");
+    $("shop-note").textContent = "DOOU PARA P" + giftTo;
+    if (navigator.vibrate) navigator.vibrate([10, 40, 20]);
+  });
+
   // ── estado do jogo ─────────────────────────
   var WAIT_TEXT = {
     menu: ["Conectado", "Aguardando o anfitrião escolher o modo de jogo."],
@@ -496,10 +844,20 @@
     $("story-actions").classList.toggle("on", phase === "story" && me.playing);
     if (status.roster && status.roster !== roster.length) loadRoster();   // personagem novo liberado
 
+    if (phase === "playing" && me.playing && me.shop) {
+      if (!$("view-shop").classList.contains("on")) releaseAll();   // nada fica segurado com a loja aberta
+      show("shop");
+      renderShop(me.shop);
+      return;
+    }
+    shopOpen = null;
     if ((phase === "playing" || phase === "paused") && me.playing) {
       show("pad");
       soccerMode = mode === "soccer";
       document.body.classList.toggle("soccer", soccerMode);
+      document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer"); });
+      document.querySelectorAll(".soccer-only").forEach(function (e) { e.classList.toggle("on", mode === "soccer"); });
+      useHud(status.hud || (soccerMode ? "soccer" : "battle"));
       $("pad-hint").textContent = soccerMode ? "empurre até a borda para correr" : "mova o analógico";
       document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer"); });
       document.querySelectorAll(".soccer-only").forEach(function (e) { e.classList.toggle("on", mode === "soccer"); });
@@ -514,6 +872,7 @@
       sb.classList.toggle("cooling", cd > 0);
       sb.classList.toggle("ready", cd <= 0);
       renderAmmo(me, mode);
+      renderSouls(me);
       var vote = me.vote || 0;                 // 1 = falta confirmar o teletransporte, 2 = confirmado
       var vb = $("vote-btn");
       vb.classList.toggle("on", vote > 0 && phase === "playing");
@@ -537,7 +896,11 @@
       return;
     }
     show("wait");
-    if (phase === "story") {
+    renderNews(phase === "news" ? status.news || [] : []);
+    if (phase === "news") {
+      bind("wait-title", status.banner || "Novidades");
+      bind("wait-text", "Na TV: setas ou ENTER para virar as páginas.");
+    } else if (phase === "story") {
       bind("wait-title", status.banner || "História");
       bind("wait-text", me.playing ? "Acompanhe a história na tela." : "");
     } else if (phase === "results") {
@@ -551,6 +914,31 @@
       bind("wait-title", t[0]);
       bind("wait-text", t[1]);
     }
+  }
+
+  // saldo de almas da campanha; quando aumenta, um "+N" sobe ao lado
+  var lastSouls = null, gainTimer = 0;
+  function renderSouls(me) {
+    var box = $("souls");
+    var on = me.souls !== null && me.souls !== undefined;
+    box.classList.toggle("on", on);
+    if (!on) { lastSouls = null; return; }
+    var n = me.souls;
+    if (lastSouls !== null && n !== lastSouls) {
+      var gain = $("souls-gain");
+      var diff = n - lastSouls;
+      gain.textContent = (diff > 0 ? "+" : "") + diff;
+      gain.classList.toggle("spent", diff < 0);
+      gain.classList.remove("pop");
+      void gain.offsetWidth;                   // reinicia a animação
+      gain.classList.add("pop");
+      box.classList.add("bump");
+      clearTimeout(gainTimer);
+      gainTimer = setTimeout(function () { box.classList.remove("bump"); }, 260);
+    }
+    lastSouls = n;
+    var text = String(n);
+    if ($("souls-n").textContent !== text) $("souls-n").textContent = text;
   }
 
   function renderAmmo(me, mode) {
@@ -571,6 +959,19 @@
     badge.classList.toggle("empty", !reloading && ammo <= 0);
     var text = reloading ? "RECARGA" : ammo <= 0 ? "VAZIO" : ammo + "/" + mag;
     if (badge.textContent !== text) badge.textContent = text;
+  }
+
+  function renderNews(lines) {
+    var list = $("news-list");
+    var key = lines.join("\n");
+    if (list.dataset.key === key) return;
+    list.dataset.key = key;
+    list.innerHTML = "";
+    lines.forEach(function (line) {
+      var li = document.createElement("li");
+      li.textContent = line;
+      list.appendChild(li);
+    });
   }
 
   function markTaken() {

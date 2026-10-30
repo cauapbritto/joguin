@@ -454,7 +454,6 @@ def draw_campaign(screen, ui, match):
     ui.text(screen, "CONTINUES", theme.XS, theme.MUTED, (W - 16, 16), anchor="midright")
     for k in range(3):
         _soul_icon(screen, (W - 22 - k * 16, 34), k < run.continues)
-    ui.text(screen, f"{run.souls} ALMAS", theme.XS, (200, 170, 255), (W - 16, 52), anchor="midright")
     secs = match.elapsed // config.FPS
     ui.text(screen, f"{secs // 60}:{secs % 60:02d}", theme.XS, theme.BONE, (16, 16), anchor="midleft")
 
@@ -488,7 +487,8 @@ def _campaign_block(screen, ui, f, rect, match):
     ui.bar(screen, bar, ratio, color, back=(30, 22, 30), ticks=8)
     if f.shield > 0:
         screen.fill((150, 212, 240), (bar.x + 1, bar.y + 1, round((bar.w - 2) * min(1, f.shield / 40)), 3))
-    ui.text(screen, f"{f.hp}", theme.XS, theme.BONE, (rect.right - 10, rect.y + 10), anchor="midright", shadow=False)
+    hp = ui.text(screen, f"{f.hp}", theme.XS, theme.BONE, (rect.right - 10, rect.y + 10), anchor="midright", shadow=False)
+    _souls_tag(screen, ui, match.run.wallet(f.slot), ((hp.left if hp else rect.right - 40) - 10, rect.y + 10))
     ab = pygame.Rect(x, rect.y + 35, 70, 6)
     ready = f.ability_ready
     ui.bar(screen, ab, f.ability_ratio, theme.BRASS if ready else theme.SKY, back=(22, 20, 32))
@@ -499,6 +499,18 @@ def _campaign_block(screen, ui, f, rect, match):
     if f.fury_timer > 0:
         ui.text(screen, "FÚRIA", theme.XS, theme.EMBER, (rect.right - 10, ab.centery), anchor="midright", shadow=False)
     _ammo_strip(screen, f, pygame.Rect(x, rect.bottom - 5, rect.w - 22, 3))
+
+
+SOUL_TAG = (200, 170, 255)
+
+
+def _souls_tag(screen, ui, souls, right_mid):
+    """Almas do jogador na faixa dele: losango lilás e o número."""
+    r = ui.text(screen, str(souls), theme.XS, SOUL_TAG, right_mid, anchor="midright", shadow=False)
+    if r is None:
+        return
+    cx, cy = r.left - 7, r.centery
+    pygame.draw.polygon(screen, SOUL_TAG, [(cx, cy - 4), (cx + 3, cy), (cx, cy + 4), (cx - 3, cy)])
 
 
 def _sport_icon(screen, f, label_rect, right):

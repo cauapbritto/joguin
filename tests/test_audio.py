@@ -31,7 +31,7 @@ class Gravador:
 class ArquivosTest(unittest.TestCase):
     def test_todo_som_de_arma_existe(self):
         for name in set(SHOT_SOUNDS.values()) | {"shoot", "shoot2", "golpe", "chute", "apito", "torcida", "bau",
-                                                  "teletransporte", "levantar", "passo_pesado"}:
+                                                  "teletransporte", "levantar", "passo_pesado", "alma", "compra", "loja", "pagina"}:
             self.assertTrue((config.SOUNDS_DIR / f"{name}.wav").is_file(), name)
             self.assertIn(name, game().assets.sounds, name)
 

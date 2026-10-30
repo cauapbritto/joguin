@@ -32,6 +32,14 @@ class Scene:
         if self.music:
             self.assets.music(self.music)
         hub.set_phase(self.phase, mode=self.phone_mode(), active=self.active_slots())
+        hub.hud = self.hud_layout()
+
+    def hud_layout(self):
+        """Qual disposição de botões salva o celular usa (CONFIGURAR HUD): battle, soccer ou basket."""
+        session = self.game.session
+        if session is None or not session.soccer:
+            return "battle"
+        return "basket" if session.basket else "soccer"
 
     def phone_mode(self):
         """Que conjunto de botões e textos o celular usa: battle, soccer ou campaign."""

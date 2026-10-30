@@ -1,10 +1,13 @@
 """Mercado da campanha: almas, a loja e o ferreiro.
 
-Cada inimigo derrotado solta almas, que vão para o grupo todo (ninguém briga por elas). Na volta
+Cada inimigo derrotado solta almas. Cada jogador tem a sua carteira: quem deu o golpe final leva
+a maior parte e os outros vivos ganham um pouco, para ninguém ficar sem nada. Na volta
 da Masmorra 1, o acampamento tem duas bancas perto da fogueira: a LOJA (poção, arma sorteada,
 trocar as melhorias do fim da fase e continue) e o FERREIRO, que sobe a arma de +1 até +3
 (+15% de dano e pente maior a cada nível) e, no +3, põe um encanto: fogo, gelo ou raio.
 Perto da banca, ATACAR abre o menu; para cima e para baixo escolhe, ATACAR compra, ESQUIVA fecha.
+Com a banca aberta, o celular do jogador mostra a mesma lista (snapshot) e pede a compra pelo id
+fixo de cada linha (Entry.key), em CoopMatch.phone_shop.
 """
 import math
 import random
@@ -15,7 +18,9 @@ from . import config, theme
 from .data import duel_arsenal, rarity_color
 from .entities import Entity, Particle, Wall
 
-SOULS = {"comum": 3, "elite": 12, "chefe": 60}      # almas por inimigo derrotado
+SOULS = {"comum": 3, "elite": 12, "chefe": 60}      # almas por inimigo derrotado (quem deu o golpe final)
+SHARE = {"comum": 1, "elite": 4, "chefe": 60}       # ... e para cada um dos outros vivos
+GIFT = 20                                           # DOAR: almas passadas a um companheiro
 FORGE_COST = (40, 80, 140)                          # +1, +2, +3
 FORGE_DAMAGE = 0.15                                 # dano a mais por nível
 FORGE_MAG = 0.2                                     # pente a mais por nível
@@ -58,14 +63,29 @@ def weapon_label(fighter, weapon):
     return name
 
 
-def souls_for(kind):
+def soul_tier(kind):
+    """comum, elite ou chefe."""
     if kind == "chefe":
-        return SOULS["chefe"]
+        return "chefe"
     if kind.startswith("sombra:"):
-        return SOULS["elite"]
+        return "elite"
     from .enemies import CREATURES
     creature = CREATURES.get(kind)
-    return SOULS["elite"] if creature is not None and creature.elite else SOULS["comum"]
+    return "elite" if creature is not None and creature.elite else "comum"
+
+
+def souls_for(kind):
+    return SOULS[soul_tier(kind)]
+
+
+def soul_split(kind, killer, alive):
+    """Quanto cada jogador ganha: {slot: almas}. ``killer`` é o slot de quem deu o golpe final
+    (None se o inimigo morreu sem dono: aí todo mundo ganha a parte dos outros)."""
+    tier = soul_tier(kind)
+    out = {slot: SHARE[tier] for slot in alive}
+    if killer is not None:
+        out[killer] = SOULS[tier]
+    return out
 
 
 # ─────────────────────────────────────────────
@@ -172,8 +192,11 @@ class Stall(Entity):
 #  Menu da banca (um por jogador)
 # ─────────────────────────────────────────────
 class Entry:
-    def __init__(self, label, cost, desc, ok, action, color=theme.BONE):
+    """Uma linha do menu. ``key`` é o id fixo que o celular usa para pedir a compra."""
+
+    def __init__(self, label, cost, desc, ok, action, color=theme.BONE, key=None):
         self.label, self.cost, self.desc, self.ok, self.action, self.color = label, cost, desc, ok, action, color
+        self.key = key or label
 
 
 class MarketMenu:
@@ -200,9 +223,9 @@ class MarketMenu:
         for key, (name, desc) in CURSES.items():
             label = ("> " if run.curse == key else "") + name
             out.append(Entry(label, 0, desc + " · +1 melhoria no fim", True,
-                             lambda key=key: self._curse(key), CURSE_COLOR))
+                             lambda key=key: self._curse(key), CURSE_COLOR, f"maldicao:{key}"))
         out.append(Entry(("> " if run.curse is None else "") + "SEM MALDIÇÃO", 0, "a fase normal", True,
-                         lambda: self._curse(None)))
+                         lambda: self._curse(None), key="maldicao:nenhuma"))
         return out
 
     def _curse(self, key):
@@ -213,12 +236,15 @@ class MarketMenu:
     def _shop(self):
         f, run = self.fighter, self.run
         return [
-            Entry("POÇÃO DE VIDA", 20, "cura metade da vida", f.hp < f.max_hp, self._potion),
-            Entry("ARMA SORTEADA", 30, "uma arma de outro herói cai no chão", True, self._weapon),
+            Entry("POÇÃO DE VIDA", 20, "cura metade da vida", f.hp < f.max_hp, self._potion, key="pocao"),
+            Entry("ARMA SORTEADA", 30, "uma arma de outro herói cai no chão", True, self._weapon, key="arma"),
             Entry("TROCAR MELHORIAS", 25, "no fim da fase, TROCAR ARMA sorteia de novo",
-                  run.rerolls[f.slot] < MAX_REROLLS, self._reroll),
-            Entry("CONTINUE", 120, "uma vida a mais para o grupo", run.continues < 3, self._continue),
-        ]
+                  run.rerolls[f.slot] < MAX_REROLLS, self._reroll, key="trocar"),
+            Entry("CONTINUE", 120, "uma vida a mais para o grupo", run.continues < 3, self._continue,
+                  key="continue"),
+        ] + [Entry(f"DOAR {GIFT} > {m.label}", GIFT, f"passa {GIFT} almas para {m.label}", True,
+                   lambda m=m: self._gift(m), m.color, f"doar:{m.slot}")
+             for m in self.match.players if m is not f]
 
     def _forge(self):
         f = self.fighter
@@ -227,14 +253,15 @@ class MarketMenu:
             level, enchant = forge_of(f, w)
             color = rarity_color(w)
             if level >= MAX_LEVEL:
-                out.append(Entry(weapon_label(f, w), 0, "no máximo", False, None, color))
+                out.append(Entry(weapon_label(f, w), 0, "no máximo", False, None, color, f"max:{w.name}"))
             elif level == MAX_LEVEL - 1:
                 for key, (name, desc, ecolor) in ENCHANTS.items():
                     out.append(Entry(f"{w.name.upper()} +3 {name}", FORGE_COST[level], desc, True,
-                                     lambda w=w, key=key: self._upgrade(w, key), ecolor))
+                                     lambda w=w, key=key: self._upgrade(w, key), ecolor, f"encanto:{w.name}:{key}"))
             else:
                 out.append(Entry(f"{weapon_label(f, w)} > +{level + 1}", FORGE_COST[level],
-                                 "+15% de dano e pente maior", True, lambda w=w: self._upgrade(w), color))
+                                 "+15% de dano e pente maior", True, lambda w=w: self._upgrade(w), color,
+                                 f"forja:{w.name}:{level + 1}"))
         fusion = self._fusion_entry()
         if fusion is not None:
             out.append(fusion)
@@ -250,7 +277,8 @@ class MarketMenu:
         name, _ = preview_text(key, discovered())
         done = run.fused_phase == run.phase_index
         desc = "só uma fusão por mercado" if done else f"sai: {name}" + (f" +{level}" if level else "")
-        return Entry("FUNDIR AS 3 ARMAS", FUSION_COST, desc, not done, self._fuse, rarity_color(FORGED[key]))
+        return Entry("FUNDIR AS 3 ARMAS", FUSION_COST, desc, not done, self._fuse, rarity_color(FORGED[key]),
+                     "fundir")
 
     def _fuse(self):
         from .forged import FORGED, discover, recipe
@@ -293,6 +321,12 @@ class MarketMenu:
     def _continue(self):
         self.run.continues += 1
 
+    def _gift(self, mate):
+        self.run.earn(mate.slot, GIFT)
+        self.match.popup(mate.x, mate.y - 80, f"+{GIFT} ALMAS", SOUL_COLOR)
+        self.match.assets.play("alma", 0.4)
+        return f"DOOU {GIFT} PARA {mate.label}"
+
     def _upgrade(self, weapon, enchant=None):
         f = self.fighter
         level, _ = forge_of(f, weapon)
@@ -310,15 +344,42 @@ class MarketMenu:
         if not e.ok or e.action is None:
             self.match.assets.play("cancel", 0.3)
             return False
-        if self.run.souls < e.cost:
+        if not self.run.spend(self.fighter.slot, e.cost):
             self.match.popup(self.fighter.x, self.fighter.y - 80, "FALTAM ALMAS", theme.BLOOD)
             self.match.assets.play("cancel", 0.3)
             return False
-        self.run.souls -= e.cost
         text = e.action() or e.label
         self.match.popup(self.fighter.x, self.fighter.y - 80, text, e.color)
-        self.match.assets.play("select", 0.5)
+        self.match.assets.play("compra" if e.cost else "select", 0.5)
         return True
+
+    def pick(self, key):
+        """Marca a linha de id ``key`` (pedido do celular). False se ela não está mais no menu."""
+        for k, e in enumerate(self.entries()):
+            if e.key == key:
+                if self.index % max(1, len(self.entries())) != k:
+                    self.match.assets.play("click", 0.3)
+                self.index = k
+                return True
+        return False
+
+    def snapshot(self):
+        """O menu como o celular mostra: título, saldo, itens e qual está marcado."""
+        entries = self.entries()
+        wallet = self.run.wallet(self.fighter.slot)
+        picked = entries[self.index % len(entries)].key if entries else None
+        return {
+            "kind": self.stall.kind,
+            "title": Stall.NAMES[self.stall.kind],
+            "souls": wallet,
+            "picked": picked,
+            "mates": [{"slot": m.slot, "label": m.label, "name": m.stats.name.upper(),
+                       "souls": self.run.wallet(m.slot)}
+                      for m in self.match.players if m is not self.fighter],
+            "items": [{"id": e.key, "label": e.label, "cost": e.cost, "desc": e.desc,
+                       "ok": bool(e.ok and e.action is not None), "afford": wallet >= e.cost,
+                       "color": "#%02x%02x%02x" % tuple(e.color[:3])} for e in entries],
+        }
 
     def handle(self, inp):
         """Controle do jogador com o menu aberto. Devolve False quando ele fecha."""
@@ -350,7 +411,7 @@ class MarketMenu:
         ui.panel(screen, rect, fill=theme.INK_2, accent=f.color)
         ui.text(screen, f"{f.label} · {Stall.NAMES[self.stall.kind]}", theme.XS, theme.BONE,
                 (rect.x + 10, rect.y + 14), anchor="midleft")
-        ui.text(screen, f"{self.run.souls} ALMAS", theme.XS, SOUL_COLOR, (rect.right - 10, rect.y + 14),
+        ui.text(screen, f"{self.run.wallet(f.slot)} ALMAS", theme.XS, SOUL_COLOR, (rect.right - 10, rect.y + 14),
                 anchor="midright")
         for k, e in enumerate(entries):
             r = pygame.Rect(rect.x + 6, rect.y + 28 + k * row, w - 12, row - 2)
@@ -358,7 +419,7 @@ class MarketMenu:
             if picked:
                 screen.fill(theme.INK_3, r)
                 pygame.draw.rect(screen, f.color, r, 1)
-            afford = e.ok and self.run.souls >= e.cost
+            afford = e.ok and self.run.wallet(f.slot) >= e.cost
             color = e.color if afford else theme.FAINT
             ui.text(screen, e.label, theme.XS, color, (r.x + 6, r.centery), anchor="midleft")
             if e.cost:

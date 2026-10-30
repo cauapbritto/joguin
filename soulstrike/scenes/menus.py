@@ -465,8 +465,9 @@ class OptionsScene(_InfoScene):
         ("tremor", "TREMOR DE TELA", "NOS IMPACTOS E EXPLOSÕES"),
         ("duplo_toque", "DUPLO TOQUE = ESQUIVA", "DUAS VEZES NA MESMA SETA"),
         ("controle_comeca_no_p2", "1º CONTROLE USB É O P2", "DESLIGADO: É O P1"),
+        ("novidades", "NOVIDADES", "O QUE MUDOU EM CADA VERSÃO"),
     ]
-    ROW_H = 38
+    ROW_H = 36
 
     def __init__(self, game):
         super().__init__(game)
@@ -479,6 +480,11 @@ class OptionsScene(_InfoScene):
 
     def change(self, key, step):
         """step = -1 / +1 nos volumes; nos liga/desliga qualquer passo alterna."""
+        if key == "novidades":
+            from .. import novidades
+            self.sfx("confirm", 0.4)
+            self.game.change(NewsScene(self.game, novidades.history(), back=OptionsScene))
+            return
         value = settings.get(key)
         if key in settings.VOLUME_KEYS:
             new = settings.change(key, round(value + step * settings.VOLUME_STEP, 2))
@@ -552,8 +558,13 @@ class OptionsScene(_InfoScene):
             if note:
                 self.ui.text(screen, note, theme.XS, theme.FAINT, (row.x + 16, row.y + 26), anchor="midleft",
                              shadow=False)
-            value = settings.get(key)
             right = row.right - 16
+            if key == "novidades":
+                self.ui.text(screen, "ABRIR >", theme.XS, theme.BRASS if chosen else theme.MUTED,
+                             (right, row.centery), anchor="midright", shadow=False)
+                y += self.ROW_H
+                continue
+            value = settings.get(key)
             if key in settings.VOLUME_KEYS:
                 bar = pygame.Rect(0, 0, 200, 10)
                 bar.midright = (right - 64, row.centery)
@@ -855,33 +866,221 @@ class CreditsScene(_InfoScene):
         self.footer(screen, [("←→", "ESCOLHER"), ("ENTER", "ABRIR LINK"), ("ESC", "VOLTAR")])
 
 
-class NewsScene(_InfoScene):
-    """Novidades da versão nova: aparece uma vez, quando o jogo abre depois de atualizar."""
-    heading = "NOVIDADES"
-    PANEL = pygame.Rect(56, 92, config.SCREEN_W - 112, 330)
+SOUL = (200, 170, 255)
 
-    def __init__(self, game, news):
+
+def _phone(screen, rect, t):
+    """Moldura de celular deitado, com a tela escura dentro. Devolve o retângulo da tela."""
+    pygame.draw.rect(screen, (40, 36, 50), rect, border_radius=14)
+    pygame.draw.rect(screen, theme.LINE_HI, rect, 2, border_radius=14)
+    inner = rect.inflate(-24, -14)
+    screen.fill(theme.INK, inner)
+    return inner
+
+
+def _scene_almas(screen, ui, rect, t):
+    """Um inimigo vira almas: a maior parte voa para quem deu o golpe, um pouco para o outro."""
+    cycle, k = divmod(t, 150)
+    cx, cy = rect.centerx, rect.y + 70
+    p1, p2 = (rect.x + 60, rect.bottom - 40), (rect.right - 60, rect.bottom - 40)
+    if k < 40:                                                   # o inimigo, piscando no golpe
+        flash = k > 28 and k % 4 < 2
+        body = theme.BONE if flash else (60, 40, 80)
+        pygame.draw.ellipse(screen, body, (cx - 26, cy - 30, 52, 60))
+        screen.fill(theme.BLOOD, (cx - 12, cy - 10, 6, 6))
+        screen.fill(theme.BLOOD, (cx + 6, cy - 10, 6, 6))
+    def travel(target, n, done):
+        for i in range(n):
+            f = max(0.0, min(1.0, (k - 40 - i * 3) / 50))
+            if 0 < f < 1:
+                x = cx + (target[0] - cx) * f + math.sin(f * 6 + i) * 12 * (1 - f)
+                y = cy + (target[1] - 20 - cy) * f - math.sin(f * math.pi) * 40
+                pygame.draw.circle(screen, SOUL, (round(x), round(y)), 4)
+                pygame.draw.circle(screen, theme.BONE, (round(x), round(y)), 2)
+        return done if k >= 40 + n * 3 + 50 else 0
+    got1 = travel(p1, 12, 12)
+    got2 = travel(p2, 4, 4)
+    for (x, y), label, color, total, gain in ((p1, "P1", theme.SLOT_COLORS[1], 12 * cycle + got1, 12),
+                                              (p2, "P2", theme.SLOT_COLORS[2], 4 * cycle + got2, 4)):
+        box = pygame.Rect(0, 0, 96, 26)
+        box.center = (x, y)
+        ui.panel(screen, box, accent=color, shadow=False)
+        ui.text(screen, label, theme.XS, color, (box.x + 14, box.centery), anchor="midleft", shadow=False)
+        ui.text(screen, str(total), theme.XS, SOUL, (box.right - 10, box.centery), anchor="midright", shadow=False)
+        if 110 <= k < 140:
+            ui.text(screen, f"+{gain}", theme.XS, SOUL, (x, y - 26 - (k - 110) // 3))
+
+
+def _scene_loja(screen, ui, rect, t):
+    """O celular com a loja aberta: toca num item, aperta COMPRAR e o saldo desce."""
+    phone = _phone(screen, rect.inflate(-20, -40), t)
+    items = (("POÇÃO DE VIDA", 20), ("ARMA SORTEADA", 30), ("TROCAR MELHORIAS", 25), ("DOAR 20 ALMAS", 20))
+    k = t % 240
+    pick = 1 if k < 120 else 3
+    bought = 80 <= k < 120 or k >= 200
+    souls = 143 - (30 if 80 <= k else 0) - (20 if k >= 200 else 0)
+    ui.text(screen, f"{souls} ALMAS", theme.XS, SOUL, (phone.right - 8, phone.y + 12), anchor="midright", shadow=False)
+    for i, (name, cost) in enumerate(items):
+        row = pygame.Rect(phone.x + 8, phone.y + 26 + i * 22, phone.w * 0.6, 18)
+        on = i == pick
+        screen.fill(theme.INK_3 if on else theme.INK_2, row)
+        pygame.draw.rect(screen, theme.SLOT_COLORS[1] if on else theme.LINE, row, 1)
+        ui.text(screen, name, theme.XS, theme.BONE, (row.x + 6, row.centery), anchor="midleft", shadow=False)
+        ui.text(screen, str(cost), theme.XS, SOUL, (row.right - 6, row.centery), anchor="midright", shadow=False)
+    buy = pygame.Rect(phone.right - 86, phone.bottom - 30, 78, 22)
+    pressed = 70 <= k < 80 or 190 <= k < 200
+    screen.fill((60, 110, 50) if pressed else (47, 74, 42), buy.move(0, 2 if pressed else 0))
+    pygame.draw.rect(screen, theme.MOSS, buy.move(0, 2 if pressed else 0), 1)
+    ui.text(screen, "COMPRAR", theme.XS, theme.BONE, buy.move(0, 2 if pressed else 0).center, shadow=False)
+    if bought:
+        ui.text(screen, "-30" if k < 120 else "-20", theme.XS, (240, 164, 158), (phone.right - 40, phone.y + 30))
+    tip = (phone.right - 47, phone.bottom - 19) if pressed else (phone.x + 60, phone.y + 48 + pick * 22)
+    pygame.draw.circle(screen, (230, 200, 170), tip, 7)          # o dedo
+    pygame.draw.circle(screen, (180, 140, 120), tip, 7, 2)
+
+
+def _scene_hud(screen, ui, rect, t):
+    """O botão de ATACAR sendo arrastado para outro lugar e crescendo."""
+    phone = _phone(screen, rect.inflate(-20, -40), t)
+    f = (math.sin(t * 0.03) + 1) / 2
+    stick = (phone.x + 50, phone.bottom - 40)
+    pygame.draw.circle(screen, theme.INK_3, stick, 28)
+    pygame.draw.circle(screen, theme.LINE_HI, stick, 28, 2)
+    pygame.draw.circle(screen, theme.SLOT_COLORS[1], stick, 11)
+    for (x, y), r in (((phone.right - 80, phone.bottom - 70), 15), ((phone.right - 40, phone.bottom - 86), 15)):
+        pygame.draw.circle(screen, theme.INK_3, (x, y), r)
+        pygame.draw.circle(screen, theme.LINE_HI, (x, y), r, 2)
+    ax = phone.right - 34 - f * 70
+    ay = phone.bottom - 32 - f * 8
+    r = round(20 + f * 8)
+    pygame.draw.circle(screen, (30, 50, 100), (round(ax), round(ay)), r)
+    pygame.draw.circle(screen, theme.SLOT_COLORS[1], (round(ax), round(ay)), r, 2)
+    for a in range(0, 360, 30):                                  # contorno tracejado de "editando"
+        rad = math.radians(a + t * 2)
+        px, py = ax + math.cos(rad) * (r + 6), ay + math.sin(rad) * (r + 6)
+        screen.fill(theme.BRASS, (round(px) - 1, round(py) - 1, 3, 3))
+    ui.text(screen, f"ATACAR · {round(100 + f * 40)}%", theme.XS, theme.BRASS, (phone.x + 10, phone.y + 10),
+            anchor="midleft", shadow=False)
+
+
+def _scene_novidades(screen, ui, rect, t):
+    """Páginas passando, como nesta tela."""
+    k = (t % 120) / 120
+    for i in range(3):
+        slide = max(0.0, min(1.0, (k - 0.6) / 0.3)) if i == 0 else 0.0
+        page = pygame.Rect(0, 0, 150, 110)
+        page.center = (rect.centerx + i * 14 - slide * 200, rect.centery - i * 10)
+        if i == 0 and slide >= 1:
+            continue
+        ui.panel(screen, page, fill=theme.INK_3 if i == 0 else theme.INK_2, shadow=False)
+        screen.fill(theme.BRASS, (page.x + 12, page.y + 14, 60, 4))
+        for line in range(3):
+            screen.fill(theme.MUTED, (page.x + 12, page.y + 34 + line * 16, 110 - line * 20, 3))
+
+
+NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades}
+
+
+class NewsScene(_InfoScene):
+    """Novidades em páginas, cada uma com uma cena animada. Abre sozinha uma vez quando o jogo
+    é atualizado, e em OPÇÕES > NOVIDADES quando quiser."""
+    heading = "NOVIDADES"
+    phase = "news"
+    PANEL = pygame.Rect(56, 92, config.SCREEN_W - 112, 360)
+
+    def __init__(self, game, news, back=None):
+        from .. import novidades
         super().__init__(game)
-        self.news = news[:2]                 # no máximo as duas versões mais novas
+        self.news = news if back is not None else news[:2]     # sozinha: só as duas versões mais novas
+        self.back = back
+        self.pages = [p for version, entry in self.news for p in novidades.pages_of(version, entry)]
+        self.page = 0
+        self.age = 0
+        self.summary = [line for _, entry in self.news[:1] for line in novidades.summary(entry)]
+
+    def enter(self):
+        from ..net.remote import hub
+        hub.news = self.summary
+        super().enter()
+        if self.news:
+            hub.set_phase("news", banner=f"NOVIDADES DA {self.news[0][0]}")
+
+    def leave(self):
+        self.sfx("confirm", 0.4)
+        self.game.change(self.back(self.game) if self.back else TitleScene(self.game))
+
+    def turn(self, step):
+        page = max(0, min(len(self.pages) - 1, self.page + step))
+        if page != self.page:
+            self.page, self.age = page, 0
+            self.sfx("pagina", 0.5)
+
+    def update(self):
+        super().update()
+        self.age += 1
 
     def handle(self, event):
-        if (self.is_back(event) or (event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_SPACE))
-                or event.type == pygame.MOUSEBUTTONDOWN):
-            self.sfx("confirm", 0.4)
-            self.game.change(TitleScene(self.game))
+        if self.is_back(event) or not self.pages:
+            if self.is_back(event) or event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
+                self.leave()
+            return
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_LEFT, pygame.K_a):
+                self.turn(-1)
+            elif event.key in (pygame.K_RIGHT, pygame.K_d):
+                self.turn(1)
+            elif event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
+                if self.page >= len(self.pages) - 1:
+                    self.leave()
+                else:
+                    self.turn(1)
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 3:
+                self.turn(-1)
+            elif self.page >= len(self.pages) - 1:
+                self.leave()
+            else:
+                self.turn(1)
 
     def draw_body(self, screen):
-        self.ui.panel(screen, self.PANEL)
-        x, y = self.PANEL.x + 24, self.PANEL.y + 22
-        width = self.PANEL.w - 48
-        for version, lines in self.news:
-            self.ui.text(screen, f"VERSÃO {version}", theme.S, theme.BRASS, (x, y), anchor="midleft")
-            y += 22
-            for line in lines:
-                if y > self.PANEL.bottom - 24:
-                    break
-                screen.fill(theme.MOSS, (x + 2, y + 2, 5, 5))
-                y = self.ui.paragraph(screen, line.upper(), theme.XS, theme.BONE, (x + 16, y),
-                                      width - 16, spacing=15) + 8
-            y += 10
-        self.footer(screen, [("ENTER", "CONTINUAR")])
+        panel = self.PANEL
+        self.ui.panel(screen, panel)
+        if not self.pages:
+            self.footer(screen, [("ENTER", "CONTINUAR")])
+            return
+        version, title, scene, lines = self.pages[self.page]
+        n = len(self.pages)
+        self.ui.text(screen, f"VERSÃO {version}", theme.XS, theme.MUTED, (panel.right - 20, panel.y + 18),
+                     anchor="midright", shadow=False)
+        draw = NEWS_SCENES.get(scene)
+        x = panel.x + 24
+        if draw is not None:
+            stage = pygame.Rect(panel.x + 20, panel.y + 40, 340, 250)
+            screen.fill(theme.INK, stage)
+            pygame.draw.rect(screen, theme.LINE, stage, 1)
+            clip = screen.get_clip()
+            screen.set_clip(stage)
+            draw(screen, self.ui, stage, self.ticks)
+            screen.set_clip(clip)
+            x = stage.right + 28
+        width = panel.right - 24 - x
+        slide = max(0, 12 - self.age) * 3                        # o texto entra deslizando ao virar a página
+        y = panel.y + 52
+        self.ui.text(screen, title, theme.S, theme.BRASS, (x + slide, y), anchor="midleft")
+        y += 28
+        for line in lines:
+            if y > panel.bottom - 40:
+                break
+            screen.fill(theme.MOSS, (x + 2 + slide, y + 2, 5, 5))
+            y = self.ui.paragraph(screen, line.upper(), theme.XS, theme.BONE, (x + 16 + slide, y),
+                                  width - 16, spacing=15) + 10
+        # bolinhas das páginas
+        if n > 1:
+            gap = 14
+            left = panel.centerx - (n - 1) * gap // 2
+            for i in range(min(n, 40)):
+                color = theme.BRASS if i == self.page else theme.LINE_HI
+                size = 6 if i == self.page else 4
+                screen.fill(color, (left + i * gap - size // 2, panel.bottom - 18 - size // 2, size, size))
+        last = self.page >= n - 1
+        self.footer(screen, [("←→", "PÁGINAS"), ("ENTER", "SAIR" if last else "PRÓXIMA"), ("ESC", "SAIR")])

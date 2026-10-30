@@ -188,6 +188,27 @@ def basketball_effects():
         print("som", name)
 
 
+def souls_effects():
+    """Sons da v1.6: almas, loja e novidades (semente própria: não muda os outros efeitos)."""
+    r = random.Random(16)
+    sons = {
+        # almas entrando na carteira: arpejo de sininho subindo
+        "alma": mix(tone(784, 0.18, "sine", 0.6, curve=4), tone(1175, 0.18, "sine", 0.5, curve=4),
+                    tone(1568, 0.3, "sine", 0.45, curve=3, vibrato=0.01), at=[0, 0.05, 0.1]),
+        # compra: moeda de alma (duas notas brilhantes e um tilintar)
+        "compra": mix(tone(988, 0.08, "square", 0.35, curve=5), tone(1319, 0.3, "square", 0.3, curve=4),
+                      noise(0.04, 0.2, rng=r, lowpass=0.9), at=[0, 0.07, 0.07]),
+        # abrir a banca: madeira e um sino abafado
+        "loja": mix(tone(180, 0.1, "triangle", 0.7, slide=140, curve=5), noise(0.05, 0.4, rng=r, lowpass=0.3),
+                    tone(660, 0.35, "sine", 0.35, curve=3), at=[0, 0, 0.05]),
+        # virar a página das novidades: vush de papel
+        "pagina": sweep_noise(0.16, 0.2, 0.7, vol=0.6, rng=r, attack=0.02, curve=2.5),
+    }
+    for name, samples in sons.items():
+        save_wav(name, samples)
+        print("som", name)
+
+
 # ── músicas (chiptune) ─────────────────────────────────────
 NOTE = {n: i for i, n in enumerate(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"])}
 
@@ -287,4 +308,5 @@ def music():
 if __name__ == "__main__":
     effects()
     basketball_effects()
+    souls_effects()
     music()
