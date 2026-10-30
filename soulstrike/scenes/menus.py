@@ -1001,7 +1001,118 @@ def _scene_novidades(screen, ui, rect, t):
             screen.fill(theme.MUTED, (page.x + 12, page.y + 34 + line * 16, 110 - line * 20, 3))
 
 
-NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades}
+def _big(img, k):
+    return pygame.transform.scale(img, (img.get_width() * k, img.get_height() * k))
+
+
+def _scene_enterrada(screen, ui, rect, t):
+    """Um herói enterra com as poses novas: corre, sobe com a bola atrás da cabeça e crava."""
+    sprites = ui.assets.sprites["velocista"]
+    k = t % 120
+    hoop = (rect.right - 70, rect.y + 90)
+    screen.fill((120, 80, 50), (rect.x, rect.bottom - 40, rect.w, 40))
+    screen.fill(theme.BONE, (hoop[0] + 18, hoop[1] - 50, 6, 70))                   # tabela
+    pygame.draw.line(screen, theme.EMBER, (hoop[0] - 22, hoop[1]), (hoop[0] + 18, hoop[1]), 4)
+    stretch = 10 if 70 <= k < 82 else 0
+    for i in range(5):                                                          # rede
+        x = hoop[0] - 20 + i * 9
+        pygame.draw.line(screen, theme.BONE, (x, hoop[1]), (hoop[0] - 2 + (i - 2) * 4, hoop[1] + 24 + stretch), 1)
+    if k < 40:
+        img, x, y = sprites.frame("direita", k // 4), rect.x + 40 + k * 3, rect.bottom - 36
+    elif k < 70:
+        f = (k - 40) / 30
+        img = sprites.pose("direita", "enterrada", 0 if f < 0.7 else 1)
+        x, y = rect.x + 160 + f * (hoop[0] - 40 - rect.x - 160), rect.bottom - 36 - math.sin(f * math.pi / 2) * 110
+    elif k < 90:
+        img, x, y = sprites.pose("direita", "enterrada", 2), hoop[0] - 40, rect.bottom - 146
+    else:
+        img, x, y = sprites.pose("frente", "comemora", (k // 8) % 2), hoop[0] - 60, rect.bottom - 36
+    pygame.draw.ellipse(screen, (0, 0, 0), (x - 20, rect.bottom - 42, 40, 10))
+    screen.blit(img, img.get_rect(midbottom=(round(x), round(y))))
+    if 70 <= k < 90:
+        ui.text(screen, "CRAVOU!", theme.S, theme.BRASS, (rect.centerx - 30, rect.y + 40))
+
+
+def _scene_futebol(screen, ui, rect, t):
+    """Chute com curva: a bola sai aberta e volta para o canto, com assobio e rastro."""
+    sprites = ui.assets.sprites["trovao"]
+    screen.fill((52, 128, 60), rect)
+    goal = pygame.Rect(rect.right - 30, rect.centery - 50, 20, 100)
+    pygame.draw.rect(screen, theme.BONE, goal, 2)
+    k = t % 110
+    kx, ky = rect.x + 60, rect.centery + 30
+    img = sprites.pose("direita", "chute", min(2, k // 4)) if k < 16 else sprites.pose("direita", "parado", 0)
+    if k > 80:
+        img = sprites.pose("frente", "comemora", (k // 8) % 2)
+    screen.blit(_big(img, 1), img.get_rect(midbottom=(kx, ky + 20)))
+    for i in range(8 if k < 70 else 0):
+        f = max(0.0, (min(k, 70) - i * 2) / 70)
+        x = kx + 20 + f * (goal.x - kx - 14)
+        y = ky - math.sin(f * math.pi) * 70 + f * (goal.y + 20 - ky)
+        pygame.draw.circle(screen, (240, 220, 160) if i else (240, 240, 236), (round(x), round(y)), 5 if not i else 3)
+    if k >= 70:
+        ui.text(screen, "NO ÂNGULO!", theme.S, theme.BRASS, rect.center)
+    ui.text(screen, "CURVA", theme.XS, theme.BONE, (kx + 40, rect.y + 24))
+
+
+def _scene_penalti(screen, ui, rect, t):
+    """A disputa de frente: o goleiro pula, a bola cresce vindo para a tela e a rede estufa."""
+    keeper = ui.assets.sprites["paredao"]
+    kicker = ui.assets.sprites["matador"]
+    screen.fill((34, 30, 48), (rect.x, rect.y, rect.w, rect.h // 2))
+    screen.fill((60, 140, 68), (rect.x, rect.centery, rect.w, rect.h // 2))
+    goal = pygame.Rect(rect.centerx - 110, rect.y + 40, 220, rect.h // 2 - 40)
+    for x in range(goal.x + 6, goal.right, 10):
+        screen.fill((150, 156, 166), (x, goal.y, 1, goal.h))
+    pygame.draw.rect(screen, (246, 246, 240), goal, 4)
+    k = t % 140
+    side = 1 if (t // 140) % 2 else -1
+    if k < 50:
+        img = keeper.pose("frente", "parado", (k // 20) % 2)
+        screen.blit(img, img.get_rect(midbottom=(goal.centerx, goal.bottom)))
+    else:
+        f = min(1.0, (k - 50) / 14)
+        img = pygame.transform.rotate(keeper.pose("frente", "esquiva", 0), 70 * f * -side)
+        screen.blit(img, img.get_rect(center=(goal.centerx + side * 60 * f, goal.bottom - 30 - 10 * f)))
+    if 50 <= k < 70:
+        f = (k - 50) / 20
+        bx, by = rect.centerx + (-side * 80) * f, rect.bottom - 40 + (goal.y + 30 - rect.bottom + 40) * f
+        pygame.draw.circle(screen, (240, 240, 236), (round(bx), round(by)), round(9 - 4 * f))
+    elif k >= 70:
+        pygame.draw.circle(screen, (240, 240, 236), (goal.centerx - side * 80, goal.y + 30), 5)
+        ui.text(screen, "GOOOL!", theme.M, theme.BRASS, (rect.centerx, rect.y + 20))
+    kimg = _big(kicker.pose("costas", "chute" if 44 <= k < 60 else "parado", min(2, max(0, (k - 44) // 4))), 2)
+    screen.blit(kimg, kimg.get_rect(midbottom=(rect.centerx - 60, rect.bottom + 6)))
+
+
+def _scene_disputa(screen, ui, rect, t):
+    """O placar da disputa em bolinhas e a pressão da cobrança decisiva."""
+    beat = (math.sin(t * 0.2) + 1) / 2
+    for team in (0, 1):
+        y = rect.y + 50 + team * 26
+        screen.fill(theme.TEAM_COLORS[team], (rect.x + 40, y - 6, 12, 12))
+        marks = (1, 1, 0, 1, 1) if team == 0 else (1, 0, 1, 1)
+        for i in range(5):
+            r = marks[i] if i < len(marks) else None
+            if team == 1 and i == 4 and (t // 30) % 2:
+                r = 1 if (t // 60) % 2 else 0
+            c = theme.MOSS if r == 1 else theme.BLOOD if r == 0 else (60, 56, 76)
+            pygame.draw.circle(screen, c, (rect.x + 80 + i * 24, y), 8)
+    hx, hy, r = rect.centerx, rect.y + 150, 14 + round(beat * 4)
+    for dx in (-r * 0.75, r * 0.75):
+        pygame.draw.circle(screen, (220, 40, 50), (round(hx + dx), hy), r)
+    pygame.draw.polygon(screen, (220, 40, 50), [(hx - r * 1.7, hy + 4), (hx + r * 1.7, hy + 4), (hx, hy + r * 2.2)])
+    ui.text(screen, "COBRANÇA DECISIVA", theme.XS, theme.BONE, (rect.centerx, rect.bottom - 40))
+    paper = pygame.Rect(rect.right - 120, rect.y + 20, 100, 70)
+    screen.fill((236, 228, 196), paper)
+    ui.text(screen, "COLINHA", theme.XS, theme.INK, (paper.centerx, paper.y + 12), shadow=False)
+    ui.text(screen, "DIR. ALTO", theme.XS, (170, 40, 40), (paper.centerx, paper.y + 34), shadow=False)
+    ui.text(screen, "ESQ.", theme.XS, (170, 40, 40), (paper.centerx, paper.y + 52), shadow=False)
+
+
+NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
+               "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
+               "disputa": _scene_disputa}
 
 
 class NewsScene(_InfoScene):
