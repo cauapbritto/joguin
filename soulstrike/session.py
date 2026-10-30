@@ -14,6 +14,10 @@ MODES = {
     "treino": {"title": "TREINO", "soccer": False, "slots": 2},
     "treino_futebol": {"title": "TREINO DE FUTEBOL", "soccer": True, "slots": 2},
     "treino_basquete": {"title": "TREINO DE BASQUETE", "soccer": True, "basket": True, "slots": 4, "teams": True},
+    # pênaltis com visão de frente (scenes/penalty.py): sem partida antes
+    "penaltis": {"title": "DISPUTA DE PÊNALTIS", "soccer": True, "slots": 4, "teams": True, "penalty": True},
+    "treino_penaltis": {"title": "TREINO DE PÊNALTIS", "soccer": True, "slots": 2, "penalty": True},
+    "desafio_goleiro": {"title": "DESAFIO DO GOLEIRO", "soccer": True, "slots": 2, "penalty": True},
 }
 
 # Como as vagas formam os times nos modos 2 x 2 (escolhido no lobby)
@@ -68,6 +72,11 @@ class Session:
     def team_mode(self):
         """Dois times de dois (futebol 2 x 2 e duelo 2 x 2)."""
         return MODES[self.mode].get("teams", False)
+
+    @property
+    def penalty(self):
+        """Disputa de pênaltis direto do menu (sem partida antes)."""
+        return MODES[self.mode].get("penalty", False)
 
     @property
     def campaign(self):

@@ -297,13 +297,15 @@ class CharSelectScene(_MenuScene):
     @property
     def _length_mode(self):
         """Futebol (não o basquete): dá para escolher o tamanho da partida."""
-        return self.soccer and not self.basket
+        return self.soccer and not self.basket and not self.game.session.penalty
 
     @staticmethod
     def _length_label():
         length = settings.get("futebol_partida")
         if length == "tempo":
             return f"{config.SOCCER_MINUTES} MINUTOS (EMPATE: GOL DE OURO)"
+        if length == "penaltis":
+            return f"{config.SOCCER_MINUTES} MINUTOS (EMPATE: PÊNALTIS)"
         return f"PRIMEIRO A {length} GOLS"
 
     def _cycle_length(self):
@@ -514,6 +516,10 @@ class CharSelectScene(_MenuScene):
                 session.weapon_pick = self._weapon_pick_mode and settings.get("armas_por_round")
                 if settings.get("futebol_partida") in config.SOCCER_LENGTHS:
                     session.soccer_length = settings.get("futebol_partida")
+                if session.penalty:
+                    from .penalty import start_penalties
+                    self.game.change(start_penalties(self.game))
+                    return
                 from .play import VersusScene
                 self.game.change(VersusScene(self.game))
         else:
@@ -557,7 +563,8 @@ class CharSelectScene(_MenuScene):
                 items.insert(1, ("V", "ARMAS: " + ("A CADA ROUND" if settings.get("armas_por_round") else "FIXAS")))
             if self._length_mode:
                 length = settings.get("futebol_partida")
-                items.insert(1, ("T", "PARTIDA: " + ("3 MIN" if length == "tempo" else f"{length} GOLS")))
+                label = {"tempo": "3 MIN", "penaltis": "3 MIN + PÊNALTIS"}.get(length, f"{length} GOLS")
+                items.insert(1, ("T", "PARTIDA: " + label))
             if self.game.session.mode == "cpu":
                 items.insert(1, ("1 2 3", "DIFICULDADE"))
             elif self._cpu_level_mode and any(c.setup.cpu for c in self.cards):

@@ -11,7 +11,7 @@
   var failures = 0;
 
   var $ = function (id) { return document.getElementById(id); };
-  var views = ["join", "wait", "select", "pad", "choose", "shop"];
+  var views = ["join", "wait", "select", "pad", "choose", "shop", "penalty"];
 
   function loadToken() {
     var t = null;
@@ -851,6 +851,12 @@
       return;
     }
     shopOpen = null;
+    if (phase === "penalty" && me.playing && me.penalty) {
+      if (!$("view-penalty").classList.contains("on")) releaseAll();
+      show("penalty");
+      renderPenalty(me.penalty);
+      return;
+    }
     if ((phase === "playing" || phase === "paused") && me.playing) {
       show("pad");
       soccerMode = mode === "soccer";
@@ -915,6 +921,34 @@
       bind("wait-text", t[1]);
     }
   }
+
+  // pênaltis: tocar numa casa da grade deixa o analógico apontado para ela (o canto vale na hora
+  // do chute para quem bate, e na hora do PULAR para o goleiro). O meio é o analógico solto.
+  var penCell = "0,1", penRole = null;
+  function renderPenalty(pen) {
+    var role = pen.role || "espera";
+    if (role !== penRole) {
+      penRole = role;
+      setPenCell("0,1");
+    }
+    $("view-penalty").classList.toggle("espera", role === "espera");
+    $("pen-bate").classList.toggle("on", role === "bate");
+    $("pen-defende").classList.toggle("on", role === "defende");
+    var title = role === "bate" ? "VOCÊ BATE" : role === "defende" ? "VOCÊ DEFENDE" : "PÊNALTIS";
+    $("pen-title").textContent = title + " · " + (pen.hero || "");
+    $("pen-hint").textContent = role === "bate" ? "TOQUE NO CANTO · SÓ VOCÊ VÊ"
+      : role === "defende" ? "TOQUE NO LADO DO PULO" : "";
+  }
+  function setPenCell(cell) {
+    penCell = cell;
+    document.querySelectorAll(".pen-cell").forEach(function (b) { b.classList.toggle("on", b.dataset.cell === cell); });
+    var parts = cell.split(",");
+    var col = parseInt(parts[0], 10), row = parseInt(parts[1], 10);
+    sendAxis(col, 1 - row);
+  }
+  document.querySelectorAll(".pen-cell").forEach(function (b) {
+    onPress(b, function () { setPenCell(b.dataset.cell); });
+  });
 
   // saldo de almas da campanha; quando aumenta, um "+N" sobe ao lado
   var lastSouls = null, gainTimer = 0;

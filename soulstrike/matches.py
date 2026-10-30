@@ -1007,11 +1007,14 @@ class SoccerMatch(Match):
         self.contest = {}
         self.dunk = None            # enterrada do Cauanzera em andamento (ela segura a bola)
         self.assist = ASSIST_LEVELS.get(getattr(session, "assist", "media"), ASSIST_LEVELS["media"])
-        # tamanho da partida: primeiro a 3, 5 ou 7 gols, ou 3 minutos (empate: gol de ouro)
+        # tamanho da partida: primeiro a 3, 5 ou 7 gols, ou 3 minutos (empate: gol de ouro ou pênaltis)
         length = session.soccer_length
-        self.win_score = None if length == "tempo" else int(length)
-        self.clock = config.SOCCER_MINUTES * 60 * config.FPS if length == "tempo" else 0
+        timed = length in ("tempo", "penaltis")
+        self.win_score = None if timed else int(length)
+        self.clock = config.SOCCER_MINUTES * 60 * config.FPS if timed else 0
         self.golden_goal = False
+        self.tiebreak = "penaltis" if length == "penaltis" else "gol de ouro"
+        self.penalties = False      # acabou empatado e o desempate é nos pênaltis
 
     @property
     def length_text(self):
@@ -1029,7 +1032,11 @@ class SoccerMatch(Match):
         self.clock -= 1
         if self.clock:
             return
-        if self.score[0] == self.score[1]:
+        if self.score[0] == self.score[1] and self.tiebreak == "penaltis":
+            self.penalties = True
+            self.popup(self.ball.x, self.ball.y - 60, "PÊNALTIS!", theme.BRASS)
+            self._whistle(0)
+        elif self.score[0] == self.score[1]:
             self.golden_goal = True
             self.popup(self.ball.x, self.ball.y - 60, "GOL DE OURO", theme.BRASS)
             self.assets.play("apito", 0.4)
@@ -2287,6 +2294,13 @@ class SoccerMatch(Match):
             f.clear_lock = False
             f.stamina, f.exhausted = 1.0, False
             f.facing = (1.0, 0.0) if f.team == 0 else (-1.0, 0.0)
+
+    def next_scene(self):
+        """Empate com desempate nos pênaltis: a disputa com visão de frente."""
+        if not self.penalties:
+            return None
+        from .scenes.penalty import PenaltyScene, takers_from_match
+        return PenaltyScene(self.game, takers_from_match(self), difficulty=self.session.difficulty, match=self)
 
     def _finish(self):
         team = self.result_team

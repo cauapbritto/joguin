@@ -63,7 +63,7 @@ def ball_mode_speed(speed):
 
 # ── Futebol ──
 WIN_SCORE = 3               # padrão (dá para escolher 3, 5 ou 7 gols, ou jogar por tempo)
-SOCCER_LENGTHS = ("3", "5", "7", "tempo")
+SOCCER_LENGTHS = ("3", "5", "7", "tempo", "penaltis")
 SOCCER_MINUTES = 3
 GOAL_FREEZE = 120
 BALL_RADIUS = 12

@@ -180,6 +180,15 @@ MODE_TEXT = {
     "treino_basquete": ("Treino de basquete com bonecos parados: a barrinha do arremesso, a finta, o toco e a "
                         "cesta, uma lição por vez.",
                         "1 JOGADOR"),
+    "penaltis": ("Disputa de pênaltis com o gol de frente, sem partida antes: escolha os times, arrume a ordem "
+                 "dos batedores e bata 5 para cada lado, depois morte súbita. Cada herói bate e defende do seu jeito.",
+                 "1 A 4 JOGADORES"),
+    "treino_penaltis": ("Treino sem fim contra a CPU: você bate uma e defende outra. O canto é a direção do "
+                        "analógico na hora de soltar o CHUTE; o goleiro pula com a ESQUIVA.",
+                        "1 JOGADOR"),
+    "desafio_goleiro": ("Defenda 3 seguidas contra a CPU para passar de rodada. A CPU fica mais difícil a cada "
+                        "rodada, e 3 gols tomados acabam o desafio.",
+                        "1 JOGADOR"),
     "campaign": ("Juntos contra as sombras: em cada fase, um acampamento e duas masmorras, com um baú "
                  "escondido de armas raras no caminho. No fim, o chefão Aryel Corrompido. Quem cair pode "
                  "ser levantado por um companheiro.",
@@ -196,12 +205,14 @@ class ModeScene(_MenuScene):
         from ..campaign import CampaignRun
         saved = progress.saved_campaign()
         self.saved_run = CampaignRun.from_save(saved) if saved else None
-        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2", "basket2", "treino",
-                                                     "treino_futebol", "treino_basquete")]
+        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2", "basket2",
+                                                     "penaltis", "treino", "treino_futebol", "treino_basquete",
+                                                     "treino_penaltis", "desafio_goleiro")]
         if self.saved_run is not None:
             options.insert(0, ("CONTINUAR CAMPANHA", "continue"))
         options.append(("VOLTAR", "back"))
-        self.menu = MenuList(options, topleft=(56, 96), width=320, row_h=30 if len(options) > 11 else 36)
+        row_h = 36 if len(options) <= 11 else 30 if len(options) <= 13 else 27
+        self.menu = MenuList(options, topleft=(56, 88), width=320, row_h=row_h)
 
     def handle(self, event):
         if self.is_back(event):
@@ -224,7 +235,7 @@ class ModeScene(_MenuScene):
             return
         count = MODES[choice]["slots"]
         teams = MODES[choice].get("teams", False)
-        training = choice.startswith("treino")
+        training = choice.startswith("treino") or choice == "desafio_goleiro"
         slots = [SlotSetup(s, cpu=(choice == "cpu" and s == 2) or (training and s > 1) or (teams and s > 1))
                  for s in range(1, count + 1)]
         if choice == "campaign":
@@ -289,6 +300,12 @@ class ModeScene(_MenuScene):
                 screen.fill(theme.INK_2, (area.x, y, area.w, 1))
         sprites = self.assets.sprites
         ground = area.bottom - 22
+        if MODES[key].get("penalty"):
+            # gol de frente atrás do goleiro
+            goal = pygame.Rect(area.centerx + 4, area.y + 30, 112, area.h - 50)
+            for x in range(goal.x + 8, goal.right, 10):
+                screen.fill((150, 156, 166), (x, goal.y + 3, 1, goal.h - 3))
+            pygame.draw.rect(screen, (246, 246, 240), goal, 3)
         cast = {
             "cpu": [("guerreiro", "direita", -90), ("tanque", "esquerda", 90)],
             "treino": [("aryel", "direita", -70), ("tanque", "esquerda", 70)],
@@ -302,6 +319,9 @@ class ModeScene(_MenuScene):
                         ("guerreiro", "esquerda", 70), ("aryel", "esquerda", 150)],
             "basket2": [("ninja", "direita", -150), ("velocista", "direita", -70),
                         ("pirata", "esquerda", 70), ("tita", "esquerda", 150)],
+            "penaltis": [("matador", "costas", -60), ("paredao", "frente", 60)],
+            "treino_penaltis": [("ginga", "costas", -60), ("tanque", "frente", 60)],
+            "desafio_goleiro": [("trovao", "costas", -60), ("paredao", "frente", 60)],
         }[key]
         step = self.ticks // 4
         for name, direction, dx in cast:
@@ -312,7 +332,10 @@ class ModeScene(_MenuScene):
             if MODES[key].get("teams"):
                 pygame.draw.ellipse(screen, theme.TEAM_COLORS[0 if dx < 0 else 1], (x - 33, ground - 10, 66, 18), 2)
             screen.blit(img, img.get_rect(midbottom=(x, ground + 4)))
-        if key.startswith("soccer"):
+        if MODES[key].get("penalty"):
+            pygame.draw.circle(screen, (20, 18, 24), (area.centerx - 20, ground - 6), 9)
+            pygame.draw.circle(screen, (238, 236, 228), (area.centerx - 20, ground - 6), 8)
+        elif key.startswith("soccer"):
             bx = area.centerx + int(math.sin(self.ticks * 0.05) * 20)
             pygame.draw.circle(screen, (20, 18, 24), (bx, ground - 6), 9)
             pygame.draw.circle(screen, (238, 236, 228), (bx, ground - 6), 8)
