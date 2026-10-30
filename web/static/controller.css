@@ -186,6 +186,28 @@ body.locked .opt { opacity: .55; }
 }
 .pad-top .small { margin-left: auto; }
 .net { font-size: 8px; color: var(--muted); }
+
+/* almas da campanha */
+.souls {
+  display: none; position: relative; align-items: center; gap: 5px;
+  padding: 3px 8px 1px; font-size: 10px;
+  color: #c8aaff; background: var(--ink-2);
+  border: 2px solid #5a4880; box-shadow: 0 2px 0 #000;
+  transition: transform .12s;
+}
+.souls.on { display: inline-flex; }
+.souls.bump { transform: scale(1.15); }
+.souls b { color: #c8aaff; font-weight: normal; }
+.souls em {
+  position: absolute; left: 100%; top: 0; margin-left: 6px;
+  font-style: normal; color: #c8aaff; opacity: 0; pointer-events: none; white-space: nowrap;
+}
+.souls em.spent { color: #f0a49e; }
+.souls em.pop { animation: souls-pop .9s ease-out; }
+@keyframes souls-pop {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-16px); }
+}
 .net-good { color: #7fc36b; }
 .net-mid { color: #e0b44c; }
 .net-bad { color: #e06b5a; }

@@ -65,6 +65,7 @@ class SlotInfo:
         self.vote = 0         # teletransporte de fase: 0 nada, 1 falta você confirmar, 2 confirmado
         self.options = []     # melhorias para escolher (campanha): [{name, desc, color}]
         self.choice = 0       # qual está marcada
+        self.souls = None     # saldo de almas na campanha (None = fora da campanha)
 
     @property
     def claimed(self):
@@ -229,12 +230,12 @@ class RemoteHub:
 
     def publish_slot(self, slot, **fields):
         """Atualiza o que o celular mostra: char, weapon, ready, team, cooldown, stamina, tired,
-        munição (ammo, mag, reload), options e choice (melhorias da campanha)."""
+        munição (ammo, mag, reload), options e choice (melhorias da campanha) e souls (saldo)."""
         with self._lock:
             info = self._slots[slot]
             for name, value in fields.items():
                 if name not in ("char", "weapon", "ready", "team", "cooldown", "stamina", "tired",
-                                "options", "choice", "ammo", "mag", "reload", "vote"):
+                                "options", "choice", "ammo", "mag", "reload", "vote", "souls"):
                     raise ValueError(name)
                 setattr(info, name, value)
 
@@ -270,6 +271,7 @@ class RemoteHub:
                     "vote": mine.vote,
                     "options": mine.options,
                     "choice": mine.choice,
+                    "souls": mine.souls if self._mode == "campaign" else None,
                     "playing": slot in self._active,
                 }
             return data

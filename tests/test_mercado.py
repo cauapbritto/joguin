@@ -73,6 +73,17 @@ class AlmasTest(unittest.TestCase):
         self.assertEqual(match.run.souls[a.slot], M.SOULS["elite"])
         self.assertEqual(match.run.souls[b.slot], M.SHARE["elite"])
 
+    def test_celular_mostra_o_saldo(self):
+        from soulstrike.net.remote import hub
+        match, _ = campanha()
+        pular_intro(match)
+        hub.set_phase("playing", mode="campaign")
+        match.run.souls[2] = 37
+        passo(match, 7)
+        self.assertEqual(hub.status(2)["me"]["souls"], 37)
+        hub.set_phase("menu", mode="battle")
+        self.assertIsNone(hub.status(2)["me"]["souls"])          # fora da campanha não aparece
+
     def test_chefao_da_igual_para_todos(self):
         self.assertEqual(M.soul_split("chefe", 1, [1, 2]), {1: 60, 2: 60})
         self.assertEqual(M.soul_split("diabrete", 2, [1, 2, 3]), {1: 1, 2: 3, 3: 1})

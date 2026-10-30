@@ -512,6 +512,7 @@ class CoopMatch(Match):
         self.props = [p for p in self.props if p.alive]
         self._update_pickups()
         self.publish_ammo()
+        self.publish_souls()
         self.update_stage()
         if self.wave_banner > 0:
             self.wave_banner -= 1
@@ -635,6 +636,14 @@ class CoopMatch(Match):
                 _separate(a, b)
         for f in bodies:
             self.arena.resolve(f)
+
+    def publish_souls(self):
+        """Manda o saldo de almas de cada jogador para o celular dele."""
+        if self.frame % 6:
+            return
+        for f in self.players:
+            if f.slot:
+                hub.publish_slot(f.slot, souls=self.run.wallet(f.slot))
 
     def _leash(self):
         """Ninguém se afasta demais do grupo: todos cabem na câmera.

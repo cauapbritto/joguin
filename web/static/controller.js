@@ -514,6 +514,7 @@
       sb.classList.toggle("cooling", cd > 0);
       sb.classList.toggle("ready", cd <= 0);
       renderAmmo(me, mode);
+      renderSouls(me);
       var vote = me.vote || 0;                 // 1 = falta confirmar o teletransporte, 2 = confirmado
       var vb = $("vote-btn");
       vb.classList.toggle("on", vote > 0 && phase === "playing");
@@ -551,6 +552,31 @@
       bind("wait-title", t[0]);
       bind("wait-text", t[1]);
     }
+  }
+
+  // saldo de almas da campanha; quando aumenta, um "+N" sobe ao lado
+  var lastSouls = null, gainTimer = 0;
+  function renderSouls(me) {
+    var box = $("souls");
+    var on = me.souls !== null && me.souls !== undefined;
+    box.classList.toggle("on", on);
+    if (!on) { lastSouls = null; return; }
+    var n = me.souls;
+    if (lastSouls !== null && n !== lastSouls) {
+      var gain = $("souls-gain");
+      var diff = n - lastSouls;
+      gain.textContent = (diff > 0 ? "+" : "") + diff;
+      gain.classList.toggle("spent", diff < 0);
+      gain.classList.remove("pop");
+      void gain.offsetWidth;                   // reinicia a animação
+      gain.classList.add("pop");
+      box.classList.add("bump");
+      clearTimeout(gainTimer);
+      gainTimer = setTimeout(function () { box.classList.remove("bump"); }, 260);
+    }
+    lastSouls = n;
+    var text = String(n);
+    if ($("souls-n").textContent !== text) $("souls-n").textContent = text;
   }
 
   function renderAmmo(me, mode) {
