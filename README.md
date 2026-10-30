@@ -276,7 +276,10 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   cavadinha. O goleiro pula com a ESQUIVA para o lado do analógico (sem direção, fica no meio),
   provoca com ATACAR e faz catimba com MARCAR (na 3ª leva amarelo). Cada herói bate e defende do
   seu jeito. São 5 cobranças e depois morte súbita, com ordem dos batedores, colinha do goleiro,
-  pressão na decisiva, narração, comemoração de cada herói e estatísticas salvas. Também tem o
+  pressão na decisiva, narração, comemoração de cada herói e estatísticas salvas. A bola é
+  grande e gira; a perna de quem bate vai para trás e o pé encosta na bola (o jogo congela um
+  instante no contato); a câmera aproxima do gol durante o voo, e o goleiro quica esperando, se
+  estica, agarra a bola, cai com ela na grama e levanta. Também tem o
   **treino de pênaltis** (sem fim, bate uma e defende outra) e o **desafio do goleiro** (defenda
   3 seguidas para passar de rodada).
 - **Treino** — contra um boneco parado, uma lição por vez na tela. Tem o do duelo (andar, atacar,

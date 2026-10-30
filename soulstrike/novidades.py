@@ -10,6 +10,18 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.8.1": [
+        {"title": "PÊNALTIS COM CARA DE FIFA", "scene": "bate", "lines": [
+            "A bola ficou bem maior, com gomos que giram no chute.",
+            "Quem bate leva a perna para trás e o pé encosta na bola: o jogo congela um instante no contato.",
+            "A câmera aproxima do gol enquanto a bola voa.",
+        ]},
+        {"title": "GOLEIRO SEM CORTES", "scene": "agarra", "lines": [
+            "O goleiro quica na ponta dos pés, dá o impulso e se estica no ar.",
+            "Na defesa, agarra a bola, cai abraçado com ela e levanta com a bola no alto.",
+            "Tomou o gol? Cai na grama e levanta de cabeça baixa.",
+        ]},
+    ],
     "1.8.0": [
         {"title": "CAPÍTULO 2: LAG LOBBY", "scene": "lag", "lines": [
             "Depois do Templo Gelado, a campanha continua dentro da Lag Lobby, tomada pela Patrulha Cinza.",
