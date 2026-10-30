@@ -50,6 +50,9 @@ DUNKS = ("CRAVADA", "GIRO 360", "PENDURADO NO ARO")
 SHOW_DUNKS = ("MOINHO", "CAMBALHOTA", "GIRO 360")
 HANG_FRAMES = 30                # Pendurado no Aro: tempo segurando no aro antes de cair
 RIM_SHAKE = 24
+DUNK_SLOWMO = 12                # a hora de cravar: 6 quadros de câmera lenta (um sim, um não)
+PINNED_FRAMES = 14              # PREGADO NA TABELA: a bola fica presa esse tempo antes de cair
+CELEBRATE_FRAMES = 48           # quem fez a cesta comemora (se ficar parado)
 GLUE_STEAL = 0.04               # Marcação Colada: chance por quadro encostado (uns 0,4s em média)                  # quadros que o aro treme depois da enterrada
 REBOUND_PULL = 0.12             # a bola que bateu no aro é puxada para o mais perto
 BALL_COLOR = (226, 112, 36)
@@ -250,6 +253,7 @@ class BasketballMatch(Match):
             fighter.dunk_from = fighter.dunk_to = (0.0, 0.0)
             fighter.dunk_move = ""            # tipo da enterrada (DUNKS ou SHOW_DUNKS)
             fighter.hang = 0                 # quadros pendurado no aro depois de cravar
+            fighter.landing_dunk = False     # descendo do aro: poeira quando tocar o chão
             fighter.shot_half = 0.3          # meia largura da faixa verde deste arremesso
             fighter.pushed = False           # já levou empurrão neste arremesso
             fighter.meter_flash = None       # (soltou em, faixa, quadros) para mostrar o resultado
@@ -291,6 +295,8 @@ class BasketballMatch(Match):
         self.warmup = 0                      # quadros que faltam do aquecimento (0 = jogo valendo)
         self.warm = {}                       # aquecimento: o estado da bola de cada jogador
         self._only = None                    # aquecimento: só este jogador pega a bola da vez
+        self.white_flash = 0                 # quadros de tela branca (toco)
+        self.pinned = 0                      # PREGADO NA TABELA: quadros que a bola fica presa
         self._tip_off()
         if warmup:
             self._start_warmup()
@@ -418,6 +424,7 @@ class BasketballMatch(Match):
             timing = f.jump / JUMP_FRAMES
         err = shot_error(timing, f.shot_half)
         f.jump_shot = False
+        f.release_t = 12
         f.meter_flash = (timing, f.shot_half, 40)
         if err == 0 and abs(timing - 0.5) < 0.04:
             self.popup(f.x, f.y - 90, "NO TEMPO!", theme.MOSS)
@@ -498,6 +505,9 @@ class BasketballMatch(Match):
             f.hang = HANG_FRAMES             # fica no aro e só depois desce
         else:
             f.jump = JUMP_FRAMES // 2        # desce do aro
+        f.landing_dunk = True                # poeira quando chegar ao chão
+        if not self.warmup:
+            self.slowmo = max(self.slowmo, DUNK_SLOWMO)  # a hora de cravar, em câmera lenta
         f.fly_dunk = f.alley_dunk = False
         for hoop in self.hoops:
             if hoop.side == side:
@@ -895,6 +905,10 @@ class BasketballMatch(Match):
                 if f.jump_shot and self.holder is f:
                     self.release_shot(f, 1.0)   # não soltou: sai torto na descida
                 f.jump, f.jump_shot, f.lift = 0, False, 0
+                if f.landing_dunk:
+                    f.landing_dunk = False
+                    self.dust(f.x, f.y + 18, 10)                # caiu do aro: poeira no chão
+                    self.camera.shake(2)
         for name in ("feint_timer", "steal_timer", "steal_cd", "glue_timer", "wall_timer", "hot_timer",
                      "ghost_timer", "frost_timer"):
             if getattr(f, name) > 0:
@@ -907,6 +921,7 @@ class BasketballMatch(Match):
         if f.hacked:
             f.glue_timer = f.wall_timer = 0
         self._power_glow(f)
+        f.sport_pose = self._sport_pose(f)
         if f.fire_timer > 0:
             f.super_cd = 0                      # pegando fogo: o SUPER recarrega na hora
             f.fire_timer -= 1
@@ -916,6 +931,32 @@ class BasketballMatch(Match):
                            speed=1.2, gravity=-0.08, size=3)
             if f.fire_timer == 0:
                 f.streak = 0
+
+    def _sport_pose(self, f):
+        """Pose do desenho conforme o que ele está fazendo (só visual: nada aqui muda a jogada)."""
+        if f.hang:
+            return "enterrada", 2                # pendurado no aro
+        if f.dunking:
+            k = 1 - f.dunking / f.dunk_total
+            if f.dunk_move == "MOINHO":
+                return "enterrada", 0 if k < 0.5 else 1
+            return "enterrada", 0 if k < 0.55 else 1
+        if f.swat_t > 0:
+            return "toco", 1                     # o tapa do toco
+        if f.jump:
+            t = f.jump / JUMP_FRAMES
+            if f.jump_shot:
+                return "arremesso", 0            # bola acima da cabeça, esperando a barrinha
+            if f.release_t > 0:
+                return "arremesso", 1 if f.release_t > 6 else 2      # soltou: a mão fica dobrada
+            if f.landing_dunk:
+                return "pulo", 0                 # descendo do aro
+            if self.shot is not None and self.shot["team"] != f.team:
+                return "toco", 0                 # pulou para o toco: braço esticado
+            return "pulo", 0 if t < 0.35 else 1
+        if f.release_t > 0:
+            return "arremesso", 2
+        return None
 
     def _protect(self, f):
         """MARCAR com a bola: de costas para o marcador mais perto, andando devagar."""
@@ -1015,6 +1056,9 @@ class BasketballMatch(Match):
             ball.spin += 0.2
             ball.near_hoop = False
             return
+        if self.pinned > 0:
+            self.pinned -= 1                    # presa na tabela; depois cai
+            return
         x0, z0 = ball.x, ball.z
         ball.update(self)
         for side in (0, 1):
@@ -1087,6 +1131,15 @@ class BasketballMatch(Match):
 
     def _toco(self, f, ball, text="TOCO!"):
         f.blocks += 1
+        f.swat_t = 10
+        self.white_flash = 2                    # a tela pisca branco
+        side = 0 if ball.x < Court.W / 2 else 1
+        if text == "TOCO!" and abs(ball.x - Court.board_x(side)) < 90 and ball.z > Court.RIM_Z - 30:
+            text = "PREGADO NA TABELA!"         # colado na tabela: a bola fica presa um instante
+            ball.x = Court.board_x(side) + (ball.radius if side == 0 else -ball.radius)
+            ball.vx = ball.vy = 0.0
+            ball.vz = 0.0
+            self.pinned = PINNED_FRAMES
         self.popup(f.x, f.y - 90, text, theme.BRASS)
         self.burst(ball.x, ball.y - ball.z, (236, 230, 220), 10, speed=4)
         self.camera.shake(4)
@@ -1261,6 +1314,13 @@ class BasketballMatch(Match):
         self.assets.play("rede", 0.5)
         clean = shot is not None and not shot.get("touched")      # chuá: nem encostou no aro
         self.assets.play("torcida", 0.55 if points == 3 or clean or (shot or {}).get("dunk") else 0.35)
+        if clean and not shot.get("dunk"):
+            self.popup(hx, hy - Court.RIM_Z - 40, "SWISH", theme.BONE)
+            for hoop in self.hoops:
+                if hoop.side == side:
+                    hoop.shake = max(hoop.shake, RIM_SHAKE // 2)   # a rede balança
+        if scorer is not None:
+            scorer.celebrate = CELEBRATE_FRAMES
         self.shot = None
         self.shot_clock = 0
         if self.overtime:
@@ -1530,6 +1590,12 @@ class BasketballMatch(Match):
 
     def draw(self, screen, ui):
         super().draw(screen, ui)
+        if self.white_flash > 0:
+            self.white_flash -= 1
+            veil = pygame.Surface(screen.get_size())
+            veil.fill((255, 255, 255))
+            veil.set_alpha(120)
+            screen.blit(veil, (0, 0))
         for f in self.fighters:
             if f.jump_shot or f.meter_flash is not None:
                 self._draw_meter(screen, f)

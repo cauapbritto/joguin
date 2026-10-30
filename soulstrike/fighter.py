@@ -252,6 +252,10 @@ class Fighter(Entity):
         self.vulnerability = 1.0        # dano recebido é multiplicado por isso (chefão cansado)
         self.lift = 0                   # altura do desenho acima do chão (pulo do chefão)
         self.spin = 0                   # giro do desenho em graus (cambalhota da enterrada)
+        self.sport_pose = None          # pose do esporte escolhida pela partida neste quadro: (pose, índice)
+        self.celebrate = 0              # comemorando (braços para cima, pulinho) depois de cesta ou gol
+        self.release_t = 0              # quadros desde que soltou o arremesso (mão dobrada)
+        self.swat_t = 0                 # tapa do toco
         self.last_attacker = None
         self.kills = 0
         self.power = None               # poder do futebol (definido pela partida)
@@ -903,7 +907,8 @@ class Fighter(Entity):
                      "magic_timer", "nose_timer", "zaga_timer", "moto_timer", "cut_timer", "hack_timer",
                      "type_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer",
                      "slow_timer", "windup", "aim_timer", "haste_timer", "dry_click",
-                     "hit_flash", "melee_flash", "shoot_flash", "teleport_flash", "perfect_flash"):
+                     "hit_flash", "melee_flash", "shoot_flash", "teleport_flash", "perfect_flash",
+                     "celebrate", "release_t", "swat_t"):
             value = getattr(self, name)
             if value > 0:
                 setattr(self, name, value - 1)
@@ -1132,7 +1137,12 @@ class Fighter(Entity):
         return self._dir
 
     def _pose(self):
-        """Pose do sprite neste quadro: (andar | parado | ataque | dano | esquiva, índice)."""
+        """Pose do sprite neste quadro: (andar | parado | ataque | dano | esquiva, índice), ou uma
+        das poses do esporte (pulo, arremesso, enterrada, toco, chute, carrinho, comemora)."""
+        if self.sport_pose is not None and not self.stunned:
+            return self.sport_pose
+        if self.celebrate > 0 and not self.moving and not self.stunned:
+            return "comemora", (self.celebrate // 8) % 2
         if (self.dash_timer > 0 or self.charge_timer > 0 or self.pull_timer > 0 or self.lift > 0
                 or self.tackle_timer > 0 or self.block_timer > 0):
             return "esquiva", 0
@@ -1187,7 +1197,8 @@ class Fighter(Entity):
         direction = self._direction()
 
         # sombra e anel de identificação (caído: só a sombra, que some junto com o corpo)
-        shadow = pygame.Rect(0, 0, 38 * self.radius // config.PLAYER_RADIUS, 12)
+        shrink = max(0.45, 1 - self.lift / 260)          # no ar, a sombra encolhe
+        shadow = pygame.Rect(0, 0, round(38 * self.radius // config.PLAYER_RADIUS * shrink), round(12 * shrink))
         shadow.center = (sx, feet)
         if self.hp > 0 or self.fade > 0.5:
             pygame.draw.ellipse(surf, (10, 8, 14), shadow)
