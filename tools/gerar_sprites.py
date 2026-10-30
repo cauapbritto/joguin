@@ -1983,6 +1983,207 @@ def paredao(p):
     return c
 
 
+# ── Patrulha Cinza (capítulo 2, Lag Lobby) ─────
+PATROL_VEST, PATROL_VEST_D, PATROL_VEST_L = (78, 82, 90), (50, 54, 60), (110, 116, 126)
+PATROL_MASK = (28, 28, 32)
+PATROL_LED, PATROL_LED_L = (255, 60, 52), (255, 190, 170)
+LAG_CYAN = (64, 200, 230)
+GRAFITE, GRAFITE_D, GRAFITE_L = (62, 66, 76), (36, 38, 46), (104, 110, 124)
+
+
+def drone(p):
+    """Drone da Patrulha: carcaça grafite com quatro hélices e o olho de LED vermelho
+    (é ele que acende antes do rasante)."""
+    c = Canvas(24, 22)
+    fly = p.float + (1 if p.hurt else 0)
+    spin = p.frame % 2 if p.kind == "andar" else 0
+    tilt = 1 if p.dash or (p.kind == "ataque" and p.frame) else 0
+    by = 8 + fly
+    blade = (180, 186, 200)
+    if p.side:
+        # de lado: corpo comprido, duas hélices à vista
+        for hx in (3, 15):
+            c.rect(hx + 2, by - 3 - (1 if hx > 10 and tilt else 0), 2, 3, GRAFITE_D)       # haste
+            w = 7 if (spin + hx) % 2 else 4
+            c.rect(hx + 3 - w // 2, by - 4 - (1 if hx > 10 and tilt else 0), w, 1, blade)
+        c.rect(3, by, 18, 6, GRAFITE)
+        c.rect(3, by, 18, 1, GRAFITE_L)
+        c.rect(3, by + 5, 18, 1, GRAFITE_D)
+        c.rect(17, by + 1, 4, 3, PATROL_MASK)                       # olho
+        c.rect(18, by + 2, 2, 1, PATROL_LED)
+        c.px(19, by + 2, PATROL_LED_L)
+        c.rect(6, by + 6, 2, 3, GRAFITE_D)                          # pé
+        c.rect(15, by + 6, 2, 3, GRAFITE_D)
+        c.rect(5, by + 2, 6, 1, LAG_CYAN if not p.hurt else GRAFITE_D)   # faixa (logo riscado)
+        c.px(8, by + 1, PATROL_LED)
+        c.px(7, by + 3, PATROL_LED)
+        c.hand = (12, by + 3)
+        return c
+    for hx, hy in ((2, by - 3), (16, by - 3), (4, by + 7), (14, by + 7)):     # quatro hélices
+        c.rect(hx + 2, hy, 2, 2, GRAFITE_D)
+        w = 7 if (spin + hx) % 2 else 4
+        c.rect(hx + 3 - w // 2, hy - 1, w, 1, blade)
+    c.line(6, by, 9, by + 2, GRAFITE_D, 1)
+    c.line(18, by, 15, by + 2, GRAFITE_D, 1)
+    c.rect(7, by, 10, 7, GRAFITE)
+    c.rect(7, by, 10, 1, GRAFITE_L)
+    c.rect(7, by + 6, 10, 1, GRAFITE_D)
+    if p.dir == "frente":
+        c.rect(9, by + 2, 6, 3, PATROL_MASK)                        # olho de LED
+        c.rect(10, by + 3, 4, 1, PATROL_LED if not p.hurt else (120, 30, 30))
+        c.px(11, by + 3, PATROL_LED_L)
+    else:
+        c.rect(9, by + 2, 6, 2, GRAFITE_D)                          # bateria
+        c.rect(10, by + 2, 2, 1, LAG_CYAN)
+        c.px(13, by + 2, PATROL_LED)
+    c.hand = (12, by + 4)
+    return c
+
+
+def patrol_arm_band(c, p):
+    """Braçadeira com o logo da Lag Lobby riscado."""
+    x, y, w, h = p.torso
+    if p.side:
+        bx = x + w // 2 - 1
+        c.rect(bx, y + 2, 3, 2, LAG_CYAN)
+        c.px(bx + 1, y + 2, PATROL_LED)
+        c.px(bx + 2, y + 3, PATROL_LED)
+    elif p.dir == "frente":
+        c.rect(x - 2, y + 2, 2, 2, LAG_CYAN)
+        c.px(x - 2, y + 3, PATROL_LED)
+
+
+def miliciano(p):
+    """Miliciano da Patrulha Cinza: colete tático cinza-chumbo, balaclava preta e o visor de LED
+    vermelho no lugar dos olhos; na braçadeira o logo da Lag Lobby riscado."""
+    c = Canvas()
+    pants, boots = (46, 48, 54), (26, 26, 30)
+    shirt = (60, 62, 68)
+    x, y, w, h = p.torso
+    hx, hy, hw, hh = p.head
+    legs(c, p, pants, boots)
+    far_arm(c, p, shirt, PATROL_MASK)
+    torso(c, p, PATROL_VEST, belt=(36, 36, 40), buckle=(140, 140, 150))
+    if p.dir == "frente":
+        for k in range(2):                                         # bolsos do colete
+            c.rect(x + 1 + k * (w - 4), y + 3, 2, 3, PATROL_VEST_D)
+            c.px(x + 1 + k * (w - 4), y + 3, PATROL_VEST_L)
+        c.rect(x + w // 2 - 1, y + 1, 2, 2, (30, 30, 34))          # rádio
+        c.px(x + w // 2 - 1, y + 1, PATROL_LED)
+    elif p.dir == "costas":
+        c.rect(x + 1, y + 1, w - 2, 4, PATROL_VEST_D)              # placa das costas
+        c.rect(x + 2, y + 2, w - 4, 1, (120, 120, 126))
+    else:
+        c.rect(x + 1, y + 2, 2, 3, PATROL_VEST_D)
+    arms(c, p, shirt, PATROL_MASK)
+    patrol_arm_band(c, p)
+    head(c, p, PATROL_MASK, nose=False)                            # balaclava
+    c.rect(hx, hy, hw, 1, (40, 40, 46))
+    if p.dir == "frente":
+        c.rect(hx + 1, hy + 4, hw - 2, 2, (16, 16, 20))           # visor
+        lit = PATROL_LED if not p.hurt else (120, 30, 30)
+        c.rect(hx + 2, hy + 4, hw - 4, 1, lit)
+        c.px(hx + 3, hy + 4, PATROL_LED_L)
+    elif p.side:
+        c.rect(hx + hw - 5, hy + 4, 5, 2, (16, 16, 20))
+        c.rect(hx + hw - 4, hy + 4, 4, 1, PATROL_LED if not p.hurt else (120, 30, 30))
+    else:
+        c.rect(hx + 1, hy + 4, hw - 2, 1, (16, 16, 20))           # tira do visor atrás
+    return c
+
+
+def torreta(p):
+    """Torreta: tripé, base giratória e o cano duplo; a luz vermelha em cima acende antes do tiro.
+    Não anda: as poses só mexem o cano (recuo no ataque, tremida no dano)."""
+    c = Canvas(28, 30)
+    shake = 1 if p.hurt else 0
+    recoil = (0, 2, 1)[p.frame] if p.kind == "ataque" else 0
+    # tripé
+    for x0, x1 in ((14, 5), (14, 23), (14, 14)):
+        c.line(x0, 20, x1, 28, GRAFITE_D, 2)
+    c.rect(4, 28, 3, 1, GRAFITE_L)
+    c.rect(22, 28, 3, 1, GRAFITE_L)
+    # base
+    c.rect(8 + shake, 16, 13, 5, GRAFITE_D)
+    c.rect(8 + shake, 16, 13, 1, GRAFITE)
+    # cabeça
+    hx = 7 + shake
+    c.rect(hx, 8, 15, 9, GRAFITE)
+    c.rect(hx, 8, 15, 1, GRAFITE_L)
+    c.rect(hx, 16, 15, 1, GRAFITE_D)
+    c.rect(hx + 5, 5, 5, 3, GRAFITE_D)                              # luz em cima
+    c.rect(hx + 6, 5, 3, 2, PATROL_LED)
+    c.px(hx + 6, 5, PATROL_LED_L)
+    if p.side:
+        c.rect(hx + 14 - recoil, 10, 7, 2, (40, 42, 50))           # cano duplo para a frente
+        c.rect(hx + 14 - recoil, 13, 7, 2, (40, 42, 50))
+        c.rect(hx + 20 - recoil, 10, 1, 5, (90, 94, 104))
+        c.rect(hx + 1, 11, 4, 3, LAG_CYAN)                         # logo riscado
+        c.px(hx + 2, 12, PATROL_LED)
+        c.hand = (hx + 20 - recoil, 12)
+    elif p.dir == "frente":
+        c.rect(hx + 3, 10, 3, 3 + recoil, (40, 42, 50))            # bocas dos canos (vindo para cá)
+        c.rect(hx + 9, 10, 3, 3 + recoil, (40, 42, 50))
+        c.px(hx + 4, 11, (14, 14, 18))
+        c.px(hx + 10, 11, (14, 14, 18))
+        c.rect(hx + 6, 14, 3, 1, PATROL_LED)
+        c.hand = (hx + 7, 13)
+    else:
+        c.rect(hx + 3, 9, 9, 6, GRAFITE_D)                          # caixa de munição
+        c.rect(hx + 4, 10, 7, 1, (180, 150, 50))
+        c.hand = (hx + 7, 9)
+    return c
+
+
+def miliciano_exo(p):
+    """Miliciano de Exo (elite): o miliciano dentro de uma armação de exoesqueleto cinza, com as
+    juntas e o visor vermelhos, ombreiras grossas e punhos de metal."""
+    c = Canvas(30, 38)
+    base = miliciano(p)
+    c.surf.blit(base.surf, (3, 2))
+    b = p.bob
+    frame_c, frame_d, frame_l = (120, 126, 140), (72, 76, 88), (170, 176, 190)
+    joint = PATROL_LED
+    if p.side:
+        tx = 3 + 12 - 4 + p.torso_dx
+        c.rect(tx - 1, 16 + b, 10, 9, frame_c)                     # placa do peito/costas
+        c.rect(tx - 1, 16 + b, 10, 1, frame_l)
+        c.rect(tx + 6, 18 + b, 2, 2, joint)
+        c.rect(tx + 1, 13 + b, 7, 4, frame_l)                      # ombreira
+        c.rect(tx + 1, 16 + b, 7, 1, frame_d)
+        c.rect(tx - 3, 14 + b, 2, 12, frame_d)                     # coluna do exo nas costas
+        for fx, fy, fw in feet(p):
+            c.rect(fx + 3, fy + 2 - 3, fw, 2, frame_c)
+        hx, hy = base.hand
+        c.rect(round(hx) + 3 - 2, round(hy) + 2 - 2, 5, 4, frame_c)   # punho de metal
+        c.rect(round(hx) + 3 - 2, round(hy) + 2 - 2, 5, 1, frame_l)
+        c.hand = (hx + 3, hy + 2)
+        return c
+    tx = 3 + 8
+    c.rect(tx - 1, 17 + b, 10, 7, frame_c)
+    c.rect(tx - 1, 17 + b, 10, 1, frame_l)
+    if p.dir == "frente":
+        c.rect(tx + 3, 19 + b, 2, 2, joint)                        # núcleo aceso
+        c.px(tx + 3, 19 + b, PATROL_LED_L)
+    else:
+        for vx in (tx + 1, tx + 6):                                # saídas de vapor
+            c.rect(vx, 18 + b, 1, 4, frame_d)
+    for sx in (tx - 5, tx + 9):                                    # ombreiras
+        c.rect(sx, 14 + b, 6, 4, frame_l)
+        c.rect(sx, 17 + b, 6, 1, frame_d)
+        c.px(sx + 2, 15 + b, joint)
+    for side, dy in ((tx - 5, p.arm_a), (tx + 10, p.arm_b + p.reach_dy)):     # punhos
+        length = max(2, 5 + dy)
+        c.rect(side, 17 + b + length + 1, 5, 4, frame_c)
+        c.rect(side, 17 + b + length + 1, 5, 1, frame_l)
+    for fx, fy, fw in feet(p):
+        c.rect(fx + 3, fy + 2 - 3, fw, 2, frame_c)
+        c.px(fx + 3, fy - 1, joint)
+    hx, hy = base.hand
+    c.hand = (hx + 3, hy + 2)
+    return c
+
+
 # ── catálogo ──────────────────────────────────
 # nome → (desenho, largo, cores que acendem de vermelho na alma corrompida)
 CHARACTERS = {
@@ -2008,6 +2209,10 @@ CHARACTERS = {
     "diabrete": (diabrete, False, []),
     "esqueleto": (esqueleto, False, []),
     "golem": (golem, False, []),
+    "drone": (drone, False, []),
+    "miliciano": (miliciano, False, []),
+    "torreta": (torreta, False, []),
+    "miliciano_exo": (miliciano_exo, False, []),
 }
 HEROES = ("guerreiro", "atirador", "tanque", "ninja", "velocista", "aryel", "fantasma", "tita", "pirata", "geada",
           "faisca", "trovao", "ginga", "matador", "cauanzera", "albeguinio", "borba", "paredao")

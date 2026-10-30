@@ -335,6 +335,69 @@
    6
   ]
  },
+ "Taser de Rede": {
+  "file": "taser_de_rede.png",
+  "grip": [
+   3,
+   7
+  ]
+ },
+ "Rede": {
+  "file": "rede.png",
+  "grip": [
+   6,
+   6
+  ]
+ },
+ "Rifle de Plasma": {
+  "file": "rifle_de_plasma.png",
+  "grip": [
+   8,
+   6
+  ]
+ },
+ "Drone de Bolso": {
+  "file": "drone_de_bolso.png",
+  "grip": [
+   3,
+   8
+  ]
+ },
+ "Teclado Mecânico": {
+  "file": "teclado_mecanico.png",
+  "grip": [
+   3,
+   4
+  ]
+ },
+ "Escudo de Choque": {
+  "file": "escudo_de_choque.png",
+  "grip": [
+   3,
+   9
+  ]
+ },
+ "Manopla do Exo": {
+  "file": "manopla_do_exo.png",
+  "grip": [
+   3,
+   7
+  ]
+ },
+ "Punho Corrompido": {
+  "file": "punho_corrompido.png",
+  "grip": [
+   3,
+   6
+  ]
+ },
+ "Fuzil": {
+  "file": "fuzil.png",
+  "grip": [
+   7,
+   5
+  ]
+ },
  "Lâmina Solar": {
   "file": "lamina_solar.png",
   "grip": [
