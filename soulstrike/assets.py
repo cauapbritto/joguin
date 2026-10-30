@@ -16,7 +16,7 @@ SHEET_POSES = (("andar", 8), ("parado", 2), ("ataque", 3), ("dano", 1), ("esquiv
 # poses do esporte (só os heróis): pular, arremessar, enterrar, dar toco, chutar, carrinho e comemorar.
 # Uma pose que a folha não tiver cai no quadro parado (SpriteSet.pose).
 SPORT_POSES = (("pulo", 2), ("arremesso", 3), ("enterrada", 3), ("toco", 2), ("chute", 3), ("carrinho", 1),
-               ("comemora", 2))
+               ("comemora", 2), ("bate", 4), ("espera", 2), ("mergulho", 2))
 SHEET_FACTOR = 2                 # a arte é ampliada 2x sem suavizar
 TEAM_KITS = ("azul", "vermelho")  # uniforme do time 0 e do time 1 no futebol (characters/uniformes)
 MUSIC_VOLUME = 0.3               # música com o volume das opções no máximo

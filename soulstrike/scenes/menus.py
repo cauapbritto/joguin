@@ -1231,10 +1231,78 @@ def _scene_armas_lag(screen, ui, rect, t):
     ui.text(screen, names[pick].upper(), theme.XS, theme.BRASS, (rect.centerx, rect.bottom - 22))
 
 
+def _scene_bate(screen, ui, rect, t):
+    """O chute novo do pênalti: apoio, perna atrás, o pé na bola (que amassa) e a perna seguindo."""
+    from .penalty import PenaltyScene
+    ball = PenaltyScene._draw_mini_ball
+    sprites = ui.assets.kit_sprites("matador", 0)
+    screen.fill((52, 128, 60), rect)
+    for y in range(rect.y, rect.bottom, 24):
+        screen.fill((58, 138, 66), (rect.x, y, rect.w, 12))
+    k = t % 90
+    frame = 0 if k < 20 else 1 if k < 34 else 2 if k < 46 else 3
+    img = _big(sprites.pose("costas", "bate", frame), 2)
+    foot = (rect.centerx - 40, rect.bottom - 20)
+    bx, by = rect.centerx + 6, rect.bottom - 64
+    if k < 46:
+        pygame.draw.ellipse(screen, (30, 70, 34), (bx - 22, by + 14, 44, 12))
+        ball(screen, bx + (3 if 34 <= k < 46 else 0), by, 22, squash=0.25 if 34 <= k < 46 else 0.0)
+    else:
+        f = min(1.0, (k - 46) / 30)
+        ball(screen, bx + 60 * f, by - 120 * f, 22 - 11 * f, spin=k * 0.4)
+    pygame.draw.ellipse(screen, (30, 70, 34), (foot[0] - 40, foot[1] - 8, 80, 16))
+    screen.blit(img, img.get_rect(midbottom=foot))
+    if 34 <= k < 40:
+        ui.text(screen, "TUM!", theme.S, theme.BRASS, (bx + 40, by - 40))
+
+
+def _scene_agarra(screen, ui, rect, t):
+    """O goleiro novo: quica, se estica, agarra a bola, cai abraçado e levanta com ela no alto."""
+    from .penalty import PenaltyScene
+    ball = PenaltyScene._draw_mini_ball
+    sprites = ui.assets.kit_sprites("paredao", 1)
+    screen.fill((52, 128, 60), (rect.x, rect.centery + 40, rect.w, rect.h))
+    screen.fill((34, 30, 48), (rect.x, rect.y, rect.w, rect.h // 2 + 40))
+    goal = pygame.Rect(rect.x + 20, rect.y + 40, rect.w - 40, rect.h // 2)
+    for x in range(goal.x + 6, goal.right, 10):
+        screen.fill((150, 156, 166), (x, goal.y, 1, goal.h))
+    pygame.draw.rect(screen, (246, 246, 240), goal, 4)
+    ground = goal.bottom
+    k = t % 150
+    cx = goal.centerx
+    tx, ty = goal.right - 50, goal.y + 50
+    if k < 30:
+        img = _big(sprites.pose("frente", "espera", (k // 10) % 2), 2)
+        screen.blit(img, img.get_rect(midbottom=(cx, ground)))
+        ball(screen, cx - 30 + k * 0, rect.bottom - 30, 18)
+        return
+    if k < 46:
+        f = (k - 30) / 16
+        img = pygame.transform.rotate(_big(sprites.pose("frente", "mergulho", 0), 2), -85 * f)
+        x, y = cx + (tx - cx) * f, ground - 60 + (ty - ground + 60) * f
+        screen.blit(img, img.get_rect(center=(x, y)))
+        bf = f
+        ball(screen, cx + (tx + 20 - cx) * bf, rect.bottom - 30 + (ty - rect.bottom + 30) * bf, 18 - 7 * bf, spin=k * 0.3)
+        return
+    if k < 100:
+        f = min(1.0, (k - 46) / 16)
+        img = pygame.transform.rotate(_big(sprites.pose("frente", "mergulho", 1), 2), -85 - 5 * f)
+        x, y = tx, ty + (ground - 24 - ty) * f * f
+        screen.blit(img, img.get_rect(center=(x, y)))
+        ball(screen, x - 4, y, 11, spin=1)
+        if k < 60:
+            ui.text(screen, "AGARROU!", theme.S, theme.BRASS, (rect.centerx, rect.y + 20))
+        return
+    img = _big(sprites.pose("frente", "comemora", (k // 10) % 2), 2)
+    screen.blit(img, img.get_rect(midbottom=(tx - 20, ground)))
+    ball(screen, tx - 20, ground - img.get_height() - 12, 11, spin=2)
+
+
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
                "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
                "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
-               "chefao_lag": _scene_chefao_lag, "armas_lag": _scene_armas_lag}
+               "chefao_lag": _scene_chefao_lag, "armas_lag": _scene_armas_lag,
+               "bate": _scene_bate, "agarra": _scene_agarra}
 
 
 class NewsScene(_InfoScene):

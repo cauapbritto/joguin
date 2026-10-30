@@ -23,6 +23,10 @@ SPOT = (W // 2, 466)
 UP = 150                    # quanto a câmera sobe atrás da bola isolada
 KEEPER_SCALE = 1.5          # as folhas já vêm 2x: o goleiro fica 3x e quem bate 5x
 KICKER_SCALE = 2.5
+BALL_R = (22, 11)           # raio da bola na marca e chegando no gol
+KICK_FOOT = (W // 2 - 50, SPOT[1] + 30)   # onde quem bate pisa: o pé do chute encosta na bola no contato
+HIT_STOP = 3                # quadros congelados no contato
+ZOOM = 1.55                 # câmera aproxima do gol enquanto a bola voa
 RESULT_FRAMES = 170
 SLOWMO_TAIL = 8             # últimos quadros do voo em câmera lenta
 CATIMBA_FRAMES = 80
@@ -139,6 +143,7 @@ class Kick:
     card: bool = False           # a catimba virou amarelo
     provoking: bool = False
     retake: bool = False
+    freeze: int = 0              # quadros congelados do contato (pausa de impacto)
 
 
 def taker_sprites(assets, key, team):
@@ -185,6 +190,7 @@ class PenaltyScene(Scene):
         self.flashes = []
         self.bulge = None                    # (x, y, força) da rede estufando
         self.cam_up = 0.0
+        self.zoom = 1.0
         self.shake = 0
         self.records = []
         self.count_t = 0
@@ -308,6 +314,7 @@ class PenaltyScene(Scene):
         self.flashes = [(x, y, a + 1) for x, y, a in self.flashes if a < 12]
         if self.shake:
             self.shake -= 1
+        self.zoom += (self._zoom_target() - self.zoom) * 0.12
         if self.bulge:
             bx, by, amp = self.bulge
             self.bulge = (bx, by, amp * 0.94) if amp > 0.05 else None
@@ -534,7 +541,9 @@ class PenaltyScene(Scene):
         k.shot = P.make_shot(k.cell, k.power, kstyle, self.rng, decisive=k.decisive, chip=k.chip,
                              early_dive=early, hacked=hacked)
         k.flight = 0
+        k.freeze = HIT_STOP
         self.state = "voo"
+        self._burst(SPOT[0] - 12, SPOT[1] + 8, (110, 176, 86), 10, speed=3, size=3, life=26)   # grama voando
         self.shake = 6 if k.shot.power > 0.75 else 3
         self.assets.play("chute", 0.6)
         if kstyle.trick == "raio":
@@ -546,6 +555,11 @@ class PenaltyScene(Scene):
 
     def _update_voo(self):
         k = self.kick
+        if k.freeze:                               # pausa de impacto: tudo para, menos o goleiro decidir
+            k.freeze -= 1
+            if not self.replaying:
+                self._keeper_dive_input()
+            return
         tail = k.shot.frames - k.flight <= SLOWMO_TAIL or self.replaying
         if tail and self.ticks % 2:
             return                                 # câmera lenta nos últimos quadros
@@ -594,7 +608,8 @@ class PenaltyScene(Scene):
             sub = "A TORCIDA FICOU COM A BOLA"
         if k.retake:
             sub = "2º AMARELO: VAI REPETIR!"
-        self._shout(big, color, theme.XL, y=220, sub=sub, life=RESULT_FRAMES)
+        # com a câmera perto do gol, o grito fica embaixo para não tapar o goleiro
+        self._shout(big, color, theme.XL, y=220 if out.result == "isolou" else 400, sub=sub, life=RESULT_FRAMES)
         self.state = "resultado"
         self.t = 0
         self._record(out)
@@ -780,6 +795,8 @@ class PenaltyScene(Scene):
     def draw(self, screen):
         view = pygame.Surface((W, H))
         self._draw_world(view)
+        if self.zoom > 1.01:
+            view = self._zoomed(view)
         ox = self.rng.randint(-self.shake, self.shake) // 2 if self.shake else 0
         oy = self.rng.randint(-self.shake, self.shake) // 2 if self.shake else 0
         screen.fill(theme.INK)
@@ -795,6 +812,29 @@ class PenaltyScene(Scene):
             screen.blit(veil, (0, 0))
             self.ui.text(screen, "PAUSADO", theme.L, theme.BONE, (W // 2, H // 2 - 20))
             self.ui.text(screen, "ATACAR CONTINUA · ESC SAI", theme.XS, theme.MUTED, (W // 2, H // 2 + 20))
+
+    def _zoom_target(self):
+        """Aproxima do gol durante o voo e no começo do resultado (não na isolada: aí a câmera sobe)."""
+        k = self.kick
+        if k is None or k.shot is None or k.shot.kind == "isolou":
+            return 1.0
+        if self.state == "voo":
+            return ZOOM if k.flight >= 4 or self.replaying else 1.0      # depois do contato
+        if self.state == "resultado" and self.t < RESULT_FRAMES - 50:
+            return ZOOM
+        return 1.0
+
+    def _zoomed(self, view):
+        k = self.kick
+        cx = W // 2
+        if k is not None and k.shot is not None:
+            pull = (self.zoom - 1) / (ZOOM - 1)
+            cx += round((goal_to_screen(k.shot.x, 0)[0] - W // 2) * 0.35 * pull)   # puxa um pouco para o canto
+        w, h = round(W / self.zoom), round(H / self.zoom)
+        box = pygame.Rect(0, 0, w, h)
+        box.center = (cx, round(LINE_Y - 60 + (H // 2 - (LINE_Y - 60)) * (ZOOM - self.zoom) / (ZOOM - 1)))
+        box.clamp_ip(view.get_rect())
+        return pygame.transform.scale(view.subsurface(box), (W, H))
 
     def _draw_world(self, s):
         up = int(self.cam_up)
@@ -932,41 +972,124 @@ class PenaltyScene(Scene):
                     s.fill(theme.INK, (W - 268, 318 + up, 30, 40))
                     s.fill((250, 214, 60), (W - 270, 316 + up, 28, 38))
             return
+        out = k.outcome if self.state == "resultado" else None
+        caught = out is not None and out.result in ("defesa", "segurou")
         progress = self._dive_progress()
-        pygame.draw.ellipse(s, (0, 0, 0), (base_x - 30, ground - 8, 60, 14))
         if k.dive is not None and progress > 0:
-            cell = k.dive.cell or (0, 1)
-            tx, ty = goal_to_screen(*P.cell_point(*cell))
-            x = base_x + (tx - base_x) * progress
-            y = ground - 50 + (ty + up - (ground - 50)) * progress
-            if cell[0] == 0:
-                img = _scaled(sprites.pose("frente", "pulo", 1), KEEPER_SCALE)
-                s.blit(img, img.get_rect(center=(x, y)))
-            else:
-                angle = cell[0] * -70 * progress
-                if cell[1] == 0:
-                    angle *= 1.25
-                img = pygame.transform.rotate(_scaled(sprites.pose("frente", "esquiva", 0), KEEPER_SCALE), angle)
-                s.blit(img, img.get_rect(center=(x, y)))
-            if self.state == "resultado" and k.outcome and k.outcome.result == "defesa" and self.t > 20:
-                self._draw_mini_ball(s, x, y - 10)
+            self._draw_keeper_dive(s, sprites, base_x, ground, up, progress, out, caught)
             if self._keeper_style().trick == "clone" and k.dive.cell:
                 ghost = _scaled(sprites.pose("frente", "parado", 0), KEEPER_SCALE).copy()
                 ghost.set_alpha(110)
                 s.blit(ghost, ghost.get_rect(midbottom=(base_x, ground)))
             return
-        if self.state == "resultado" and k.outcome and k.outcome.result in ("segurou",):
-            img = _scaled(sprites.pose("frente", "comemora", (self.t // 10) % 2), KEEPER_SCALE)
+        pygame.draw.ellipse(s, (0, 0, 0), (base_x - 30, ground - 8, 60, 14))
+        ball_at = None
+        if caught:
+            # pegou sem pular: abraça a bola no peito e depois levanta com ela
+            if self.t < 50:
+                img = _scaled(sprites.pose("frente", "mergulho", 1), KEEPER_SCALE)
+                ball_at = (base_x, ground - img.get_height() * 0.45)
+            else:
+                img = _scaled(sprites.pose("frente", "comemora", (self.t // 10) % 2), KEEPER_SCALE)
+                ball_at = (base_x, ground - img.get_height() - BALL_R[1])
         elif getattr(k, "provoking", False):
             img = _scaled(sprites.pose("frente", "comemora", (self.ticks // 8) % 2), KEEPER_SCALE)
+        elif self.state in ("mira", "corrida", "voo"):
+            img = _scaled(sprites.pose("frente", "espera", (self.ticks // 12) % 2), KEEPER_SCALE)   # quicando
         else:
             img = _scaled(sprites.pose("frente", "parado", (self.ticks // 30) % 2), KEEPER_SCALE)
         s.blit(img, img.get_rect(midbottom=(base_x, ground)))
+        if ball_at:
+            self._draw_mini_ball(s, ball_at[0], ball_at[1], BALL_R[1])
         if k.hacked_keeper and self.state == "corrida" and k.run - self.t <= P.HACK_FRAMES:
             self.ui.text(s, "TRAVADO", theme.XS, (110, 230, 140), (base_x, ground - img.get_height() - 12))
         if self.state == "entrada" and self.t > 10 and self._history():
             s.fill((90, 200, 240), (base_x + 30, ground - 66, 8, 18))     # garrafinha na mão
             s.fill((240, 240, 250), (base_x + 31, ground - 70, 6, 4))
+
+    def _draw_keeper_dive(self, s, sprites, base_x, ground, up, progress, out, caught):
+        """O pulo inteiro, sem cortes: impulso, corpo esticado no ar, agarra (ou espalma), cai na grama
+        e levanta. ``progress`` é o quanto o pulo já andou; depois do resultado conta o self.t."""
+        k = self.kick
+        cell = k.dive.cell or (0, 1)
+        side = cell[0]
+        tx, ty = goal_to_screen(*P.cell_point(*cell))
+        ty += up
+        ease = progress ** 1.3
+        x = base_x + (tx - base_x) * ease
+        lift = ground - 50
+        y = lift + (ty - lift) * math.sin(progress * math.pi / 2)
+        if side == 0:
+            pose, angle = ("pulo", 1), 0.0
+        else:
+            tilt = max(0.0, min(1.0, (progress - 0.15) / 0.85))
+            tilt = tilt * tilt * (3 - 2 * tilt)
+            angle = side * -85 * tilt * (1.1 if cell[1] == 0 else 1.0)
+            pose = ("espera", 0) if progress < 0.2 else ("mergulho", 0)
+        if self.state == "voo" and progress >= 1:
+            y += min(14, self._dive_overtime() * 0.7)          # no ar, já começando a cair
+        holding = False
+        landed = 0.0
+        land_at = 0
+        if out is not None:
+            y += 14 if self.state == "resultado" else 0
+            hold = 14 if caught else 8 if out.result == "espalmou" else 0
+            if caught and self.t < hold:
+                pose, holding = ("mergulho", 1), True
+            fall = max(0.0, min(1.0, (self.t - hold) / 16))
+            land_at = hold + 16
+            if self.t >= hold:
+                if caught:
+                    pose, holding = ("mergulho", 1), True
+                # vai para o chão: deitado de lado (ou de pé, no pulo do meio)
+                rest_y = ground - (16 if side else 0)
+                y = y + (rest_y - y) * fall * fall
+                if side:
+                    angle = angle + (side * -90 - angle) * fall
+                landed = fall
+            if self.t >= hold + 56:
+                # levanta: com a bola no alto se pegou, cabisbaixo se foi gol
+                pose = ("comemora", (self.t // 10) % 2) if caught else ("dano", 0) if out.goal else ("parado", 0)
+                img = _scaled(sprites.pose("frente", *pose), KEEPER_SCALE)
+                x -= side * 20
+                pygame.draw.ellipse(s, (0, 0, 0), (x - 30, ground - 8, 60, 14))
+                s.blit(img, img.get_rect(midbottom=(round(x), ground)))
+                if caught:
+                    self._draw_mini_ball(s, x, ground - img.get_height() - BALL_R[1], BALL_R[1])
+                return
+        img = _scaled(sprites.pose("frente", *pose), KEEPER_SCALE)
+        if side and progress > 0.2:
+            img = pygame.transform.scale(img, (round(img.get_width() * 1.1), img.get_height()))   # esticado
+        shadow = 60 + 40 * min(1.0, progress)
+        pygame.draw.ellipse(s, (0, 0, 0), (x - shadow / 2, ground - 8, shadow, 14))
+        rot = pygame.transform.rotate(img, angle)
+        if side == 0 and out is not None and landed > 0:
+            rect = rot.get_rect(midbottom=(round(x), round(min(ground, y + img.get_height() / 2))))
+        else:
+            rect = rot.get_rect(center=(round(x), round(y)))
+        s.blit(rot, rect)
+        x, y = rect.center
+        if holding:
+            chest = pygame.math.Vector2(0, img.get_height() * 0.08).rotate(-angle)
+            self._draw_mini_ball(s, x + chest.x, y + chest.y, BALL_R[1], spin=0.4)
+        if out is not None and landed >= 1 and self.t < land_at + 30:
+            self._draw_dust(s, x, ground, self.t - land_at)
+
+    def _dive_overtime(self):
+        """Quadros desde que o goleiro chegou ao canto (ainda no ar)."""
+        k = self.kick
+        now = k.contact_at + k.flight
+        frames = P.DIVE_FRAMES / self._keeper_style().dive
+        return max(0.0, now - k.dive_frame - frames)
+
+    def _draw_dust(self, s, x, y, t):
+        """Poeira e grama levantando onde o goleiro caiu."""
+        rng = random.Random(7)
+        for i in range(14):
+            a = rng.uniform(math.pi, math.tau)
+            d = 8 + t * rng.uniform(0.6, 1.4)
+            color = (176, 156, 112) if i % 2 else (110, 170, 86)
+            s.fill(color, (round(x + math.cos(a) * d * 1.6), round(y + math.sin(a) * d * 0.5), 4, 4))
 
     def _history(self):
         if self.shootout is None or self.kick is None:
@@ -998,25 +1121,28 @@ class PenaltyScene(Scene):
         else:
             x = sx + (gx - sx) * t
         arc = 110 if shot.chip else 40
+        sy -= 6
         y = sy + (gy - sy) * t - arc * math.sin(math.pi * t)
-        r = 12 - 5 * t
+        r = BALL_R[0] - (BALL_R[0] - BALL_R[1]) * t
         return x, y, r
 
     def _draw_ball(self, s, up):
         k = self.kick
-        if k.shot is None or self.state in ("entrada", "mira", "corrida"):
-            pygame.draw.ellipse(s, (0, 0, 0), (SPOT[0] - 18, SPOT[1] + 2 + up, 36, 10))
-            self._draw_mini_ball(s, SPOT[0], SPOT[1] - 4 + up, 12)
+        r0 = BALL_R[0]
+        if k.shot is None or self.state in ("entrada", "mira", "corrida") or (k.freeze and k.flight == 0):
+            pygame.draw.ellipse(s, (0, 0, 0), (SPOT[0] - r0, SPOT[1] + r0 - 14 + up, r0 * 2, 12))
+            squash = 0.25 if self.state == "voo" else 0.0      # amassada no pé, no contato
+            self._draw_mini_ball(s, SPOT[0] + (3 if squash else 0), SPOT[1] - 6 + up, r0, squash=squash)
             return
-        if self.state == "resultado" and k.outcome and k.outcome.result == "defesa" and self.t > 20:
-            return
+        if self.state == "resultado" and k.outcome and k.outcome.result in ("defesa", "segurou"):
+            return                                   # está nas luvas (o goleiro desenha)
         x, y, r = self._ball_screen()
         if self.state == "resultado":
             x, y, r = self._ball_after(x, y, r)
         if self._kicker_style().trick == "some" and 0.35 < k.flight / k.shot.frames < 0.75 and self.state == "voo":
             pygame.draw.circle(s, (200, 220, 255), (round(x), round(y) + up), round(r), 1)
             return
-        shade = max(8, int(36 * (1 - k.flight / k.shot.frames)))
+        shade = max(10, int(r * 2 * (1 - 0.5 * k.flight / k.shot.frames)))
         pygame.draw.ellipse(s, (0, 0, 0), (x - shade / 2, SPOT[1] + (LINE_Y - SPOT[1]) * min(1, k.flight / k.shot.frames)
                                            + up, shade, 6))
         if k.shot.power > 0.75 or self._kicker_style().trick in ("raio", "exo"):
@@ -1024,7 +1150,10 @@ class PenaltyScene(Scene):
             for i in range(1, 6):
                 tx, ty, tr = self._ball_trail(i)
                 pygame.draw.circle(s, color, (round(tx), round(ty) + up), max(2, round(tr * 0.6)))
-        self._draw_mini_ball(s, x, y + up, r)
+        spin = k.flight * (0.25 + 0.45 * k.shot.power) * (1 if k.shot.x >= 0 else -1)
+        if self.state == "resultado":
+            spin += self.t * 0.15
+        self._draw_mini_ball(s, x, y + up, r, spin=spin)
         if self.state == "resultado" and k.outcome.result == "isolou" and self.t > 24:
             fan = TEAM[1 - k.kicker.team]                  # um torcedor rival pega a bola
             fx, fy = round(x), round(y + up)
@@ -1056,18 +1185,40 @@ class PenaltyScene(Scene):
         return x, y, r
 
     @staticmethod
-    def _draw_mini_ball(s, x, y, r=7):
-        x, y, r = round(x), round(y), max(3, round(r))
-        pygame.draw.circle(s, (240, 240, 236), (x, y), r)
-        pygame.draw.circle(s, (30, 28, 36), (x, y), max(1, r // 3))
-        pygame.draw.circle(s, theme.INK, (x, y), r, 2)
+    def _draw_mini_ball(s, x, y, r=7, spin=0.0, squash=0.0):
+        """Bola de futebol: gomos pretos que giram com o chute, sombra embaixo e amassada no contato."""
+        r = max(3, r)
+        w, h = r * 2 * (1 + squash), r * 2 * (1 - squash * 0.7)
+        rect = pygame.Rect(0, 0, round(w), round(h))
+        rect.center = (round(x), round(y))
+        pygame.draw.ellipse(s, (244, 244, 238), rect)
+        if r >= 8:
+            shade = rect.inflate(-r * 0.4, -r * 0.4).move(round(r * 0.18), round(r * 0.22))
+            pygame.draw.ellipse(s, (206, 206, 212), shade)
+            pygame.draw.ellipse(s, (244, 244, 238), rect.inflate(-r * 0.7, -r * 0.7).move(-round(r * 0.08), -round(r * 0.08)))
+            sx, sy = (1 + squash), (1 - squash * 0.7)
+            for i in range(5):                       # gomos da volta (o de trás some)
+                a = spin + i * math.tau / 5
+                if math.sin(a) > 0.92:
+                    continue
+                px, py = x + math.cos(a) * r * 0.64 * sx, y + math.sin(a) * r * 0.58 * sy
+                size = r * 0.24
+                pygame.draw.polygon(s, (34, 32, 40), [(px + math.cos(a + j * math.tau / 5) * size,
+                                                       py + math.sin(a + j * math.tau / 5) * size) for j in range(5)])
+            cx, cy = x + math.cos(spin * 0.7) * r * 0.12, y + math.sin(spin * 0.7) * r * 0.1
+            pygame.draw.polygon(s, (34, 32, 40), [(cx + math.cos(j * math.tau / 5 - math.pi / 2) * r * 0.3,
+                                                   cy + math.sin(j * math.tau / 5 - math.pi / 2) * r * 0.3)
+                                                  for j in range(5)])
+        else:
+            pygame.draw.circle(s, (30, 28, 36), (round(x), round(y)), max(1, r // 3))
+        pygame.draw.ellipse(s, theme.INK, rect, 2)
 
     def _draw_kicker(self, s, up):
         k = self.kick
         kicker = k.kicker
         sprites = kicker.sprites
         start = (W // 2 - 150, H - 4)
-        foot = (W // 2 - 40, 534)
+        foot = KICK_FOOT
         style = self._kicker_style()
         if self.state == "entrada":
             p = min(1.0, self.t / 50)
@@ -1080,19 +1231,31 @@ class PenaltyScene(Scene):
             if k.catimba:
                 pos = (start[0] + 20, start[1])
         elif self.state == "corrida":
-            p = self.t / max(1, k.run)
-            paradinha = style.trick == "paradinha" and not k.chip and k.run - self.t < 14
-            if paradinha:
-                p = (k.run - 14) / max(1, k.run)
-            img = sprites.frame("costas", self.t // 3) if not paradinha else sprites.pose("costas", "pulo", 0)
-            hop = 12 * math.sin(math.pi * (14 - (k.run - self.t)) / 14) if paradinha else 0
+            remain = k.run - self.t
+            stops = style.trick == "paradinha" and not k.chip
+            end = 14 if stops else 10                  # quadros parado do lado da bola antes do chute
+            p = min(1.0, self.t / max(1, k.run - end))
+            hop = 0
+            if remain <= 4:
+                img = sprites.pose("costas", "bate", 1)          # calcanhar sobe: a sola aparece
+            elif stops and remain <= end:
+                img = sprites.pose("costas", "pulo", 0)          # paradinha com pulinho
+                hop = 12 * math.sin(math.pi * (end - remain) / (end - 4))
+            elif remain <= end:
+                img = sprites.pose("costas", "bate", 0)          # pé de apoio do lado da bola
+            else:
+                img = sprites.frame("costas", self.t // 3)
             pos = (start[0] + (foot[0] - start[0]) * p, start[1] + (foot[1] - start[1]) * p - hop)
             if style.trick == "moto":
                 pos = (pos[0], pos[1] - 6 * abs(math.sin(self.t * 0.3)))
             self._draw_tell(s, pos, p)
         elif self.state == "voo":
-            idx = min(2, k.flight // 3)
-            img = sprites.pose("costas", "chute", idx)
+            if k.freeze or k.flight < 4:
+                img = sprites.pose("costas", "bate", 2)          # o pé na bola
+            elif k.flight < 26:
+                img = sprites.pose("costas", "bate", 3)          # a perna segue o movimento
+            else:
+                img = sprites.pose("costas", "parado", 0)
             pos = foot
         else:
             out = k.outcome

@@ -119,6 +119,8 @@ class Pose:
         lift_a = lift_b = 0
         wave = floaty = 0
         hurt = dash = False
+        kick_dx = 0                # de frente/costas: a perna da direita da imagem vai de lado até o pé (chute)
+        sole = hug = False         # sole: canela dobrada para trás (a sola aparece); hug: braços abraçando a bola
         raise_a = raise_b = 0      # de frente/costas: braço levantado (1 = para cima)
         near_up = far_up = 0       # de lado: 1 = mão acima da cabeça, 2 = para cima e à frente, -1 = atrás da cabeça
         if kind == "andar":
@@ -165,6 +167,27 @@ class Pose:
             lift_b = (0, 2, 4)[frame]
             lean = (-1, 1, 2)[frame]
             wave = (-1, 1, 1)[frame]
+        elif kind == "bate":                     # pênalti de costas: apoio, perna atrás, contato, segue
+            if direction in ("frente", "costas"):
+                lift_b = (1, 4, 1, 5)[frame]
+                kick_dx = (-1, 0, 4, 5)[frame]
+                sole = frame == 1
+                dash = frame in (1, 2)           # braços abertos para equilibrar
+                bob = (0, 1, 0, 0)[frame]
+            else:
+                stride = (3, 3, -3, -4)[frame]
+                lift_b = (0, 1, 2, 4)[frame]
+                lean = (-1, -1, 1, 2)[frame]
+        elif kind == "espera":                   # goleiro agachado, braços abertos, quicando
+            bob = (1, 0)[frame]
+            dash = True
+        elif kind == "mergulho":                 # goleiro esticado (o jogo gira o quadro) / agarrando a bola
+            lift_a = lift_b = 1
+            if frame == 0:
+                raise_a = raise_b = 1
+                near_up = far_up = 1
+            else:
+                hug = True
         elif kind == "carrinho":                 # deslizando (o jogo deita o quadro)
             stride, lift_b, bob, lean = -4, 3, 1, -2
             dash = True
@@ -178,6 +201,7 @@ class Pose:
         self.bob, self.lean, self.reach, self.stride = bob, lean, reach, stride
         self.lift_a, self.lift_b = lift_a, lift_b          # a: perna da esquerda da imagem / de trás
         self.wave, self.float, self.hurt, self.dash = wave, floaty, hurt, dash
+        self.kick_dx, self.sole, self.hug = kick_dx, sole, hug
         # de frente/costas cada braço desce um pouco quando vai à frente
         self.arm_a = 1 if lift_b else 0
         self.arm_b = 1 if lift_a else 0
@@ -225,14 +249,33 @@ def legs(c, p, pants, boots, wide=False):
     gap = 4 if wide else 2
     spread = 1 if p.dash else 0
     lx, rx = 12 - gap // 2 - 3 - spread, 12 + gap // 2 + spread
-    for x, lift in ((lx, p.lift_a), (rx, p.lift_b)):
+    for x, lift, dx in ((lx, p.lift_a, 0), (rx, p.lift_b, p.kick_dx)):
         bottom = 30 - lift
-        c.rect(x, top, 3, bottom - top, pants)
-        c.rect(x + 2, top, 1, bottom - top, shade(pants, -24))
-        c.px(x, top, shade(pants, 20))
+        if dx:                                               # perna de lado (chute de costas)
+            n = bottom - top
+            for i in range(n):
+                lx_ = x + round(dx * (i + 1) / n)
+                c.rect(lx_, top + i, 3, 1, pants)
+                c.px(lx_ + 2, top + i, shade(pants, -24))
+            x += dx
+        else:
+            c.rect(x, top, 3, bottom - top, pants)
+            c.rect(x + 2, top, 1, bottom - top, shade(pants, -24))
+            c.px(x, top, shade(pants, 20))
+        if p.sole and dx == 0 and x == rx:
+            sole(c, x, bottom, boots)
+            continue
         c.rect(x, bottom, 3, 2, boots)
         c.px(x, bottom, shade(boots, 26))
         c.rect(x, bottom + 2, 3, 1, shade(boots, -38))
+
+
+def sole(c, x, y, boots):
+    """Sola da chuteira virada para a câmera (a canela dobrou para trás no chute)."""
+    c.rect(x - 1, y, 5, 3, shade(boots, -40))
+    c.rect(x, y, 3, 2, shade(boots, -10))
+    for tx in (x, x + 2):
+        c.px(tx, y + 1, (226, 226, 214))
 
 
 def torso(c, p, main, belt=None, buckle=None):
@@ -261,6 +304,17 @@ def arms(c, p, sleeve, hand, thick=2, cuff=None):
         near_arm(c, p, sleeve, hand, thick, cuff)
         return
     x, y, w, h = p.torso
+    if p.hug:                                                      # abraçando a bola no peito
+        cx = x + w // 2
+        for ax in (x - thick, x + w):
+            c.rect(ax, y, thick, 1, shade(sleeve, 18))
+            c.rect(ax, y + 1, thick, 4, sleeve)
+        c.rect(x - thick, y + 4, cx - (x - thick), 2, sleeve)            # antebraços cruzando o peito
+        c.rect(cx, y + 4, x + w + thick - cx, 2, sleeve)
+        c.rect(cx - 3, y + 3, 2, 2, hand)
+        c.rect(cx + 1, y + 3, 2, 2, hand)
+        c.hand = (cx, y + 4)
+        return
     out = 1 if p.dash else 0
     for ax, dy, light, weapon, up in ((x - thick - out, p.arm_a, 24, False, p.raise_a),
                                       (x + w + out, p.arm_b + p.reach_dy, -30, True, p.raise_b)):
@@ -1127,7 +1181,7 @@ def feet(p, wide=False):
     gap = 4 if wide else 2
     spread = 1 if p.dash else 0
     lx, rx = 12 - gap // 2 - 3 - spread, 12 + gap // 2 + spread
-    return [(lx, 30 - p.lift_a, 3), (rx, 30 - p.lift_b, 3)]
+    return [(lx, 30 - p.lift_a, 3), (rx + p.kick_dx, 30 - p.lift_b, 3)]
 
 
 def curly_hair(c, p, color, puff=2, wide=False, fade=False, fringe=False):
@@ -1526,14 +1580,26 @@ def soccer_legs(c, p, skin, sock, boots, wide=False):
     gap = 4 if wide else 2
     spread = 1 if p.dash else 0
     lx, rx = 12 - gap // 2 - 3 - spread, 12 + gap // 2 + spread
-    for x, lift in ((lx, p.lift_a), (rx, p.lift_b)):
+    for x, lift, dx in ((lx, p.lift_a, 0), (rx, p.lift_b, p.kick_dx)):
         bottom = 30 - lift
         mid = top + (bottom - top) // 2
-        c.rect(x, top, 3, mid - top, skin)
-        c.rect(x + 2, top, 1, mid - top, shade(skin, -24))
-        c.rect(x, mid, 3, bottom - mid, sock)
-        c.rect(x + 2, mid, 1, bottom - mid, shade(sock, -24))
-        c.px(x, mid, shade(sock, 22))                          # dobra do meião
+        if dx:                                               # perna de lado (chute de costas)
+            n = bottom - top
+            for i in range(n):
+                col = skin if top + i < mid else sock
+                lx_ = x + round(dx * (i + 1) / n)
+                c.rect(lx_, top + i, 3, 1, col)
+                c.px(lx_ + 2, top + i, shade(col, -24))
+            x += dx
+        else:
+            c.rect(x, top, 3, mid - top, skin)
+            c.rect(x + 2, top, 1, mid - top, shade(skin, -24))
+            c.rect(x, mid, 3, bottom - mid, sock)
+            c.rect(x + 2, mid, 1, bottom - mid, shade(sock, -24))
+            c.px(x, mid, shade(sock, 22))                      # dobra do meião
+        if p.sole and dx == 0 and x == rx:
+            sole(c, x, bottom, boots)
+            continue
         c.rect(x, bottom, 3, 2, boots)
         c.px(x, bottom, shade(boots, 26))
         c.rect(x, bottom + 2, 3, 1, shade(boots, -38))
