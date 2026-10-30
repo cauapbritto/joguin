@@ -1013,7 +1013,7 @@ class NewsScene(_InfoScene):
         page = max(0, min(len(self.pages) - 1, self.page + step))
         if page != self.page:
             self.page, self.age = page, 0
-            self.sfx("select", 0.3)
+            self.sfx("pagina", 0.5)
 
     def update(self):
         super().update()

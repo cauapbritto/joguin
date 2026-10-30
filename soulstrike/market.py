@@ -322,6 +322,7 @@ class MarketMenu:
     def _gift(self, mate):
         self.run.earn(mate.slot, GIFT)
         self.match.popup(mate.x, mate.y - 80, f"+{GIFT} ALMAS", SOUL_COLOR)
+        self.match.assets.play("alma", 0.4)
         return f"DOOU {GIFT} PARA {mate.label}"
 
     def _upgrade(self, weapon, enchant=None):
@@ -347,7 +348,7 @@ class MarketMenu:
             return False
         text = e.action() or e.label
         self.match.popup(self.fighter.x, self.fighter.y - 80, text, e.color)
-        self.match.assets.play("select", 0.5)
+        self.match.assets.play("compra" if e.cost else "select", 0.5)
         return True
 
     def pick(self, key):

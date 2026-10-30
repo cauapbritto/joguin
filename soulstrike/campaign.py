@@ -1031,6 +1031,7 @@ class CampaignMatch(CoopMatch):
         best = gains.get(killer.slot) if killer else max(gains.values(), default=0)
         if best and best >= 10:
             self.popup(e.x, e.y - 60, f"+{best} ALMAS", killer.color if killer else SOUL_COLOR)
+            self.assets.play("alma", 0.4)
         if e is self.boss:
             self.slain_boss = True
             self.slowmo = 80
@@ -1427,7 +1428,7 @@ class LobbyMatch(CoopMatch):
         stall = next((s for s in self.stalls if s.can_use(f)), None)
         if stall is not None:
             self.menus[f] = MarketMenu(self, f, stall)
-            self.assets.play("click", 0.4)
+            self.assets.play("loja", 0.45)
             return True
         return self.pick_ground(f)
 
