@@ -136,3 +136,16 @@ NOSE_PULL = 0.45
 MOTO_SPEED = 1.6            # grau de moto (Aryel): velocidade
 SUPER_HOMING_FORCE = 0.35
 SUPER_HOMING_FRAMES = 120
+
+# ── jogadas novas do futebol (v1.7): cada uma com o seu contra ──
+CURVE_SIDE = 0.55          # analógico inclinado para o lado do chute (componente de lado) = curva
+CURVE_RATE = 0.014         # quanto a bola vira por quadro (radianos)
+CURVE_FRAMES = 30
+CURVE_POWER = 0.9          # a curva perde força
+CURVE_KEEPER_REACH = 14    # e o goleiro alcança mais a bola com curva
+TURN_TOUCH = 9             # domínio orientado: o toque leva a bola para o lado do analógico
+ANTICIPATE_REACH = 14      # quem marca colado antecipa o domínio orientado
+GIVE_GO_FRAMES = 60        # tabela: até 1 s depois do passe, PASSE de novo pede a bola de volta
+GIVE_GO_POWER = 0.8        # a devolução é mais fraca
+DIVE_FRAMES = 10           # ponte do goleiro
+DIVE_DOWN = 30             # depois da ponte, fica no chão

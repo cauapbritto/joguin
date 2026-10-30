@@ -265,6 +265,10 @@ class Fighter(Entity):
         self.carrying_close = False
         self.carry_dir = (1.0, 0.0)
         self.kick_charge = 0            # quadros segurando CHUTE
+        self.kick_kind = None           # último toque na bola: chute ou cabeça (para a animação)
+        self.last_stick = (0.0, 0.0)    # analógico no quadro (domínio orientado, curva)
+        self.give_go = None             # tabela: (companheiro, quadros que faltam) depois de passar
+        self.diving = 0                 # goleiro: quadros da ponte (segura a bola em vez de rebater)
         self.pass_charge = 0            # quadros segurando PASSE
         self.prev_pos = (x, y)
         self.dash_len = config.DASH_FRAMES
