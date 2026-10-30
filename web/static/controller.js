@@ -896,7 +896,11 @@
       return;
     }
     show("wait");
-    if (phase === "story") {
+    renderNews(phase === "news" ? status.news || [] : []);
+    if (phase === "news") {
+      bind("wait-title", status.banner || "Novidades");
+      bind("wait-text", "Na TV: setas ou ENTER para virar as páginas.");
+    } else if (phase === "story") {
       bind("wait-title", status.banner || "História");
       bind("wait-text", me.playing ? "Acompanhe a história na tela." : "");
     } else if (phase === "results") {
@@ -955,6 +959,19 @@
     badge.classList.toggle("empty", !reloading && ammo <= 0);
     var text = reloading ? "RECARGA" : ammo <= 0 ? "VAZIO" : ammo + "/" + mag;
     if (badge.textContent !== text) badge.textContent = text;
+  }
+
+  function renderNews(lines) {
+    var list = $("news-list");
+    var key = lines.join("\n");
+    if (list.dataset.key === key) return;
+    list.dataset.key = key;
+    list.innerHTML = "";
+    lines.forEach(function (line) {
+      var li = document.createElement("li");
+      li.textContent = line;
+      list.appendChild(li);
+    });
   }
 
   function markTaken() {

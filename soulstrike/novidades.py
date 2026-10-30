@@ -2,11 +2,36 @@
 
 Vale para qualquer instalação (pasta, .deb ou .exe), porque o texto vem junto com o código.
 Ao subir a versão em __init__.py, acrescente aqui o que mudou, em frases curtas.
+
+Uma versão pode ser só uma lista de frases (uma página) ou uma lista de páginas, cada uma
+um dicionário com título, cena animada (ver NEWS_SCENES em scenes/menus.py) e frases.
 """
 from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.6.0": [
+        {"title": "ALMAS DE CADA UM", "scene": "almas", "lines": [
+            "Cada jogador tem a sua carteira de almas, ao lado da vida no HUD.",
+            "Quem dá o golpe final leva mais; os outros vivos ganham um pouco. No chefão, todos ganham igual.",
+            "Na loja dá para DOAR almas para um companheiro.",
+        ]},
+        {"title": "LOJA NO CELULAR", "scene": "loja", "lines": [
+            "O saldo aparece no celular e sobe um +N a cada inimigo.",
+            "Perto da banca, ATACAR abre a loja também no celular: toque para marcar, COMPRAR para comprar.",
+            "Vale para a loja, o ferreiro e o altar das maldições.",
+        ]},
+        {"title": "CONFIGURAR HUD", "scene": "hud", "lines": [
+            "No celular, o botão HUD deixa arrastar e mudar o tamanho dos botões e do analógico.",
+            "Transparência, analógico fixo ou solto, lado de canhoto e vibração.",
+            "Fica salvo no celular, separado para duelo, futebol e basquete.",
+        ]},
+        {"title": "E MAIS", "scene": "novidades", "lines": [
+            "Esta tela nova de novidades, com páginas. Em OPÇÕES > NOVIDADES dá para ver de novo.",
+            "O celular mostra o resumo das novidades enquanto a tela está aberta.",
+            "Sons novos de almas, de compra e da loja.",
+        ]},
+    ],
     "1.5.2": [
         "Martelo do Trovão Eterno: o arremesso vai mais longe e persegue até 3 inimigos, um depois do outro, antes de voltar.",
     ],
@@ -66,6 +91,25 @@ NEWS = {
         "No empate, quem fizer a próxima cesta vence.",
     ],
 }
+
+
+def pages_of(version, entry):
+    """[(versão, título, cena, frases)]: uma versão só com frases vira uma página sem cena."""
+    if all(isinstance(item, str) for item in entry):
+        return [(version, f"VERSÃO {version}", None, list(entry))]
+    return [(version, page["title"], page.get("scene"), list(page["lines"])) for page in entry]
+
+
+def summary(entry):
+    """Uma frase por página (para o celular): o título, ou as frases de uma versão antiga."""
+    if all(isinstance(item, str) for item in entry):
+        return list(entry)
+    return [page["title"] + ": " + page["lines"][0] for page in entry]
+
+
+def history():
+    """Todas as versões, da mais nova para a mais velha (OPÇÕES > NOVIDADES)."""
+    return sorted(NEWS.items(), key=lambda item: parse_version(item[0]), reverse=True)
 
 
 def pending(seen, current=__version__):
