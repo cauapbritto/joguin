@@ -89,6 +89,7 @@ class RemoteHub:
         self._active = (1, 2)
         self._banner = ""
         self.roster_size = 0       # quantos personagens o celular deve mostrar (muda ao liberar um)
+        self.hud = "battle"         # disposição de botões do celular (battle, soccer, basket)
         self._orders = []          # pedidos da loja vindos do celular: (vaga, id do item, comprar?)
 
     # ── entrada vinda do celular ──────────────
@@ -268,6 +269,7 @@ class RemoteHub:
                 "active": list(self._active),
                 "banner": self._banner,
                 "roster": self.roster_size,
+                "hud": self.hud,
                 "slots": {
                     str(s): {"claimed": i.claimed, "connected": i.connected(now)}
                     for s, i in self._slots.items()

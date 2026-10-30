@@ -24,6 +24,7 @@
   }
 
   function show(name) {
+    if (name !== "pad" && editing) closeHudEditor(true);
     views.forEach(function (v) { $("view-" + v).classList.toggle("on", v === name); });
     document.body.classList.toggle("in-pad", name === "pad");
   }
@@ -42,7 +43,7 @@
     });
   }
 
-  function buzz() { if (navigator.vibrate) navigator.vibrate(8); }
+  function buzz() { if (navigator.vibrate && !(hud && hud.vibrate === false)) navigator.vibrate(8); }
 
   function capture(el, id) {
     try { el.setPointerCapture(id); } catch (e) { /* ponteiro já liberado */ }
@@ -244,6 +245,17 @@
           x = ox + Math.cos(a) * r;
           y = oy - Math.sin(a) * r;
         }
+        if (hud && hud.lefty) x = zr.width - x;          // canhoto: o arco espelhado
+        var own = hud && set.classList.contains("on") ? hud.btns[b.dataset.act] : null;
+        if (own) {                                       // CONFIGURAR HUD: posição e tamanho do jogador
+          size = clamp(size * (own.s || 1), 40, 200);
+          if (own.x !== undefined) {
+            x = clamp(own.x * zr.width, size / 2, zr.width - size / 2);
+            y = clamp(own.y * zr.height, size / 2, zr.height - size / 2);
+          }
+        }
+        b.dataset.x = x;
+        b.dataset.y = y;
         b.style.left = x + "px";
         b.style.top = y + "px";
         b.style.setProperty("--s", size + "px");
@@ -313,15 +325,20 @@
   btnZone.addEventListener("pointerdown", function (e) {
     e.preventDefault();
     capture(btnZone, e.pointerId);
+    if (editing) { editGrabButton(e); return; }
     setFinger(e.pointerId, pickButton(e.clientX, e.clientY, null));
   });
   btnZone.addEventListener("pointermove", function (e) {
+    if (editing) { editDrag(e); return; }
     if (!(e.pointerId in fingers)) return;
     e.preventDefault();
     setFinger(e.pointerId, pickButton(e.clientX, e.clientY, fingers[e.pointerId]));
   });
   ["pointerup", "pointercancel"].forEach(function (t) {
-    btnZone.addEventListener(t, function (e) { setFinger(e.pointerId, null); });
+    btnZone.addEventListener(t, function (e) {
+      if (editing) { editDrop(e); return; }
+      setFinger(e.pointerId, null);
+    });
   });
 
   // ── analógico ──────────────────────────────
@@ -376,19 +393,27 @@
     setDir("down", active && ny > 0.38);
   }
 
+  function placeStick(cx, cy) {
+    // põe o centro do analógico em (cx, cy) da zona, sem sair da tela
+    var zr = zone.getBoundingClientRect();
+    var size = base.offsetWidth;
+    var left = Math.max(8, Math.min(cx - size / 2, zr.width - size - 8));
+    var top = Math.max(56, Math.min(cy - size / 2, zr.height - size - 8));
+    base.style.left = left + "px";
+    base.style.top = top + "px";
+    base.style.bottom = "auto";
+    return { x: (left + size / 2) / zr.width, y: (top + size / 2) / zr.height };
+  }
+
   zone.addEventListener("pointerdown", function (e) {
+    if (editing) { e.preventDefault(); capture(zone, e.pointerId); editGrabStick(e); return; }
     if (stickId !== null) return;
     e.preventDefault();
     stickId = e.pointerId;
     capture(zone, e.pointerId);
-    // o analógico aparece onde o polegar encostou
+    // o analógico aparece onde o polegar encostou (ou fica parado no lugar, se for FIXO)
     var zr = zone.getBoundingClientRect();
-    var size = base.offsetWidth;
-    var left = Math.max(8, Math.min(e.clientX - zr.left - size / 2, zr.width - size - 8));
-    var top = Math.max(56, Math.min(e.clientY - zr.top - size / 2, zr.height - size - 8));
-    base.style.left = left + "px";
-    base.style.top = top + "px";
-    base.style.bottom = "auto";
+    if (!(hud && hud.fixed)) placeStick(e.clientX - zr.left, e.clientY - zr.top);
     var br = base.getBoundingClientRect();
     origin = { x: br.left + br.width / 2, y: br.top + br.height / 2 };
     base.classList.add("live");
@@ -396,12 +421,14 @@
   });
 
   zone.addEventListener("pointermove", function (e) {
+    if (editing) { editDrag(e); return; }
     if (e.pointerId !== stickId) return;
     e.preventDefault();
     moveStick(e.clientX, e.clientY);
   });
 
   function endStick(e) {
+    if (editing) { editDrop(e); return; }
     if (e.pointerId !== stickId) return;
     stickId = null;
     knob.style.transform = "";
@@ -417,6 +444,174 @@
   document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   document.addEventListener("visibilitychange", function () { if (document.hidden) releaseAll(); });
   window.addEventListener("pagehide", releaseAll);
+
+  // ── CONFIGURAR HUD ─────────────────────────
+  // Cada jogador arruma o controle do seu jeito: arrasta os botões e o analógico, muda o
+  // tamanho (70% a 150%) e a transparência, analógico fixo ou solto, lado de canhoto e
+  // vibração. Fica salvo neste celular, separado por modo (duelo/campanha, futebol, basquete).
+  var HUD_PREFIX = "ss_hud_";
+  var hud = null;
+  var hudName = null;
+  var editing = false;
+  var editSel = null;        // "stick" ou a ação do botão escolhido
+  var editPointer = null;
+  var STICK_SIZE = 140, KNOB_SIZE = 56;
+
+  function hudDefaults() {
+    return { btns: {}, stick: null, stickScale: 1, fixed: false, opacity: 1, lefty: false, vibrate: true };
+  }
+
+  function loadHud(name) {
+    var h = hudDefaults();
+    try {
+      var saved = JSON.parse(localStorage.getItem(HUD_PREFIX + name) || "null");
+      if (saved && typeof saved === "object") Object.keys(h).forEach(function (k) { if (k in saved) h[k] = saved[k]; });
+    } catch (e) { /* modo privado ou salvo estragado: usa o padrão */ }
+    return h;
+  }
+
+  function saveHud() {
+    try { localStorage.setItem(HUD_PREFIX + hudName, JSON.stringify(hud)); } catch (e) { /* ignora */ }
+  }
+
+  function useHud(name) {
+    if (name === hudName || editing) return;
+    hudName = name;
+    hud = loadHud(name);
+    applyHud();
+  }
+
+  function applyHud() {
+    if (!hud) return;
+    document.body.classList.toggle("lefty", !!hud.lefty);
+    $("view-pad").style.setProperty("--hud-op", hud.opacity);
+    var sz = Math.round(STICK_SIZE * hud.stickScale), kz = Math.round(KNOB_SIZE * hud.stickScale);
+    base.style.width = base.style.height = sz + "px";
+    knob.style.width = knob.style.height = kz + "px";
+    knob.style.margin = (-kz / 2) + "px 0 0 " + (-kz / 2) + "px";
+    var zr = zone.getBoundingClientRect();
+    if (hud.stick && zr.width) placeStick(hud.stick.x * zr.width, hud.stick.y * zr.height);
+    else { base.style.left = ""; base.style.top = ""; base.style.bottom = ""; }
+    if (stickId === null) {
+      var br = base.getBoundingClientRect();
+      origin = { x: br.left + br.width / 2, y: br.top + br.height / 2 };
+    }
+    layoutButtons();
+    renderHudBar();
+  }
+
+  function editButton(act) {
+    return document.querySelector('.pad-set.on .pb[data-act="' + act + '"]');
+  }
+
+  function selectEdit(what) {
+    editSel = what;
+    padButtons().forEach(function (b) { b.classList.toggle("editing-sel", b.dataset.act === what); });
+    base.classList.toggle("editing-sel", what === "stick");
+    renderHudBar();
+  }
+
+  function editGrabButton(e) {
+    var b = pickButton(e.clientX, e.clientY, null);
+    if (!b) { selectEdit(null); return; }
+    buzz();
+    selectEdit(b.dataset.act);
+    editPointer = e.pointerId;
+  }
+
+  function editGrabStick(e) {
+    buzz();
+    selectEdit("stick");
+    editPointer = e.pointerId;
+    editDrag(e);
+  }
+
+  function editDrag(e) {
+    if (e.pointerId !== editPointer || !editSel) return;
+    e.preventDefault();
+    if (editSel === "stick") {
+      var zr = zone.getBoundingClientRect();
+      hud.stick = placeStick(e.clientX - zr.left, e.clientY - zr.top);
+      return;
+    }
+    var br = btnZone.getBoundingClientRect();
+    var own = hud.btns[editSel] || (hud.btns[editSel] = { s: 1 });
+    own.x = clamp((e.clientX - br.left) / br.width, 0, 1);
+    own.y = clamp((e.clientY - br.top) / br.height, 0, 1);
+    layoutButtons();
+  }
+
+  function editDrop(e) {
+    if (e.pointerId === editPointer) editPointer = null;
+  }
+
+  function resize(step) {
+    if (editSel === "stick") {
+      hud.stickScale = Math.round(clamp(hud.stickScale + step, 0.7, 1.5) * 10) / 10;
+    } else if (editSel) {
+      var own = hud.btns[editSel] || (hud.btns[editSel] = { s: 1 });
+      own.s = Math.round(clamp((own.s || 1) + step, 0.7, 1.5) * 10) / 10;
+    }
+    applyHud();
+  }
+
+  function renderHudBar() {
+    if (!hud) return;
+    var sel = editSel === "stick" ? "ANALÓGICO"
+      : editSel ? ((editButton(editSel) || {}).dataset || {}).label || editSel.toUpperCase() : null;
+    var scale = editSel === "stick" ? hud.stickScale : editSel ? ((hud.btns[editSel] || {}).s || 1) : null;
+    $("hud-sel").textContent = sel ? sel + " · " + Math.round(scale * 100) + "%" : "TOQUE EM UM BOTÃO";
+    $("hud-smaller").disabled = $("hud-bigger").disabled = !sel;
+    $("hud-op").textContent = Math.round(hud.opacity * 100) + "%";
+    $("hud-fixed").textContent = hud.fixed ? "ANALÓG. FIXO" : "ANALÓG. SOLTO";
+    $("hud-lefty").classList.toggle("is-on", !!hud.lefty);
+    $("hud-vibrate").classList.toggle("is-on", hud.vibrate !== false);
+  }
+
+  function openHudEditor() {
+    if (!hud) return;
+    releaseAll();                    // nada fica segurado enquanto arruma
+    if (stickId !== null) { stickId = null; knob.style.transform = ""; base.classList.remove("live"); }
+    editing = true;
+    document.body.classList.add("editing");
+    selectEdit(null);
+  }
+
+  function closeHudEditor(keep) {
+    if (keep) saveHud(); else hud = loadHud(hudName);
+    editing = false;
+    editPointer = null;
+    document.body.classList.remove("editing");
+    selectEdit(null);
+    applyHud();
+  }
+
+  function hudButton(id, fn) {
+    $(id).addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if ($(id).disabled) return;
+      buzz();
+      fn();
+    });
+  }
+  hudButton("hud-btn", openHudEditor);
+  hudButton("hud-smaller", function () { resize(-0.1); });
+  hudButton("hud-bigger", function () { resize(0.1); });
+  hudButton("hud-op-down", function () { hud.opacity = Math.round(clamp(hud.opacity - 0.1, 0.3, 1) * 10) / 10; applyHud(); });
+  hudButton("hud-op-up", function () { hud.opacity = Math.round(clamp(hud.opacity + 0.1, 0.3, 1) * 10) / 10; applyHud(); });
+  hudButton("hud-fixed", function () { hud.fixed = !hud.fixed; applyHud(); });
+  hudButton("hud-lefty", function () {
+    hud.lefty = !hud.lefty;
+    Object.keys(hud.btns).forEach(function (k) { var b = hud.btns[k]; if (b.x !== undefined) b.x = 1 - b.x; });
+    hud.stick = null;                // o analógico volta para o canto do outro lado
+    applyHud();
+  });
+  hudButton("hud-vibrate", function () { hud.vibrate = hud.vibrate === false; renderHudBar(); });
+  hudButton("hud-reset", function () { hud = hudDefaults(); selectEdit(null); applyHud(); });
+  hudButton("hud-cancel", function () { closeHudEditor(false); });
+  hudButton("hud-save", function () { closeHudEditor(true); });
+  window.addEventListener("resize", function () { setTimeout(applyHud, 50); });
 
   // ── espelho da seleção de personagem ──────
   function renderSelect(me, mode) {
@@ -660,6 +855,9 @@
       show("pad");
       soccerMode = mode === "soccer";
       document.body.classList.toggle("soccer", soccerMode);
+      document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer"); });
+      document.querySelectorAll(".soccer-only").forEach(function (e) { e.classList.toggle("on", mode === "soccer"); });
+      useHud(status.hud || (soccerMode ? "soccer" : "battle"));
       $("pad-hint").textContent = soccerMode ? "empurre até a borda para correr" : "mova o analógico";
       document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer"); });
       document.querySelectorAll(".soccer-only").forEach(function (e) { e.classList.toggle("on", mode === "soccer"); });

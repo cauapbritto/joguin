@@ -235,6 +235,7 @@ body.locked .opt { opacity: .55; }
   z-index: 2;
 }
 .pad-top .small { margin-left: auto; }
+.pad-top .small + .small { margin-left: 0; }
 .net { font-size: 8px; color: var(--muted); }
 
 /* almas da campanha */
@@ -410,3 +411,30 @@ body.soccer #stick-stamina { opacity: 1; }
 @media (max-height: 360px) {
   #stick-base { width: 120px; height: 120px; bottom: 40px; }
 }
+
+/* ── CONFIGURAR HUD ── */
+.pb, #stick-base { opacity: var(--hud-op, 1); }
+body.lefty #stick-zone { left: auto; right: 0; }
+body.lefty #btn-zone { right: auto; left: 0; }
+body.lefty .hint { left: auto; right: var(--pad); }
+body.lefty #stick-base { left: auto; right: calc(var(--pad) + 30px); }
+#hud-bar {
+  display: none; position: absolute; inset: 0 0 auto 0; z-index: 3;
+  flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 8px var(--pad);
+  background: rgba(13, 11, 18, .92); border-bottom: 2px solid var(--line);
+  font-size: 9px;
+}
+#hud-bar .btn.small { min-height: 30px; padding: 4px 8px 2px; font-size: 9px; }
+#hud-bar .btn:disabled { opacity: .4; }
+#hud-sel { min-width: 15ch; color: var(--brass); }
+.hud-group { display: inline-flex; align-items: center; gap: 4px; }
+.hud-group i { font-style: normal; color: var(--muted); }
+.hud-group b { font-weight: normal; min-width: 4ch; text-align: center; }
+.hud-group.end { margin-left: auto; }
+.hud-toggle.is-on { background: var(--slot-dark); border-color: var(--slot); }
+body.editing #hud-bar { display: flex; }
+body.editing .pad-top, body.editing .hint, body.editing #vote-btn { visibility: hidden; }
+body.editing .pb, body.editing #stick-base { outline: 2px dashed var(--line-hi); outline-offset: 4px; }
+body.editing .editing-sel { outline: 2px dashed var(--brass); z-index: 2; }
+body.editing #btn-zone, body.editing #stick-zone { background: rgba(255, 255, 255, .02); }

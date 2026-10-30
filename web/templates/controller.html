@@ -117,7 +117,19 @@
     <span class="muted" data-bind="mode">DUELO</span>
     <span class="souls" id="souls" title="suas almas"><b class="gem"></b><span id="souls-n">0</span><em id="souls-gain"></em></span>
     <span class="net" id="net" title="qualidade da conexão">● --</span>
+    <button class="btn small" id="hud-btn" title="configurar os botões">HUD</button>
     <button class="btn small" data-tap="pause">II</button>
+  </div>
+  <!-- CONFIGURAR HUD: arraste os botões e o analógico; fica salvo neste celular -->
+  <div id="hud-bar">
+    <span id="hud-sel">TOQUE EM UM BOTÃO</span>
+    <span class="hud-group"><button class="btn small" id="hud-smaller">-</button><button class="btn small" id="hud-bigger">+</button></span>
+    <span class="hud-group"><i>OPAC.</i><button class="btn small" id="hud-op-down">-</button><b id="hud-op">100%</b><button class="btn small" id="hud-op-up">+</button></span>
+    <button class="btn small" id="hud-fixed">ANALÓG. SOLTO</button>
+    <button class="btn small hud-toggle" id="hud-lefty">CANHOTO</button>
+    <button class="btn small hud-toggle" id="hud-vibrate">VIBRAR</button>
+    <button class="btn small" id="hud-reset">RESTAURAR</button>
+    <span class="hud-group end"><button class="btn small" id="hud-cancel">CANCELAR</button><button class="btn small btn-buy" id="hud-save">SALVAR</button></span>
   </div>
   <div id="stick-zone">
     <div id="stick-base">
