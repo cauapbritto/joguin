@@ -21,7 +21,7 @@ SHEET_FACTOR = 2                 # a arte é ampliada 2x sem suavizar
 TEAM_KITS = ("azul", "vermelho")  # uniforme do time 0 e do time 1 no futebol (characters/uniformes)
 MUSIC_VOLUME = 0.3               # música com o volume das opções no máximo
 MAX_SAME_SOUND = 3               # o mesmo efeito tocando junto no máximo (rajadas não viram parede de ruído)
-MUSIC_FILES = {"menu": "bgm.ogg", "battle": "battle_bgm.mp3", "camp": "camp_bgm.ogg", "boss": "boss_bgm.ogg"}
+MUSIC_FILES = {"menu": "bgm.ogg", "battle": "battle_bgm.mp3", "camp": "camp_bgm.ogg", "boss": "boss_bgm.ogg", "boss_lag": "boss_lag_bgm.ogg"}
 
 
 class SpriteSet:
@@ -125,6 +125,8 @@ class Assets:
         name = "sombra:" + key
         if name not in self.sprites:
             from .enemies import SHADOW_TINT, TINTS, tint_sprites
+            if key not in self.sprites:                               # borba_exo não é personagem: lê a folha
+                self.sprites[key] = load_sheet(key)
             self.sprites[name] = tint_sprites(self.sprites[key], TINTS.get(key, SHADOW_TINT))
         return self.sprites[name]
 

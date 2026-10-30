@@ -24,6 +24,9 @@ ACCENT = {
     "Arco das Mil Almas": (190, 150, 255), "Canhão do Vazio": (170, 100, 255),
     "Coração do Inverno": (170, 225, 255), "Lança do Dragão": (255, 110, 40),
     "Cetro da Tempestade": (255, 236, 120), "Foice do Ceifador": (130, 255, 190),
+    # Lag Lobby
+    "Taser de Rede": (130, 200, 255), "Rifle de Plasma": (110, 255, 200), "Drone de Bolso": (130, 200, 255),
+    "Teclado Mecânico": (60, 200, 230), "Escudo de Choque": (130, 200, 255), "Manopla do Exo": (90, 170, 255),
 }
 WHITE = (255, 255, 240)
 

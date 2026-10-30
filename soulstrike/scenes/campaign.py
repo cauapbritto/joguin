@@ -9,7 +9,8 @@ from ..ai import DIFFICULTIES
 from ..arena import MAPS_BY_KEY
 from ..enemies import SHADOW_RIM
 from ..fighter import draw_aura
-from ..campaign import BROKEN, CRYSTAL, PHASE_HEAL, PHASES, STORY, CampaignMatch, CampaignRun, LobbyMatch
+from ..campaign import (BROKEN, CRYSTAL, FRAGMENT, PHASE_HEAL, PHASES, STORY, CampaignMatch, CampaignRun,
+                        LobbyMatch)
 from ..net.remote import hub
 from ..ui import MenuList, darken, mix
 from ..upgrades import ICONS, UPGRADES, choices
@@ -19,6 +20,10 @@ from .menus import TitleScene, _MenuScene
 # ── fluxo ────────────────────────────────────
 def start_campaign(game):
     run = CampaignRun(game.session)
+    if getattr(game.session, "chapter", 1) == 2:
+        # direto no capítulo 2: almas, melhorias sorteadas e mais uma escolhida antes de entrar
+        run.start_at_chapter(2)
+        return UpgradeScene(game, run, lambda: start_phase(game, run), intro=True)
     return StoryScene(game, "prologo", lambda: start_phase(game, run))
 
 
@@ -51,6 +56,13 @@ def after_phase(game, run):
     def next_phase():
         run.advance()
         return start_phase(game, run)
+
+    if run.chapter_end:
+        # fim do capítulo 1: a história do cristal, a melhoria da fase e a tela do capítulo
+        def chapter_break():
+            run.advance()
+            return ChapterEndScene(game, run)
+        return StoryScene(game, "fim_capitulo1", lambda: UpgradeScene(game, run, chapter_break))
     return UpgradeScene(game, run, next_phase)
 
 
@@ -98,6 +110,28 @@ def draw_crystal(screen, center, size, ticks, broken=False):
             y = y + math.sin(ang) * speed * ticks + 0.025 * ticks * ticks
         screen.fill(theme.SHADOW, (round(x) + 1, round(y) + 1, u, u))
         screen.fill(color, (round(x), round(y), u, u))
+
+
+def draw_fragment(screen, center, ticks):
+    """O fragmento do cristal dentro de um tubo de vidro, preso por cabos (capítulo 2)."""
+    cx, cy = center
+    for k, color in enumerate(((40, 150, 200), (200, 80, 60), (220, 200, 70), (40, 150, 200))):
+        x = cx - 60 + k * 40
+        pygame.draw.line(screen, color, (x, cy + 90), (cx - 12 + k * 8, cy + 46), 4)
+    tube = pygame.Rect(0, 0, 70, 130)
+    tube.center = (cx, cy)
+    screen.fill((40, 44, 56), (tube.x - 6, tube.bottom - 8, tube.w + 12, 16))
+    screen.fill((40, 44, 56), (tube.x - 6, tube.y - 8, tube.w + 12, 12))
+    glass = pygame.Surface(tube.size, pygame.SRCALPHA)
+    glass.fill((120, 190, 230, 60))
+    screen.blit(glass, tube)
+    draw_crystal(screen, (cx, cy + 4), 42, ticks)
+    pygame.draw.rect(screen, (170, 220, 240), tube, 2)
+    screen.fill((210, 240, 250), (tube.x + 8, tube.y + 10, 3, tube.h - 24))
+    for k in range(3):
+        y = tube.y + 30 + k * 30
+        screen.fill((150, 70, 220), (tube.x - 12, y, 8, 2))
+        screen.fill((150, 70, 220), (tube.right + 4, y + 10, 8, 2))
 
 
 class StoryScene(_MenuScene):
@@ -175,6 +209,8 @@ class StoryScene(_MenuScene):
         if portrait in (CRYSTAL, BROKEN):
             draw_crystal(screen, (W // 2, stage_y - 30), 96, self.page_ticks if portrait == BROKEN else self.ticks,
                          broken=portrait == BROKEN)
+        elif portrait == FRAGMENT:
+            draw_fragment(screen, (W // 2, stage_y - 20), self.ticks)
         else:
             sprites = (self.assets.shadow_sprites(portrait.split(":", 1)[1]) if portrait.startswith("sombra:")
                        else self.assets.sprites[portrait])
@@ -221,10 +257,11 @@ class UpgradeScene(_MenuScene):
 
     phase = "choose"
 
-    def __init__(self, game, run, then):
+    def __init__(self, game, run, then, intro=False):
         super().__init__(game)
         self.run = run
         self.then = then
+        self.intro = intro              # começando do capítulo 2: a melhoria é antes da primeira fase
         self.options = {s: choices(run.upgrades[s]) for s in run.slots}
         self.index = {s: 1 for s in run.slots}
         self.locked = {s: False for s in run.slots}
@@ -315,9 +352,17 @@ class UpgradeScene(_MenuScene):
         if self.run.curse:
             self.ui.text(screen, "MALDIÇÃO VENCIDA: +1 MELHORIA", theme.XS, (190, 90, 230),
                          (W - 64, 72), anchor="midright")
-        self.ui.text(screen, f"FASE {done} CONCLUÍDA · TODO MUNDO RECUPERA {round(PHASE_HEAL * 100)}% DA VIDA",
-                     theme.XS, theme.MOSS, (64, 72), anchor="midleft")
-        self.ui.text(screen, f"PRÓXIMA: {PHASES[done].name}", theme.XS, theme.MUTED, (W - 64, 40), anchor="midright")
+        if self.intro:
+            from ..campaign import CHAPTER2_SOULS, CHAPTER2_UPGRADES
+            self.ui.text(screen, f"CAPÍTULO 2 · CADA UM COMEÇA COM {CHAPTER2_SOULS} ALMAS E "
+                                 f"{CHAPTER2_UPGRADES} MELHORIAS SORTEADAS",
+                         theme.XS, theme.MOSS, (64, 72), anchor="midleft")
+            nxt = PHASES[self.run.phase_index]
+        else:
+            self.ui.text(screen, f"FASE {done} CONCLUÍDA · TODO MUNDO RECUPERA {round(PHASE_HEAL * 100)}% DA VIDA",
+                         theme.XS, theme.MOSS, (64, 72), anchor="midleft")
+            nxt = PHASES[done]
+        self.ui.text(screen, f"PRÓXIMA: {nxt.name}", theme.XS, theme.MUTED, (W - 64, 40), anchor="midright")
         for s in self.run.slots:
             self._draw_row(screen, s)
         if self.countdown:
@@ -461,6 +506,63 @@ class GameOverScene(_RunMenuScene):
         self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR")])
 
 
+def draw_unlock(scene, screen, box, sprite, name, now):
+    """Quadro do lutador liberado, com a sombra dele se mexendo."""
+    scene.ui.panel(screen, box, fill=theme.INK_2, border=(170, 90, 230))
+    title = "NOVO LUTADOR LIBERADO!" if now else "LUTADOR LIBERADO"
+    scene.ui.text(screen, title, theme.XS, theme.BRASS, (box.centerx, box.y + 22))
+    img = scene.assets.shadow_sprites(sprite).frame("frente", scene.ticks // 6)
+    img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
+    rect = img.get_rect(midbottom=(box.centerx, box.y + 160))
+    draw_aura(screen, img, rect, SHADOW_RIM, scene.ticks, 3)
+    screen.blit(img, rect)
+    scene.ui.text(screen, name, theme.S, (200, 150, 250), (box.centerx, box.y + 178))
+
+
+class ChapterEndScene(_RunMenuScene):
+    """Fim do capítulo 1: libera o Aryel Corrompido e guarda a campanha no começo do capítulo 2
+    (dá para parar aqui e continuar depois pelo CONTINUAR CAMPANHA)."""
+
+    music = "menu"
+
+    def __init__(self, game, run):
+        super().__init__(game)
+        self.run = run
+        self.unlocked = progress.record_chapter1()
+        run.begin_phase()
+        progress.save_campaign(run.to_save())
+        self.menu = MenuList([("IR PARA O CAPÍTULO 2", "next"), ("PARAR AQUI (FICA SALVO)", "menu")],
+                             topleft=(64, 356), width=360)
+
+    def enter(self):
+        super().enter()
+        hub.set_phase("results", mode="campaign", active=self.active_slots(), banner="CAPÍTULO 1 CONCLUÍDO")
+        self.sfx("victory", 0.5)
+
+    def _choose(self, choice):
+        self.sfx("confirm")
+        if choice == "next":
+            self.game.change(start_phase(self.game, self.run))
+        else:
+            self.game.change(TitleScene(self.game))
+
+    def draw(self, screen):
+        W = config.SCREEN_W
+        self.draw_background(screen)
+        self.ui.text(screen, "CAMPANHA", theme.XS, theme.MUTED, (64, 64), anchor="midleft")
+        self.ui.text(screen, "CAPÍTULO 1 CONCLUÍDO!", theme.L, theme.MOSS, (64, 100), anchor="midleft")
+        screen.fill(theme.MOSS, (64, 124, 120, 3))
+        self.ui.paragraph(screen, "O cristal quebrou, mas um fragmento sumiu. A próxima parada é a LAG LOBBY, "
+                                  "a empresa tomada pela Patrulha Cinza.",
+                          theme.XS, theme.BONE, (64, 156), 420, spacing=16)
+        self.ui.paragraph(screen, "Se pararem aqui, o CONTINUAR CAMPANHA do menu volta no começo do capítulo 2.",
+                          theme.XS, theme.MUTED, (64, 236), 420, spacing=16)
+        draw_unlock(self, screen, pygame.Rect(W - 400, 70, 340, 200), "aryel", "ARYEL CORROMPIDO", self.unlocked)
+        self._stats_panel(screen, pygame.Rect(W - 400, 300, 340, 44 + 22 * (1 + len(self.run.slots))), self.run)
+        self.menu.draw(screen, self.ui, self.ticks)
+        self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR")])
+
+
 class CampaignEndScene(_RunMenuScene):
     music = "menu"
 
@@ -469,7 +571,9 @@ class CampaignEndScene(_RunMenuScene):
         self.run = run
         secs = run.frames // config.FPS
         self.best_before = progress.best_time(run.session.difficulty)
-        self.record, self.unlocked = progress.record_campaign(secs, run.session.difficulty, run.players)
+        self.full = run.start_chapter == 1
+        self.record, self.unlocked = progress.record_campaign(secs, run.session.difficulty, run.players,
+                                                              full=self.full)
         progress.clear_campaign()
         self.menu = MenuList([("MENU PRINCIPAL", "menu"), ("JOGAR DE NOVO", "again")],
                              topleft=(64, 356), width=300)
@@ -498,6 +602,10 @@ class CampaignEndScene(_RunMenuScene):
         best = self.best_before
         if self.record:
             line, color = "NOVO RECORDE DE TEMPO!", theme.BRASS
+        elif not self.full:
+            line, color = "COMEÇARAM NO CAPÍTULO 2: SEM RECORDE", theme.MUTED
+        elif best is None:
+            line, color = "", theme.MUTED
         else:
             line, color = f"RECORDE: {best // 60}:{best % 60:02d}", theme.MUTED
         self.ui.text(screen, f"TEMPO {secs // 60}:{secs % 60:02d}", theme.S, theme.BONE, (64, 150), anchor="midleft")
@@ -513,18 +621,8 @@ class CampaignEndScene(_RunMenuScene):
             pygame.draw.ellipse(screen, theme.SHADOW, (x - 30, 318 - 8, 60, 14))
             screen.blit(img, img.get_rect(midbottom=(x, 318 + 2 - bob)))
 
-        if self.unlocked or progress.campaign_cleared():
-            box = pygame.Rect(W - 400, 70, 340, 200)
-            self.ui.panel(screen, box, fill=theme.INK_2, border=(170, 90, 230))
-            title = "NOVO LUTADOR LIBERADO!" if self.unlocked else "LUTADOR LIBERADO"
-            self.ui.text(screen, title, theme.XS, theme.BRASS, (box.centerx, box.y + 22))
-            sprites = self.assets.shadow_sprites("aryel")
-            img = sprites.frame("frente", self.ticks // 6)
-            img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
-            rect = img.get_rect(midbottom=(box.centerx, box.y + 160))
-            draw_aura(screen, img, rect, SHADOW_RIM, self.ticks, 3)
-            screen.blit(img, rect)
-            self.ui.text(screen, "ARYEL CORROMPIDO", theme.S, (200, 150, 250), (box.centerx, box.y + 178))
+        draw_unlock(self, screen, pygame.Rect(W - 400, 70, 340, 200), "borba_exo", "BORBA JR CORROMPIDO",
+                    self.unlocked)
         self._stats_panel(screen, pygame.Rect(W - 400, 300, 340, 44 + 22 * (1 + len(self.run.slots))), self.run)
         self.menu.draw(screen, self.ui, self.ticks)
         self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR")])

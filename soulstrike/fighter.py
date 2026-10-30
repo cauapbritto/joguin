@@ -8,7 +8,7 @@ from . import config, theme
 from .abilities import create_ability
 from .data import shot_sound
 from .entities import Entity, Particle, hostile
-from . import forged, rare_fx
+from . import forged, gadgets, rare_fx
 from .market import BURN_TICK, FORGE_DAMAGE, FORGE_MAG, enchant_hit
 from . import weapon_art
 
@@ -283,6 +283,9 @@ class Fighter(Entity):
         self.burn_damage = 0
         self.burn_owner = None
         self.forged_count = 0           # golpes da Lâmina Solar (o 3º gira)
+        self.combo_count = 0            # golpes seguidos (Teclado Mecânico e Manopla do Exo: o 3º é especial)
+        self.combo_timer = 0
+        self.guard_frames = 0           # segurando o Escudo de Choque
         self.storm_hold = self.storm_last = 0   # Cetro da Tempestade: há quanto tempo segura
         self.reaper = 0.0               # Foice do Ceifador: dano a mais até o fim da masmorra
         self.ammo_mult = 1.0            # melhoria da campanha: pente maior
@@ -631,7 +634,7 @@ class Fighter(Entity):
                      "shoot_flash", "teleport_flash", "slow_timer", "pull_timer", "windup", "aim_timer",
                      "down_age", "bow_draw", "haste_timer", "idle_shot", "hack_timer", "type_timer",
                      "virus_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer",
-                     "perfect_flash", "burn_timer"):
+                     "perfect_flash", "burn_timer", "combo_timer", "combo_count", "guard_frames"):
             setattr(self, name, 0)
         self.end_exo()
         self.clips.clear()                            # pentes cheios de novo
@@ -723,6 +726,8 @@ class Fighter(Entity):
                 return False
             self.reload_timer = 0                     # atirar com bala no pente cancela a recarga
         self.face(target)
+        if weapon.special == "escudo":
+            return gadgets.shield_hold(self, match)
         if weapon.charge:
             # arco: segurar tensiona; solta ao largar o botão ou quando fica tenso
             self.bow_target = target
@@ -758,6 +763,7 @@ class Fighter(Entity):
                             other.throw_from(self, match)
             if weapon.forjada:
                 forged.on_swing(self, weapon, match, hits, damage)
+            gadgets.on_melee(self, weapon, match, damage)
             return True
         base = proximity_damage(dist, weapon.damage) if weapon.close_bonus else weapon.damage
         damage = round(base * self.damage_mult * self.weapon_mult(weapon))
@@ -795,7 +801,8 @@ class Fighter(Entity):
         self.shoot_flash = 5
         rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
         self.aim_timer = max(self.aim_timer, AIM_HOLD)
-        match.assets.play("arco", 0.45 if power >= 1 else 0.3)
+        sound = "arco" if weapon.style in ("flecha", "") else shot_sound(weapon)
+        match.assets.play(sound, 0.45 if power >= 1 else 0.3)
 
     def throw_from(self, attacker, match):
         """Golpe do exoesqueleto: voa longe (e se bater na parede fica tonto)."""
@@ -813,7 +820,9 @@ class Fighter(Entity):
 
     def _deflect_bullets(self, match):
         """O golpe corpo a corpo rebate os tiros que chegam pela frente."""
-        reach = self.weapon.reach + 14                 # (a passiva de alto não aumenta a defesa)
+        self.deflect_front(match, self.weapon.reach + 14)       # (a passiva de alto não aumenta a defesa)
+
+    def deflect_front(self, match, reach):
         fx, fy = self.facing
         blocked = 0
         for b in match.bullets:
@@ -1088,6 +1097,12 @@ class Fighter(Entity):
     def _update_ammo(self, match):
         """Arco (soltar ao largar o botão), recarga do pente e carga que volta nas armas mágicas."""
         held, self._attack_held = self._attack_held, False
+        if self.combo_timer > 0:
+            self.combo_timer -= 1
+        if self.guard_frames > 0 and (not held or self.stunned or self.weapon.special != "escudo"):
+            if self.weapon.special == "escudo" and not self.stunned:
+                gadgets.shield_release(self, match)
+            self.guard_frames = 0
         if self.bow_draw > 0:
             if self.stunned or not self.weapon.charge or not getattr(match, "active", True):
                 self.bow_draw = 0
@@ -1244,6 +1259,8 @@ class Fighter(Entity):
             vx, vy = self.facing if swinging else weapon_art.DIRECTION_VECTORS[direction]
             half = weapon_art.weapon_length(art) / 2
             rare_fx.draw_held(surf, self.weapon, (hand[0] + vx * half, hand[1] + vy * half), ticks)
+        if self.guard_frames > 0:
+            gadgets.draw_guard(surf, camera, self)
         if show_weapon and direction == "costas" and not swinging:
             weapon_art.draw_weapon(surf, art, hand, direction, self.facing, recoil=recoil)
 

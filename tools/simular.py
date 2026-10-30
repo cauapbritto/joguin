@@ -93,8 +93,8 @@ def duel(games, difficulty, workers):
 
 
 def ball(mode, games, seed, workers):
-    from soulstrike.data import CHARACTERS
-    pool_chars = [i for i, c in enumerate(CHARACTERS) if c.key != "aryel_corrompido"]
+    from soulstrike.data import CHARACTERS, UNLOCKABLES
+    pool_chars = [i for i, c in enumerate(CHARACTERS) if c.key not in UNLOCKABLES]
     rng = random.Random(seed)
     n = 2 if mode == "soccer1" else 4
     jobs = [(mode, rng.sample(pool_chars, n), seed + k) for k in range(games)]

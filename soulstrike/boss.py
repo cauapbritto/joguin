@@ -1,16 +1,21 @@
-"""O chefão da campanha: Aryel Corrompido.
+"""Os chefões da campanha: Aryel Corrompido (capítulo 1) e Borba Jr Corrompido (capítulo 2).
 
-Ele alterna golpes em sequência (chuva de bombas, anel de granadas, martelada com pulo e a
+Aryel alterna golpes em sequência (chuva de bombas, anel de granadas, martelada com pulo e a
 investida sombria) e depois de cada sequência fica CANSADO por um tempo: é a hora de bater.
 Com metade da vida chama ajuda (com uma alma corrompida de herói); com 20% fica furioso, mais
 rápido e ganha a armadura de sombra, que só quebra quando ele cansa.
+
+Borba Jr segue o mesmo modelo dentro do exoesqueleto: Canhão de Pulso (a linha azul engrossa antes
+do tiro), Punho Mecânico em série (o 3º soco abre uma onda de choque) e o salto do exo. No lugar
+de CANSADO ele fica SUPERAQUECIDO, soltando vapor; com metade da vida chama drones e um Miliciano
+de Exo, e com 20% liga a blindagem total, que só cai quando ele superaquece.
 """
 import math
 import random
 
 from . import theme
 from .data import WeaponStats
-from .enemies import SHADOW_AURA, SHADOW_RIM, EnemyAI, EnemyStats, Shockwave
+from .enemies import PATROL_RED, SHADOW_AURA, SHADOW_RIM, AimLine, EnemyAI, EnemyStats, Shockwave
 from .entities import GroundMark, ShadowBomb
 
 BOSS_STATS = EnemyStats(
@@ -27,11 +32,12 @@ TIRED = 77                   # quadros CANSADO (antes 110)
 SHADES = ("sombra:velocista", "sombra:ninja", "sombra:tanque")
 
 
-def spawn_boss(match, x, y):
+def spawn_boss(match, x, y, which="aryel"):
     from .fighter import Fighter
-    f = Fighter(BOSS_STATS, 0, x, y, match.assets.shadow_sprites("aryel"), "ARYEL CORROMPIDO", SHADOW_AURA,
+    stats, sprite, brain = BOSSES[which]
+    f = Fighter(stats, 0, x, y, match.assets.shadow_sprites(sprite), stats.name.upper(), SHADOW_AURA,
                 team=1, weapon_index=0, is_cpu=True)
-    f.radius = f.base_radius = BOSS_STATS.radius
+    f.radius = f.base_radius = stats.radius
     f.draw_scale = SCALE
     f.knock_resist = 1.0
     f.unstoppable = True
@@ -40,12 +46,24 @@ def spawn_boss(match, x, y):
     f.ring_color = SHADOW_RIM
     f.kind = "chefe"
     f.phase_label = ""
-    return f, BossAI(match.session.difficulty, len(match.players))
+    return f, brain(match.session.difficulty, len(match.players))
 
 
 class BossAI(EnemyAI):
     reaction = 6
     PATTERNS = ("rain", "ring", "jump", "dash")
+    WINDUPS = {"rain": 44, "ring": 34, "jump": 26, "dash": 40}
+    COLORS = {"rain": (200, 120, 255), "ring": (255, 150, 70), "jump": (255, 90, 90), "dash": (150, 60, 230)}
+    TIRED_LABEL = "CANSADO! HORA DE ATACAR"
+    TIRED_POPUP = "CANSADO"
+    ROAR_LABEL = "AS SOMBRAS ESTÃO VINDO"
+    ARMOR_LABEL = "ARMADURA DE SOMBRA: ESPERE ELE CANSAR"
+    ARMOR_NAME = "ARMADURA DE SOMBRA"
+    ARMOR = ARMOR
+    LAND_COLOR = (220, 120, 255)
+
+    def summon_kinds(self):
+        return ("diabrete",) * 3 + ("esqueleto", random.choice(SHADES))
 
     def __init__(self, difficulty="normal", players=1):
         super().__init__(difficulty)
@@ -72,9 +90,9 @@ class BossAI(EnemyAI):
     def _set(self, me, state, frames):
         self.state = state
         self.timer = frames
-        me.vulnerability = 1.6 if state == "tired" else ARMOR if self.enraged else 1.0
-        me.phase_label = {"tired": "CANSADO! HORA DE ATACAR", "roar": "AS SOMBRAS ESTÃO VINDO"}.get(
-            state, "ARMADURA DE SOMBRA: ESPERE ELE CANSAR" if self.enraged else "")
+        me.vulnerability = 1.6 if state == "tired" else self.ARMOR if self.enraged else 1.0
+        me.phase_label = {"tired": self.TIRED_LABEL, "roar": self.ROAR_LABEL}.get(
+            state, self.ARMOR_LABEL if self.enraged else "")
 
     def _new_combo(self):
         size = 4 if self.enraged else 3
@@ -94,14 +112,14 @@ class BossAI(EnemyAI):
         if not self.summoned and ratio <= 0.5 and self.state not in ("jump", "air"):
             self.summoned = True
             self._roar(me, match)
-            match.summon(("diabrete",) * 3 + ("esqueleto", random.choice(SHADES)), me)
+            match.summon(self.summon_kinds(), me)
         elif not self.enraged and ratio <= 0.2 and self.state not in ("jump", "air"):
             self.enraged = True
             me.aura = ENRAGED_AURA
             me.speed_mult *= 1.25
             self._roar(me, match)
             match.popup(me.x, me.y - 120, "FURIOSO!", ENRAGED_AURA)
-            match.popup(me.x, me.y - 100, "ARMADURA DE SOMBRA", (190, 120, 255))
+            match.popup(me.x, me.y - 100, self.ARMOR_NAME, (190, 120, 255))
 
         target = match.nearest_player(me)
         self.timer -= 1
@@ -125,10 +143,30 @@ class BossAI(EnemyAI):
         elif state == "tired":
             me.steer(0, 0)
             if self.timer % 30 == 0:
-                match.popup(me.x, me.y - 120, "CANSADO", theme.MUTED)
+                match.popup(me.x, me.y - 120, self.TIRED_POPUP, theme.MUTED)
+            self._tired_tick(me, match)
             if self.timer <= 0:
                 self._set(me, "walk", self._wait(120))
-        elif state == "rain":
+        elif state == "jump":
+            me.steer(0, 0)
+            me.face(target)
+            if self.timer <= 0:
+                self._take_off(me, match, target)
+        elif state == "air":
+            self._fly(me, match)
+        elif state == "pause":
+            self._walk(me, match, target, shoot=False)
+            if self.timer <= 0:
+                self._next(me, match)
+        else:
+            self._pattern(me, match, target, state)
+
+    def _tired_tick(self, me, match):
+        pass
+
+    def _pattern(self, me, match, target, state):
+        """Os golpes próprios de cada chefão (os outros estados são comuns aos dois)."""
+        if state == "rain":
             me.steer(0, 0)
             me.face(target)
             if self.timer == 1:
@@ -143,13 +181,6 @@ class BossAI(EnemyAI):
                 self._ring(me, match, math.pi / 14)
             if self.timer <= (-16 if self.enraged else 0):
                 self._next(me, match, pause=40)
-        elif state == "jump":
-            me.steer(0, 0)
-            me.face(target)
-            if self.timer <= 0:
-                self._take_off(me, match, target)
-        elif state == "air":
-            self._fly(me, match)
         elif state == "dash":
             me.steer(0, 0)
             if self.timer <= 0:
@@ -158,10 +189,6 @@ class BossAI(EnemyAI):
                 match.assets.play("dash", 0.6)
         elif state == "dashing":
             self._dashing(me, match)
-        elif state == "pause":
-            self._walk(me, match, target, shoot=False)
-            if self.timer <= 0:
-                self._next(me, match)
 
     def _next(self, me, match, pause=0):
         if pause:
@@ -172,13 +199,14 @@ class BossAI(EnemyAI):
             return
         pattern = self.combo.pop(0)
         self.last_pattern = pattern
-        windup = {"rain": 44, "ring": 34, "jump": 26, "dash": 40}[pattern]
-        color = {"rain": (200, 120, 255), "ring": (255, 150, 70), "jump": (255, 90, 90),
-                 "dash": (150, 60, 230)}[pattern]
-        me.start_windup(self._wait(windup), color)
+        windup = self.WINDUPS[pattern]
+        me.start_windup(self._wait(windup), self.COLORS[pattern])
         self._set(me, pattern, self._wait(windup))
+        self._begin(me, match, pattern, self._wait(windup))
+
+    def _begin(self, me, match, pattern, frames):
         if pattern == "dash":
-            self._aim_dash(me, match, self._wait(windup))
+            self._aim_dash(me, match, frames)
 
     def _roar(self, me, match):
         me.invulnerable_timer = 70
@@ -200,8 +228,11 @@ class BossAI(EnemyAI):
                 self.strafe = -self.strafe
         me.steer(*move)
         if shoot and me.attack_cd <= 0 and random.random() < 0.06 * self.speed:
-            me.weapon_index = 1 if d < 90 else 0
-            me.attack(match, target)
+            self._basic_attack(me, match, target, d)
+
+    def _basic_attack(self, me, match, target, d):
+        me.weapon_index = 1 if d < 90 else 0
+        me.attack(match, target)
 
     # ── golpes ───────────────────────────────
     def _rain(self, me, match):
@@ -312,10 +343,135 @@ class BossAI(EnemyAI):
             me.armed = True
             me.invulnerable_timer = 0
             match.add_effect(Shockwave(me, me.x, me.y, 140, round(26 * me.damage_bonus), stun=36,
-                                       color=(220, 120, 255)))
+                                       color=self.LAND_COLOR))
             me.melee_flash = 12
             match.assets.play("passo_pesado", 0.7)
             self._next(me, match, pause=36)
+
+
+# ─────────────────────────────────────────────
+#  Borba Jr Corrompido (capítulo 2)
+# ─────────────────────────────────────────────
+PULSE_BLUE = (90, 170, 255)
+STEAM = (226, 230, 236)
+BORBA_STATS = EnemyStats(
+    "borba_corrompido", "Borba Jr Corrompido", 1650, 2.5, SHADOW_AURA,
+    "Sobrecarga", "Canhão de pulso gigante.",
+    (WeaponStats("Canhão de Pulso", "ranged", 14, bullet_speed=9, cooldown=40, style="pulso", charge=True),
+     WeaponStats("Punho Mecânico", "melee", 22, reach=64, cooldown=40)), "borba_exo",
+    radius=26, elite=True, armed=True, knock_resist=1.0, drop_chance=0.0)
+HEAT_ARMOR = 0.12            # blindagem total (com 20% da vida): quase nada passa, menos superaquecido
+
+
+class BorbaBossAI(BossAI):
+    """Borba Jr Corrompido: Canhão de Pulso, Punho Mecânico em série e o salto do exo."""
+
+    PATTERNS = ("cannon", "punch", "jump")
+    WINDUPS = {"cannon": 56, "punch": 18, "jump": 26}
+    COLORS = {"cannon": PULSE_BLUE, "punch": (255, 150, 70), "jump": (255, 90, 90)}
+    TIRED_LABEL = "SUPERAQUECIDO! HORA DE ATACAR"
+    TIRED_POPUP = "SUPERAQUECIDO"
+    ROAR_LABEL = "A PATRULHA ESTÁ VINDO"
+    ARMOR_LABEL = "BLINDAGEM TOTAL: ESPERE ELE SUPERAQUECER"
+    ARMOR_NAME = "BLINDAGEM TOTAL"
+    ARMOR = HEAT_ARMOR
+    LAND_COLOR = PULSE_BLUE
+    PUNCHES = 3
+    PUNCH_STEP = 34
+
+    def __init__(self, difficulty="normal", players=1):
+        super().__init__(difficulty, players)
+        self.aim = (1.0, 0.0)
+        self.punches = 0
+        self.cannon = WeaponStats("Canhão de Pulso", "ranged", 26, bullet_speed=9, cooldown=40, style="pulso",
+                                  charge=True)
+
+    def summon_kinds(self):
+        return ("drone",) * 3 + ("miliciano_exo",)
+
+    def _basic_attack(self, me, match, target, d):
+        if d < 90:
+            me.weapon_index = 1
+            me.attack(match, target)
+            return
+        # tiro de pulso pequeno andando (o grande é o golpe carregado)
+        me.attack_cd = 34
+        match.spawn_projectile(me, self.cannon, me.direction_to(target), round(12 * me.damage_bonus), power=0.4)
+
+    def _tired_tick(self, me, match):
+        if self.timer % 4 == 0:              # vapor saindo do exo
+            match.burst(me.x + random.uniform(-26, 26), me.y - 70, STEAM, 2, speed=1.5)
+        if self.timer % 40 == 0:
+            match.assets.play("vapor", 0.4)
+
+    def _begin(self, me, match, pattern, frames):
+        target = match.nearest_player(me)
+        if target is None:
+            return
+        me.face(target)
+        if pattern == "cannon":
+            # a linha azul aparece já travada: dá tempo de sair de lado
+            self.aim = me.direction_to(target) if me.direction_to(target) != (0.0, 0.0) else me.facing
+            match.add_effect(AimLine(me.x, me.y, *self.aim, 900, frames, color=PULSE_BLUE, width=2, grow=12))
+            match.assets.play("carga", 0.5)
+        elif pattern == "punch":
+            self.punches = self.PUNCHES
+
+    def _pattern(self, me, match, target, state):
+        if state == "cannon":
+            me.steer(0, 0)
+            if self.timer == 1:
+                self._fire(me, match)
+            if self.timer <= 0:
+                self._next(me, match, pause=40)
+        elif state == "punch":
+            me.steer(0, 0)
+            if self.timer == 1:
+                self._punch(me, match, target)
+            if self.timer <= 0:
+                if self.punches > 0:
+                    frames = self._wait(14)
+                    me.face(target)
+                    me.start_windup(frames, self.COLORS["punch"])
+                    self.timer = frames
+                else:
+                    self._next(me, match, pause=36)
+
+    def _fire(self, me, match):
+        """Uma bola grande pela linha (com 20% da vida, três em leque)."""
+        dmg = round(self.cannon.damage * me.damage_bonus)
+        angles = (-0.22, 0.0, 0.22) if self.enraged else (0.0,)
+        dx, dy = self.aim
+        for a in angles:
+            c, s_ = math.cos(a), math.sin(a)
+            match.spawn_projectile(me, self.cannon, (dx * c - dy * s_, dx * s_ + dy * c), dmg, power=2.0)
+        me.knock = [-dx * 4, -dy * 4]
+        match.camera.shake(6)
+        match.assets.play("explosion", 0.5)
+
+    def _punch(self, me, match, target):
+        """Um passo para a frente e um soco em arco; o terceiro abre a onda de choque."""
+        self.punches -= 1
+        dx, dy = me.direction_to(target) if me.distance_to(target) > 1 else me.facing
+        me.facing = (dx, dy)
+        me.x += dx * self.PUNCH_STEP
+        me.y += dy * self.PUNCH_STEP
+        match.arena.resolve(me)
+        fx, fy = me.x + dx * 56, me.y + dy * 56
+        me.melee_flash = 10
+        match.assets.play("soco_metal", 0.5)
+        if self.punches == 0:
+            match.add_effect(Shockwave(me, fx, fy, 130, round(22 * me.damage_bonus), stun=30, color=PULSE_BLUE))
+            return
+        dmg = round(16 * me.damage_bonus)
+        for p in match.alive_players:
+            if math.hypot(p.x - fx, p.y - fy) < 58 + p.radius:
+                if p.take_damage(dmg, me.x, me.y, attacker=me, match=match):
+                    p.knock = [dx * 9, dy * 9]
+        match.burst(fx, fy - 20, (255, 200, 120), 8, speed=4)
+
+
+BOSSES = {"aryel": (BOSS_STATS, "aryel", BossAI), "borba": (BORBA_STATS, "borba_exo", BorbaBossAI)}
 
 
 class _P:

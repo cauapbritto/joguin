@@ -10,6 +10,28 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.8.0": [
+        {"title": "CAPÍTULO 2: LAG LOBBY", "scene": "lag", "lines": [
+            "Depois do Templo Gelado, a campanha continua dentro da Lag Lobby, tomada pela Patrulha Cinza.",
+            "Três fases novas: Recepção, Data Center e Cobertura, com acampamentos, cofres e lojas da empresa.",
+            "Zerou o capítulo 1? CAMPANHA: CAPÍTULO 2 no menu começa direto nele, com almas e melhorias.",
+        ]},
+        {"title": "INIMIGOS E PERIGOS", "scene": "perigos", "lines": [
+            "Drone que mergulha pela linha vermelha, miliciano que recarrega exposto e torreta que mira antes.",
+            "O Miliciano Exo investe e fica PRESO na parede: é a hora de bater.",
+            "Laser no corredor de servidores (a linha pontilhada avisa) e vento no heliponto: se escondam atrás das paredes.",
+        ]},
+        {"title": "CHEFÃO: BORBA JR CORROMPIDO", "scene": "chefao_lag", "lines": [
+            "Canhão de Pulso com a linha azul de aviso, três socos com onda de choque e o salto do exo.",
+            "A blindagem quase não deixa passar dano: esperem ele SUPERAQUECER e ataquem.",
+            "Zerou o capítulo 2? O Borba Jr Corrompido fica liberado nos outros modos.",
+        ]},
+        {"title": "ARMAS DA LAG LOBBY", "scene": "armas_lag", "lines": [
+            "Taser de Rede (prende), Rifle de Plasma (carregado atravessa) e Drone de Bolso (atira sozinho).",
+            "Teclado Mecânico e Manopla do Exo: o 3º golpe seguido solta teclas ou abre uma onda.",
+            "Escudo de Choque: segure para segurar os tiros e solte para o empurrão. Sons e música novos.",
+        ]},
+    ],
     "1.7.0": [
         {"title": "ANIMAÇÕES NOVAS", "scene": "enterrada", "lines": [
             "Todos os heróis ganharam poses de pulo, arremesso, enterrada, toco, chute, carrinho e comemoração.",

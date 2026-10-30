@@ -6,7 +6,7 @@ from apoio import FakeInput, game
 
 from soulstrike import progress
 from soulstrike.boss import BossAI
-from soulstrike.campaign import (DOWN_FRAMES, DUNGEON_1, DUNGEON_2, EXIT_DELAY, GAMEOVER_FRAMES, LEAVE_FRAMES,
+from soulstrike.campaign import (CHAPTER_START, DOWN_FRAMES, DUNGEON_1, DUNGEON_2, EXIT_DELAY, GAMEOVER_FRAMES, LEAVE_FRAMES,
                                  PHASE_HEAL, PHASES, REVIVE_FRAMES, CampaignMatch, CampaignRun, elite_hp_scale,
                                  scaled_count)
 from soulstrike.data import CHARACTERS, UNLOCKABLE, roster, roster_indices
@@ -15,6 +15,7 @@ from soulstrike.session import Session, SlotSetup
 from soulstrike.upgrades import UPGRADES, apply_all, choices
 
 KEYS = [c.key for c in CHARACTERS]
+TEMPLO = CHAPTER_START[2] - 1           # última fase do capítulo 1 (o chefão Aryel Corrompido)
 
 
 def campanha(chars=("guerreiro", "atirador"), phase=0, difficulty="normal", dungeon=0):
@@ -226,6 +227,14 @@ class OndasTest(unittest.TestCase):
         self.assertIsInstance(scene, StoryScene)
         self.assertEqual(scene.heading, "FIM")
 
+    def test_templo_fecha_o_capitulo_1(self):
+        match, _ = campanha(phase=TEMPLO, dungeon=1)
+        match.won = True
+        from soulstrike.scenes.campaign import StoryScene
+        scene = match.next_scene()
+        self.assertIsInstance(scene, StoryScene)
+        self.assertEqual(scene.heading, "FIM DO CAPÍTULO 1")
+
     def test_inimigo_morto_some_e_pode_deixar_item(self):
         match, _ = campanha()
         pular_intro(match)
@@ -429,7 +438,7 @@ class MelhoriasTest(unittest.TestCase):
 
 class ChefaoTest(unittest.TestCase):
     def _chefe(self, players=("guerreiro", "atirador")):
-        match, _ = campanha(chars=players, phase=len(PHASES) - 1, dungeon=1)
+        match, _ = campanha(chars=players, phase=TEMPLO, dungeon=1)
         pular_intro(match)
         match.wave = len(match.waves) - 1
         match._spawn("chefe", 800, 330)

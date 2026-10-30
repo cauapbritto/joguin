@@ -229,12 +229,70 @@ MAPS += [
 ]
 
 
+# Lag Lobby (capítulo 2 da campanha): só as duas salas sem perigo valem no duelo
+MAPS += [
+    MapConfig(
+        "lag_saguao", "Saguão da Lag Lobby", (1600, 1200),
+        walls=[(0, 0, 1600, 30), (0, 0, 30, 1200), (1570, 0, 30, 1200), (0, 1170, 1600, 30),
+               (560, 100, 24, 220), (560, 440, 24, 120), (560, 740, 24, 120), (560, 980, 24, 190),
+               (880, 500, 240, 40), (880, 540, 40, 120),
+               (800, 220, 60, 60), (800, 920, 60, 60), (1250, 250, 60, 60), (1250, 890, 60, 60),
+               (1380, 450, 120, 30), (1380, 760, 120, 30)],
+        spawns=[(300, 600), (1300, 600), (1000, 360), (1000, 840)],
+        theme="lag_escritorio", battle=False,
+    ),
+    MapConfig(
+        "lag_openspace", "Open Space", (2000, 1400),
+        walls=[(0, 0, 2000, 30), (0, 0, 30, 1400), (1970, 0, 30, 1400), (0, 1370, 2000, 30)]
+              + [r for cx, cy in ((500, 300), (800, 300), (1200, 300), (1500, 300),
+                                  (500, 1100), (800, 1100), (1200, 1100), (1500, 1100), (650, 700), (1350, 700))
+                 for r in ((cx - 90, cy - 12, 180, 24), (cx - 12, cy + 12, 24, 70))]
+              + [(900, 120, 200, 40), (900, 1240, 200, 40)],
+        spawns=[(300, 700), (1700, 700), (1000, 450), (1000, 950)],
+        theme="lag_escritorio",
+    ),
+    MapConfig(
+        "lag_servidores", "Corredor de Servidores", (2000, 1400),
+        walls=[(0, 0, 2000, 30), (0, 0, 30, 1400), (1970, 0, 30, 1400), (0, 1370, 2000, 30)]
+              + [r for x in (500, 800, 1100, 1400) for r in ((x, 120, 60, 420), (x, 860, 60, 420))],
+        spawns=[(300, 700), (1700, 700), (950, 300), (950, 1100)],
+        theme="lag_datacenter", battle=False,
+    ),
+    MapConfig(
+        "lag_laboratorio", "Laboratório do Exo", (1600, 1200),
+        walls=[(0, 0, 1600, 30), (0, 0, 30, 1200), (1570, 0, 30, 1200), (0, 1170, 1600, 30),
+               (300, 60, 80, 90), (520, 60, 80, 90), (1000, 60, 80, 90), (1220, 60, 80, 90),
+               (300, 1050, 80, 90), (520, 1050, 80, 90), (1000, 1050, 80, 90), (1220, 1050, 80, 90),
+               (450, 520, 40, 160), (1110, 520, 40, 160), (650, 320, 300, 30), (650, 850, 300, 30)],
+        spawns=[(300, 600), (1300, 600), (800, 220), (800, 980)],
+        theme="lag_datacenter",
+    ),
+    MapConfig(
+        "lag_heliponto", "Heliponto", (1600, 1200),
+        walls=[(0, 0, 1600, 30), (0, 0, 30, 1200), (1570, 0, 30, 1200), (0, 1170, 1600, 30),
+               (250, 250, 120, 60), (1230, 250, 120, 60), (250, 880, 120, 60), (1230, 880, 120, 60),
+               (560, 180, 60, 120), (980, 180, 60, 120), (560, 880, 60, 120), (980, 880, 60, 120),
+               (700, 60, 200, 50)],
+        spawns=[(250, 600), (1350, 600), (800, 360), (800, 840)],
+        theme="lag_cobertura", battle=False,
+    ),
+    MapConfig(
+        "lag_diretor", "Sala do Diretor", (1600, 1200),
+        walls=[(0, 0, 1600, 30), (0, 0, 30, 1200), (1570, 0, 30, 1200), (0, 1170, 1600, 30),
+               (680, 120, 240, 50), (200, 200, 40, 300), (1360, 200, 40, 300),
+               (200, 850, 180, 40), (1220, 850, 180, 40), (480, 600, 50, 50), (1070, 600, 50, 50)],
+        spawns=[(400, 600), (1200, 600), (800, 360), (800, 840)],
+        theme="lag_escritorio", battle=False,
+    ),
+]
+
+
 def _lobby(theme):
     """Acampamento da campanha (lobby) no tema da fase, desenhado como texto em lobbies.py."""
     name, rows = lobbies.LOBBIES[theme]
     size, walls, void, markers = lobbies.parse(rows)
     return MapConfig(f"acampamento_{theme}", name, size, walls=walls, spawns=markers["S"], battle=False,
-                     theme=theme, void=void, markers=markers)
+                     theme=lobbies.LOBBY_SCENERY.get(theme, theme), void=void, markers=markers)
 
 
 MAPS += [_lobby(theme) for theme in lobbies.LOBBIES]

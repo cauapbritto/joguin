@@ -4,8 +4,10 @@ import math
 import random
 from abc import ABC, abstractmethod
 
+import pygame
+
 from . import config
-from .entities import BetSlip, Barrier, ExoSuit, FrostNova, Hack, Hook, ShadowBomb
+from .entities import BetSlip, Barrier, Entity, ExoSuit, FrostNova, Hack, Hook, ShadowBomb
 from .projectiles import Basketball, Volleyball
 
 
@@ -240,6 +242,80 @@ class ChuvaSombria(Ability):
         return 120 < dist < 460
 
 
+class PulseBeam(Entity):
+    """Sobrecarga do Borba Jr Corrompido: a linha azul aparece (dá para sair de lado) e logo depois
+    o feixe atravessa tudo até a parede, machucando e empurrando quem estiver nele."""
+
+    CHARGE = 16
+    LIFE = CHARGE + 14
+    HALF = 22
+    COLOR, CORE = (110, 80, 220), (220, 200, 255)
+
+    def __init__(self, user, direction, damage):
+        super().__init__(user.x, user.y)
+        self.user = user
+        self.dx, self.dy = direction
+        self.damage = damage
+        self.age = 0
+        self.length = 900
+
+    def update(self, match):
+        self.age += 1
+        if self.age < self.CHARGE:
+            self.x, self.y = self.user.x, self.user.y
+            return
+        if self.age == self.CHARGE:
+            self._fire(match)
+        if self.age >= self.LIFE:
+            self.alive = False
+
+    def _fire(self, match):
+        arena = match.arena
+        for k in range(1, 76):
+            px, py = self.x + self.dx * k * 12, self.y + self.dy * k * 12
+            if not arena.is_free(px, py, 2):
+                self.length = k * 12
+                break
+        for f in match.opponents_of(self.user):
+            if not f.alive_in_match:
+                continue
+            rx, ry = f.x - self.x, f.y - self.y
+            along = rx * self.dx + ry * self.dy
+            side = abs(rx * self.dy - ry * self.dx)
+            if 0 < along < self.length and side < self.HALF + f.radius:
+                if f.take_damage(self.damage, self.x, self.y, attacker=self.user, match=match):
+                    f.knock = [self.dx * 14, self.dy * 14]
+        self.user.knock = [-self.dx * 5, -self.dy * 5]
+        match.camera.shake(8)
+        match.assets.play("explosion", 0.5)
+
+    def draw(self, surf, camera):
+        x0, y0 = self.x - camera.x, self.y - 14 - camera.y
+        if self.age < self.CHARGE:
+            t = self.age / self.CHARGE
+            x1, y1 = x0 + self.dx * self.length, y0 + self.dy * self.length
+            pygame.draw.line(surf, self.COLOR, (x0, y0), (x1, y1), 1 + round(4 * t))
+            return
+        t = (self.age - self.CHARGE) / (self.LIFE - self.CHARGE)
+        x1, y1 = x0 + self.dx * self.length, y0 + self.dy * self.length
+        width = max(2, round(self.HALF * 2 * (1 - t)))
+        pygame.draw.line(surf, (40, 20, 80), (x0, y0), (x1, y1), width + 6)
+        pygame.draw.line(surf, self.COLOR, (x0, y0), (x1, y1), width)
+        pygame.draw.line(surf, self.CORE, (x0, y0), (x1, y1), max(1, width // 3))
+
+
+class Sobrecarga(Ability):
+    """Borba Jr Corrompido: canhão de pulso gigante em linha reta, que atravessa e empurra todo mundo."""
+    sound = "carga"
+    DAMAGE = 30
+
+    def activate(self, user, match, target):
+        match.add_effect(PulseBeam(user, _aim(user, target), _dmg(user, self.DAMAGE)))
+
+    def worth_using(self, user, target, dist):
+        return 80 < dist < 600
+
+
 def _nearest_foe(user, match, target):
     if target is not None and getattr(target, "alive_in_match", False):
         return target
@@ -356,6 +432,7 @@ ABILITIES = {
     "cauanzera": Multiesportista,
     "albeguinio": Hacker,
     "borba": Exoesqueleto,
+    "borba_corrompido": Sobrecarga,
 }
 
 

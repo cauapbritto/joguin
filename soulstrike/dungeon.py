@@ -237,10 +237,34 @@ def _chest_surface(open_):
 _CHEST = {}
 
 
-def chest_image(open_):
-    if open_ not in _CHEST:
-        _CHEST[open_] = _chest_surface(open_)
-    return _CHEST[open_]
+def chest_image(open_, style=None):
+    key = (open_, style)
+    if key not in _CHEST:
+        _CHEST[key] = _safe_surface(open_) if style == "lag" else _chest_surface(open_)
+    return _CHEST[key]
+
+
+def _safe_surface(open_):
+    """Cofre da Lag Lobby (capítulo 2): aço escuro, roda do segredo e a porta que abre de lado."""
+    s = pygame.Surface((24, 22), pygame.SRCALPHA)
+    body, light, dark = (92, 100, 116), (150, 160, 178), (46, 50, 60)
+    s.fill(dark, (1, 2, 22, 20))
+    s.fill(body, (2, 3, 20, 18))
+    s.fill(light, (2, 3, 20, 1))
+    s.fill(dark, (2, 20, 20, 1))
+    if open_:
+        s.fill((20, 18, 26), (4, 5, 16, 14))                     # dentro (vazio, com o brilho saindo)
+        s.fill((255, 220, 140), (6, 15, 12, 2))
+        s.fill(body, (19, 3, 5, 18))                             # porta aberta para o lado
+        s.fill(light, (19, 3, 1, 18))
+    else:
+        s.fill(light, (4, 5, 16, 1))
+        pygame.draw.circle(s, (200, 206, 216), (12, 12), 4, 1)   # roda do segredo
+        s.fill((230, 236, 244), (12, 9, 1, 3))
+        s.fill((64, 200, 230), (17, 6, 2, 2))                    # luz ciano da Lag Lobby
+        s.fill(dark, (5, 18, 3, 2))
+        s.fill(dark, (16, 18, 3, 2))
+    return pygame.transform.scale(s, (40, 36))
 
 
 class Chest(Entity):
@@ -249,8 +273,9 @@ class Chest(Entity):
 
     REACH = 64
 
-    def __init__(self, x, y):
+    def __init__(self, x, y, style=None):
         super().__init__(x, y)
+        self.style = style           # "lag": vira o cofre da Lag Lobby
         self.state = "closed"        # closed → opening → open
         self.t = 0
         self.age = 0
@@ -310,7 +335,7 @@ class Chest(Entity):
             g = glow(36, (255, 210, 120), 0.18 + 0.08 * math.sin(self.age * 0.08))
             surf.blit(g, g.get_rect(center=(sx, sy - 10)), special_flags=pygame.BLEND_ADD)
         pygame.draw.ellipse(surf, (10, 8, 12), (sx - 20, sy + 4, 40, 10))
-        img = chest_image(opened)
+        img = chest_image(opened, self.style)
         surf.blit(img, img.get_rect(midbottom=(sx + shake, sy + 10)))
 
     def draw_prompt(self, screen, camera, ui, frame, near):
