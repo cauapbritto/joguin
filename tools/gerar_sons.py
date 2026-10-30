@@ -209,6 +209,52 @@ def souls_effects():
         print("som", name)
 
 
+def lag_effects():
+    """Sons da v1.8 (capítulo 2, Lag Lobby): inimigos, perigos, chefão e armas novas (semente própria)."""
+    r = random.Random(18)
+    sons = {
+        # Rifle de Plasma: zuuum agudo e um estalo
+        "plasma": mix(tone(1800, 0.22, "saw", 0.4, slide=500, curve=3), tone(900, 0.22, "sine", 0.5, slide=300, curve=3),
+                      noise(0.04, 0.4, rng=r, curve=5, lowpass=0.9)),
+        # bip curto de máquina (drone de bolso, torreta travando)
+        "bip": tone(1760, 0.07, "square", 0.4, curve=2),
+        # drone inimigo mergulhando: zumbido que sobe
+        "drone": mix(tone(220, 0.5, "saw", 0.4, slide=520, attack=0.02, curve=1.5, vibrato=0.05),
+                     sweep_noise(0.5, 0.1, 0.5, 0.3, rng=r, attack=0.02, curve=1.5)),
+        # rajada do miliciano: três estalos secos
+        "rajada": mix(*[mix(noise(0.05, 1.0, rng=r, curve=6, lowpass=0.8), tone(140, 0.08, "sine", 0.7, slide=70, curve=4))
+                        for _ in range(3)], at=[0, 0.07, 0.14]),
+        # laser do corredor de servidores: zap grave que vibra
+        "laser": mix(tone(110, 0.45, "saw", 0.6, curve=1.5, vibrato=0.08), tone(880, 0.45, "square", 0.2, slide=440, curve=2)),
+        # rajada de vento no heliponto
+        "vento": sweep_noise(1.3, 0.02, 0.25, 0.9, rng=r, attack=0.4, curve=1.3),
+        # vapor do exoesqueleto (preso, superaquecido)
+        "vapor": sweep_noise(0.6, 0.9, 0.4, 0.7, rng=r, attack=0.01, curve=1.8),
+        # canhão do Borba carregando: tom subindo
+        "carga": mix(tone(120, 0.8, "saw", 0.4, slide=900, attack=0.05, curve=0.6),
+                     tone(240, 0.8, "sine", 0.4, slide=1800, attack=0.05, curve=0.6)),
+        # soco de metal (manopla, soco do Borba)
+        "soco_metal": mix(tone(80, 0.25, "sine", 1.0, slide=45, curve=4), tone(620, 0.3, "square", 0.25, slide=580, curve=5),
+                          noise(0.06, 0.7, rng=r, curve=5, lowpass=0.6)),
+        # empurrão do Escudo de Choque
+        "choque": mix(*[noise(0.04, 0.7, rng=r, curve=5, lowpass=1.0) for _ in range(4)],
+                      tone(70, 0.3, "square", 0.4, slide=40, curve=3), at=[0, 0.05, 0.1, 0.15, 0]),
+        # teclas do Teclado Mecânico: clique-clique-clique
+        "teclado": mix(*[mix(noise(0.02, 0.8, rng=r, curve=6, lowpass=0.95), tone(2400 + i * 200, 0.03, "square", 0.25, curve=6))
+                         for i in range(5)], at=[i * 0.045 for i in range(5)]),
+        # alarme da Lag Lobby
+        "alarme": mix(*[tone(880 if i % 2 == 0 else 660, 0.2, "square", 0.3, curve=0.5) for i in range(4)],
+                      at=[i * 0.2 for i in range(4)]),
+        # comemoração do Borba Jr Corrompido: vapor roxo e um tranco
+        "comemora_borba_corrompido": mix(sweep_noise(0.9, 0.9, 0.2, 0.7, rng=r, attack=0.01, curve=1.6),
+                                         tone(60, 0.5, "sine", 1.0, slide=35, curve=3),
+                                         tone(300, 0.6, "saw", 0.3, slide=900, attack=0.05, curve=1.0), at=[0.1, 0, 0.2]),
+    }
+    for name, samples in sons.items():
+        save_wav(name, samples)
+        print("som", name)
+
+
 def crowd(seconds, base, slide=None, voices=9, vol=1.0, rng=None, attack=0.08, curve=1.5, kind="saw"):
     """Várias vozes desafinadas cantando juntas (o "uuuh", o "ooh" e a vaia da torcida)."""
     rng = rng or random.Random(3)
@@ -377,18 +423,37 @@ def music():
         drums=["k", "h", "h", "h", "s", "h", "k", "h", "k", "h", "h", "h", "s", "h", "h", "s"], lead_vol=0.22)
     # ganho para ficar no mesmo volume percebido da música de batalha (o limitador segura os picos)
     for name, samples, gain in (("camp_bgm", camp, 6), ("boss_bgm", boss, 9)):
-        # as músicas vão para uma pasta de trabalho: só o .ogg entra no jogo
-        tmp = OUT / f"_{name}.wav"
-        save_wav(f"_{name}", samples, peak=0.8)
-        if shutil.which("ffmpeg"):
-            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(tmp),
-                            "-af", f"volume={gain}dB,alimiter=limit=0.95", "-c:a", "libvorbis", "-q:a", "4",
-                            str(OUT / f"{name}.ogg")], check=True)
-            tmp.unlink()
-        else:
-            tmp.replace(OUT / f"{name}.wav")
-            print("ffmpeg não encontrado: música salva em .wav")
-        print("música", name)
+        encode(name, samples, gain)
+
+
+def encode(name, samples, gain):
+    """Salva a música em .ogg (o .wav de trabalho é apagado); sem ffmpeg, fica em .wav."""
+    tmp = OUT / f"_{name}.wav"
+    save_wav(f"_{name}", samples, peak=0.8)
+    if shutil.which("ffmpeg"):
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(tmp),
+                        "-af", f"volume={gain}dB,alimiter=limit=0.95", "-c:a", "libvorbis", "-q:a", "4",
+                        str(OUT / f"{name}.ogg")], check=True)
+        tmp.unlink()
+    else:
+        tmp.replace(OUT / f"{name}.wav")
+        print("ffmpeg não encontrado: música salva em .wav")
+    print("música", name)
+
+
+def lag_music():
+    """Chefão da Lag Lobby (Borba Jr Corrompido): mais eletrônico, em mi menor, 160 bpm."""
+    boss = render(
+        160, 16,
+        chords=[("E4", "G4", "B4"), ("E4", "G4", "B4"), ("C4", "E4", "G4"), ("D4", "F#4", "A4"),
+                ("E4", "G4", "B4"), ("E4", "G4", "B4"), ("A3", "C4", "E4"), ("B3", "D#4", "F#4")],
+        melody=[("E5", 2), ("E5", 2), ("G5", 2), ("E5", 2), ("B5", 2), ("A5", 2), ("G5", 2), ("F#5", 2),
+                ("E5", 2), ("F#5", 2), ("G5", 2), ("D5", 2), ("E5", 8),
+                ("B4", 2), ("E5", 2), ("G5", 2), ("B5", 2), ("C6", 4), ("B5", 4),
+                ("A5", 2), ("G5", 2), ("F#5", 2), ("D#5", 2), ("E5", 8)],
+        bass_kind="tenso", lead_kind="saw",
+        drums=["k", "h", "k", "h", "s", "h", "k", "h", "k", "h", "k", "h", "s", "h", "s", "s"], lead_vol=0.16, seed=18)
+    encode("boss_lag_bgm", boss, 9)
 
 
 if __name__ == "__main__":
@@ -396,4 +461,6 @@ if __name__ == "__main__":
     basketball_effects()
     souls_effects()
     sport_effects()
+    lag_effects()
     music()
+    lag_music()
