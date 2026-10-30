@@ -209,6 +209,92 @@ def souls_effects():
         print("som", name)
 
 
+def crowd(seconds, base, slide=None, voices=9, vol=1.0, rng=None, attack=0.08, curve=1.5, kind="saw"):
+    """Várias vozes desafinadas cantando juntas (o "uuuh", o "ooh" e a vaia da torcida)."""
+    rng = rng or random.Random(3)
+    tracks = []
+    for _ in range(voices):
+        f = base * rng.uniform(0.92, 1.08)
+        end = slide * rng.uniform(0.92, 1.08) if slide else None
+        tracks.append(tone(f, seconds, kind, vol / voices, slide=end, attack=attack, curve=curve,
+                           vibrato=rng.uniform(0.01, 0.03)))
+    tracks.append(noise(seconds, 0.25 * vol, rng=rng, attack=attack, curve=curve, lowpass=0.12))
+    return mix(*tracks)
+
+
+def sport_effects():
+    """Sons da v1.7: enterrada, chute, gol, replay, pênaltis e comemorações (semente própria)."""
+    r = random.Random(17)
+    sons = {
+        # enterrada: tranco do aro, rede chicoteando e um tum grave na câmera lenta
+        "cravada": mix(tone(52, 0.6, "sine", 1.0, slide=34, curve=2.5), tone(540, 0.4, "sine", 0.5, curve=4),
+                       tone(1310, 0.3, "sine", 0.3, curve=5), sweep_noise(0.25, 0.9, 0.15, 0.7, rng=r, curve=2),
+                       at=[0, 0, 0, 0.04]),
+        # chute forte: estalo seco
+        "chute_forte": mix(noise(0.05, 1.0, rng=r, curve=6, lowpass=0.9), tone(110, 0.16, "sine", 0.9, slide=60, curve=4)),
+        # chute com curva: assobio que sobe e desce acompanhando a bola
+        "assobio": mix(tone(1400, 0.7, "sine", 0.5, slide=2100, attack=0.05, curve=1.2, vibrato=0.02),
+                       sweep_noise(0.7, 0.05, 0.3, 0.25, rng=r, attack=0.05, curve=1.5)),
+        # gol: a rede estufando (chuá longo)
+        "gol_rede": sweep_noise(0.6, 0.7, 0.05, rng=r, attack=0.01, curve=1.4),
+        # replay: o mesmo chuá e a torcida, graves e lentos
+        "replay": mix(sweep_noise(1.2, 0.3, 0.02, 0.8, rng=r, attack=0.05, curve=1.2),
+                      crowd(1.4, 180, 150, rng=r, attack=0.2, curve=1.2, vol=0.6)),
+        # pênalti: a torcida abafando até o silêncio antes da batida
+        "torcida_abafa": mix(noise(1.6, 0.9, rng=r, attack=0.02, curve=2.2, lowpass=0.18),
+                             crowd(1.6, 260, None, rng=r, attack=0.02, curve=2.5, vol=0.5)),
+        # coração batendo na decisiva: tum-tum
+        "coracao": mix(tone(58, 0.16, "sine", 1.0, slide=40, curve=4), tone(52, 0.2, "sine", 0.8, slide=38, curve=4),
+                       at=[0, 0.22]),
+        # vaia da torcida rival
+        "vaia": crowd(1.4, 140, 120, voices=12, rng=r, attack=0.15, curve=1.4, kind="square"),
+        # "uuuh" na isolada e na trave
+        "uuuh": crowd(1.2, 300, 190, rng=r, attack=0.06, curve=1.6),
+        # catimba e cartão: "ooh" da torcida
+        "ooh": crowd(1.0, 220, 330, rng=r, attack=0.08, curve=1.8),
+        # apito longo do juiz
+        "apito_longo": mix(tone(2800, 0.9, "square", 0.4, attack=0.01, curve=0.4, vibrato=0.04),
+                           noise(0.9, 0.2, rng=r, attack=0.01, curve=0.4, lowpass=0.6)),
+    }
+    # comemorações: um som por herói
+    hero = {
+        "trovao": mix(noise(0.9, 1.0, rng=r, curve=2.2, lowpass=0.25), tone(45, 0.9, "sine", 0.9, slide=30, curve=2)),
+        "aryel": mix(tone(70, 0.9, "saw", 0.6, slide=160, attack=0.05, curve=0.8),
+                     tone(140, 0.9, "square", 0.25, slide=320, attack=0.05, curve=0.8)),
+        "borba": mix(sweep_noise(0.9, 0.9, 0.1, 0.9, rng=r, attack=0.01, curve=1.5),
+                     tone(90, 0.3, "square", 0.4, slide=60, curve=4)),
+        "albeguinio": mix(*[noise(0.03, 0.8, rng=r, curve=6, lowpass=0.8) for _ in range(7)],
+                          tone(1320, 0.2, "square", 0.3, curve=3), at=[i * 0.08 for i in range(7)] + [0.6]),
+        "aryel_corrompido": mix(*[tone(180 - i * 12, 0.16, "saw", 0.5, slide=140 - i * 12, curve=3) for i in range(5)],
+                                at=[i * 0.15 for i in range(5)]),
+        "geada": mix(tone(2093, 0.6, "sine", 0.5, curve=3), tone(2637, 0.5, "sine", 0.4, curve=3),
+                     tone(3136, 0.4, "sine", 0.3, curve=3), sweep_noise(0.5, 0.9, 0.3, 0.3, rng=r), at=[0, 0.06, 0.12, 0]),
+        "faisca": mix(*[tone(1568 + i * 260, 0.12, "triangle", 0.4, curve=4) for i in range(5)],
+                      at=[i * 0.06 for i in range(5)]),
+        "tita": mix(tone(40, 0.7, "sine", 1.0, slide=28, curve=2), noise(0.5, 0.6, rng=r, curve=2, lowpass=0.05)),
+        "tanque": mix(tone(70, 0.15, "sine", 1.0, slide=50, curve=4), tone(70, 0.15, "sine", 1.0, slide=50, curve=4),
+                      at=[0, 0.25]),
+        "guerreiro": mix(tone(1200, 0.5, "sine", 0.5, curve=3), tone(2900, 0.4, "sine", 0.3, curve=4),
+                         noise(0.04, 0.6, rng=r, lowpass=0.9)),
+        "pirata": mix(tone(392, 0.2, "square", 0.3, curve=3), tone(523, 0.2, "square", 0.3, curve=3),
+                      tone(659, 0.4, "square", 0.3, curve=2), at=[0, 0.15, 0.3]),
+        "ninja": sweep_noise(0.5, 0.05, 0.6, 0.8, rng=r, attack=0.01, curve=2),
+        "fantasma": tone(330, 0.9, "sine", 0.6, slide=220, attack=0.1, curve=1.5, vibrato=0.06),
+        "velocista": sweep_noise(0.4, 0.1, 0.9, 0.8, rng=r, attack=0.01, curve=2),
+        "ginga": mix(*[tone(f, 0.12, "square", 0.3, curve=4) for f in (523, 659, 784, 659, 523, 659)],
+                     at=[i * 0.12 for i in range(6)]),
+        "matador": mix(sweep_noise(0.3, 0.3, 0.05, 0.6, rng=r), crowd(0.8, 220, 160, rng=r, vol=0.5)),
+        "cauanzera": sweep_noise(0.4, 0.2, 0.8, 0.7, rng=r, attack=0.02, curve=2),
+        "atirador": sweep_noise(0.35, 0.4, 0.05, 0.6, rng=r, attack=0.05, curve=2),
+        "paredao": mix(tone(110, 0.2, "sine", 0.8, slide=80, curve=4), noise(0.4, 0.4, rng=r, curve=2, lowpass=0.1)),
+    }
+    for key, samples in hero.items():
+        sons["comemora_" + key] = samples
+    for name, samples in sons.items():
+        save_wav(name, samples)
+        print("som", name)
+
+
 # ── músicas (chiptune) ─────────────────────────────────────
 NOTE = {n: i for i, n in enumerate(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"])}
 
@@ -309,4 +395,5 @@ if __name__ == "__main__":
     effects()
     basketball_effects()
     souls_effects()
+    sport_effects()
     music()

@@ -310,6 +310,9 @@ class PenaltyScene(Scene):
         if self.bulge:
             bx, by, amp = self.bulge
             self.bulge = (bx, by, amp * 0.94) if amp > 0.05 else None
+        k = self.kick
+        if k is not None and k.decisive and self.state in ("mira", "corrida") and self.ticks % 50 == 0:
+            self.assets.play("coracao", 0.45 * (1 - 0.6 * P.kick_style(k.kicker.key).calm))
         getattr(self, "_update_" + self.state)()
 
     def _update_ordem(self):
@@ -357,6 +360,7 @@ class PenaltyScene(Scene):
             if self.kick.decisive:
                 self._shout("COBRANÇA DECISIVA", theme.BONE, theme.M, y=230, sub="SE PERDER, ACABOU")
                 self.assets.play("coracao", 0.5)
+                self.assets.play("vaia", 0.35)
 
     def _update_mira(self):
         k = self.kick
@@ -419,12 +423,12 @@ class PenaltyScene(Scene):
         keeper = k.keeper
         keeper.catimbas += 1
         k.catimba = CATIMBA_FRAMES
+        self.assets.play("ooh", 0.4)
         self._shout("CATIMBA!", (250, 214, 60), theme.L)
-        self.assets.play("apito", 0.45)
         if keeper.catimbas % 3 == 0:
             keeper.yellows += 1
             k.card = True
-            self.assets.play("ooh", 0.5)
+            self.assets.play("apito_longo", 0.45)
             if keeper.yellows >= 2:
                 k.retake = True
                 self._shout("2º AMARELO!", (250, 214, 60), theme.M, y=250, sub="SE DEFENDER, VAI REPETIR")
@@ -636,6 +640,7 @@ class PenaltyScene(Scene):
             return
         if self.mode == "penaltis" and self.shootout.winner is not None:
             self._confetti()
+            self.assets.play("replay", 0.5)
             self.replaying = True
             self.kick.flight = 0
             self.kick.outcome = None

@@ -1275,6 +1275,7 @@ class SoccerMatch(Match):
             dx, dy = dx * c - dy * s_, dx * s_ + dy * c
             ball.curve, ball.curve_timer = curve * config.CURVE_RATE, config.CURVE_FRAMES   # ...e volta
             self.popup(f.x, f.y - 74, "CURVA", theme.BONE)
+            self.assets.play("assobio", 0.3)
         ball.vx, ball.vy = dx * power, dy * power
         ball.homing_timer = 0
         f.kick_cd = 14
@@ -1285,6 +1286,7 @@ class SoccerMatch(Match):
             for k in range(5):
                 self.particles.append(Particle(ball.x - dx * 10 * k, ball.y - dy * 10 * k + random.uniform(-6, 6),
                                                -dx * 2, -dy * 2, (255, 250, 230), 10, 2))
+            self.assets.play("chute_forte", 0.45)
         self.assets.play("chute", 0.3)
         return True
 
@@ -2310,6 +2312,7 @@ class SoccerMatch(Match):
         self.slowmo = max(self.slowmo, GOAL_SLOWMO)
         self.assets.play("victory", 0.5)
         self.assets.play("torcida", 0.45)
+        self.assets.play("gol_rede", 0.55)
         if self.golden_goal or (self.win_score is not None and self.score[scoring_team] >= self.win_score):
             self._whistle(scoring_team)
 

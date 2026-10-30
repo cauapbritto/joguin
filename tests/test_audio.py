@@ -35,6 +35,13 @@ class ArquivosTest(unittest.TestCase):
             self.assertTrue((config.SOUNDS_DIR / f"{name}.wav").is_file(), name)
             self.assertIn(name, game().assets.sounds, name)
 
+    def test_sons_da_v17_existem(self):
+        from soulstrike.scenes.penalty import CELEBRATIONS
+        names = {"cravada", "chute_forte", "assobio", "gol_rede", "replay", "torcida_abafa", "coracao", "vaia",
+                 "uuuh", "ooh", "apito_longo"} | {"comemora_" + key for key in CELEBRATIONS}
+        for name in names:
+            self.assertTrue((config.SOUNDS_DIR / f"{name}.wav").is_file(), name)
+
     def test_todo_estilo_de_projetil_tem_som(self):
         for style in PROJECTILES:
             if style != "bala":                         # a bala do rifle usa o tiro comum (shoot/shoot2)

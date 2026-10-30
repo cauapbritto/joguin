@@ -508,6 +508,7 @@ class BasketballMatch(Match):
         f.landing_dunk = True                # poeira quando chegar ao chão
         if not self.warmup:
             self.slowmo = max(self.slowmo, DUNK_SLOWMO)  # a hora de cravar, em câmera lenta
+            self.assets.play("cravada", 0.6)
         f.fly_dunk = f.alley_dunk = False
         for hoop in self.hoops:
             if hoop.side == side:
