@@ -2,7 +2,9 @@
 import math
 import random
 from abc import ABC, abstractmethod
+from collections import deque
 from dataclasses import dataclass, field
+from fractions import Fraction
 
 import pygame
 
@@ -770,10 +772,16 @@ class Ball(Entity):
         self.thunder_timer = 0      # chute trovão: quase não perde força e derruba quem entra na frente
         self.thunder_owner = None
         self.thunder_hit = set()    # quem o trovão já derrubou (um tombo por chute)
+        self.curve = 0.0            # chute com curva: quanto a direção vira por quadro
+        self.curve_timer = 0
+        self.headed = False         # a última batida foi de cabeça (a ponte não segura)
         self.z = 0.0                # altura
         self.vz = 0.0
         self.squash = 0
         self.held = False           # nas mãos (enterrada): desenha no tamanho normal
+        self.streak = 0             # chute forte: quadros com rastro
+        self.trail = []             # posições recentes (rastro do chute forte)
+        self.nudge = (0.0, 0.0)     # só no desenho: a bola acompanha o pé em cada passo da condução
 
     @property
     def airborne(self):
@@ -865,12 +873,26 @@ class Ball(Entity):
             self.thunder_timer -= 1
             if self.thunder_timer == 0:
                 self.thunder_owner = None
+        if self.curve_timer > 0:
+            self.curve_timer -= 1
+            c, s_ = math.cos(self.curve), math.sin(self.curve)
+            self.vx, self.vy = self.vx * c - self.vy * s_, self.vx * s_ + self.vy * c
         self.x += self.vx
         self.y += self.vy
         self.spin += math.hypot(self.vx, self.vy) * 0.15
+        if self.streak > 0:
+            self.streak -= 1
+            self.trail = (self.trail + [(self.x, self.y, self.z)])[-7:]
+        elif self.trail:
+            self.trail.pop(0)
 
     def draw(self, surf, camera):
-        gx, gy = round(self.x - camera.x), round(self.y - camera.y)
+        for i, (tx, ty, tz) in enumerate(self.trail):            # rastro do chute forte
+            k = (i + 1) / (len(self.trail) + 1)
+            pygame.draw.circle(surf, (255, 246, 214), (round(tx - camera.x), round(ty - tz - camera.y)),
+                               max(2, round(self.radius * k * 0.8)))
+        gx = round(self.x + self.nudge[0] - camera.x)
+        gy = round(self.y + self.nudge[1] - camera.y)
         # sombra fica no chão e encolhe com a altura
         shrink = max(0.5, 1 - self.z / 160)
         sw, sh = round(24 * shrink), max(4, round(9 * shrink))
@@ -905,27 +927,58 @@ class Goal(Entity):
         super().__init__(x, y)
         self.rect = pygame.Rect(x, y, w, h)
         self.team = team
+        self.bulge = 0              # a rede estufa onde a bola entrou (quadros)
+        self.bulge_y = 0.0
 
     def update(self, match):
-        pass
+        if self.bulge > 0:
+            self.bulge -= 1
+
+    def hit(self, y):
+        self.bulge, self.bulge_y = NET_BULGE, y
 
     def draw(self, surf, camera):
         r = self.rect.move(-camera.x, -camera.y)
         color = theme.TEAM_COLORS[self.team]
         surf.fill(tuple(c // 4 for c in color), r)
+        out = -1 if self.team == 0 else 1                       # para fora do campo
+        by = self.bulge_y - camera.y
+        amp = 10 * self.bulge / NET_BULGE * (0.6 + 0.4 * math.cos(self.bulge * 0.5))
         for x in range(r.x, r.right, 6):
             surf.fill(tuple(c // 2 for c in color), (x, r.y, 1, r.h))
         for y in range(r.y, r.bottom, 6):
-            surf.fill(tuple(c // 2 for c in color), (r.x, y, r.w, 1))
+            push = 0
+            if self.bulge:
+                d = abs(y - by) / 40
+                push = round(out * amp * max(0.0, 1 - d * d))
+            surf.fill(tuple(c // 2 for c in color), (r.x + min(0, push), y, r.w + abs(push), 1))
+            if push:
+                surf.fill(tuple(c // 2 for c in color), ((r.x if out < 0 else r.right) + push, y - 2, 1, 5))
         for py in (r.y - 6, r.bottom):
             surf.fill((230, 230, 222), (r.x - 2, py, r.w + 22, 6))
 
 
+NET_BULGE = 40               # quadros que a rede fica estufada depois do gol
+CELEBRATE_FRAMES = 90        # o time que fez o gol comemora
 GOAL_HITSTOP = 10            # gol: o jogo congela por um instante...
 GOAL_SLOWMO = 40            # ...e segue em câmera lenta enquanto a bola entra
+REPLAY_FRAMES = 150         # o replay do gol guarda os últimos 2,5 s
+REPLAY_SPEED = 2            # cada quadro guardado aparece por 2 quadros (câmera lenta)
+REPLAY_AFTER = 50           # o replay começa depois de um tempo de comemoração
+_PLAIN = (int, float, bool, str, type(None), Fraction)
+
+
+def snapshot(obj):
+    """Os valores simples de um objeto (posição, pose, timers): o que o desenho precisa."""
+    out = {}
+    for k, v in vars(obj).items():
+        if isinstance(v, _PLAIN) or (isinstance(v, tuple) and all(isinstance(i, _PLAIN) for i in v)):
+            out[k] = v
+    return out
 
 
 class SoccerMatch(Match):
+    replays = True            # mostra o replay do gol (o treino desliga)
     min_zoom = 0.5            # bem de longe a arte fica no tamanho original (pixel por pixel)
     GOAL_TOP, GOAL_BOTTOM = Pitch.GOAL_TOP, Pitch.GOAL_BOTTOM
     # zonas do jogo, medidas a partir da linha do gol
@@ -970,11 +1023,17 @@ class SoccerMatch(Match):
         self.contest = {}
         self.dunk = None            # enterrada do Cauanzera em andamento (ela segura a bola)
         self.assist = ASSIST_LEVELS.get(getattr(session, "assist", "media"), ASSIST_LEVELS["media"])
-        # tamanho da partida: primeiro a 3, 5 ou 7 gols, ou 3 minutos (empate: gol de ouro)
+        # tamanho da partida: primeiro a 3, 5 ou 7 gols, ou 3 minutos (empate: gol de ouro ou pênaltis)
         length = session.soccer_length
-        self.win_score = None if length == "tempo" else int(length)
-        self.clock = config.SOCCER_MINUTES * 60 * config.FPS if length == "tempo" else 0
+        timed = length in ("tempo", "penaltis")
+        self.win_score = None if timed else int(length)
+        self.clock = config.SOCCER_MINUTES * 60 * config.FPS if timed else 0
         self.golden_goal = False
+        self.tiebreak = "penaltis" if length == "penaltis" else "gol de ouro"
+        self.penalties = False      # acabou empatado e o desempate é nos pênaltis
+        self.tape = deque(maxlen=REPLAY_FRAMES)     # os últimos quadros, para o replay do gol
+        self.replay = None          # quadro do replay em andamento (None = sem replay)
+        self.replay_pending = False
 
     @property
     def length_text(self):
@@ -992,7 +1051,11 @@ class SoccerMatch(Match):
         self.clock -= 1
         if self.clock:
             return
-        if self.score[0] == self.score[1]:
+        if self.score[0] == self.score[1] and self.tiebreak == "penaltis":
+            self.penalties = True
+            self.popup(self.ball.x, self.ball.y - 60, "PÊNALTIS!", theme.BRASS)
+            self._whistle(0)
+        elif self.score[0] == self.score[1]:
             self.golden_goal = True
             self.popup(self.ball.x, self.ball.y - 60, "GOL DE OURO", theme.BRASS)
             self.assets.play("apito", 0.4)
@@ -1045,6 +1108,64 @@ class SoccerMatch(Match):
             rect = pygame.Rect(0, 0, 54, 18)
             rect.center = (round(p.x - cam.x), round(p.y - cam.y) + 22)
             pygame.draw.ellipse(view, (232, 232, 220), rect, 1)
+            if not p.is_cpu and p.pass_charge > 0:
+                self._draw_pass_aim(view, cam, p)
+        for f in self.fighters:
+            if not f.is_cpu and self.keeping(f):
+                self._draw_keeper(view, cam, f)
+
+    def pass_preview(self, f, stick):
+        """Quem vai receber o passe e, no passe alto, onde a bola cai (só o que a assistência já
+        calcula; nada aqui muda o passe)."""
+        mates = self.mates_of(f)
+        if not mates:
+            return None, None
+        aim = unit(*stick) if math.hypot(*stick) > 0.3 else None
+        cone = self.assist.pass_cone
+        mate = self.cross_receiver(f, mates, aim)
+        if mate is None:
+            if aim is None and cone > 0:
+                mate = min(mates, key=f.distance_to)
+            elif cone > 0:
+                mate = pick_receiver(f.x, f.y, aim, mates, cone)
+        spot = None
+        if f.pass_charge >= config.LOFT_FRAMES:
+            if mate is not None:
+                spot = (mate.x + (mate.x - mate.prev_pos[0]) * 24, mate.y + (mate.y - mate.prev_pos[1]) * 24)
+            else:
+                lo, hi = config.LOB_SPACE
+                reach = lo + (hi - lo) * _loft(f.pass_charge)
+                dx, dy = aim or f.facing
+                spot = (f.x + dx * reach, f.y + dy * reach)
+        return mate, spot
+
+    def _draw_pass_aim(self, view, cam, f):
+        mate, spot = self.pass_preview(f, f.last_stick)
+        pulse = 2 + round(math.sin(self.frame * 0.3) * 2)
+        if mate is not None:
+            rect = pygame.Rect(0, 0, 60 + pulse * 2, 22 + pulse)
+            rect.center = (round(mate.x - cam.x), round(mate.y - cam.y) + 22)
+            pygame.draw.ellipse(view, theme.BRASS, rect, 2)
+        if spot is not None:
+            x, y = round(spot[0] - cam.x), round(spot[1] - cam.y) + 18
+            for r in (14, 7):
+                pygame.draw.circle(view, theme.BRASS, (x, y), r + pulse // 2, 1)
+            view.fill(theme.BRASS, (x - 1, y - 1, 3, 3))
+
+    def _draw_keeper(self, view, cam, f):
+        """Goleiro: a área tracejada no chão e as luvas."""
+        gx, gy = self.goal_center(f.team)
+        r = config.GOALKEEPER_ZONE
+        cx, cy = round(gx - cam.x), round(gy - cam.y)
+        color = theme.TEAM_COLORS[f.team]
+        for k in range(0, 180, 12):
+            a = math.radians(k - 90)
+            px, py = cx + math.cos(a) * r * (1 if f.team == 0 else -1), cy + math.sin(a) * r
+            view.fill(color, (round(px) - 2, round(py) - 1, 5, 2))
+        sx, sy = round(f.x - cam.x), round(f.y - cam.y)
+        for ox in (-15, 11):                                     # luvas
+            view.fill((244, 240, 228), (sx + ox, sy - 16, 6, 6))
+            view.fill(color, (sx + ox, sy - 12, 6, 2))
 
     def foes_of(self, f):
         return [o for o in self.fighters if o.team != f.team]
@@ -1101,6 +1222,8 @@ class SoccerMatch(Match):
             ball.lift(2.5)
         ball.homing_timer = 0
         f.kick_cd = 14
+        f.kick_kind = "cabeca"
+        ball.curve_timer, ball.headed = 0, True
         self.last_touch = f
         self.popup(f.x, f.y - 74, "CABEÇA", theme.BONE)
         self.assets.play("hit", 0.35)
@@ -1116,9 +1239,10 @@ class SoccerMatch(Match):
         if not keep_receiver:
             self.ball.receiver, self.ball.receiver_timer = None, 0
 
-    def kick(self, f, direction=None, loft=0.0, assist=False):
+    def kick(self, f, direction=None, loft=0.0, assist=False, curve=0):
         """Chute rasteiro (loft=0) ou pelo alto (loft de 0 a 1 = força e altura).
-        Com assist, um chute que sairia um pouco para fora é corrigido para o gol."""
+        Com assist, um chute que sairia um pouco para fora é corrigido para o gol.
+        ``curve`` (-1, 0 ou 1): a bola sai aberta e curva de volta para a mira, mais fraca."""
         if self.freeze or f.kick_cd > 0 or f.busy:
             return False
         if self.can_head(f):
@@ -1143,10 +1267,26 @@ class SoccerMatch(Match):
                                      self.GOAL_TOP, self.GOAL_BOTTOM, config.FINISHER_CONE)
                 f.facing = (dx, dy)
                 power *= config.FINISHER_POWER
+        ball.curve, ball.curve_timer, ball.headed = 0.0, 0, False
+        if curve:
+            power *= config.CURVE_POWER
+            turn = -curve * config.CURVE_RATE * config.CURVE_FRAMES / 2     # sai aberta...
+            c, s_ = math.cos(turn), math.sin(turn)
+            dx, dy = dx * c - dy * s_, dx * s_ + dy * c
+            ball.curve, ball.curve_timer = curve * config.CURVE_RATE, config.CURVE_FRAMES   # ...e volta
+            self.popup(f.x, f.y - 74, "CURVA", theme.BONE)
+            self.assets.play("assobio", 0.3)
         ball.vx, ball.vy = dx * power, dy * power
         ball.homing_timer = 0
         f.kick_cd = 14
+        f.kick_kind = "chute"
         self.last_touch = f
+        if loft > 0.6 or power > config.KICK_POWER:
+            ball.streak = 16                                     # chute forte: rastro e linhas de velocidade
+            for k in range(5):
+                self.particles.append(Particle(ball.x - dx * 10 * k, ball.y - dy * 10 * k + random.uniform(-6, 6),
+                                               -dx * 2, -dy * 2, (255, 250, 230), 10, 2))
+            self.assets.play("chute_forte", 0.45)
         self.assets.play("chute", 0.3)
         return True
 
@@ -1510,7 +1650,61 @@ class SoccerMatch(Match):
                 ball.homing_timer = 0
             ball.vx, ball.vy = f.facing[0] * power, f.facing[1] * power
         self.last_touch = f
+        if mate is not None and not f.is_cpu:
+            f.give_go = (mate, config.GIVE_GO_FRAMES)
         self.assets.play("chute", 0.25)
+        return True
+
+    def curve_of(self, f, stick):
+        """Chute com curva: o analógico inclinado para o lado de onde ele olha (-1, 0 ou 1)."""
+        if math.hypot(*stick) < 0.5:
+            return 0
+        fx, fy = f.facing
+        side = fx * stick[1] - fy * stick[0]
+        return (1 if side > 0 else -1) if abs(side) > config.CURVE_SIDE else 0
+
+    def give_and_go(self, f):
+        """Tabela: o companheiro que recebeu devolve de primeira na frente da corrida de quem pediu."""
+        if f.give_go is None:
+            return False
+        mate, _ = f.give_go
+        if self.possessor is not mate or not self.touching(mate):
+            return False
+        f.give_go = None
+        ball = self.ball
+        mvx, mvy = f.x - f.prev_pos[0], f.y - f.prev_pos[1]
+        tx, ty = f.x + mvx * 22 + f.facing[0] * 40, f.y + mvy * 22 + f.facing[1] * 40
+        self._release(mate)
+        dx, dy = unit(tx - ball.x, ty - ball.y)
+        power = config.PASS_POWER * config.GIVE_GO_POWER
+        ball.vx, ball.vy = dx * power, dy * power
+        ball.homing_timer = 0
+        ball.receiver, ball.receiver_timer = f, 40
+        mate.facing = (dx, dy)
+        mate.kick_cd, mate.kick_kind = 14, "chute"
+        self.last_touch = mate
+        self.popup(mate.x, mate.y - 74, "TABELA", theme.BONE)
+        self.assets.play("chute", 0.25)
+        return True
+
+    def keeper_dive(self, f, stick=None):
+        """Ponte do goleiro: mergulha no caminho da bola e segura em vez de rebater. Depois fica
+        no chão um tempo (a curva e a cabeçada no canto passam pela ponte)."""
+        if f.diving or f.busy:
+            return False
+        hit = self.incoming(f, horizon=30, reach=160)
+        if hit is not None and math.hypot(hit[1][0] - f.x, hit[1][1] - f.y) > 6:
+            _, (px, py) = hit
+            direction = unit(px - f.x, py - f.y)
+        elif stick is not None and math.hypot(*stick) > 0.3:
+            direction = unit(*stick)
+        else:
+            direction = unit(self.ball.x - f.x, self.ball.y - f.y)
+        if direction == (0.0, 0.0) or not f.dash(direction, frames=config.DIVE_FRAMES, cooldown=60):
+            return False
+        f.diving = config.DIVE_FRAMES
+        self.dust(f.x, f.y + 20, 5)
+        self.assets.play("dash", 0.35)
         return True
 
     def use_power(self, f):
@@ -1604,6 +1798,14 @@ class SoccerMatch(Match):
                 self._human(f, ctrl)
             f.update(self)
             f.update_stamina()
+            self._animate(f)
+            if f.give_go is not None:
+                mate, t = f.give_go
+                f.give_go = (mate, t - 1) if t > 1 else None
+            if f.diving > 0:
+                f.diving -= 1
+                if f.diving == 0 and self.possessor is not f:
+                    f.stun(config.DIVE_DOWN)        # caiu na ponte: fica no chão um tempo
             if f.tackle_timer > 0:
                 self._tackle(f)
             if f.cut_timer > 0 and f is not self.possessor:
@@ -1619,6 +1821,8 @@ class SoccerMatch(Match):
         for w in self.ball_walls:
             w.update(self)
         self.ball_walls = [w for w in self.ball_walls if w.alive]
+        for g in self.goals:
+            g.update(self)
 
         for i, a in enumerate(self.fighters):
             for b in self.fighters[i + 1:]:
@@ -1638,8 +1842,15 @@ class SoccerMatch(Match):
 
         if not self.freeze and not self.ending:
             self._update_ball()
+            if self.replays and not self.freeze:
+                self.tape.append(self._tape_frame())
+        elif self.freeze and self.replay is not None:
+            self._run_replay()
         elif self.freeze:
             self.freeze -= 1
+            if self.freeze == config.GOAL_FREEZE - REPLAY_AFTER and self.replay_pending and len(self.tape) > 30:
+                self.replay = 0
+                self.assets.play("replay", 0.5)
             if self.freeze == 0:
                 self._kickoff()
 
@@ -1648,6 +1859,26 @@ class SoccerMatch(Match):
             if not f.is_cpu:
                 hub.publish_slot(f.slot, cooldown=f.super_cd / f.power.cooldown,
                                  stamina=f.stamina, tired=f.exhausted)
+
+    def _animate(self, f):
+        """Pose do desenho no futebol (só visual): chute, cabeçada e carrinho deitado."""
+        sliding = f.block_timer > 0 or f.tackle_timer > 0 or f.diving > 0
+        if sliding:
+            f.sport_pose = ("carrinho", 0)
+            f.spin = -65 if f.facing[0] >= 0 else 65
+            if self.frame % 2 == 0:                              # grama e poeira voando atrás
+                self.particles.append(Particle(f.x - f.facing[0] * 14, f.y + 18, -f.facing[0] * random.uniform(1, 2.5),
+                                               random.uniform(-2, -0.5), random.choice(((70, 140, 60), (150, 130, 100))),
+                                               14, 3, gravity=0.15))
+            return
+        if f.spin and self.dunk is None:
+            f.spin = 0
+        if f.kick_cd > 3 and getattr(f, "kick_kind", None) == "cabeca":
+            f.sport_pose = ("pulo", 1)
+        elif f.kick_cd > 3 and getattr(f, "kick_kind", None) == "chute":
+            f.sport_pose = ("chute", 0 if f.kick_cd > 12 else 1 if f.kick_cd > 9 else 2)
+        else:
+            f.sport_pose = None
 
     def _exo_bump(self, exo, foe):
         """Exoesqueleto (Borba Jr) ou grau de moto (Aryel): quem tromba nele cai."""
@@ -1704,6 +1935,7 @@ class SoccerMatch(Match):
 
     def _human(self, f, inp):
         stick = inp.axis()
+        f.last_stick = stick
         f.sprint_held = inp.held("sprint")
         f.marking = inp.held("mark") and f is not self.possessor
         auto = self.mark_steer(f, stick) if f.marking else None
@@ -1735,10 +1967,16 @@ class SoccerMatch(Match):
         elif f.kick_charge:
             if not any(f.input):
                 f.face(self.ball)
-            self.kick(f, loft=_loft(f.kick_charge), assist=True)
+            self.kick(f, loft=_loft(f.kick_charge), assist=True, curve=self.curve_of(f, stick))
             f.kick_charge = 0
+        # TABELA: logo depois de passar, PASSE de novo pede a bola de volta
+        if inp.pressed("special") and self.possessor is not f and self.give_and_go(f):
+            f.pass_charge = -1                     # o aperto foi a tabela: não vira passe
         # PASSE: mesma ideia
-        if inp.held("special"):
+        if f.pass_charge < 0:
+            if not inp.held("special"):
+                f.pass_charge = 0
+        elif inp.held("special"):
             f.pass_charge = min(f.pass_charge + 1, config.MAX_CHARGE)
         elif f.pass_charge:
             self.pass_ball(f, high=f.pass_charge >= config.LOFT_FRAMES, direction=stick,
@@ -1747,7 +1985,9 @@ class SoccerMatch(Match):
         if inp.pressed("super"):
             if not self.use_power(f):
                 self.assets.play("cancel", 0.2)
-        if inp.pressed("dodge"):
+        if inp.pressed("dodge") and self.keeping(f) and self.possessor is not f:
+            self.keeper_dive(f, stick)             # de goleiro, a ESQUIVA vira ponte
+        elif inp.pressed("dodge"):
             self.cut(f, None if self.possessor is f else self.cut_dir(f, stick))
         elif inp.double_tap:
             self.cut(f, inp.double_tap)
@@ -1834,12 +2074,14 @@ class SoccerMatch(Match):
         pull, pull_d = None, 1e9
         lvl = self.assist
         for f in self.fighters:
-            if not self._can_touch(f):
-                continue
+            if not self._can_touch(f) or f.diving > 0:
+                continue                    # na ponte, só segura do jeito da ponte
             if not low and f is not receiver:
                 continue        # bola no peito: só quem ia receber o lançamento domina
             d = f.distance_to(ball)
             reach = f.radius + ball.radius + 8
+            if ball.curve_timer > 0 and self.keeping(f):
+                reach += config.CURVE_KEEPER_REACH     # contra da curva: o goleiro alcança mais
             human = not f.is_cpu
             if d < reach + (lvl.trap_range if human else 0):
                 rel = math.hypot(ball.vx - (f.x - f.prev_pos[0]), ball.vy - (f.y - f.prev_pos[1]))
@@ -1873,6 +2115,15 @@ class SoccerMatch(Match):
 
     def _take(self, f):
         ball = self.ball
+        sx, sy = f.last_stick
+        turn = not f.is_cpu and self.possessor is None and math.hypot(sx, sy) > 0.6 and f.diving <= 0
+        if turn:
+            for foe in self.foes_of(f):
+                if foe.marking and foe.distance_to(ball) < foe.radius + ball.radius + config.ANTICIPATE_REACH:
+                    f = foe                         # marcação colada: o marcador antecipa
+                    turn = False
+                    self.popup(foe.x, foe.y - 74, "ANTECIPOU", theme.BRASS)
+                    break
         if ball.airborne:
             self.popup(f.x, f.y - 74, "DOMINOU", theme.BONE)
         ball.z = ball.vz = 0.0
@@ -1883,7 +2134,16 @@ class SoccerMatch(Match):
         d = math.hypot(dx, dy) or 1
         f.carry_dir = (dx / d, dy / d)
         ball.homing_timer = 0
+        ball.curve_timer = 0
         self.last_touch = f
+        if turn:
+            # domínio orientado: o primeiro toque já leva a bola para o lado do analógico
+            ux, uy = unit(sx, sy)
+            f.carry_dir = (ux, uy)
+            f.facing = (ux, uy)
+            ball.vx, ball.vy = ux * config.TURN_TOUCH * 0.5, uy * config.TURN_TOUCH * 0.5
+            ball.x += ux * config.TURN_TOUCH
+            ball.y += uy * config.TURN_TOUCH
 
     def _carry(self, f):
         """A bola acompanha o pé: amortecida, sem quicar, e vira junto aos poucos."""
@@ -1915,12 +2175,16 @@ class SoccerMatch(Match):
             return
         ball.vx = vx + (tx - ball.x) * gain
         ball.vy = vy + (ty - ball.y) * gain
+        if speed > 0.5:                                           # a bola acompanha o pé a cada passo
+            step = math.sin(f.anim_frame * math.pi / 2) * 3
+            ball.nudge = (f.carry_dir[0] * step, f.carry_dir[1] * step)
         self.last_touch = f
 
     def _update_ball(self):
         ball = self.ball
         if self.dunk is not None:
             return                          # a enterrada leva a bola nas mãos
+        ball.nudge = (0.0, 0.0)
         self._update_possession()
         for f in self.fighters:
             if f is not self.possessor:
@@ -1962,6 +2226,13 @@ class SoccerMatch(Match):
             if f.zaga_timer > 0 and not f.stunned:
                 self._zaga_trap(f)                  # zagueirão: a bola morre no pé
                 break
+            if f.diving > 0 and ball.curve_timer <= 0 and not ball.headed:
+                self.kill_ball_effects()
+                ball.vx = ball.vy = 0.0
+                self._take(f)                       # ponte: segura a bola
+                self.popup(f.x, f.y - 74, "DEFENDEU", theme.BRASS)
+                self.camera.shake(3)
+                break
             self._body_block(f, reach)
             if f.exo_timer > 0:
                 self._exo_block(f)
@@ -2002,6 +2273,23 @@ class SoccerMatch(Match):
         self.last_touch = None
         self.assets.play("cancel", 0.3)
 
+    # ── replay do gol ────────────────────────
+    def _tape_frame(self):
+        frame = [(f, snapshot(f)) for f in self.fighters]
+        frame += [(self.ball, snapshot(self.ball)), (self.camera, snapshot(self.camera))]
+        frame += [(g, snapshot(g)) for g in self.goals]
+        return frame
+
+    def _run_replay(self):
+        """O gol de novo em câmera lenta; qualquer botão pula."""
+        self.replay += 1
+        skip = any(ctrl.pressed(a) for ctrl in self.controllers.values() if not isinstance(ctrl, SoccerAI)
+                   for a in ("attack", "special", "dodge"))
+        if skip or self.replay >= len(self.tape) * REPLAY_SPEED:
+            self.replay = None
+            self.replay_pending = False
+            self.tape.clear()
+
     def _goal(self, scoring_team):
         scorer = self.last_touch
         own_goal = scorer is not None and scorer.team != scoring_team
@@ -2011,14 +2299,20 @@ class SoccerMatch(Match):
             scorer.goals += 1
         self.goal_banner = (scoring_team, scorer.label if scorer else "", own_goal)
         self.banner_age = 0
+        self.goals[1 - scoring_team].hit(self.ball.y)          # a rede estufa onde a bola entrou
+        for f in self.fighters:
+            if f.team == scoring_team:
+                f.celebrate = CELEBRATE_FRAMES
         color = theme.TEAM_COLORS[scoring_team]
         self.burst(self.ball.x, self.ball.y, color, 40, speed=8, gravity=0.1, size=5)
         self.burst(self.ball.x, self.ball.y, theme.BONE, 20, speed=6, gravity=0.1, size=3)
         self.camera.shake(8)
+        self.replay_pending = self.replays
         self.hit_pause(GOAL_HITSTOP)        # "tranco": o jogo para por um instante e depois vai em câmera lenta
         self.slowmo = max(self.slowmo, GOAL_SLOWMO)
         self.assets.play("victory", 0.5)
         self.assets.play("torcida", 0.45)
+        self.assets.play("gol_rede", 0.55)
         if self.golden_goal or (self.win_score is not None and self.score[scoring_team] >= self.win_score):
             self._whistle(scoring_team)
 
@@ -2048,6 +2342,13 @@ class SoccerMatch(Match):
             f.stamina, f.exhausted = 1.0, False
             f.facing = (1.0, 0.0) if f.team == 0 else (-1.0, 0.0)
 
+    def next_scene(self):
+        """Empate com desempate nos pênaltis: a disputa com visão de frente."""
+        if not self.penalties:
+            return None
+        from .scenes.penalty import PenaltyScene, takers_from_match
+        return PenaltyScene(self.game, takers_from_match(self), difficulty=self.session.difficulty, match=self)
+
     def _finish(self):
         team = self.result_team
         winners = [f for f in self.fighters if f.team == team]
@@ -2059,6 +2360,9 @@ class SoccerMatch(Match):
         self.finished = True
 
     def draw(self, screen, ui):
+        if self.replay is not None and self.tape:
+            self._draw_replay(screen, ui)
+            return
         super().draw(screen, ui)
         # barra de força enquanto segura CHUTE/PASSE
         for f in self.fighters:
@@ -2074,6 +2378,26 @@ class SoccerMatch(Match):
         self._draw_offscreen(screen, ui)
         if self.goal_banner:
             hud.draw_goal_banner(screen, ui, *self.goal_banner, self.banner_age)
+
+    def _draw_replay(self, screen, ui):
+        frame = self.tape[min(len(self.tape) - 1, self.replay // REPLAY_SPEED)]
+        now = [(obj, snapshot(obj)) for obj, _ in frame]
+        hidden = self.particles, self.popups
+        self.particles, self.popups = [], []
+        for obj, state in frame:
+            obj.__dict__.update(state)
+        try:
+            super().draw(screen, ui)
+        finally:
+            for obj, state in now:
+                obj.__dict__.update(state)
+            self.particles, self.popups = hidden
+        W = config.SCREEN_W
+        if (self.replay // 20) % 2 == 0:
+            pygame.draw.circle(screen, theme.BLOOD, (W - 132, 108), 6)
+        screen.fill(theme.BLOOD, (W - 120, 96, 92, 24))
+        ui.text(screen, "REPLAY", theme.XS, theme.BONE, (W - 74, 108), shadow=False)
+        ui.text(screen, "QUALQUER BOTÃO PULA", theme.XS, theme.MUTED, (W - 28, 134), anchor="midright")
 
     def _draw_offscreen(self, screen, ui):
         """Campo grande: quem saiu da câmera aparece como uma setinha (cor do time) na borda."""

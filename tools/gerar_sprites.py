@@ -23,7 +23,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import pygame  # noqa: E402
 
-from soulstrike.assets import SHEET_DIRECTIONS, SHEET_POSES  # noqa: E402
+from soulstrike.assets import SHEET_DIRECTIONS, SHEET_POSES, SPORT_POSES  # noqa: E402
 
 OUT = ROOT / "assets" / "characters"
 W, H = 24, 34
@@ -119,6 +119,8 @@ class Pose:
         lift_a = lift_b = 0
         wave = floaty = 0
         hurt = dash = False
+        raise_a = raise_b = 0      # de frente/costas: braço levantado (1 = para cima)
+        near_up = far_up = 0       # de lado: 1 = mão acima da cabeça, 2 = para cima e à frente, -1 = atrás da cabeça
         if kind == "andar":
             bob, stride = WALK_BOB[frame], WALK_STRIDE[frame]
             lift_b, lift_a = WALK_LIFT[frame], WALK_LIFT[(frame + 4) % 8]
@@ -134,6 +136,45 @@ class Pose:
         elif kind == "esquiva":
             lean, bob, stride, wave = 2, 1, 3, -1
             dash = True
+        # ── poses do esporte ──
+        elif kind == "pulo":                     # subindo / no topo
+            lift_a = lift_b = (1, 3)[frame]
+            raise_a = raise_b = frame
+            near_up = far_up = frame
+            wave = 1
+        elif kind == "arremesso":                # bola acima da cabeça (agachado), soltando, mão dobrada
+            bob = (1, 0, 0)[frame]
+            lift_a = lift_b = (0, 2, 1)[frame]
+            raise_a = raise_b = 1
+            near_up, far_up = (1, 2, 2)[frame], (1, 1, 0)[frame]
+            reach = (0, 1, 2)[frame]
+        elif kind == "enterrada":                # bola atrás da cabeça, cravando, pendurado no aro
+            lift_a = lift_b = (3, 3, 2)[frame]
+            raise_a = raise_b = 1
+            near_up, far_up = (-1, 2, 1)[frame], (-1, 0, 1)[frame]
+            lean = (-1, 2, 0)[frame]
+            stride = (0, -1, -2)[frame]
+        elif kind == "toco":                     # braço esticado, tapa
+            lift_a = lift_b = (3, 2)[frame]
+            raise_b = 1
+            raise_a = frame
+            near_up, far_up = (1, 2)[frame], (0, 1)[frame]
+            lean = (0, 2)[frame]
+        elif kind == "chute":                    # perna atrás, contato, perna à frente
+            stride = (3, -3, -4)[frame]
+            lift_b = (0, 2, 4)[frame]
+            lean = (-1, 1, 2)[frame]
+            wave = (-1, 1, 1)[frame]
+        elif kind == "carrinho":                 # deslizando (o jogo deita o quadro)
+            stride, lift_b, bob, lean = -4, 3, 1, -2
+            dash = True
+        elif kind == "comemora":                 # braços para cima, pulinho
+            raise_a = raise_b = 1
+            near_up = far_up = 1
+            lift_a = lift_b = (0, 2)[frame]
+            bob = (1, 0)[frame]
+            wave = (1, -1)[frame]
+        self.raise_a, self.raise_b, self.near_up, self.far_up = raise_a, raise_b, near_up, far_up
         self.bob, self.lean, self.reach, self.stride = bob, lean, reach, stride
         self.lift_a, self.lift_b = lift_a, lift_b          # a: perna da esquerda da imagem / de trás
         self.wave, self.float, self.hurt, self.dash = wave, floaty, hurt, dash
@@ -221,8 +262,23 @@ def arms(c, p, sleeve, hand, thick=2, cuff=None):
         return
     x, y, w, h = p.torso
     out = 1 if p.dash else 0
-    for ax, dy, light, weapon in ((x - thick - out, p.arm_a, 24, False),
-                                  (x + w + out, p.arm_b + p.reach_dy, -30, True)):
+    for ax, dy, light, weapon, up in ((x - thick - out, p.arm_a, 24, False, p.raise_a),
+                                      (x + w + out, p.arm_b + p.reach_dy, -30, True, p.raise_b)):
+        if up:                                                     # braço levantado acima da cabeça
+            top = y - 6
+            sh = ax
+            ax += -2 if light > 0 else 2                           # abre para fora, para não sumir atrás da cabeça
+            c.rect(min(sh, ax), y, thick + 2, 2, sleeve)           # ombro até o braço
+            c.rect(ax, top, thick, y + 1 - top, sleeve)
+            edge = ax if light > 0 else ax + thick - 1
+            c.rect(edge, top, 1, y + 1 - top, shade(sleeve, light))
+            if cuff:
+                c.rect(ax, top, thick, 1, cuff)
+            c.rect(ax, top - 2, thick, 2, hand)
+            c.px(ax + (0 if light > 0 else thick - 1), top - 1, shade(hand, -30))
+            if weapon:
+                c.hand = (ax + thick / 2, top - 1)
+            continue
         length = max(2, 5 + dy)
         c.rect(ax, y + 1, thick, length, sleeve)
         edge = ax if light > 0 else ax + thick - 1
@@ -241,6 +297,19 @@ def near_arm(c, p, sleeve, hand, thick=2, cuff=None):
     """Braço da frente na vista de lado: dobrado, com a mão à frente do corpo (onde fica a arma)."""
     x, y, w, h = p.torso
     sx = x + w // 2 - 1
+    if p.near_up:
+        # braço levantado: acima da cabeça (1), para cima e à frente (2) ou atrás da cabeça (-1)
+        hx, hy = {1: (x + w + 2, y - 10), 2: (x + w + 4 + max(0, p.reach - 1), y - 5), -1: (x - 4, y - 6)}[p.near_up]
+        ex, ey = (sx + hx) // 2 + (1 if p.near_up == 2 else 0), (y + hy) // 2
+        c.line(sx, y + 1, ex, ey, sleeve, thick)
+        c.line(ex, ey, hx, hy, sleeve, 2)
+        c.rect(sx, y + 1, 1, 2, shade(sleeve, 24))
+        if cuff:
+            c.rect(hx, hy + 2, 2, 1, cuff)
+        c.rect(hx, hy, 2, 2, hand)
+        c.px(hx, hy + 1, shade(hand, -30))
+        c.hand = (hx + 1, hy + 1)
+        return
     reach = p.reach + p.near_swing
     hx = x + w - 1 + reach
     hy = y + 5 - (1 if p.reach >= 3 else 0) + (1 if p.hurt else 0)
@@ -261,6 +330,11 @@ def far_arm(c, p, sleeve, hand, thick=2):
         return
     x, y, w, h = p.torso
     sx = x + w // 2 - 1
+    if p.far_up:
+        hx, hy = {1: (x - 2, y - 9), 2: (x + w + 2, y - 7), -1: (x - 5, y - 5)}[p.far_up]
+        c.line(sx, y + 1, hx, hy + 2, shade(sleeve, -40), thick)
+        c.rect(hx, hy, 2, 2, shade(hand, -40))
+        return
     c.line(sx, y + 1, sx + p.far_swing, y + 5, shade(sleeve, -40), thick)
     c.rect(sx + p.far_swing, y + 6, 2, 2, shade(hand, -40))
 
@@ -1947,7 +2021,8 @@ def build_sheet(name, kit=None):
     draw, wide, glow = CHARACTERS[name]
     probe = draw(Pose("frente", "parado", 0, wide, kit))
     cw, ch = probe.w, probe.h
-    columns = [(kind, i) for kind, n in SHEET_POSES for i in range(n)]
+    poses = SHEET_POSES + (SPORT_POSES if name in HEROES or name in VARIANTS else ())
+    columns = [(kind, i) for kind, n in poses for i in range(n)]
     sheet = pygame.Surface((cw * len(columns), ch * len(SHEET_DIRECTIONS)), pygame.SRCALPHA)
     hands = {}
     for row, direction in enumerate(SHEET_DIRECTIONS):
@@ -1964,7 +2039,7 @@ def build_sheet(name, kit=None):
     for col in range(len(columns)):
         cell = sheet.subsurface((col * cw, right * ch, cw, ch))
         sheet.blit(pygame.transform.flip(cell, True, False), (col * cw, left * ch))
-    info = {"cell": [cw, ch], "poses": [list(p) for p in SHEET_POSES], "hand": hands,
+    info = {"cell": [cw, ch], "poses": [list(p) for p in poses], "hand": hands,
             "eyes": [list(g) for g in glow]}
     return sheet, info
 

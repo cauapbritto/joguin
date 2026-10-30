@@ -250,7 +250,10 @@ class ResultsScene(_MenuScene):
 
     def _choose(self, choice):
         self.sfx("confirm")
-        if choice == "rematch":
+        if choice == "rematch" and self.game.session.penalty:
+            from .penalty import start_penalties
+            self.game.change(start_penalties(self.game))
+        elif choice == "rematch":
             self.game.change(VersusScene(self.game))
         elif choice == "select":
             from .select import CharSelectScene

@@ -78,6 +78,36 @@
   <button class="btn btn-main" id="choose-ok" data-tap="confirm">CONFIRMAR</button>
 </section>
 
+<!-- Pênaltis: só quem bate vê o canto escolhido (a TV nunca mostra) -->
+<section id="view-penalty" class="view">
+  <div class="shop-head">
+    <div class="tag" data-bind="tag">P1</div>
+    <span class="muted" id="pen-title">PÊNALTIS</span>
+  </div>
+  <div class="pen-body">
+    <div class="pen-goal" id="pen-goal">
+      <button class="pen-cell" data-cell="-1,2"></button><button class="pen-cell" data-cell="0,2"></button><button class="pen-cell" data-cell="1,2"></button>
+      <button class="pen-cell" data-cell="-1,1"></button><button class="pen-cell on" data-cell="0,1"></button><button class="pen-cell" data-cell="1,1"></button>
+      <button class="pen-cell" data-cell="-1,0"></button><button class="pen-cell" data-cell="0,0"></button><button class="pen-cell" data-cell="1,0"></button>
+    </div>
+    <div class="pen-side">
+      <p class="muted" id="pen-hint">TOQUE NO CANTO</p>
+      <div class="pen-role on" id="pen-bate">
+        <button class="pen-btn pen-main" data-hold="attack">CHUTE<small>segure e solte</small></button>
+        <button class="pen-btn pen-chip" data-tap="special">CAVADINHA</button>
+      </div>
+      <div class="pen-role" id="pen-defende">
+        <button class="pen-btn pen-main" data-tap="dodge">PULAR</button>
+        <div class="row">
+          <button class="pen-btn" data-hold="attack">PROVOCAR</button>
+          <button class="pen-btn" data-tap="mark">CATIMBA</button>
+        </div>
+      </div>
+      <p class="pen-wait" id="pen-espera">Agora não é com você. Olhe a TV!</p>
+    </div>
+  </div>
+</section>
+
 <!-- Campanha: banca do acampamento aberta (o ATACAR perto dela abre) -->
 <section id="view-shop" class="view">
   <div class="shop-head">

@@ -10,6 +10,28 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.7.0": [
+        {"title": "ANIMAÇÕES NOVAS", "scene": "enterrada", "lines": [
+            "Todos os heróis ganharam poses de pulo, arremesso, enterrada, toco, chute, carrinho e comemoração.",
+            "Basquete: câmera lenta ao cravar, SWISH, PREGADO NA TABELA e poeira na queda.",
+            "Futebol: chute com rastro, carrinho deitado, bola no pé e rede que estufa no gol.",
+        ]},
+        {"title": "FUTEBOL MAIS JOGADO", "scene": "futebol", "lines": [
+            "Chute com curva (analógico de lado ao soltar), domínio orientado e tabela (PASSE de novo).",
+            "Goleiro com luvas e área tracejada; a ESQUIVA vira ponte. Anel e alvo na mira do passe.",
+            "Replay do gol em câmera lenta, e a CPU abre espaço, faz tabela e vira goleiro.",
+        ]},
+        {"title": "PÊNALTIS DE FRENTE", "scene": "penalti", "lines": [
+            "Novo desempate do futebol (tecla T: 3 MIN + PÊNALTIS), com a câmera atrás de quem bate.",
+            "O canto não aparece na TV: é a direção do analógico ao soltar o CHUTE, ou a grade no celular.",
+            "Cada herói bate e defende do seu jeito, e toda vantagem tem um preço.",
+        ]},
+        {"title": "DISPUTA DE PÊNALTIS", "scene": "disputa", "lines": [
+            "Modos novos: DISPUTA DE PÊNALTIS, TREINO DE PÊNALTIS e DESAFIO DO GOLEIRO.",
+            "Ordem dos batedores, colinha do goleiro, catimba com cartão, pressão na decisiva e narração.",
+            "Comemoração e som próprios de cada herói, e estatísticas com recordes salvos.",
+        ]},
+    ],
     "1.6.0": [
         {"title": "ALMAS DE CADA UM", "scene": "almas", "lines": [
             "Cada jogador tem a sua carteira de almas, ao lado da vida no HUD.",

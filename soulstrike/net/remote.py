@@ -67,6 +67,7 @@ class SlotInfo:
         self.choice = 0       # qual está marcada
         self.souls = None     # saldo de almas na campanha (None = fora da campanha)
         self.shop = None      # menu da banca aberto (MarketMenu.snapshot) ou None
+        self.penalty = None   # pênaltis: {"role": "bate" / "defende" / "espera", "hero": nome} ou None
 
     @property
     def claimed(self):
@@ -248,6 +249,8 @@ class RemoteHub:
                     for info in self._slots.values():
                         info.vote = 0             # fora da partida não tem teletransporte para confirmar
                         info.shop = None
+                        if phase != "penalty":
+                            info.penalty = None
 
     def publish_slot(self, slot, **fields):
         """Atualiza o que o celular mostra: char, weapon, ready, team, cooldown, stamina, tired,
@@ -256,7 +259,7 @@ class RemoteHub:
             info = self._slots[slot]
             for name, value in fields.items():
                 if name not in ("char", "weapon", "ready", "team", "cooldown", "stamina", "tired",
-                                "options", "choice", "ammo", "mag", "reload", "vote", "souls", "shop"):
+                                "options", "choice", "ammo", "mag", "reload", "vote", "souls", "shop", "penalty"):
                     raise ValueError(name)
                 setattr(info, name, value)
 
@@ -296,6 +299,7 @@ class RemoteHub:
                     "choice": mine.choice,
                     "souls": mine.souls if self._mode == "campaign" else None,
                     "shop": mine.shop if self._mode == "campaign" else None,
+                    "penalty": mine.penalty if self._phase == "penalty" else None,
                     "playing": slot in self._active,
                 }
             return data

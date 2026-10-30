@@ -8,7 +8,7 @@ import pygame
 from apoio import FakeInput, game
 
 from soulstrike import config
-from soulstrike.assets import SHEET_POSES, load_sheet
+from soulstrike.assets import SHEET_POSES, SPORT_POSES, load_sheet
 from soulstrike.data import CHARACTERS, SHADOW_CHARACTERS
 from soulstrike.enemies import CREATURES, SHADOW_EYES
 from soulstrike.matches import BattleMatch
@@ -152,6 +152,20 @@ class SombraTest(unittest.TestCase):
         for d in normal.poses:
             self.assertEqual(set(normal.poses[d]), set(shadow.poses[d]))
         self.assertEqual(shadow.hand("direita", "ataque", 1), normal.hand("direita", "ataque", 1))
+
+
+    def test_herois_tem_as_poses_do_esporte(self):
+        assets = game().assets
+        for c in CHARACTERS:
+            sprites = assets.sprites[c.sprite]
+            for kind, n in SPORT_POSES:
+                self.assertEqual(len(sprites.poses["direita"][kind]), n, (c.key, kind))
+                self.assertIsNotNone(sprites.hand("direita", kind, 0), (c.key, kind))
+
+    def test_pose_que_falta_cai_no_parado(self):
+        sprites = game().assets.sprites["diabrete"]
+        self.assertNotIn("chute", sprites.poses["frente"])
+        self.assertIs(sprites.pose("frente", "chute", 1), sprites.pose("frente", "parado", 0))
 
 
 if __name__ == "__main__":

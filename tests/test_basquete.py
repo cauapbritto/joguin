@@ -698,3 +698,46 @@ class PasseTeleguiado(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AnimacaoTest(unittest.TestCase):
+    """As poses do basquete são só desenho: escolhidas pelo que o jogador está fazendo."""
+
+    def test_arremesso_bola_acima_da_cabeca_e_mao_dobrada(self):
+        match, _ = basquete()
+        f = next(f for f in match.fighters if f.team == 0)
+        hx, hy = match.hoop_pos(match.hoop_of(0))
+        f.x, f.y = hx - 420 if hx > 1000 else hx + 420, hy
+        match.ball.reset(f.x, f.y)
+        match._give(f)
+        match.start_shot(f)
+        run(match, 4)
+        self.assertEqual(f._pose(), ("arremesso", 0))
+        match.release_shot(f, 0.5)
+        run(match, 2)
+        self.assertEqual(f._pose()[0], "arremesso")
+        run(match, 60)
+        self.assertIsNone(f.sport_pose)
+
+    def test_enterrada_e_comemoracao(self):
+        match, _ = basquete()
+        f = next(f for f in match.fighters if f.team == 0)
+        hx, hy = match.hoop_pos(match.hoop_of(0))
+        f.x, f.y = hx + (-90 if hx > 1000 else 90), hy
+        match.ball.reset(f.x, f.y)
+        match._give(f)
+        self.assertTrue(match.dunk(f))
+        run(match, 2)
+        self.assertEqual(f._pose()[0], "enterrada")
+        run(match, 120)
+        self.assertGreaterEqual(match.score[0], 2)
+        self.assertGreater(f.dunks, 0)
+        self.assertIsNone(f.sport_pose)
+
+    def test_toco_pisca_e_pega_o_tapa(self):
+        match, _ = basquete()
+        f = match.fighters[0]
+        match._toco(f, match.ball)
+        self.assertEqual(match._sport_pose(f), ("toco", 1))
+        self.assertGreater(f.swat_t, 0)
+        self.assertGreater(match.white_flash, 0)
