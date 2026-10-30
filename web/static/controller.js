@@ -11,7 +11,7 @@
   var failures = 0;
 
   var $ = function (id) { return document.getElementById(id); };
-  var views = ["join", "wait", "select", "pad", "choose"];
+  var views = ["join", "wait", "select", "pad", "choose", "shop"];
 
   function loadToken() {
     var t = null;
@@ -468,6 +468,159 @@
     ok.dataset.tap = me.ready ? "cancel" : "confirm";
   }
 
+  // ── campanha: loja no celular ──────────────
+  // Só abre depois do ATACAR perto da banca. Um toque marca o item (aparece marcado na TV
+  // também), COMPRAR compra. As doações viram uma linha só, que abre a escolha de quem recebe.
+  var shopOpen = null;       // tipo da banca aberta (loja, ferreiro, altar)
+  var shopPick = null;       // item marcado aqui no celular
+  var shopServerPick = null; // último marcado que o jogo mandou
+  var shopKey = "";
+  var giftTo = null;
+  var shopData = null;
+
+  function shopRow(id) { return id && id.indexOf("doar:") === 0 ? "doar" : id; }
+
+  function shopRows(shop) {
+    var rows = [], gift = null;
+    shop.items.forEach(function (it) {
+      if (shopRow(it.id) === "doar") {
+        if (!gift) {
+          gift = { id: "doar", label: "DOAR " + it.cost + " ALMAS", cost: it.cost, ok: true,
+                   afford: it.afford, color: "#c8aaff", desc: "passa almas para um companheiro" };
+          rows.push(gift);
+        }
+      } else {
+        rows.push(it);
+      }
+    });
+    return rows;
+  }
+
+  function order(item, buy) {
+    post("/api/shop", { slot: slot, token: token, item: item, buy: !!buy }).catch(function () {});
+    setTimeout(refresh, 90);
+  }
+
+  function renderShop(shop) {
+    shopData = shop;
+    var rows = shopRows(shop);
+    if (shopOpen !== shop.kind) {          // acabou de abrir
+      shopOpen = shop.kind;
+      shopPick = shopRow(shop.picked);
+      shopServerPick = shop.picked;
+      giftTo = null;
+      $("view-shop").classList.remove("gifting");
+      $("shop-note").textContent = "";
+    } else if (shop.picked !== shopServerPick) {
+      shopServerPick = shop.picked;        // mexeram pelo analógico na TV
+      if (shopRow(shop.picked) !== shopPick && !$("view-shop").classList.contains("gifting")) {
+        shopPick = shopRow(shop.picked);
+      }
+    }
+    if (!rows.some(function (r) { return r.id === shopPick; })) shopPick = rows.length ? rows[0].id : null;
+    $("shop-title").textContent = shop.title;
+    $("shop-souls").textContent = shop.souls;
+    var key = JSON.stringify(rows) + "|" + shopPick;
+    if (key !== shopKey) {
+      shopKey = key;
+      var list = $("shop-list");
+      list.innerHTML = "";
+      rows.forEach(function (r) {
+        var b = document.createElement("button");
+        b.className = "shop-item" + (r.id === shopPick ? " on" : "") + (r.ok && r.afford ? "" : " off");
+        b.style.setProperty("--c", r.color);
+        b.innerHTML = "<span></span><i></i>";
+        b.firstChild.textContent = r.label;
+        b.lastChild.textContent = r.cost ? r.cost : "";
+        b.addEventListener("pointerdown", function (e) {
+          e.preventDefault();
+          buzz();
+          shopPick = r.id;
+          $("shop-note").textContent = "";
+          order(r.id === "doar" ? shopData.items.filter(function (it) { return shopRow(it.id) === "doar"; })[0].id : r.id, false);
+          renderShop(shopData);
+        });
+        list.appendChild(b);
+      });
+    }
+    var cur = rows.filter(function (r) { return r.id === shopPick; })[0];
+    var name = $("shop-name");
+    name.textContent = cur ? cur.label : "";
+    name.style.setProperty("--c", cur ? cur.color : "");
+    $("shop-desc").textContent = cur ? cur.desc.toUpperCase() : "";
+    $("shop-cost").textContent = cur && cur.cost ? cur.cost + " ALMAS" : cur ? "GRÁTIS" : "";
+    $("shop-left").textContent = cur && cur.cost && cur.afford ? "SOBRAM " + (shop.souls - cur.cost) : "";
+    var buy = $("shop-buy");
+    buy.disabled = !cur || !cur.ok || !cur.afford;
+    buy.textContent = shop.kind === "altar" ? "ESCOLHER" : cur && cur.id === "doar" ? "DOAR…" : "COMPRAR";
+    if (cur && !cur.ok) $("shop-note").textContent = "INDISPONÍVEL";
+    else if (cur && !cur.afford) $("shop-note").textContent = "FALTAM " + (cur.cost - shop.souls) + " ALMAS";
+    renderGift(shop);
+  }
+
+  function renderGift(shop) {
+    var mates = shop.mates || [];
+    var gift = shop.items.filter(function (it) { return shopRow(it.id) === "doar"; })[0];
+    var list = $("gift-list");
+    var key = JSON.stringify(mates) + "|" + giftTo;
+    if (list.dataset.key !== key) {
+      list.dataset.key = key;
+      list.innerHTML = "";
+      mates.forEach(function (m) {
+        var b = document.createElement("button");
+        b.className = "gift-card" + (m.slot === giftTo ? " on" : "");
+        b.dataset.slot = m.slot;
+        b.innerHTML = "<b></b><span></span><em></em>";
+        b.children[0].textContent = m.label + " · " + m.name;
+        b.children[1].textContent = m.souls + " ALMAS";
+        b.children[2].textContent = "FICA COM " + (m.souls + (gift ? gift.cost : 0));
+        b.addEventListener("pointerdown", function (e) {
+          e.preventDefault();
+          buzz();
+          giftTo = m.slot;
+          renderGift(shopData);
+        });
+        list.appendChild(b);
+      });
+    }
+    var ok = $("gift-ok");
+    ok.disabled = giftTo === null || !gift || !gift.afford;
+    ok.textContent = giftTo === null ? "DOAR" : "DOAR PARA P" + giftTo;
+  }
+
+  function onPress(el, fn) {
+    el.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      if (el.disabled) return;
+      buzz();
+      el.classList.add("down");
+      fn();
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (t) {
+      el.addEventListener(t, function () { el.classList.remove("down"); });
+    });
+  }
+
+  onPress($("shop-close"), function () { order("fechar", false); });
+  onPress($("shop-buy"), function () {
+    if (shopPick === "doar") {
+      giftTo = null;
+      $("view-shop").classList.add("gifting");
+      renderGift(shopData);
+      return;
+    }
+    order(shopPick, true);
+    $("shop-note").textContent = "PEDIDO ENVIADO";
+    if (navigator.vibrate) navigator.vibrate([10, 40, 20]);
+  });
+  onPress($("gift-back"), function () { $("view-shop").classList.remove("gifting"); });
+  onPress($("gift-ok"), function () {
+    order("doar:" + giftTo, true);
+    $("view-shop").classList.remove("gifting");
+    $("shop-note").textContent = "DOOU PARA P" + giftTo;
+    if (navigator.vibrate) navigator.vibrate([10, 40, 20]);
+  });
+
   // ── estado do jogo ─────────────────────────
   var WAIT_TEXT = {
     menu: ["Conectado", "Aguardando o anfitrião escolher o modo de jogo."],
@@ -496,6 +649,13 @@
     $("story-actions").classList.toggle("on", phase === "story" && me.playing);
     if (status.roster && status.roster !== roster.length) loadRoster();   // personagem novo liberado
 
+    if (phase === "playing" && me.playing && me.shop) {
+      if (!$("view-shop").classList.contains("on")) releaseAll();   // nada fica segurado com a loja aberta
+      show("shop");
+      renderShop(me.shop);
+      return;
+    }
+    shopOpen = null;
     if ((phase === "playing" || phase === "paused") && me.playing) {
       show("pad");
       soccerMode = mode === "soccer";

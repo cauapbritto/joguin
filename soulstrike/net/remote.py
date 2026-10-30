@@ -66,6 +66,7 @@ class SlotInfo:
         self.options = []     # melhorias para escolher (campanha): [{name, desc, color}]
         self.choice = 0       # qual está marcada
         self.souls = None     # saldo de almas na campanha (None = fora da campanha)
+        self.shop = None      # menu da banca aberto (MarketMenu.snapshot) ou None
 
     @property
     def claimed(self):
@@ -88,6 +89,7 @@ class RemoteHub:
         self._active = (1, 2)
         self._banner = ""
         self.roster_size = 0       # quantos personagens o celular deve mostrar (muda ao liberar um)
+        self._orders = []          # pedidos da loja vindos do celular: (vaga, id do item, comprar?)
 
     # ── entrada vinda do celular ──────────────
     def apply_input(self, slot, sid, seq, held, counts, x=0.0, y=0.0):
@@ -117,6 +119,22 @@ class RemoteHub:
             pad.axis = (x, y) if mag > 0.02 else (0.0, 0.0)
             pad.last = now
             return True
+
+    def order(self, slot, item, buy):
+        """Pedido da loja do celular (marcar ou comprar um item, ou "fechar"). O jogo aplica no quadro."""
+        if slot not in self._slots or not item:
+            return False
+        with self._lock:
+            if self._slots[slot].shop is None:
+                return False                  # a banca já fechou
+            self._orders = (self._orders + [(slot, str(item)[:64], bool(buy))])[-16:]
+            return True
+
+    def orders(self):
+        """Pedidos da loja desde o último quadro (e esvazia a fila)."""
+        with self._lock:
+            out, self._orders = self._orders, []
+        return out
 
     def press(self, key):
         if key not in COMMANDS:
@@ -227,15 +245,16 @@ class RemoteHub:
                 if phase != "paused":
                     for info in self._slots.values():
                         info.vote = 0             # fora da partida não tem teletransporte para confirmar
+                        info.shop = None
 
     def publish_slot(self, slot, **fields):
         """Atualiza o que o celular mostra: char, weapon, ready, team, cooldown, stamina, tired,
-        munição (ammo, mag, reload), options e choice (melhorias da campanha) e souls (saldo)."""
+        munição (ammo, mag, reload), options e choice (melhorias da campanha), souls (saldo) e shop (banca aberta)."""
         with self._lock:
             info = self._slots[slot]
             for name, value in fields.items():
                 if name not in ("char", "weapon", "ready", "team", "cooldown", "stamina", "tired",
-                                "options", "choice", "ammo", "mag", "reload", "vote", "souls"):
+                                "options", "choice", "ammo", "mag", "reload", "vote", "souls", "shop"):
                     raise ValueError(name)
                 setattr(info, name, value)
 
@@ -272,6 +291,7 @@ class RemoteHub:
                     "options": mine.options,
                     "choice": mine.choice,
                     "souls": mine.souls if self._mode == "campaign" else None,
+                    "shop": mine.shop if self._mode == "campaign" else None,
                     "playing": slot in self._active,
                 }
             return data

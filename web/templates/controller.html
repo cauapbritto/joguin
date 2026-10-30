@@ -77,12 +77,45 @@
   <button class="btn btn-main" id="choose-ok" data-tap="confirm">CONFIRMAR</button>
 </section>
 
+<!-- Campanha: banca do acampamento aberta (o ATACAR perto dela abre) -->
+<section id="view-shop" class="view">
+  <div class="shop-head">
+    <div class="tag" data-bind="tag">P1</div>
+    <span class="muted" id="shop-title">LOJA</span>
+    <span class="shop-souls"><b class="gem"></b> <span id="shop-souls">0</span> ALMAS</span>
+  </div>
+  <div class="shop-body" id="shop-main">
+    <div class="shop-list" id="shop-list"></div>
+    <div class="shop-side">
+      <div class="shop-detail">
+        <b id="shop-name"></b>
+        <p id="shop-desc"></p>
+        <strong id="shop-cost"></strong>
+        <span id="shop-left"></span>
+      </div>
+      <div class="row">
+        <button class="btn" id="shop-close">FECHAR</button>
+        <button class="btn btn-buy" id="shop-buy">COMPRAR</button>
+      </div>
+      <span class="shop-note" id="shop-note"></span>
+    </div>
+  </div>
+  <div class="shop-body gift" id="shop-gift">
+    <span class="muted">PARA QUEM?</span>
+    <div class="gift-list" id="gift-list"></div>
+    <div class="row">
+      <button class="btn" id="gift-back">VOLTAR</button>
+      <button class="btn btn-buy" id="gift-ok">DOAR</button>
+    </div>
+  </div>
+</section>
+
 <!-- Controle -->
 <section id="view-pad" class="view">
   <div class="pad-top">
     <div class="tag" data-bind="tag">P1</div>
     <span class="muted" data-bind="mode">DUELO</span>
-    <span class="souls" id="souls" title="suas almas"><b>◆</b><span id="souls-n">0</span><em id="souls-gain"></em></span>
+    <span class="souls" id="souls" title="suas almas"><b class="gem"></b><span id="souls-n">0</span><em id="souls-gain"></em></span>
     <span class="net" id="net" title="qualidade da conexão">● --</span>
     <button class="btn small" data-tap="pause">II</button>
   </div>

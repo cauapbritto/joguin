@@ -513,6 +513,7 @@ class CoopMatch(Match):
         self._update_pickups()
         self.publish_ammo()
         self.publish_souls()
+        self.phone_shop()
         self.update_stage()
         if self.wave_banner > 0:
             self.wave_banner -= 1
@@ -644,6 +645,27 @@ class CoopMatch(Match):
         for f in self.players:
             if f.slot:
                 hub.publish_slot(f.slot, souls=self.run.wallet(f.slot))
+
+    def phone_shop(self):
+        """Loja no celular: aplica os pedidos (marcar, comprar, fechar) e manda o menu aberto de
+        cada jogador. Só vale com a banca já aberta pelo ATACAR, perto dela."""
+        by_slot = {f.slot: f for f in self.players if f.slot}
+        orders = hub.orders()
+        for slot, item, buy in orders:
+            f = by_slot.get(slot)
+            menu = self.menus.get(f)
+            if menu is None:
+                continue
+            if item == "fechar":
+                del self.menus[f]
+                self.assets.play("cancel", 0.3)
+            elif menu.pick(item) and buy:
+                menu.buy()
+        if self.frame % 3 and not orders:
+            return
+        for slot, f in by_slot.items():
+            menu = self.menus.get(f)
+            hub.publish_slot(slot, shop=menu.snapshot() if menu is not None else None)
 
     def _leash(self):
         """Ninguém se afasta demais do grupo: todos cabem na câmera.

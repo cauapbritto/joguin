@@ -215,3 +215,82 @@ class EncantoTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LojaNoCelularTest(unittest.TestCase):
+    def setUp(self):
+        from soulstrike.net.remote import hub
+        self.hub = hub
+        hub.set_phase("playing", mode="campaign")
+        hub.orders()
+
+    def tearDown(self):
+        self.hub.set_phase("menu", mode="battle")
+
+    def esperar(self, match, n=4):
+        for _ in range(n):
+            match.update()
+
+    def test_celular_ve_a_banca_aberta(self):
+        match, inputs = acampamento(souls=50)
+        self.assertIsNone(self.hub.status(1)["me"]["shop"])
+        abrir(match, inputs[1], "loja")
+        self.esperar(match)
+        shop = self.hub.status(1)["me"]["shop"]
+        self.assertEqual(shop["kind"], "loja")
+        self.assertEqual(shop["souls"], 50)
+        ids = [i["id"] for i in shop["items"]]
+        self.assertEqual(ids[:4], ["pocao", "arma", "trocar", "continue"])
+        self.assertIn("doar:2", ids)
+        self.assertIsNone(self.hub.status(2)["me"]["shop"])      # o outro não abriu nada
+
+    def test_so_compra_com_a_banca_aberta(self):
+        match, _ = acampamento(souls=50)
+        self.esperar(match)
+        self.assertFalse(self.hub.order(1, "arma", True))         # longe da banca: o celular não compra
+        self.esperar(match)
+        self.assertEqual(match.run.souls[1], 50)
+
+    def test_marcar_e_comprar_pelo_celular(self):
+        match, inputs = acampamento(souls=50)
+        p, menu = abrir(match, inputs[1], "loja")
+        self.esperar(match)
+        self.assertTrue(self.hub.order(1, "doar:2", False))       # primeiro toque só marca
+        self.esperar(match, 1)
+        self.assertEqual(self.hub.status(1)["me"]["shop"]["picked"], "doar:2")
+        self.assertEqual(match.run.souls, {1: 50, 2: 50})
+        self.hub.order(1, "doar:2", True)                          # COMPRAR
+        self.esperar(match, 1)
+        self.assertEqual(match.run.souls, {1: 50 - M.GIFT, 2: 50 + M.GIFT})
+
+    def test_ferreiro_pelo_id(self):
+        match, inputs = acampamento(souls=500)
+        p, menu = abrir(match, inputs[1], "ferreiro")
+        self.esperar(match)
+        w = p.weapons[0]
+        self.hub.order(1, f"forja:{w.name}:1", True)
+        self.esperar(match, 1)
+        self.assertEqual(M.forge_of(p, w)[0], 1)
+        self.hub.order(1, f"forja:{w.name}:1", True)               # pedido repetido não sobe de novo
+        self.esperar(match, 1)
+        self.assertEqual(M.forge_of(p, w)[0], 1)
+
+    def test_fechar_pelo_celular(self):
+        match, inputs = acampamento(souls=50)
+        p, _ = abrir(match, inputs[1], "loja")
+        self.esperar(match)
+        self.hub.order(1, "fechar", False)
+        self.esperar(match)
+        self.assertNotIn(p, match.menus)
+        self.assertIsNone(self.hub.status(1)["me"]["shop"])
+
+    def test_rota_pede_o_dono_da_vaga(self):
+        from soulstrike.net import server
+        client = server.app.test_client()
+        self.assertEqual(client.post("/api/shop", json={"slot": 3, "token": "x", "item": "pocao"}).status_code, 403)
+        self.hub.join(3, "dono")
+        try:
+            r = client.post("/api/shop", json={"slot": 3, "token": "dono", "item": "pocao", "buy": True})
+            self.assertEqual(r.status_code, 409)                   # nenhuma banca aberta
+        finally:
+            self.hub.leave(3, "dono")
