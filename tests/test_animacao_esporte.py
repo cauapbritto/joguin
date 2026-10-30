@@ -2,8 +2,10 @@
 import math
 import unittest
 
-from apoio import GOL_D, MEIO, futebol, run
+import pygame
+from apoio import GOL_D, MEIO, futebol, game, run
 
+from soulstrike import config
 from soulstrike import matches as M
 
 
@@ -154,3 +156,65 @@ class JogadasNovasTest(unittest.TestCase):
             run(match, 1)
             caught = caught or (match.possessor is keeper and keeper.diving > 0)
         self.assertFalse(caught)                                  # bateu nele, mas não segurou
+
+
+class ReplayTest(unittest.TestCase):
+    def _gol(self, humans=()):
+        match, inputs = futebol(humans=humans)
+        f = match.fighters[0]
+        match.last_touch = f
+        run(match, 60, inputs)                  # grava um pouco de jogo antes
+        match.ball.reset(GOL_D + 30, MEIO)
+        run(match, 3, inputs)
+        self.assertEqual(match.score[0], 1)
+        return match, inputs
+
+    def test_gol_tem_replay_em_camera_lenta(self):
+        match, _ = self._gol()
+        for _ in range(400):
+            run(match, 1)
+            if match.replay is not None:
+                break
+        self.assertIsNotNone(match.replay)
+        screen = pygame.Surface((960, 540))
+        x_before = match.ball.x
+        match.draw(screen, game().ui)
+        self.assertEqual(match.ball.x, x_before)       # desenhar o replay não mexe no jogo
+        frames = 0
+        while match.replay is not None and frames < 1000:
+            run(match, 1)
+            frames += 1
+        self.assertGreater(frames, 60)
+        run(match, config.GOAL_FREEZE)
+        self.assertEqual(match.freeze, 0)
+
+    def test_qualquer_botao_pula_o_replay(self):
+        match, inputs = self._gol(humans=(1,))
+        for _ in range(400):
+            run(match, 1, inputs)
+            if match.replay is not None:
+                break
+        inputs[1].tap("attack")
+        run(match, 2, inputs)
+        self.assertIsNone(match.replay)
+
+
+class CpuSemBolaTest(unittest.TestCase):
+    def test_cpu_vira_goleiro_quando_o_time_perde_a_bola_perto_do_gol(self):
+        from soulstrike.ai import SoccerAI
+        match, _ = futebol(chars=(4, 2, 7, 12))
+        ai = SoccerAI()
+        mine = [f for f in match.fighters if f.team == 0]
+        foe = next(f for f in match.fighters if f.team == 1)
+        home = match.goal_x(0)
+        foe.x, foe.y = home + 260, MEIO
+        match.possessor = foe
+        match.ball.reset(foe.x + 10, foe.y)
+        mine[0].x, mine[0].y = home + 300, MEIO          # este pressiona
+        mine[1].x, mine[1].y = home + 600, MEIO + 100    # este volta para o gol
+        for _ in range(90):
+            ai.update(mine[1], match)
+            mine[1].update(match)
+        self.assertTrue(mine[1].marking)
+        self.assertTrue(match.keeping(mine[1]))
+

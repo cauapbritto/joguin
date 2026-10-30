@@ -215,7 +215,12 @@ class SoccerAI:
             self._carry(me, match, attack_x, mid_y, mates, foes)
             return
         self.had_ball = False
+        me.marking = False
         if self._defend(me, match, home_x, mid_y):
+            return
+        if self._keep_goal(me, match, home_x, mates):
+            return
+        if me.give_go is not None and self._ask_give_go(me, match, attack_x):
             return
         if ball.airborne and match.possessor is None:
             # bola no ar: corre para onde ela vai estar na altura da cabeça (ou cair)
@@ -246,8 +251,9 @@ class SoccerAI:
             tx, ty = attack_x - fwd * 180, mid_y + side * 50
             me.sprint_held = me.stamina > 0.2
         elif owner is not None and owner.team == me.team:
-            # companheiro com a bola: abre espaço à frente dele
+            # companheiro com a bola: abre espaço à frente dele, longe de quem marca
             tx, ty = (owner.x + attack_x) / 2, mid_y + (me.slot % 2 * 2 - 1) * 190
+            tx, ty = self._open_space(tx, ty, foes, match)
         elif owner is not None and mates and min(mates, key=lambda m: m.distance_to(ball)).distance_to(ball) < dist_ball:
             # o companheiro pressiona; eu fecho o caminho do gol
             tx, ty = (ball.x + home_x) / 2, (ball.y + mid_y) / 2
@@ -277,6 +283,54 @@ class SoccerAI:
         chance = (0.35 if me.power.needs_ball and match.touching(me, 20) else 0.06) * self.cfg["power"]
         if me.super_cd <= 0 and random.random() < chance and me.power.worth_using(me, match):
             match.use_power(me)
+
+    def _open_space(self, tx, ty, foes, match):
+        """Ponto livre perto de (tx, ty): foge do marcador mais próximo, sem sair do campo."""
+        if not foes:
+            return tx, ty
+        foe = min(foes, key=lambda f: math.hypot(f.x - tx, f.y - ty))
+        d = math.hypot(foe.x - tx, foe.y - ty)
+        if d < 110:
+            away = 1 if ty >= foe.y else -1
+            ty += away * (130 - d)
+        margin = 80
+        return tx, max(margin, min(match.arena.height - margin, ty))
+
+    def _ask_give_go(self, me, match, attack_x):
+        """Passou a bola: corre para a frente e pede a tabela quando passa do marcador."""
+        mate, _ = me.give_go
+        if match.possessor is not mate:
+            return False
+        ahead = abs(attack_x - me.x) < abs(attack_x - mate.x) - 60
+        dx = 1 if attack_x > me.x else -1
+        me.steer(dx * 0.9, 0.3 if me.y < match.arena.height / 2 else -0.3)
+        me.sprint_held = me.stamina > 0.3
+        if ahead and random.random() < 0.08 * self.cfg["press"]:
+            match.give_and_go(me)
+        return True
+
+    def _keep_goal(self, me, match, home_x, mates):
+        """Time perdeu a bola perto do próprio gol e o companheiro já pressiona: vira goleiro
+        (MARCAR perto do gol) e faz a ponte na bola que vem."""
+        ball = match.ball
+        owner = match.possessor
+        threat = (owner is not None and owner.team != me.team) or (owner is None and ball.vx * (home_x - ball.x) > 0)
+        if not mates or not threat or abs(ball.x - home_x) > 520:
+            return False
+        if min(m.distance_to(ball) for m in mates) > me.distance_to(ball):
+            return False                     # eu sou o mais perto: vou pressionar
+        gx, gy = match.goal_center(me.team)
+        fwd = 1 if home_x < match.arena.width / 2 else -1
+        tx = gx + fwd * 40
+        ty = gy + max(-70, min(70, (ball.y - gy) * 0.4))
+        dx, dy = tx - me.x, ty - me.y
+        d = math.hypot(dx, dy)
+        me.steer(dx / d, dy / d) if d > 6 else me.steer(0, 0)
+        me.marking = True
+        if match.keeping(me) and not me.diving and random.random() < 0.25 * self.cfg["press"]:
+            if match.incoming(me, horizon=30, reach=70) is not None:
+                match.keeper_dive(me)
+        return True
 
     def _defend(self, me, match, home_x, mid_y):
         """Bola solta vindo para o meu gol: chutão ou carrinho de bloqueio."""

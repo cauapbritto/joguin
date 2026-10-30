@@ -2,7 +2,9 @@
 import math
 import random
 from abc import ABC, abstractmethod
+from collections import deque
 from dataclasses import dataclass, field
+from fractions import Fraction
 
 import pygame
 
@@ -960,9 +962,23 @@ NET_BULGE = 40               # quadros que a rede fica estufada depois do gol
 CELEBRATE_FRAMES = 90        # o time que fez o gol comemora
 GOAL_HITSTOP = 10            # gol: o jogo congela por um instante...
 GOAL_SLOWMO = 40            # ...e segue em câmera lenta enquanto a bola entra
+REPLAY_FRAMES = 150         # o replay do gol guarda os últimos 2,5 s
+REPLAY_SPEED = 2            # cada quadro guardado aparece por 2 quadros (câmera lenta)
+REPLAY_AFTER = 50           # o replay começa depois de um tempo de comemoração
+_PLAIN = (int, float, bool, str, type(None), Fraction)
+
+
+def snapshot(obj):
+    """Os valores simples de um objeto (posição, pose, timers): o que o desenho precisa."""
+    out = {}
+    for k, v in vars(obj).items():
+        if isinstance(v, _PLAIN) or (isinstance(v, tuple) and all(isinstance(i, _PLAIN) for i in v)):
+            out[k] = v
+    return out
 
 
 class SoccerMatch(Match):
+    replays = True            # mostra o replay do gol (o treino desliga)
     min_zoom = 0.5            # bem de longe a arte fica no tamanho original (pixel por pixel)
     GOAL_TOP, GOAL_BOTTOM = Pitch.GOAL_TOP, Pitch.GOAL_BOTTOM
     # zonas do jogo, medidas a partir da linha do gol
@@ -1015,6 +1031,9 @@ class SoccerMatch(Match):
         self.golden_goal = False
         self.tiebreak = "penaltis" if length == "penaltis" else "gol de ouro"
         self.penalties = False      # acabou empatado e o desempate é nos pênaltis
+        self.tape = deque(maxlen=REPLAY_FRAMES)     # os últimos quadros, para o replay do gol
+        self.replay = None          # quadro do replay em andamento (None = sem replay)
+        self.replay_pending = False
 
     @property
     def length_text(self):
@@ -1821,8 +1840,15 @@ class SoccerMatch(Match):
 
         if not self.freeze and not self.ending:
             self._update_ball()
+            if self.replays and not self.freeze:
+                self.tape.append(self._tape_frame())
+        elif self.freeze and self.replay is not None:
+            self._run_replay()
         elif self.freeze:
             self.freeze -= 1
+            if self.freeze == config.GOAL_FREEZE - REPLAY_AFTER and self.replay_pending and len(self.tape) > 30:
+                self.replay = 0
+                self.assets.play("replay", 0.5)
             if self.freeze == 0:
                 self._kickoff()
 
@@ -2245,6 +2271,23 @@ class SoccerMatch(Match):
         self.last_touch = None
         self.assets.play("cancel", 0.3)
 
+    # ── replay do gol ────────────────────────
+    def _tape_frame(self):
+        frame = [(f, snapshot(f)) for f in self.fighters]
+        frame += [(self.ball, snapshot(self.ball)), (self.camera, snapshot(self.camera))]
+        frame += [(g, snapshot(g)) for g in self.goals]
+        return frame
+
+    def _run_replay(self):
+        """O gol de novo em câmera lenta; qualquer botão pula."""
+        self.replay += 1
+        skip = any(ctrl.pressed(a) for ctrl in self.controllers.values() if not isinstance(ctrl, SoccerAI)
+                   for a in ("attack", "special", "dodge"))
+        if skip or self.replay >= len(self.tape) * REPLAY_SPEED:
+            self.replay = None
+            self.replay_pending = False
+            self.tape.clear()
+
     def _goal(self, scoring_team):
         scorer = self.last_touch
         own_goal = scorer is not None and scorer.team != scoring_team
@@ -2262,6 +2305,7 @@ class SoccerMatch(Match):
         self.burst(self.ball.x, self.ball.y, color, 40, speed=8, gravity=0.1, size=5)
         self.burst(self.ball.x, self.ball.y, theme.BONE, 20, speed=6, gravity=0.1, size=3)
         self.camera.shake(8)
+        self.replay_pending = self.replays
         self.hit_pause(GOAL_HITSTOP)        # "tranco": o jogo para por um instante e depois vai em câmera lenta
         self.slowmo = max(self.slowmo, GOAL_SLOWMO)
         self.assets.play("victory", 0.5)
@@ -2313,6 +2357,9 @@ class SoccerMatch(Match):
         self.finished = True
 
     def draw(self, screen, ui):
+        if self.replay is not None and self.tape:
+            self._draw_replay(screen, ui)
+            return
         super().draw(screen, ui)
         # barra de força enquanto segura CHUTE/PASSE
         for f in self.fighters:
@@ -2328,6 +2375,26 @@ class SoccerMatch(Match):
         self._draw_offscreen(screen, ui)
         if self.goal_banner:
             hud.draw_goal_banner(screen, ui, *self.goal_banner, self.banner_age)
+
+    def _draw_replay(self, screen, ui):
+        frame = self.tape[min(len(self.tape) - 1, self.replay // REPLAY_SPEED)]
+        now = [(obj, snapshot(obj)) for obj, _ in frame]
+        hidden = self.particles, self.popups
+        self.particles, self.popups = [], []
+        for obj, state in frame:
+            obj.__dict__.update(state)
+        try:
+            super().draw(screen, ui)
+        finally:
+            for obj, state in now:
+                obj.__dict__.update(state)
+            self.particles, self.popups = hidden
+        W = config.SCREEN_W
+        if (self.replay // 20) % 2 == 0:
+            pygame.draw.circle(screen, theme.BLOOD, (W - 132, 108), 6)
+        screen.fill(theme.BLOOD, (W - 120, 96, 92, 24))
+        ui.text(screen, "REPLAY", theme.XS, theme.BONE, (W - 74, 108), shadow=False)
+        ui.text(screen, "QUALQUER BOTÃO PULA", theme.XS, theme.MUTED, (W - 28, 134), anchor="midright")
 
     def _draw_offscreen(self, screen, ui):
         """Campo grande: quem saiu da câmera aparece como uma setinha (cor do time) na borda."""

@@ -311,6 +311,7 @@ def _soccer_training_class():
         """Treino do futebol (corte, chute, chute alto, marcar e gol) contra um boneco parado."""
 
         lessons = SOCCER_LESSONS
+        replays = False                                 # no treino o gol não tem replay
 
         def __init__(self, game, session):
             super().__init__(game, session)
