@@ -228,7 +228,9 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   **correr** (com fôlego), **marcar**, **chutão**, **carrinho de bloqueio** e um **poder
   próprio de cada personagem** no botão SUPER. Primeiro a 3 gols vence; na escolha de personagem,
   **T** troca para 5 ou 7 gols, ou para **3 minutos** (o relógio para com a bola parada e, se
-  terminar empatado, vale o **gol de ouro**). Com CPU em campo, **1 2 3** escolhem a dificuldade
+  terminar empatado, vale o **gol de ouro**), ou **3 minutos + pênaltis** (empatou, vai para a
+  disputa de pênaltis de frente). Depois de cada gol vem o **replay** em câmera lenta (qualquer
+  botão pula). Com CPU em campo, **1 2 3** escolhem a dificuldade
   dela (velocidade, mira, vontade de roubar a bola e de usar o SUPER). Cada time joga de
   **uniforme**: o time da esquerda de azul e o da direita de vermelho (a roupa do personagem
   muda de cor, o resto continua igual), já na seleção e na tela de VS. O campo é grande
@@ -246,6 +248,15 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   mesmo arremesso) fica parado um instante.
   **Ponte aérea:** PASSE para o companheiro que está correndo para a cesta vira alley-oop, sem
   precisar de SUPER: a bola vai alta e ele sobe e crava. Quem pular na frente do passe corta.
+- **Disputa de pênaltis** — a câmera fica atrás de quem bate, com o gol grande e o goleiro de
+  frente. Quem bate segura CHUTE e solta na barrinha de força; o canto é a direção do analógico na
+  hora de soltar (no celular, uma grade 3x3 que só ele vê) e nunca aparece na TV. PASSE é a
+  cavadinha. O goleiro pula com a ESQUIVA para o lado do analógico (sem direção, fica no meio),
+  provoca com ATACAR e faz catimba com MARCAR (na 3ª leva amarelo). Cada herói bate e defende do
+  seu jeito. São 5 cobranças e depois morte súbita, com ordem dos batedores, colinha do goleiro,
+  pressão na decisiva, narração, comemoração de cada herói e estatísticas salvas. Também tem o
+  **treino de pênaltis** (sem fim, bate uma e defende outra) e o **desafio do goleiro** (defenda
+  3 seguidas para passar de rodada).
 - **Treino** — contra um boneco parado, uma lição por vez na tela. Tem o do duelo (andar, atacar,
   trocar de arma, esquivar, habilidade e itens), o **de futebol** (corte, chute, chute alto, marcar e
   gol) e o **de basquete** (barrinha do arremesso, finta, toco e cesta).
