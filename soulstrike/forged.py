@@ -20,13 +20,14 @@ FUSION_COST = 150
 # família de cada arma (a das comuns e a das raras); o que não está aqui conta como "corte"
 FAMILIES = {
     "corte": ("Espada", "Faca", "Katana", "Garras", "Espadão", "Sabre", "Machado do Lenhador"),
-    "impacto": ("Maça", "Capacete", "Martelo", "Notebook", "Punho Mecânico", "Corrente", "Cabo de Rede", "Cajado"),
+    "impacto": ("Maça", "Capacete", "Martelo", "Notebook", "Punho Mecânico", "Corrente", "Cabo de Rede", "Cajado",
+                "Teclado Mecânico", "Manopla do Exo", "Punho Corrompido"),
     "flecha": ("Arco", "Besta", "Arco de Espinhos", "Shuriken", "Estrela", "Disquete", "Bumerangue", "Rifle",
-               "Pistola", "Lança"),
-    "explosao": ("Granada", "Canhão de Mão", "Colmeia", "Canhão de Pulso"),
+               "Pistola", "Lança", "Rifle de Plasma"),
+    "explosao": ("Granada", "Canhão de Mão", "Colmeia", "Canhão de Pulso", "Drone de Bolso"),
     "gelo": ("Cristal", "Estalactites", "Bola de Neve", "Espelho de Cristal"),
     "fogo": ("Lança-chamas",),
-    "raio": ("Cajado do Raio", "Cajado do Raio Supremo", "Pendrive"),
+    "raio": ("Cajado do Raio", "Cajado do Raio Supremo", "Pendrive", "Taser de Rede", "Escudo de Choque"),
     "alma": ("Orbe", "Foice", "Foice Espectral", "Lanterna das Almas", "Crânio Uivante"),
 }
 FAMILY_OF = {name: family for family, names in FAMILIES.items() for name in names}

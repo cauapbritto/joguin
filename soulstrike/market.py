@@ -118,9 +118,10 @@ class Stall(Entity):
     REACH = 74
     NAMES = {"loja": "LOJA", "ferreiro": "FERREIRO", "altar": "ALTAR DAS MALDIÇÕES"}
 
-    def __init__(self, kind, x, y):
+    def __init__(self, kind, x, y, style=None):
         super().__init__(x, y)
         self.kind = kind
+        self.style = style              # "lag": máquina de venda, bancada de solda e servidor com o fragmento
         self.age = 0
         self.wall = Wall(round(x) - 34, round(y) - 10, 68, 22, visible=False)
 
@@ -133,6 +134,15 @@ class Stall(Entity):
 
     def update(self, match):
         self.age += 1
+        if self.style == "lag":
+            if self.kind == "ferreiro" and self.age % 30 == 0:  # faísca azul da solda
+                for _ in range(5):
+                    match.particles.append(Particle(self.x + 10, self.y - 30, random.uniform(-1.8, 1.8),
+                                                    random.uniform(-2.2, -0.6), (150, 210, 255), 14, 2, gravity=0.12))
+            elif self.kind == "altar" and self.age % 6 == 0:
+                match.particles.append(Particle(self.x + random.uniform(-5, 5), self.y - 60, random.uniform(-0.3, 0.3),
+                                                random.uniform(-1.2, -0.6), CURSE_COLOR, 20, 3))
+            return
         if self.kind == "ferreiro" and self.age % 40 == 0:      # faísca da bigorna
             for _ in range(4):
                 match.particles.append(Particle(self.x + 14, self.y - 26, random.uniform(-1.6, 1.6),
@@ -147,6 +157,9 @@ class Stall(Entity):
     def draw(self, surf, camera):
         sx, sy = round(self.x - camera.x), round(self.y - camera.y)
         pygame.draw.ellipse(surf, (10, 8, 12), (sx - 40, sy + 2, 80, 14))
+        if self.style == "lag":
+            self._draw_lag(surf, sx, sy)
+            return
         if self.kind == "altar":
             surf.fill((40, 36, 48), (sx - 26, sy - 26, 52, 28))         # pedra
             surf.fill((80, 74, 92), (sx - 26, sy - 28, 52, 6))
@@ -179,6 +192,45 @@ class Stall(Entity):
             surf.fill((70, 70, 80), (sx + 10, sy - 28, 8, 4))
             surf.fill((120, 76, 40), (sx - 22, sy - 32, 14, 3))         # martelo
             surf.fill((90, 90, 100), (sx - 12, sy - 36, 6, 8))
+
+    def _draw_lag(self, surf, sx, sy):
+        """As bancas na Lag Lobby: a loja é uma máquina de venda, o ferreiro uma bancada de solda
+        e o altar um servidor com um pedaço do fragmento em cima."""
+        if self.kind == "loja":
+            surf.fill((30, 34, 44), (sx - 24, sy - 70, 48, 72))
+            surf.fill((210, 216, 226), (sx - 22, sy - 68, 44, 68))
+            surf.fill((40, 60, 80), (sx - 18, sy - 62, 28, 44))               # vitrine
+            for row in range(4):
+                for col in range(3):
+                    color = ((210, 60, 60), (110, 170, 255), SOUL_COLOR)[(row + col) % 3]
+                    surf.fill(color, (sx - 16 + col * 9, sy - 60 + row * 11, 6, 7))
+            surf.fill((64, 200, 230), (sx + 12, sy - 62, 6, 10))              # botões
+            surf.fill((30, 34, 44), (sx + 12, sy - 48, 6, 18))
+            surf.fill((20, 22, 28), (sx - 18, sy - 14, 28, 8))                # onde cai o produto
+            pulse = 0.5 + 0.5 * math.sin(self.age * 0.1)
+            surf.fill(tuple(round(c * (0.6 + 0.4 * pulse)) for c in (64, 200, 230)), (sx - 22, sy - 70, 44, 2))
+        elif self.kind == "ferreiro":
+            surf.fill((70, 74, 84), (sx - 34, sy - 26, 68, 6))                # tampo de aço
+            surf.fill((120, 126, 140), (sx - 34, sy - 26, 68, 2))
+            for px in (sx - 30, sx + 26):
+                surf.fill((50, 52, 60), (px, sy - 20, 4, 22))
+            surf.fill((180, 60, 50), (sx - 28, sy - 12, 14, 12))              # cilindro de gás
+            surf.fill((210, 90, 70), (sx - 28, sy - 12, 14, 2))
+            surf.fill((40, 40, 46), (sx + 2, sy - 36, 20, 10))                # máscara de solda
+            surf.fill((80, 160, 120), (sx + 6, sy - 33, 12, 3))
+            if (self.age // 4) % 3:
+                surf.fill((220, 240, 255), (sx + 10, sy - 30, 4, 4))         # brilho do arco
+        else:
+            surf.fill((24, 26, 32), (sx - 20, sy - 50, 40, 52))               # servidor
+            surf.fill((50, 54, 64), (sx - 20, sy - 50, 40, 3))
+            for y in range(sy - 44, sy - 2, 7):
+                surf.fill((36, 40, 50), (sx - 17, y, 34, 5))
+                for x in range(sx - 14, sx + 14, 6):
+                    lit = (x + y + self.age // 6) % 3 == 0
+                    surf.fill((170, 90, 230) if lit else (60, 40, 80), (x, y + 2, 2, 2))
+            flick = round(2 * math.sin(self.age * 0.3))
+            pygame.draw.polygon(surf, (120, 50, 170), [(sx - 7, sy - 50), (sx, sy - 70 - flick), (sx + 7, sy - 50)])
+            pygame.draw.polygon(surf, (220, 170, 255), [(sx - 3, sy - 50), (sx, sy - 60 - flick), (sx + 3, sy - 50)])
 
     def draw_prompt(self, screen, camera, ui, frame, near):
         sx, sy = camera.to_screen(self.x, self.y - 82)

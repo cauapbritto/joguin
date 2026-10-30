@@ -1,4 +1,4 @@
-"""Cenário dos mapas que não têm arte própria (Floresta, Calabouço e Templo Gelado).
+"""Cenário dos mapas que não têm arte própria (Floresta, Calabouço, Templo Gelado e a Lag Lobby).
 
 - O chão é pintado uma vez só, em "pixels" de 2x2 (a mesma escala dos personagens), com
   grama, trilhas, pedras, rachaduras, poças, neve... e guardado pronto.
@@ -258,7 +258,172 @@ def _vignette(s, color, depth):
     s.blit(layer, (0, 0))
 
 
-_PAINTERS = {"floresta": _floresta, "calabouco": _calabouco, "templo_gelado": _templo}
+# ── Lag Lobby (capítulo 2): escritório limpo, branco e ciano, sujo pela Patrulha Cinza ──
+LAG_CYAN = (64, 200, 230)
+TAPE = ((236, 196, 40), (30, 28, 30))          # fita de isolamento: amarelo e preto
+
+
+def _tape(s, rng, x, y, length, vertical=False):
+    """Fita de isolamento esticada no chão (listras amarelas e pretas)."""
+    for i in range(length):
+        c = TAPE[(i // 3) % 2]
+        if vertical:
+            s.fill(c, (x, y + i, 3, 1))
+        else:
+            s.fill(c, (x + i, y, 1, 3))
+
+
+def _crate(s, x, y):
+    """Caixa de munição da Patrulha: verde-oliva com a tampa e a faixa amarela."""
+    s.fill((22, 24, 18), (x + 1, y + 1, 12, 8))
+    s.fill((78, 86, 54), (x, y, 12, 8))
+    s.fill((104, 114, 72), (x, y, 12, 2))
+    s.fill((206, 176, 44), (x + 2, y + 4, 8, 1))
+
+
+def _lag_escritorio(s, rng):
+    """Piso de escritório: placas claras com rejunte, tapetes de carpete azul e cabos no chão."""
+    w, h = s.get_size()
+    tile = 24
+    for gy in range(0, h, tile):
+        for gx in range(0, w, tile):
+            c = _shade((176, 184, 194), rng.randint(-5, 5))
+            s.fill(c, (gx, gy, tile, tile))
+            s.fill(_shade(c, 14), (gx, gy, tile, 1))
+            s.fill(_shade(c, -24), (gx, gy, 1, tile))
+            if rng.random() < 0.18:                                   # reflexo da luz no piso
+                for i in range(6):
+                    s.set_at((gx + 4 + i, gy + 14 - i), _shade(c, 18))
+    for _ in range(max(1, w * h // 120000)):                          # carpetes azuis
+        cw, ch = rng.randint(60, 140), rng.randint(40, 90)
+        x, y = rng.randrange(0, max(1, w - cw)), rng.randrange(0, max(1, h - ch))
+        s.fill((70, 96, 140), (x, y, cw, ch))
+        for _ in range(cw * ch // 30):
+            s.set_at((x + rng.randrange(cw), y + rng.randrange(ch)), rng.choice(((80, 106, 150), (62, 86, 128))))
+        pygame.draw.rect(s, (30, 44, 74), (x, y, cw, ch), 1)
+    for _ in range(14):                                               # canaletas de cabo
+        x, y = rng.randrange(w), rng.randrange(h)
+        if rng.random() < 0.5:
+            length = rng.randint(40, 160)
+            s.fill((120, 128, 140), (x, y, length, 3))
+            s.fill((150, 158, 170), (x, y, length, 1))
+        else:
+            length = rng.randint(40, 160)
+            s.fill((120, 128, 140), (x, y, 3, length))
+            s.fill((150, 158, 170), (x, y, 1, length))
+    for _ in range(10):                                               # logo da Lag Lobby (ciano) riscado
+        x, y = rng.randrange(20, w - 20), rng.randrange(20, h - 20)
+        pygame.draw.circle(s, LAG_CYAN, (x, y), 6, 2)
+        s.fill(LAG_CYAN, (x - 2, y - 2, 2, 5))
+        pygame.draw.line(s, (40, 40, 44), (x - 8, y + 6), (x + 8, y - 6), 2)
+    for _ in range(18):                                               # sujeira da Patrulha
+        x, y = rng.randrange(w), rng.randrange(h)
+        _tape(s, rng, x, y, rng.randint(20, 70), vertical=rng.random() < 0.5)
+    for _ in range(10):
+        _crate(s, rng.randrange(4, w - 16), rng.randrange(4, h - 12))
+    for _ in range(40):                                               # pegadas de bota
+        x, y = rng.randrange(w), rng.randrange(h)
+        s.fill((140, 146, 156), (x, y, 2, 3))
+        s.fill((140, 146, 156), (x + 3, y + 4, 2, 3))
+    _vignette(s, (60, 66, 80), 30)
+
+
+def _lag_datacenter(s, rng):
+    """Data center: piso elevado escuro em placas, algumas vazadas (ventilação), faixa ciano."""
+    w, h = s.get_size()
+    tile = 20
+    for gy in range(0, h, tile):
+        for gx in range(0, w, tile):
+            c = _shade((46, 52, 64), rng.randint(-3, 3))
+            s.fill(c, (gx, gy, tile, tile))
+            s.fill(_shade(c, 16), (gx, gy, tile, 1))
+            s.fill(_shade(c, 8), (gx, gy, 1, tile))
+            s.fill(_shade(c, -14), (gx, gy + tile - 1, tile, 1))
+            if rng.random() < 0.22:                                   # placa vazada
+                for yy in range(gy + 4, gy + tile - 3, 3):
+                    for xx in range(gx + 4, gx + tile - 3, 3):
+                        s.set_at((xx, yy), (22, 26, 34))
+    for y in range(0, h, 120):                                        # faixas de guia no chão
+        s.fill((30, 110, 130), (0, y + 2, w, 1))
+    for _ in range(26):                                               # cabos soltos
+        x, y = rng.randrange(w), rng.randrange(h)
+        color = rng.choice(((40, 150, 200), (200, 80, 60), (220, 200, 70)))
+        for _ in range(rng.randint(8, 20)):
+            nx, ny = x + rng.randint(-3, 4), y + rng.randint(-2, 3)
+            pygame.draw.line(s, color, (x, y), (nx, ny))
+            x, y = nx, ny
+    for _ in range(12):
+        x, y = rng.randrange(w), rng.randrange(h)
+        _tape(s, rng, x, y, rng.randint(20, 60), vertical=rng.random() < 0.5)
+    for _ in range(8):                                                # veios roxos do fragmento
+        x, y = rng.randrange(w), rng.randrange(h)
+        for _ in range(rng.randint(6, 14)):
+            nx, ny = x + rng.randint(-4, 4), y + rng.randint(-4, 4)
+            pygame.draw.line(s, (130, 70, 200), (x, y), (nx, ny))
+            x, y = nx, ny
+    _vignette(s, (10, 14, 20), 40)
+
+
+def _lag_garagem(s, rng):
+    """Estacionamento: asfalto, vagas pintadas de branco, manchas de óleo e a faixa amarela."""
+    w, h = s.get_size()
+    s.fill((56, 58, 62))
+    for _ in range(40):                                               # remendos de asfalto
+        c = _shade((56, 58, 62), rng.randint(-10, 10))
+        s.fill(c, (rng.randrange(w), rng.randrange(h), rng.randint(30, 90), rng.randint(20, 60)))
+    for _ in range(w * h // 6):
+        s.set_at((rng.randrange(w), rng.randrange(h)), _shade((60, 62, 66), rng.randint(-14, 14)))
+    for y0 in (h // 5, h * 3 // 5):                                    # fileiras de vagas
+        for x in range(30, w - 30, 46):
+            s.fill((210, 210, 200), (x, y0, 2, 50))
+        s.fill((210, 210, 200), (30, y0 + 50, w - 60, 2))
+    s.fill((226, 190, 50), (0, h // 2 - 10, w, 3))                    # faixa amarela do meio
+    for x in range(10, w, 40):
+        s.fill((236, 236, 226), (x, h // 2 + 6, 20, 2))
+    for _ in range(26):                                               # óleo
+        x, y = rng.randrange(w), rng.randrange(h)
+        pygame.draw.ellipse(s, _shade((34, 34, 42), rng.randint(-6, 6)), (x, y, rng.randint(10, 22), rng.randint(5, 10)))
+    for _ in range(10):
+        x, y = rng.randrange(w), rng.randrange(h)
+        _tape(s, rng, x, y, rng.randint(30, 80), vertical=rng.random() < 0.3)
+    for _ in range(6):
+        _crate(s, rng.randrange(4, w - 16), rng.randrange(4, h - 12))
+    _vignette(s, (20, 20, 24), 40)
+
+
+def _lag_cobertura(s, rng):
+    """Cobertura: placas de concreto, o H do heliponto no meio e ralos."""
+    w, h = s.get_size()
+    tile = 40
+    for gy in range(0, h, tile):
+        for gx in range(0, w, tile):
+            c = _shade((112, 116, 120), rng.randint(-6, 6))
+            s.fill(c, (gx, gy, tile, tile))
+            s.fill(_shade(c, -20), (gx, gy, tile, 1))
+            s.fill(_shade(c, -20), (gx, gy, 1, tile))
+    for _ in range(w * h // 10):
+        s.set_at((rng.randrange(w), rng.randrange(h)), rng.choice(((124, 128, 132), (100, 104, 108))))
+    cx, cy = w // 2, h // 2
+    pygame.draw.circle(s, (70, 74, 80), (cx, cy), 120)                # heliponto
+    pygame.draw.circle(s, (232, 200, 60), (cx, cy), 120, 4)
+    pygame.draw.circle(s, (232, 232, 226), (cx, cy), 104, 2)
+    s.fill((232, 232, 226), (cx - 36, cy - 44, 12, 88))
+    s.fill((232, 232, 226), (cx + 24, cy - 44, 12, 88))
+    s.fill((232, 232, 226), (cx - 24, cy - 6, 48, 12))
+    for _ in range(8):                                                # ralos e manchas de chuva
+        x, y = rng.randrange(10, w - 10), rng.randrange(10, h - 10)
+        s.fill((60, 62, 66), (x, y, 8, 8))
+        for k in range(1, 8, 2):
+            s.fill((140, 144, 150), (x + k, y + 1, 1, 6))
+    for _ in range(18):
+        x, y = rng.randrange(w), rng.randrange(h)
+        pygame.draw.ellipse(s, (96, 100, 106), (x, y, rng.randint(20, 50), rng.randint(8, 18)))
+    _vignette(s, (40, 44, 52), 36)
+
+
+_PAINTERS = {"floresta": _floresta, "calabouco": _calabouco, "templo_gelado": _templo,
+             "lag_escritorio": _lag_escritorio, "lag_datacenter": _lag_datacenter, "lag_garagem": _lag_garagem,
+             "lag_cobertura": _lag_cobertura}
 THEMED_MAPS = tuple(_PAINTERS)
 
 
@@ -385,7 +550,71 @@ class IceBlock(_Style):
                 s.fill((200, 230, 250), (x + (3 - width) // 2, h + i, width, 1))
 
 
-_STYLES = {"floresta": Hedge, "calabouco": DungeonStone, "templo_gelado": IceBlock}
+class GlassWall(_Style):
+    """Escritório: divisória de vidro azulado com moldura branca e a faixa ciano da Lag Lobby."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((20, 26, 36, 140), (0, 6, w, h))
+        frame, glass = (226, 230, 236), (120, 170, 200, 170)
+        s.fill(glass, (0, 0, w, h))
+        for _ in range(max(1, (w + h) // 30)):                           # reflexo no vidro
+            x = rng.randrange(w)
+            for i in range(min(h, 12)):
+                if 0 <= x + i < w:
+                    s.set_at((x + i, i), (210, 236, 250, 200))
+        pygame.draw.rect(s, frame, (0, 0, w, h), 2)
+        s.fill(frame, (0, 0, w, 3))
+        if w >= h:
+            s.fill(LAG_CYAN, (2, h // 2, w - 4, 2))
+            for x in range(40, w - 10, 60):                              # montantes
+                s.fill(frame, (x, 0, 2, h))
+        else:
+            s.fill(LAG_CYAN, (w // 2, 2, 2, h - 4))
+            for y in range(40, h - 10, 60):
+                s.fill(frame, (0, y, w, 2))
+        if rng.random() < 0.3:                                           # fita de isolamento na frente
+            for x in range(0, w, 6):
+                s.fill(TAPE[(x // 6) % 2], (x, h - 6, 6, 3))
+
+
+class ServerRack(_Style):
+    """Data center: racks de servidor pretos, com as fileiras de LEDs (o ambiente faz piscar)."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((6, 8, 12, 220), (0, 6, w, h))
+        s.fill((28, 30, 38), (0, 0, w, h))
+        s.fill((60, 64, 76), (0, 0, w, 3))
+        pygame.draw.rect(s, (14, 16, 20), (0, 0, w, h), 2)
+        unit = 10
+        for y in range(6, h - 4, unit):
+            s.fill((40, 44, 54), (4, y, w - 8, unit - 2))
+            s.fill((22, 24, 30), (4, y + unit - 3, w - 8, 1))
+            for x in range(8, w - 8, 8):
+                s.fill(rng.choice(((40, 200, 120), (40, 160, 230), (60, 70, 80))), (x, y + 3, 2, 2))
+
+
+class Barrier(_Style):
+    """Estacionamento e cobertura: barreira de concreto com faixas amarelas e pretas."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((14, 14, 18, 200), (0, 6, w, h))
+        top, front = (176, 176, 170), (140, 140, 134)
+        front_h = max(8, min(h // 2, 16))
+        s.fill(top, (0, 0, w, h - front_h))
+        s.fill(front, (0, h - front_h, w, front_h))
+        s.fill((206, 206, 200), (0, 0, w, 2))
+        for x in range(-front_h, w, 14):                                 # listras de aviso na frente
+            for i in range(front_h):
+                xx = x + i
+                if 0 <= xx < w and (x // 14) % 2 == 0:
+                    s.fill((226, 186, 40), (xx, h - front_h + i, 7, 1))
+        for _ in range(max(1, w * h // 900)):
+            s.set_at((rng.randrange(w), rng.randrange(max(1, h - front_h))), (150, 150, 146))
+        pygame.draw.rect(s, (70, 70, 70), (0, 0, w, h), 1)
+
+
+_STYLES = {"floresta": Hedge, "calabouco": DungeonStone, "templo_gelado": IceBlock,
+           "lag_escritorio": GlassWall, "lag_datacenter": ServerRack, "lag_garagem": Barrier, "lag_cobertura": Barrier}
 
 
 def wall_style(key):
@@ -497,6 +726,62 @@ class Snow(Ambience):
             view.fill((230, 240, 250) if size == 2 else (190, 210, 230), (round(x), round(y), size, size))
 
 
+class ServerLights(Ambience):
+    """LEDs dos racks piscando e, de vez em quando, a luz vermelha de emergência girando."""
+
+    def __init__(self, walls, emergency=True):
+        rng = random.Random("leds")
+        self.leds = []
+        for wall in walls:
+            r = wall.rect
+            if not wall.visible or r.w > 900 or r.h > 900:
+                continue
+            for _ in range(max(2, (r.w * r.h) // 1400)):
+                self.leds.append((rng.uniform(r.x + 6, r.right - 6), rng.uniform(r.y + 6, r.bottom - 6),
+                                  rng.uniform(0.05, 0.2), rng.uniform(0, math.tau),
+                                  rng.choice(((60, 255, 150), (80, 200, 255), (255, 80, 70)))))
+        self.emergency = emergency
+        self.glow = _glow(140, (255, 40, 30), 0.35)
+
+    def draw(self, view, cam, frame, layer):
+        if layer == "ground":
+            vw, vh = view.get_size()
+            for x, y, speed, phase, color in self.leds:
+                if math.sin(frame * speed + phase) < 0.2:
+                    continue
+                sx, sy = x - cam.x, y - cam.y
+                if 0 < sx < vw and 0 < sy < vh:
+                    view.fill(color, (round(sx), round(sy), 2, 2))
+        elif layer == "air" and self.emergency:
+            # luz de emergência girando: um clarão vermelho que passa pela tela
+            t = (frame % 240) / 240
+            if t < 0.5:
+                vw, vh = view.get_size()
+                x = round(-140 + (vw + 280) * (t / 0.5))
+                view.blit(self.glow, (x - 140, vh // 3 - 140), special_flags=pygame.BLEND_ADD)
+
+
+class Papers(Ambience):
+    """Cobertura: folhas e papéis voando devagar pela tela."""
+
+    COUNT = 24
+
+    def __init__(self):
+        rng = random.Random("papel")
+        self.bits = [(rng.uniform(0, 1), rng.uniform(0, 1), rng.uniform(0.6, 1.6), rng.uniform(0, math.tau))
+                     for _ in range(self.COUNT)]
+
+    def draw(self, view, cam, frame, layer):
+        if layer != "air":
+            return
+        vw, vh = view.get_size()
+        for fx, fy, speed, phase in self.bits:
+            x = (fx * (vw + 40) + frame * speed) % (vw + 40) - 20
+            y = (fy * vh + math.sin(frame * 0.04 + phase) * 16) % vh
+            color = (236, 236, 228) if speed > 1 else (190, 196, 200)
+            view.fill(color, (round(x), round(y), 3, 2))
+
+
 def create_ambience(key, size, walls):
     if key == "floresta":
         return Fireflies(size)
@@ -504,4 +789,8 @@ def create_ambience(key, size, walls):
         return Torches(walls)
     if key == "templo_gelado":
         return Snow()
+    if key in ("lag_escritorio", "lag_datacenter"):
+        return ServerLights(walls, emergency=True)
+    if key == "lag_cobertura":
+        return Papers()
     return Ambience()

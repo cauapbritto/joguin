@@ -1438,6 +1438,10 @@ from .forged import register_projectiles  # noqa: E402  (as forjadas usam as cla
 
 register_projectiles(PROJECTILES)
 
+from .gadgets import register_projectiles as register_gadgets  # noqa: E402  (armas da Lag Lobby)
+
+register_gadgets(PROJECTILES)
+
 
 def projectile_class(style):
     return PROJECTILES.get(style, Projectile)

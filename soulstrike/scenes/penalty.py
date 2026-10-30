@@ -40,6 +40,7 @@ CELEBRATIONS = {
     "velocista": ("VOLTA OLÍMPICA!", "rastro", (250, 220, 90)),
     "aryel": ("GRAU NA FRENTE DA TORCIDA!", "poeira", (190, 160, 120)),
     "aryel_corrompido": ("HA HA HA...", "sombra", (150, 80, 200)),
+    "borba_corrompido": ("VAPOR ROXO DO EXO...", "sombra", (150, 90, 220)),
     "fantasma": ("ACENA DE DENTRO DO GOL", "sombra", (200, 220, 255)),
     "tita": ("O ESTÁDIO TREMEU!", "tremor", (230, 200, 150)),
     "pirata": ("FINCOU A BANDEIRA!", "bandeira", (30, 30, 36)),
@@ -841,7 +842,7 @@ class PenaltyScene(Scene):
                     if rng.random() < 0.15:
                         surf.fill(col, (x - 2, y - 1 + bob, 2, 6))
         surf.fill((22, 20, 34), (0, LINE_Y + UP - 34, W, 22))
-        for i, label in enumerate(("SOUL STRIKE", "LOGLAB", "SOUL STRIKE", "LOGLAB")):
+        for i, label in enumerate(("SOUL STRIKE", "LAG LOBBY", "SOUL STRIKE", "LAG LOBBY")):
             self.ui.text(surf, label, theme.XS, (90, 84, 120), (120 + i * 240, LINE_Y + UP - 23), shadow=False)
         for x in (40, W - 40):
             pygame.draw.circle(surf, (255, 250, 220), (x, UP + 18), 10)

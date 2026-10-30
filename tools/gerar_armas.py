@@ -819,6 +819,142 @@ def punho_mecanico():
     return s.finish(), (2, 5)
 
 
+# ── Lag Lobby (capítulo 2) ───────────────────
+GRAF, GRAF_L, GRAF_D = (70, 74, 86), (120, 126, 140), (40, 42, 50)
+CYAN, CYAN_L = (64, 200, 230), (200, 246, 255)
+PLASMA, PLASMA_L = (110, 255, 200), (230, 255, 245)
+SOMBRA, SOMBRA_L, SOMBRA_D = (110, 70, 170), (190, 150, 240), (60, 36, 96)
+
+
+def taser_rede():
+    """Taser de Rede: pistola amarela de choque com a rede dobrada na boca."""
+    s = Sprite(15, 9)
+    s.rect(0, 4, 4, 5, GRAF_D)                   # cabo
+    s.rect(1, 4, 2, 4, GRAF)
+    s.rect(2, 1, 10, 4, (230, 196, 50))
+    s.rect(2, 1, 10, 1, (255, 230, 120))
+    s.rect(2, 4, 10, 1, (170, 140, 30))
+    s.rect(12, 1, 3, 4, GRAF_D)                  # cartucho da rede
+    for y in (1, 3):
+        s.px(13, y, CYAN)
+    s.px(14, 2, CYAN_L)
+    return s.finish(), (2, 6)
+
+
+def rede():
+    """Projétil do taser: a rede aberta com as bolinhas nas pontas."""
+    s = Sprite(11, 11)
+    for k in range(0, 11, 3):
+        s.rect(k, 0, 1, 11, CYAN)
+        s.rect(0, k, 11, 1, CYAN)
+    for x, y in ((0, 0), (10, 0), (0, 10), (10, 10)):
+        s.px(x, y, CYAN_L)
+    return s.finish(), (5, 5)
+
+
+def rifle_plasma():
+    """Rifle de Plasma: corpo branco com as bobinas verdes acesas e o cano de vidro."""
+    s = Sprite(23, 8)
+    s.rect(0, 3, 5, 4, GRAF)                     # coronha
+    s.rect(0, 3, 5, 1, GRAF_L)
+    s.rect(5, 2, 11, 4, (216, 222, 230))
+    s.rect(5, 2, 11, 1, (250, 252, 255))
+    s.rect(5, 5, 11, 1, (150, 156, 168))
+    for x in (7, 10, 13):                        # bobinas
+        s.rect(x, 2, 1, 4, PLASMA)
+    s.rect(8, 6, 1, 2, GRAF_D)                   # gatilho
+    s.rect(16, 3, 7, 2, (60, 120, 100))          # cano de vidro
+    s.rect(17, 3, 5, 1, PLASMA_L)
+    return s.finish(), (7, 5)
+
+
+def drone_bolso():
+    """Drone de Bolso: o controle com o dronezinho preso em cima."""
+    s = Sprite(13, 10)
+    s.rect(1, 5, 11, 5, GRAF_D)                  # controle
+    s.rect(2, 6, 9, 3, GRAF)
+    s.px(3, 7, CYAN)
+    s.px(9, 7, (240, 90, 80))
+    s.rect(3, 1, 7, 3, GRAF)                     # drone
+    s.rect(3, 1, 7, 1, GRAF_L)
+    s.rect(0, 0, 4, 1, (200, 206, 216))          # hélices
+    s.rect(9, 0, 4, 1, (200, 206, 216))
+    s.px(6, 2, CYAN_L)
+    return s.finish(), (2, 7)
+
+
+def teclado_mecanico():
+    """Teclado Mecânico: teclado preto com as teclas coloridas, segurado pela ponta."""
+    s = Sprite(22, 7)
+    s.rect(0, 0, 22, 7, GRAF_D)
+    s.rect(1, 1, 20, 5, GRAF)
+    colors = ((230, 230, 236), (64, 200, 230), (240, 90, 80), (250, 210, 80))
+    for row in range(2):
+        for col in range(9):
+            s.rect(2 + col * 2, 1 + row * 2, 1, 1, colors[(row + col) % 4] if (row + col) % 3 == 0 else (200, 204, 214))
+    s.rect(5, 5, 11, 1, (200, 204, 214))         # barra de espaço
+    return s.finish(), (2, 3)
+
+
+def escudo_choque():
+    """Escudo de Choque: escudo tático retangular com a faixa de raios azul."""
+    s = Sprite(10, 16)
+    s.rect(0, 0, 10, 16, GRAF_D)
+    s.rect(1, 1, 8, 14, GRAF)
+    s.rect(1, 1, 8, 1, GRAF_L)
+    s.rect(2, 2, 6, 2, (30, 36, 46))             # visor
+    s.rect(3, 2, 4, 1, CYAN_L)
+    for y, x in ((6, 5), (7, 4), (8, 5), (9, 4), (10, 5), (11, 4)):   # raio
+        s.px(x, y, CYAN)
+    s.rect(0, 14, 10, 2, GRAF_D)
+    return s.finish(), (2, 8)
+
+
+def manopla_exo():
+    """Manopla do Exo: punho de metal grande do exoesqueleto, com a junta azul e o pistão."""
+    s = Sprite(15, 12)
+    s.rect(0, 3, 4, 6, EXO_D)                    # punho
+    s.rect(1, 4, 2, 4, (40, 46, 70))
+    s.rect(3, 1, 9, 10, EXO)
+    s.rect(3, 1, 9, 1, EXO_L)
+    s.rect(3, 10, 9, 1, EXO_D)
+    for y in (2, 4, 6, 8):                       # dedos
+        s.rect(11, y, 4, 1, EXO_L)
+        s.rect(11, y + 1, 4, 1, EXO_D)
+    s.rect(5, 4, 3, 3, PULSE)                    # junta acesa
+    s.px(5, 4, PULSE_L)
+    s.rect(4, 8, 6, 1, (90, 96, 112))            # pistão
+    return s.finish(), (2, 6)
+
+
+def punho_corrompido():
+    """Punho Corrompido: o punho mecânico do Borba Jr com placas pretas e veios roxos."""
+    s = Sprite(13, 11)
+    s.rect(0, 3, 4, 5, SOMBRA_D)
+    s.rect(3, 1, 8, 9, (50, 46, 64))
+    s.rect(3, 1, 8, 1, (90, 84, 110))
+    s.rect(3, 9, 8, 1, (30, 28, 40))
+    for y in (2, 4, 6, 8):
+        s.rect(10, y, 3, 1, (90, 84, 110))
+    for x, y in ((4, 3), (5, 4), (6, 4), (7, 5), (8, 6)):
+        s.px(x, y, SOMBRA_L)
+    s.rect(5, 6, 2, 2, (255, 60, 52))            # junta vermelha (visor da Patrulha)
+    return s.finish(), (2, 5)
+
+
+def fuzil():
+    """Fuzil da Patrulha Cinza: cinza-chumbo com a mira vermelha."""
+    s = Sprite(20, 7)
+    s.rect(0, 3, 4, 3, GRAF_D)
+    s.rect(4, 2, 9, 3, GRAF)
+    s.rect(4, 2, 9, 1, GRAF_L)
+    s.rect(7, 5, 2, 2, GRAF_D)                   # pente
+    s.rect(13, 2, 7, 2, GRAF_D)
+    s.rect(8, 1, 3, 1, GRAF_D)                   # mira
+    s.px(10, 1, (255, 60, 52))
+    return s.finish(), (6, 4)
+
+
 # ── armas forjadas (fusão do ferreiro) ───────
 # paleta das forjadas: cada letra é uma cor (as maiúsculas são as versões escuras)
 FORGE = {
@@ -1030,6 +1166,10 @@ WEAPONS = {
     "Bola de Neve": bola_neve, "Cajado do Raio Supremo": raio_supremo,
     "Capacete": capacete, "Disquete": disquete, "Cabo de Rede": cabo_de_rede, "Pendrive": pendrive, "Notebook": notebook,
     "Canhão de Pulso": canhao_de_pulso, "Punho Mecânico": punho_mecanico,
+    # Lag Lobby (capítulo 2): o cofre, a roubada do chefão, o Borba Jr Corrompido e a Patrulha Cinza
+    "Taser de Rede": taser_rede, "Rede": rede, "Rifle de Plasma": rifle_plasma, "Drone de Bolso": drone_bolso,
+    "Teclado Mecânico": teclado_mecanico, "Escudo de Choque": escudo_choque, "Manopla do Exo": manopla_exo,
+    "Punho Corrompido": punho_corrompido, "Fuzil": fuzil,
     # forjadas do ferreiro
     "Lâmina Solar": lamina_solar, "Martelo do Trovão Eterno": martelo_trovao,
     "Arco das Mil Almas": arco_mil_almas, "Canhão do Vazio": canhao_vazio,

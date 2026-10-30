@@ -1,4 +1,5 @@
-"""Modo campanha: 3 fases cooperativas (1 a 4 jogadores) contra criaturas e almas corrompidas.
+"""Modo campanha: 6 fases cooperativas (1 a 4 jogadores) em dois capítulos, contra criaturas, almas
+corrompidas e, no capítulo 2, a Patrulha Cinza dentro da Lag Lobby.
 
 CampaignRun guarda o que passa de uma fase para a outra (melhorias, vida, continues, tempo).
 CampaignMatch é uma fase: ondas de inimigos que saem de portais, até a fase acabar.
@@ -13,13 +14,14 @@ import pygame
 from . import config, hud, theme
 from .ai import FighterAI
 from .entities import Particle, Pickup
-from .enemies import CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_enemy
+from .enemies import BIG_KINDS, CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_enemy
 from .arena import MAPS_BY_KEY
 from .matches import Match, Result, _separate
 from .net.remote import hub
 from .ui import darken
 from .data import PHASE_RELICS, RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
 from .dungeon import Campfire, Chest, ExitDoor, Gate, GroundWeapon, RelicDrop
+from .hazards import make_hazard
 from .lobbies import cells_rect
 from .market import CURSE_HP, CURSE_SPEED, CURSES, ENCHANTS, MAX_LEVEL, MAX_REROLLS, SOUL_COLOR, MarketMenu, Stall, soul_split
 from .upgrades import apply_all
@@ -60,6 +62,8 @@ class Dungeon:
     waves: tuple              # cada onda: ((tipo, quantidade), ...)
     exit_spot: tuple          # onde aparece a porta de volta (ou o portal, na última)
     boss_spot: tuple = None
+    boss: str = "aryel"       # qual chefão sai no "chefe" (boss.BOSSES)
+    hazard: str = None        # perigo da sala: "laser" (no chão) ou "vento" (empurra), em hazards.py
 
 
 @dataclass(frozen=True)
@@ -69,8 +73,9 @@ class Phase:
     Caminho: acampamento → masmorra 1 → acampamento (baú escondido) → masmorra 2 → portal."""
     key: str
     name: str
-    theme: str                # tema do acampamento (floresta, calabouco, templo_gelado)
+    theme: str                # tema do acampamento (floresta, calabouco, templo_gelado, lag_...)
     dungeons: tuple
+    chapter: int = 1          # capítulo 1: Templo Gelado; capítulo 2: Lag Lobby
 
     @property
     def lobby(self):
@@ -111,7 +116,40 @@ PHASES = (
                 ((("chefe", 1),),),
                 exit_spot=(800, 460), boss_spot=(800, 330)),
     )),
+    # ── capítulo 2: Lag Lobby, a empresa de tecnologia tomada pela Patrulha Cinza ──
+    Phase("recepcao", "RECEPÇÃO DA LAG LOBBY", "lag_estacionamento", (
+        Dungeon("lag_saguao", "SAGUÃO E CATRACAS", LEFT, (1.0, 0.0),
+                ((("drone", 4),),
+                 (("drone", 3), ("miliciano", 2))),
+                exit_spot=(1460, 600)),
+        Dungeon("lag_openspace", "OPEN SPACE", LEFT, (1.0, 0.0),
+                ((("miliciano", 2), ("drone", 3)),
+                 (("sombra:albeguinio", 1), ("miliciano_exo", 1), ("drone", 2))),
+                exit_spot=(1000, 700)),
+    ), chapter=2),
+    Phase("datacenter", "DATA CENTER", "lag_copa", (
+        Dungeon("lag_servidores", "CORREDOR DE SERVIDORES", LEFT, (1.0, 0.0),
+                ((("miliciano", 2), ("torreta", 2)),
+                 (("drone", 4), ("miliciano", 2))),
+                exit_spot=(1800, 700), hazard="laser"),
+        Dungeon("lag_laboratorio", "LABORATÓRIO DO EXO", LEFT, (1.0, 0.0),
+                ((("torreta", 2), ("drone", 3)),
+                 (("miliciano_exo", 2), ("sombra:cauanzera", 1), ("drone", 2))),
+                exit_spot=(800, 600)),
+    ), chapter=2),
+    Phase("cobertura", "COBERTURA", "lag_reuniao", (
+        Dungeon("lag_heliponto", "HELIPONTO", BOTTOM, (0.0, -1.0),
+                ((("drone", 4), ("miliciano", 2)),
+                 (("miliciano_exo", 1), ("torreta", 2), ("miliciano", 2))),
+                exit_spot=(800, 600), hazard="vento"),
+        Dungeon("lag_diretor", "SALA DO DIRETOR", BOTTOM, (0.0, -1.0),
+                ((("chefe", 1),),),
+                exit_spot=(800, 460), boss_spot=(800, 330), boss="borba"),
+    ), chapter=2),
 )
+CHAPTER_START = {ch: next(i for i, p in enumerate(PHASES) if p.chapter == ch) for ch in (1, 2)}
+CHAPTER2_SOULS = 120          # começando do capítulo 2: almas para a loja da primeira fase
+CHAPTER2_UPGRADES = 2         # ... e melhorias sorteadas (mais a escolhida antes de entrar)
 
 # etapas de uma fase (CampaignRun.stage)
 LOBBY_START, DUNGEON_1, LOBBY_BACK, DUNGEON_2 = range(4)
@@ -158,6 +196,7 @@ class CampaignRun:
         self.rerolls = {s: 0 for s in self.slots}         # trocas das melhorias compradas na loja
         self.fused_phase = -1                             # fase em que o grupo já usou a fusão do ferreiro
         self.curse = None                                 # desafio da fase (maldição do altar): market.CURSES
+        self.start_chapter = 1                            # 2: começou direto no capítulo 2 (sem recorde de tempo)
         self._snapshot = None
 
     @property
@@ -184,11 +223,31 @@ class CampaignRun:
     def last_phase(self):
         return self.phase_index == len(PHASES) - 1
 
+    @property
+    def chapter(self):
+        return self.phase.chapter
+
+    @property
+    def chapter_end(self):
+        """Última fase de um capítulo que não é o último (depois dela vem a história do capítulo novo)."""
+        return not self.last_phase and PHASES[self.phase_index + 1].chapter != self.chapter
+
+    def start_at_chapter(self, chapter):
+        """Começa direto num capítulo já liberado: almas e melhorias sorteadas para compensar."""
+        from .upgrades import choices
+        self.start_chapter = chapter
+        self.phase_index = CHAPTER_START[chapter]
+        if chapter > 1:
+            for s in self.slots:
+                self.souls[s] += CHAPTER2_SOULS
+                for _ in range(CHAPTER2_UPGRADES):
+                    self.upgrades[s].append(random.choice(choices(self.upgrades[s])))
+
     def _state(self):
         return {k: copy.deepcopy(getattr(self, k))
                 for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames",
                           "stage", "chest_open", "relics", "held", "loadouts", "souls", "forge", "rerolls",
-                          "fused_phase", "curse")}
+                          "fused_phase", "curse", "start_chapter")}
 
     # ── almas ────────────────────────────────
     def wallet(self, slot):
@@ -322,6 +381,7 @@ class CampaignRun:
                 share = max(0, int(souls)) // len(run.slots)
                 run.souls = {s: share for s in run.slots}
             run.fused_phase = int(state.get("fused_phase", -1))
+            run.start_chapter = 2 if int(state.get("start_chapter", 1)) == 2 else 1
             run.curse = state.get("curse")
             if run.curse is not None and run.curse not in CURSES:
                 return None
@@ -865,6 +925,7 @@ class CampaignMatch(CoopMatch):
         self.exit = None                # porta de volta (só na masmorra 1)
         self.votes = set()              # quem já confirmou o teletransporte (masmorra 2)
         self.vote_button = None         # retângulo do botão na tela (para o clique)
+        self.hazard = make_hazard(self.dungeon.hazard, self.arena)   # laser no chão, vento...
         hub_vote(self, 0)
 
     @property
@@ -911,6 +972,8 @@ class CampaignMatch(CoopMatch):
         super().step()
 
     def update_stage(self):
+        if self.hazard is not None and self.state in ("fight", "between"):
+            self.hazard.update(self)
         self._update_portals()
         self._update_corpses()
         self._update_downed()
@@ -931,7 +994,7 @@ class CampaignMatch(CoopMatch):
     def _spawn_spot(self, kind):
         if kind == "chefe" and self.dungeon.boss_spot:
             return self.dungeon.boss_spot
-        radius = 30 if kind in ("golem", "chefe") else config.PLAYER_RADIUS + 6
+        radius = 30 if kind in BIG_KINDS else config.PLAYER_RADIUS + 6
         players = self.alive_players or self.players
         best, best_score = None, -1
         for attempt in range(90):
@@ -950,7 +1013,7 @@ class CampaignMatch(CoopMatch):
         players = len(self.players)
         expanded = []
         for kind in kinds:
-            expanded += [kind] * (scaled_count(kind, 1, players) if kind == "diabrete" else 1)
+            expanded += [kind] * (scaled_count(kind, 1, players) if kind in ("diabrete", "drone") else 1)
         for i, kind in enumerate(expanded):
             a = i * math.tau / len(expanded) + random.uniform(-0.3, 0.3)
             r = random.uniform(150, 240)
@@ -970,9 +1033,9 @@ class CampaignMatch(CoopMatch):
     def _spawn(self, kind, x, y):
         if kind == "chefe":
             from .boss import spawn_boss
-            enemy, brain = spawn_boss(self, x, y)
+            enemy, brain = spawn_boss(self, x, y, self.dungeon.boss)
             self.boss = enemy
-            self.assets.music("boss")
+            self.assets.music("boss_lag" if self.dungeon.boss == "borba" else "boss")
         else:
             enemy, brain = spawn_enemy(self, kind, x, y)
         scale = elite_hp_scale(kind, len(self.players))
@@ -1191,7 +1254,8 @@ class CampaignMatch(CoopMatch):
             if not p.alive_in_match:
                 self._revive(p, STAGE_REVIVE)
         if self.last:
-            title = "FASE CONCLUÍDA!" if not self.slain_boss else "O CRISTAL ESTÁ LIVRE!"
+            title = ("FASE CONCLUÍDA!" if not self.slain_boss else
+                     "O FRAGMENTO SE PARTIU!" if self.dungeon.boss == "borba" else "O CRISTAL ESTÁ LIVRE!")
             self._set_banner(title, self.phase.name, theme.MOSS)
             self.assets.stop_music(1500)
             self.assets.play("victory", 0.5)
@@ -1259,6 +1323,8 @@ class CampaignMatch(CoopMatch):
 
     # ── desenho ──────────────────────────────
     def draw_under(self, view, cam):
+        if self.hazard is not None:
+            self.hazard.draw(view, cam, self.frame)
         for portal in self.portals:
             portal.draw(view, cam)
         for p in self.players:
@@ -1288,6 +1354,8 @@ class CampaignMatch(CoopMatch):
                     ui.text(screen, "LEVANTE!" if len(self.players) > 1 else "", theme.XS, p.color, (round(sx), round(sy)))
         self._draw_offscreen(screen, cam)
         self.draw_ground(screen, cam, ui)
+        if self.hazard is not None and self.state in ("fight", "between"):
+            self.hazard.draw_screen(screen, ui, self.frame)
         if self.voting:
             self.vote_button = hud.draw_teleport_vote(screen, ui, self)
         else:
@@ -1343,6 +1411,7 @@ class LobbyMatch(CoopMatch):
         cfg = MAPS_BY_KEY[run.phase.lobby]
         markers = cfg.markers
         self.back = run.stage == LOBBY_BACK
+        self.style = "lag" if run.phase.chapter == 2 else None     # cofre e bancas da Lag Lobby
         starts = markers["a"] if self.back else markers["S"]
         starts = _spread(starts, len(run.session.slots))
         super().__init__(game, run, cfg.key, starts, (0.0, -1.0))
@@ -1364,21 +1433,21 @@ class LobbyMatch(CoopMatch):
         self.chest = None
         if self.back and not run.chest_open:
             cx, cy = markers["C"][0]
-            self.chest = Chest(cx, cy)
+            self.chest = Chest(cx, cy, self.style)
             self.arena.walls.append(self.chest.wall)
             self.props.append(self.chest)
         self.target_gate = 2 if self.back else 1
         self.stalls = []
         if not self.back:                   # na chegada: o altar das maldições (desafio opcional)
             x, y = self.arena.free_spot(fx + 230, fy + 150, 40)
-            altar = Stall("altar", x, y)
+            altar = Stall("altar", x, y, self.style)
             self.stalls.append(altar)
             self.arena.walls.append(altar.wall)
             self.props.append(altar)
         if self.back:                       # na volta da Masmorra 1: o mercado, perto da fogueira
             for kind, dx in (("loja", -260), ("ferreiro", 260)):
                 x, y = self.arena.free_spot(fx + dx, fy + 170, 40)
-                stall = Stall(kind, x, y)
+                stall = Stall(kind, x, y, self.style)
                 self.stalls.append(stall)
                 self.arena.walls.append(stall.wall)
                 self.props.append(stall)
@@ -1391,7 +1460,8 @@ class LobbyMatch(CoopMatch):
         if self.back and self.gates[2].state != "open":
             return "A MASMORRA 2 ESTÁ ABRINDO..."
         if self.back and self.chest is not None and self.chest.state == "closed":
-            return "TEM UM BAÚ ESCONDIDO POR AQUI · ENTRE NA MASMORRA 2"
+            hidden = "UM COFRE" if self.style == "lag" else "UM BAÚ"
+            return f"TEM {hidden} ESCONDIDO POR AQUI · ENTRE NA MASMORRA 2"
         return f"ACAMPAMENTO · ENTREM NA MASMORRA {self.target_gate}"
 
     def objective(self):
@@ -1518,7 +1588,7 @@ def _soul_particle(x, y):
 # ─────────────────────────────────────────────
 #  História (cada página: retrato, quem fala, texto)
 # ─────────────────────────────────────────────
-CRYSTAL, BROKEN = "cristal", "cristal_quebrado"
+CRYSTAL, BROKEN, FRAGMENT = "cristal", "cristal_quebrado", "fragmento"
 
 STORY = {
     "prologo": ("PRÓLOGO", "templo_gelado", (
@@ -1544,10 +1614,41 @@ STORY = {
         (CRYSTAL, None, "No topo do Templo Gelado, o Cristal das Almas pulsa cada vez mais forte."),
         ("sombra:aryel", "ARYEL CORROMPIDO", "Vieram me entregar as suas almas? Que gentileza."),
     )),
-    "final": ("FIM", "templo_gelado", (
+    "fim_capitulo1": ("FIM DO CAPÍTULO 1", "templo_gelado", (
         (BROKEN, None, "O cristal se parte em mil pedaços. As almas presas voltam para os seus donos."),
         ("aryel", "ARYEL", "O que... aconteceu? Eu lembro de tudo. Obrigado por me trazerem de volta."),
-        ("sombra:aryel", None, "Mas a sombra de Aryel não sumiu. Agora ela luta do seu lado: "
+        ("sombra:aryel", None, "A sombra de Aryel não sumiu: agora ela luta do seu lado. "
                                "ARYEL CORROMPIDO está liberado no duelo."),
+        ("miliciano", None, "Mas um pedaço do cristal sumiu. Homens de colete cinza, com o logo da LAG LOBBY "
+                            "no braço, recolheram o fragmento e fugiram num carro preto."),
+        ("aryel", "ARYEL", "Lag Lobby? É a empresa onde o Borba Jr trabalha... Precisamos ir até lá."),
+    )),
+    "recepcao": ("CAPÍTULO 2 · FASE 4 · RECEPÇÃO DA LAG LOBBY", "lag_saguao", (
+        (FRAGMENT, None, "A Lag Lobby é a maior empresa de tecnologia da cidade. A milícia Patrulha Cinza tomou "
+                         "o prédio e levou o fragmento do cristal lá para dentro."),
+        ("miliciano", "PATRULHA CINZA", "Ninguém entra. O prédio agora é nosso, e o fragmento também."),
+        ("sombra:borba_exo", None, "Com o fragmento, a Patrulha cria soldados de exoesqueleto. O primeiro foi o "
+                                   "Borba Jr, o engenheiro que inventou o exo."),
+        ("sombra:albeguinio", "ALBEGUINIO SOMBRIO", "Vim consertar o wi-fi e virei sombra. Agora quem trava "
+                                                    "vocês sou eu."),
+    )),
+    "datacenter": ("FASE 5 · DATA CENTER", "lag_servidores", (
+        ("drone", None, "No subsolo ficam os servidores. Lasers varrem o chão dos corredores: quando a linha "
+                        "vermelha aparecer, saiam de cima dela."),
+        ("miliciano_exo", "MILICIANO DE EXO", "O exo deixa a gente forte. Esquenta um pouco depois da investida, "
+                                              "mas vocês não vão ter tempo de reparar."),
+        ("sombra:cauanzera", None, "O Cauanzera também foi capturado. Libertem a sombra dele no laboratório."),
+    )),
+    "cobertura": ("FASE 6 · COBERTURA", "lag_heliponto", (
+        (FRAGMENT, None, "O fragmento está na sala do diretor, no último andar. No heliponto o vento é forte: "
+                         "quando as setas aparecerem, fiquem atrás de uma parede."),
+        ("sombra:borba_exo", "BORBA JR CORROMPIDO", "Eu criei o exo para ajudar as pessoas. Agora ele só obedece "
+                                                    "ao fragmento."),
+    )),
+    "final": ("FIM", "lag_diretor", (
+        (BROKEN, None, "O fragmento se parte. A luz roxa some dos cabos e as máquinas da fábrica de exos param."),
+        ("borba", "BORBA JR", "Minha cabeça... Valeu, pessoal. Me ajudem a desligar o resto da fábrica."),
+        ("sombra:borba_exo", None, "A sombra do Borba Jr ficou do lado dos heróis: BORBA JR CORROMPIDO está "
+                                   "liberado no duelo."),
     )),
 }

@@ -21,6 +21,7 @@ class WeaponStats:
     spin: bool = False      # golpe em giro de 360° (acerta em volta toda)
     roubada: bool = False   # arma rara da última fase (bem mais forte)
     forjada: bool = False   # arma forjada na fusão do ferreiro (forged.py)
+    special: str = ""       # armas de perto da Lag Lobby (gadgets.py): "teclas", "onda" (3º golpe) ou "escudo"
 
     @property
     def is_melee(self):
@@ -56,6 +57,8 @@ SHOT_SOUNDS = {
     # forjadas (forged.py)
     "onda_solar": "fogo", "dragao": "fogo", "mil_almas": "arco", "vazio": "tiro_forte", "inverno": "gelo",
     "tempestade": "eletrico", "martelo_trovao": "eletrico",
+    # Lag Lobby
+    "rede": "eletrico", "plasma": "plasma", "drone_bolso": "bip", "tecla": "arremesso",
 }
 
 
@@ -149,6 +152,12 @@ CHARACTERS = (
     CharacterStats("paredao", "Paredão", 165, 3.7, (52, 150, 132),
                    "Corpo fechado", "Bloqueia de mais longe e a bola fantasma não passa.",
                    (_melee("Chute", 10, 50),), "paredao", soccer_only=True),
+    # liberado ao zerar o capítulo 2 da campanha (Lag Lobby): o exo do Borba Jr, corrompido pelo fragmento
+    CharacterStats("borba_corrompido", "Borba Jr Corrompido", 145, 3.4, (120, 80, 200),
+                   "Sobrecarga", "Canhão de pulso gigante em linha reta: atravessa e empurra todo mundo.",
+                   (_ranged("Canhão de Pulso", 12, 11, 26, "pulso", mag=4, reload=70, charge=True,
+                            note="Segure para carregar: tiro maior que empurra."),
+                    _melee("Punho Corrompido", 24, 58)), "borba_exo"),
 )
 SOCCER_STARS = tuple(c.key for c in CHARACTERS if c.soccer_only)
 FIGHTERS = tuple(c for c in CHARACTERS if not c.soccer_only)     # quem luta (duelo e campanha)
@@ -187,26 +196,45 @@ RARE_WEAPONS = {
                          note="Cresce rolando, arrasta todos e explode."),
     "raio_supremo": _ranged("Cajado do Raio Supremo", 22, 0, 30, "raio_supremo", mag=6, regen=40, rare=True,
                             roubada=True, note="Raio que pula em 5 inimigos e atordoa."),
+    # Lag Lobby (capítulo 2): o cofre de cada fase
+    "taser_rede": _ranged("Taser de Rede", 8, 10, 34, "rede", mag=3, reload=80, rare=True,
+                          note="Rede elétrica: quem leva fica preso por 1 s."),
+    "rifle_plasma": _ranged("Rifle de Plasma", 11, 12, 20, "plasma", mag=6, reload=90, charge=True, rare=True,
+                            note="Segure para carregar: o tiro carregado atravessa a fila inteira."),
+    "drone_bolso": _ranged("Drone de Bolso", 6, 0, 60, "drone_bolso", mag=1, reload=420, rare=True,
+                           close_bonus=False, note="Solta um drone aliado que atira sozinho por 6 s."),
+    "teclado_mecanico": _melee("Teclado Mecânico", 13, 62, cooldown=10, rare=True, special="teclas",
+                               note="Combo rápido: o 3º golpe espalha teclas que machucam."),
+    "escudo_choque": _melee("Escudo de Choque", 18, 56, cooldown=30, rare=True, special="escudo",
+                            note="Segure: bloqueia os tiros de frente. Solte: empurrão elétrico."),
+    "manopla_exo": _melee("Manopla do Exo", 30, 64, cooldown=22, rare=True, roubada=True, special="onda",
+                          note="O 3º soco seguido abre uma onda de choque no chão."),
 }
 # o baú de cada fase sorteia destas (as últimas são as roubadas)
 PHASE_RELICS = {
     "floresta": ("colmeia", "arco_espinhos", "machado", "bumerangue", "besta"),
     "calabouco": ("lanterna", "cranio", "foice_espectral", "lanca_chamas", "canhao"),
     "templo": ("estalactites", "espelho", "bola_neve", "raio_supremo"),
+    # capítulo 2: as armas da Lag Lobby e algumas do capítulo 1 (quem começou direto no 2 nunca viu)
+    "recepcao": ("taser_rede", "teclado_mecanico", "besta", "cajado_raio"),
+    "datacenter": ("rifle_plasma", "drone_bolso", "escudo_choque", "lanca_chamas"),
+    "cobertura": ("manopla_exo", "bola_neve", "espelho", "raio_supremo"),
 }
 
 UNLOCKABLE = "aryel_corrompido"
-SHADOW_CHARACTERS = {"aryel_corrompido"}     # usam a versão sombria do sprite (campo "sprite")
+UNLOCKABLES = {"aryel_corrompido": 1, "borba_corrompido": 2}   # segredo → capítulo da campanha que libera
+SHADOW_CHARACTERS = {"aryel_corrompido", "borba_corrompido"}  # usam a versão sombria do sprite (campo "sprite")
 
 
 def roster(soccer=False):
-    """Personagens que dá para escolher agora: os craques só no futebol, e o Aryel Corrompido só
-    depois de zerar a campanha. A posição de cada um em CHARACTERS é o índice usado em todo lugar."""
+    """Personagens que dá para escolher agora: os craques só no futebol, o Aryel Corrompido só
+    depois de zerar o capítulo 1 da campanha e o Borba Jr Corrompido depois do capítulo 2.
+    A posição de cada um em CHARACTERS é o índice usado em todo lugar."""
     from . import progress
-    unlocked = progress.campaign_cleared()
-    chosen = [c for c in CHARACTERS if (soccer or not c.soccer_only) and (unlocked or c.key != UNLOCKABLE)]
-    # na tela: os lutadores, o Aryel Corrompido (segredo) e por último os craques do futebol
-    return tuple(sorted(chosen, key=lambda c: (c.soccer_only, c.key == UNLOCKABLE)))
+    open_ = {key for key, chapter in UNLOCKABLES.items() if progress.chapter_cleared(chapter)}
+    chosen = [c for c in CHARACTERS if (soccer or not c.soccer_only) and (c.key not in UNLOCKABLES or c.key in open_)]
+    # na tela: os lutadores, os segredos (na ordem em que liberam) e por último os craques do futebol
+    return tuple(sorted(chosen, key=lambda c: (c.soccer_only, UNLOCKABLES.get(c.key, 0))))
 
 
 def roster_indices(soccer=False):

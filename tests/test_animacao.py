@@ -11,7 +11,7 @@ import pygame
 from apoio import FakeInput, game, run
 
 from soulstrike import config
-from soulstrike.arena import MAPS_BY_KEY, Arena
+from soulstrike.arena import MAPS, MAPS_BY_KEY, Arena
 from soulstrike.camera import Camera
 from soulstrike.scenery import THEMED_MAPS
 from soulstrike.data import CHARACTERS
@@ -80,10 +80,13 @@ class ParedesTest(unittest.TestCase):
         self.assertTrue(all(w.rect.left < 400 and w.rect.top < 320 for w in drawn))
 
 
+THEMED = [m.key for m in MAPS if m.scenery in THEMED_MAPS]       # inclusive a Lag Lobby (capítulo 2)
+
+
 class CenarioTest(unittest.TestCase):
     def test_mapas_com_cenario_proprio(self):
         g = game()
-        for key in THEMED_MAPS:
+        for key in THEMED:
             arena = Arena(MAPS_BY_KEY[key], g.assets)
             # chão pintado (não é mais o xadrez de duas cores)
             colors = {arena.floor.get_at((x, y))[:3] for x in range(0, arena.width, 37) for y in range(0, arena.height, 41)}
@@ -103,7 +106,7 @@ class CenarioTest(unittest.TestCase):
 
     def test_cenario_nao_muda_as_paredes(self):
         g = game()
-        for key in THEMED_MAPS:
+        for key in THEMED:
             arena = Arena(MAPS_BY_KEY[key], g.assets)
             rects = [tuple(w.rect) for w in arena.walls if w.visible]
             self.assertEqual(rects, [tuple(r) for r in MAPS_BY_KEY[key].walls])

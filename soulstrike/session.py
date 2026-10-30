@@ -58,6 +58,7 @@ class Session:
     layout: str = "alternado"      # times no 2 x 2 (veja TEAM_LAYOUTS)
     weapon_pick: bool = False      # duelo: escolher as armas antes de cada round
     soccer_length: str = "3"       # futebol: "3", "5" ou "7" gols, ou "tempo" (config.SOCCER_LENGTHS)
+    chapter: int = 1               # campanha: capítulo onde começa (2 só depois de zerar o 1)
 
     @property
     def soccer(self):

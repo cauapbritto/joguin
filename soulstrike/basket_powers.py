@@ -581,6 +581,7 @@ BASKET_POWERS = {
     "aryel_corrompido": BombaSombria,
     "ninja": Sombra,
     "borba": Exo,
+    "borba_corrompido": Exo,
 }
 
 

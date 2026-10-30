@@ -8,7 +8,8 @@ from apoio import FakeInput, game
 from soulstrike import projectiles as P
 from soulstrike import weapon_art
 from soulstrike.boss import ARMOR, BOSS_STATS, BossAI
-from soulstrike.campaign import DUNGEON_1, DUNGEON_2, PHASES, CampaignMatch, CampaignRun, LobbyMatch, LOBBY_BACK
+from soulstrike.campaign import (CHAPTER_START, DUNGEON_1, DUNGEON_2, PHASES, CampaignMatch, CampaignRun, LobbyMatch,
+                                 LOBBY_BACK)
 from soulstrike.data import CHARACTERS, PHASE_RELICS, RARE_WEAPONS
 from soulstrike.session import Session, SlotSetup
 
@@ -61,9 +62,11 @@ def passo(match, frames):
 class BauPorFaseTest(unittest.TestCase):
     def test_cada_fase_tem_a_sua_lista(self):
         self.assertEqual([ph.key for ph in PHASES], list(PHASE_RELICS))
-        todas = [k for ks in PHASE_RELICS.values() for k in ks]
-        self.assertEqual(len(todas), len(set(todas)))                 # nenhuma repete entre as fases
+        for chapter in (1, 2):                                        # nenhuma repete entre as fases do capítulo
+            todas = [k for ph in PHASES if ph.chapter == chapter for k in PHASE_RELICS[ph.key]]
+            self.assertEqual(len(todas), len(set(todas)), chapter)
         self.assertTrue(all(RARE_WEAPONS[k].roubada for k in PHASE_RELICS["templo"]))
+        self.assertTrue(all(RARE_WEAPONS[k].roubada for k in PHASE_RELICS["cobertura"]))
         self.assertFalse(any(RARE_WEAPONS[k].roubada for k in PHASE_RELICS["floresta"] + PHASE_RELICS["calabouco"]))
 
     def test_bau_sorteia_da_fase(self):
@@ -205,7 +208,7 @@ class TemploRoubadasTest(unittest.TestCase):
 
 class ChefaoTest(unittest.TestCase):
     def _chefe(self):
-        g, run = corrida(phase=len(PHASES) - 1, stage=DUNGEON_2)
+        g, run = corrida(phase=CHAPTER_START[2] - 1, stage=DUNGEON_2)      # Templo Gelado: o Aryel
         match = CampaignMatch(g, run)
         match.state, match.state_timer, match.banner = "fight", 0, None
         match.wave = len(match.waves) - 1

@@ -189,10 +189,14 @@ MODE_TEXT = {
     "desafio_goleiro": ("Defenda 3 seguidas contra a CPU para passar de rodada. A CPU fica mais difícil a cada "
                         "rodada, e 3 gols tomados acabam o desafio.",
                         "1 JOGADOR"),
-    "campaign": ("Juntos contra as sombras: em cada fase, um acampamento e duas masmorras, com um baú "
-                 "escondido de armas raras no caminho. No fim, o chefão Aryel Corrompido. Quem cair pode "
-                 "ser levantado por um companheiro.",
+    "campaign": ("Juntos contra as sombras, em 2 capítulos: em cada fase, um acampamento e duas masmorras, "
+                 "com um baú escondido de armas raras no caminho. O capítulo 1 acaba no Aryel Corrompido; o 2 "
+                 "entra na Lag Lobby atrás do Borba Jr Corrompido. Quem cair pode ser levantado.",
                  "1 A 4 JOGADORES"),
+    "campaign2": ("Direto para a Lag Lobby, tomada pela Patrulha Cinza: drones, milicianos, torretas e soldados "
+                  "de exo. Cada um começa com almas e 3 melhorias (2 sorteadas e 1 escolhida). Sem recorde de "
+                  "tempo: ele vale só para a campanha inteira.",
+                  "1 A 4 JOGADORES"),
 }
 
 
@@ -208,6 +212,8 @@ class ModeScene(_MenuScene):
         options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2", "basket2",
                                                      "penaltis", "treino", "treino_futebol", "treino_basquete",
                                                      "treino_penaltis", "desafio_goleiro")]
+        if progress.campaign_cleared():
+            options.insert(1, ("CAMPANHA: CAPÍTULO 2", "campaign2"))
         if self.saved_run is not None:
             options.insert(0, ("CONTINUAR CAMPANHA", "continue"))
         options.append(("VOLTAR", "back"))
@@ -233,6 +239,9 @@ class ModeScene(_MenuScene):
             self.game.session = run.session
             self.game.change(start_phase(self.game, run, story=False))
             return
+        chapter = 2 if choice == "campaign2" else 1
+        if choice == "campaign2":
+            choice = "campaign"
         count = MODES[choice]["slots"]
         teams = MODES[choice].get("teams", False)
         training = choice.startswith("treino") or choice == "desafio_goleiro"
@@ -241,7 +250,7 @@ class ModeScene(_MenuScene):
         if choice == "campaign":
             slots = slots[:1]           # P2 a P4 entram na tela de conexão
         previous = self.game.session
-        self.game.session = Session(choice, slots)
+        self.game.session = Session(choice, slots, chapter=chapter)
         if previous is not None and teams:
             self.game.session.layout = previous.layout      # mantém a divisão de times escolhida
         from .select import CharSelectScene, LobbyScene
@@ -264,7 +273,7 @@ class ModeScene(_MenuScene):
         else:
             desc, players = MODE_TEXT[key] if key != "continue" else self._continue_text()
             self._illustration(screen, key, pygame.Rect(panel.x + 2, panel.y + 2, panel.w - 4, 170))
-            title = MODES[key]["title"] if key != "continue" else "CONTINUAR CAMPANHA"
+            title = {"continue": "CONTINUAR CAMPANHA", "campaign2": "CAMPANHA: CAPÍTULO 2"}.get(key) or MODES[key]["title"]
             self.ui.text(screen, title, theme.S, theme.BRASS, (panel.x + 24, panel.y + 196), anchor="topleft")
             self.ui.text(screen, players, theme.XS, theme.MUTED, (panel.right - 24, panel.y + 200), anchor="topright")
             self.ui.paragraph(screen, desc, theme.XS, theme.BONE, (panel.x + 24, panel.y + 232), panel.w - 48, spacing=16)
@@ -282,8 +291,9 @@ class ModeScene(_MenuScene):
         return desc, f"{n} JOGADOR" + ("ES" if n > 1 else "")
 
     def _illustration(self, screen, key, area):
-        if key in ("campaign", "continue"):
-            self._campaign_illustration(screen, area)
+        if key in ("campaign", "continue", "campaign2"):
+            self._campaign_illustration(screen, area, lag=key == "campaign2" or (
+                key == "continue" and self.saved_run.chapter == 2))
             return
         battle = key in ("cpu", "duel", "duel2", "treino")
         floor = theme.INK if battle else (34, 92, 46)
@@ -349,18 +359,24 @@ class ModeScene(_MenuScene):
         screen.fill(theme.LINE, (area.x, area.bottom, area.w, 2))
 
 
-    def _campaign_illustration(self, screen, area):
-        screen.fill((24, 34, 22), area)
+    def _campaign_illustration(self, screen, area, lag=False):
+        floor, line = ((150, 158, 170), (176, 184, 194)) if lag else ((24, 34, 22), (30, 44, 28))
+        screen.fill(floor, area)
         for x in range(area.x, area.right, 32):
-            screen.fill((30, 44, 28), (x, area.y, 1, area.h))
+            screen.fill(line, (x, area.y, 1, area.h))
         for y in range(area.y, area.bottom, 32):
-            screen.fill((30, 44, 28), (area.x, y, area.w, 1))
+            screen.fill(line, (area.x, y, area.w, 1))
         sprites = self.assets.sprites
         ground = area.bottom - 22
         step = self.ticks // 4
-        cast = [("guerreiro", "direita", -170, False), ("geada", "direita", -100, False),
-                ("diabrete", "esquerda", 40, False), ("esqueleto", "esquerda", 110, False),
-                ("aryel", "esquerda", 180, True)]
+        if lag:
+            cast = [("borba", "direita", -170, False), ("albeguinio", "direita", -100, False),
+                    ("drone", "esquerda", 30, False), ("miliciano", "esquerda", 100, False),
+                    ("borba_exo", "esquerda", 180, True)]
+        else:
+            cast = [("guerreiro", "direita", -170, False), ("geada", "direita", -100, False),
+                    ("diabrete", "esquerda", 40, False), ("esqueleto", "esquerda", 110, False),
+                    ("aryel", "esquerda", 180, True)]
         for name, direction, dx, shadow in cast:
             sset = self.assets.shadow_sprites(name) if shadow else sprites[name]
             img = sset.frame(direction, step)
@@ -1110,9 +1126,115 @@ def _scene_disputa(screen, ui, rect, t):
     ui.text(screen, "ESQ.", theme.XS, (170, 40, 40), (paper.centerx, paper.y + 52), shadow=False)
 
 
+def _scene_lag(screen, ui, rect, t):
+    """O prédio da Lag Lobby à noite: um drone mergulha pela linha vermelha e a patrulha atira."""
+    screen.fill((22, 24, 34), rect)
+    tower = pygame.Rect(rect.centerx - 60, rect.y + 20, 120, rect.h - 60)
+    screen.fill((40, 46, 60), tower)
+    for gy in range(tower.y + 10, tower.bottom - 10, 16):
+        for gx in range(tower.x + 10, tower.right - 10, 20):
+            lit = (gx * 7 + gy * 3 + t // 30) % 5 == 0
+            screen.fill((120, 220, 240) if lit else (30, 60, 80), (gx, gy, 12, 8))
+    ui.text(screen, "LAG LOBBY", theme.XS, (120, 220, 240), (tower.centerx, tower.y + 4))
+    screen.fill((50, 52, 58), (rect.x, rect.bottom - 40, rect.w, 40))
+    patrol = ui.assets.sprites.get("miliciano")
+    drone = ui.assets.sprites.get("drone")
+    k = t % 120
+    hero = ui.assets.sprites["guerreiro"]
+    hx, hy = rect.x + 60, rect.bottom - 14
+    if patrol:
+        img = patrol.frame("esquerda", 0)
+        screen.blit(img, img.get_rect(midbottom=(rect.right - 50, rect.bottom - 14)))
+        if k % 40 < 12 and (k // 4) % 2:
+            screen.fill((255, 230, 140), (rect.right - 80 - (k % 40) * 8, rect.bottom - 40, 6, 2))
+    if drone:
+        start = (rect.right - 90, rect.y + 60)
+        if k < 50:
+            pygame.draw.line(screen, (255, 60, 70), start, (hx, hy - 20), 1)
+            pos = start
+        else:
+            f = min(1.0, (k - 50) / 14)
+            pos = (start[0] + (hx - start[0]) * f, start[1] + (hy - 20 - start[1]) * f)
+        img = drone.frame("esquerda", (t // 4) % 2)
+        screen.blit(img, img.get_rect(center=(round(pos[0]), round(pos[1]))))
+    img = hero.frame("direita", 0) if k < 60 else hero.pose("direita", "esquiva", 0)
+    screen.blit(img, img.get_rect(midbottom=(hx - (20 if k >= 60 else 0), hy)))
+
+
+def _scene_perigos(screen, ui, rect, t):
+    """Corredor de servidores: a linha pontilhada avisa e depois o laser queima."""
+    screen.fill((34, 38, 50), rect)
+    for x in range(rect.x + 10, rect.right, 70):
+        screen.fill((20, 22, 30), (x, rect.y, 30, rect.h))
+        for y in range(rect.y + 6, rect.bottom, 10):
+            screen.fill((60, 200, 120) if (x + y + t // 6) % 3 else (230, 80, 80), (x + 4, y, 3, 2))
+    k = t % 100
+    y = rect.centery
+    if k < 60:
+        if (k // 5) % 2 == 0 or k > 45:
+            for x in range(rect.x, rect.right, 16):
+                screen.fill((255, 54, 70), (x, y - 1, 10, 2))
+        ui.text(screen, "AVISO", theme.XS, (255, 120, 130), (rect.centerx, y - 30))
+    elif k < 84:
+        w = round(18 * (1 - (k - 60) / 48))
+        pygame.draw.line(screen, (120, 20, 34), (rect.x, y), (rect.right, y), w + 6)
+        pygame.draw.line(screen, (255, 54, 70), (rect.x, y), (rect.right, y), w)
+        pygame.draw.line(screen, (255, 220, 226), (rect.x, y), (rect.right, y), max(1, w // 3))
+    hero = ui.assets.sprites["atirador"]
+    img = hero.frame("direita", (t // 6) % 4)
+    screen.blit(img, img.get_rect(midbottom=(rect.x + 70, y + 60)))
+    for i in range(6):                                           # vento soprando embaixo
+        x = (rect.x + (t * 6 + i * 57) % rect.w)
+        screen.fill((220, 232, 240), (x, rect.bottom - 30 + (i % 3) * 8, 18, 1))
+
+
+def _scene_chefao_lag(screen, ui, rect, t):
+    """Borba Jr Corrompido: a linha azul do Canhão de Pulso cresce e o tiro grande sai."""
+    screen.fill((60, 64, 72), rect)
+    screen.fill((90, 94, 100), (rect.x, rect.bottom - 60, rect.w, 60))
+    boss = ui.assets.shadow_sprites("borba_exo")
+    k = t % 130
+    bx, by = rect.x + 90, rect.bottom - 30
+    tired = k >= 100
+    img = boss.frame("direita", 0) if not tired else boss.pose("direita", "dano", 0)
+    big = _big(img, 2)
+    screen.blit(big, big.get_rect(midbottom=(bx, by)))
+    if k < 56:
+        length = round((rect.right - bx) * k / 56)
+        pygame.draw.line(screen, (90, 170, 255), (bx + 30, by - 50), (bx + 30 + length, by - 50), 2)
+    elif k < 80:
+        x = bx + 30 + (k - 56) * 12
+        pygame.draw.circle(screen, (90, 170, 255), (x, by - 50), 12)
+        pygame.draw.circle(screen, (230, 245, 255), (x, by - 50), 5)
+    if tired:
+        for i in range(5):
+            screen.fill((210, 210, 230), (bx - 20 + i * 10, by - 110 - (k - 100 + i * 5) % 30, 4, 4))
+        ui.text(screen, "SUPERAQUECIDO!", theme.XS, theme.BRASS, (rect.centerx + 40, rect.y + 30))
+
+
+def _scene_armas_lag(screen, ui, rect, t):
+    """As armas novas da Lag Lobby girando na vitrine."""
+    from .. import weapon_art
+    names = ("Taser de Rede", "Rifle de Plasma", "Drone de Bolso", "Teclado Mecânico", "Escudo de Choque",
+             "Manopla do Exo")
+    pick = (t // 50) % len(names)
+    for i, name in enumerate(names):
+        cell = pygame.Rect(rect.x + 20 + (i % 3) * 102, rect.y + 30 + (i // 3) * 100, 92, 84)
+        on = i == pick
+        screen.fill(theme.INK_3 if on else theme.INK_2, cell)
+        pygame.draw.rect(screen, (120, 220, 240) if on else theme.LINE, cell, 1)
+        img = weapon_art.icon(name)
+        if img is not None:
+            img = _big(img, 2) if img.get_width() < 40 else img
+            bob = round(math.sin(t * 0.1) * 3) if on else 0
+            screen.blit(img, img.get_rect(center=(cell.centerx, cell.centery - 8 + bob)))
+    ui.text(screen, names[pick].upper(), theme.XS, theme.BRASS, (rect.centerx, rect.bottom - 22))
+
+
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
                "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
-               "disputa": _scene_disputa}
+               "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
+               "chefao_lag": _scene_chefao_lag, "armas_lag": _scene_armas_lag}
 
 
 class NewsScene(_InfoScene):
