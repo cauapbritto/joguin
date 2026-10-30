@@ -6,6 +6,8 @@ da Masmorra 1, o acampamento tem duas bancas perto da fogueira: a LOJA (poção,
 trocar as melhorias do fim da fase e continue) e o FERREIRO, que sobe a arma de +1 até +3
 (+15% de dano e pente maior a cada nível) e, no +3, põe um encanto: fogo, gelo ou raio.
 Perto da banca, ATACAR abre o menu; para cima e para baixo escolhe, ATACAR compra, ESQUIVA fecha.
+Com a banca aberta, o celular do jogador mostra a mesma lista (snapshot) e pede a compra pelo id
+fixo de cada linha (Entry.key), em CoopMatch.phone_shop.
 """
 import math
 import random
