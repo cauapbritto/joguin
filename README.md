@@ -102,7 +102,8 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
 ## Modos
 
 - **Campanha** (1 a 4 jogadores, juntos) — Aryel tocou no Cristal das Almas e virou **Aryel
-  Corrompido**; quem ele derrota vira sombra. São 3 fases, e cada fase é um caminho de masmorras:
+  Corrompido**; quem ele derrota vira sombra. São 2 capítulos com 3 fases cada, e cada fase é um
+  caminho de masmorras:
   1. **Acampamento** (no tema da fase, sem batalha): a **fogueira** recupera vida devagar (até
      70%) para quem fica perto. Na parede ficam as **entradas das duas masmorras**: a 1 aberta e a
      2 trancada com grade. Para entrar, o grupo todo vai até a entrada.
@@ -120,6 +121,26 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   arqueiros e o Velocista Sombrio), **Calabouço das Almas** (Corredores e Celas das Almas: golem,
   esqueletos e as sombras do Tanque e do Ninja) e **Templo Gelado** (Pátio do Templo e Altar do
   Cristal, com o chefão **Aryel Corrompido**).
+
+  **Capítulo 2: Lag Lobby.** O cristal quebra, mas um fragmento foi levado pela milícia **Patrulha
+  Cinza** para dentro da **Lag Lobby**, a maior empresa de tecnologia da cidade. O acampamento vira
+  estacionamento, copa e sala de reunião, o baú vira **cofre** e a loja vira máquina de lanche e
+  bancada de solda. As fases: **Recepção** (Saguão e Open Space: drones e milicianos), **Data
+  Center** (Corredor de Servidores, com **laser** no chão, e Laboratório: torretas e o **Miliciano
+  Exo**) e **Cobertura** (Heliponto, com **vento**, e a Sala do Diretor, com o chefão **Borba Jr
+  Corrompido**).
+  - **Drone**: a linha vermelha mostra por onde ele vai mergulhar; depois do mergulho fica tonto.
+  - **Miliciano**: rajadas de 3 tiros; depois de 2 rajadas recarrega exposto e procura cobertura.
+  - **Torreta**: gira devagar com a mira; quando trava, espera um pouco e solta a rajada.
+  - **Miliciano Exo**: avisa, investe em linha reta e fica **PRESO** (leva mais dano) se errar.
+  - **Laser**: a linha pontilhada avisa antes do feixe queimar. **Vento**: as setas avisam; quem
+    está atrás de uma parede, do lado de onde ele vem, não é empurrado.
+  - **Borba Jr Corrompido**: Canhão de Pulso (linha azul de aviso; com pouca vida, três tiros em
+    leque), três socos seguidos com onda de choque e o salto do exo. A **blindagem total** quase não
+    deixa passar dano: esperem ele **SUPERAQUECER**. Chama drones e um Miliciano Exo.
+
+  Quem já zerou o capítulo 1 pode começar direto no 2 (**CAMPANHA: CAPÍTULO 2** no menu), com
+  almas e duas melhorias para compensar (esse jeito não conta para o recorde de tempo).
 
   **Armas que caem dos inimigos:** de vez em quando um inimigo (quase sempre os elites) deixa cair a
   arma de outro herói, uma que ninguém do grupo está usando. Perto dela, ATACAR pega: ela entra no
@@ -195,8 +216,9 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
   e cada jogador escolhe **1 de 3 melhorias** (vida, dano, recarga, velocidade, tiros que
   atravessam, esquiva, vampirismo, escudo ou munição), que se acumulam. Mais jogadores, mais inimigos.
   O jogador 1 sempre joga; o 2 entra pelo teclado (tecla `;`) ou celular; o 3 e o 4, pelo celular.
-  Escolha a dificuldade na seleção de personagem (TAB). Zerar a campanha libera o **Aryel
-  Corrompido** para jogar em todos os modos e guarda o melhor tempo (em
+  Escolha a dificuldade na seleção de personagem (TAB). Zerar o capítulo 1 libera o **Aryel
+  Corrompido** e zerar o capítulo 2 libera o **Borba Jr Corrompido** para jogar em todos os modos;
+  a campanha inteira guarda o melhor tempo (em
   `%APPDATA%/SoulStrike/progresso.json` no Windows).
 - **Duelo contra CPU** — escolha a dificuldade (fácil, normal, difícil) e a arena. Cada arena tem
   o seu clima: a **Floresta** tem cerca viva, trilhas e vaga-lumes; o **Calabouço**, tochas acesas,
@@ -279,8 +301,9 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
 | Albeguinio | 140  | Hacker: digita 1 s no notebook e trava todos os adversários por 5 s (3 s no duelo 1 x 1) | Hack: digita e trava os adversários por 2,5 s (recarga de 26 s) |
 | Borba Jr   | 125  | Exoesqueleto: 4,5 s de armadura (veja abaixo)             | Exoesqueleto: 4 s em que ninguém toma a bola dele |
 | Aryel Corrompido* | 135 | Chuva Sombria: 5 bombas caem em cima e em volta do inimigo | Bomba sombria: maior, atordoa e deixa lento |
+| Borba Jr Corrompido** | 145 | Sobrecarga: canhão de pulso gigante em linha reta, atravessa e empurra todo mundo | Exoesqueleto: igual ao do Borba Jr |
 
-\* Liberado ao zerar a campanha.
+\* Liberado ao zerar o capítulo 1 da campanha. \*\* Liberado ao zerar o capítulo 2.
 
 ### Aryel
 
@@ -474,7 +497,9 @@ soulstrike/
   forged.py             fusão do ferreiro e as 8 armas forjadas (receitas, efeitos e arte)
   lobbies.py            os acampamentos desenhados como texto (# parede, . chão, F fogueira...)
   enemies.py            inimigos da campanha e o cérebro de cada um
-  boss.py               o chefão Aryel Corrompido
+  boss.py               os chefões (Aryel Corrompido e Borba Jr Corrompido)
+  hazards.py            perigos das masmorras da Lag Lobby (laser e vento)
+  gadgets.py            o que as armas da Lag Lobby fazem de especial (rede, plasma, drone, combo, escudo)
   upgrades.py           melhorias entre as fases
   progress.py           progresso salvo (campanha zerada, melhor tempo)
   updater.py            botão ATUALIZAR: versão nova no GitHub (única parte que usa a internet)
