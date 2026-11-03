@@ -4,6 +4,7 @@ import math
 import pygame
 
 from .. import config, settings, theme
+from ..stats import record as record_stats
 from ..arena import MAPS_BY_KEY
 from ..host import IdleInput, anyone_pauses, change_rule, fighter_of, host_slot, make_cpu, make_human, rules
 from ..data import CHARACTERS
@@ -375,6 +376,7 @@ class PlayScene(Scene):
         if self.match.finished:
             for s in list(self.personal):
                 self._close_personal(s)
+            record_stats(self.game.session, self.match)
             self.game.change(self.match.next_scene() or ResultsScene(self.game, self.match.result))
 
     # ── desenho ──────────────────────────────
@@ -509,6 +511,9 @@ class ResultsScene(_MenuScene):
     def __init__(self, game, result):
         super().__init__(game)
         self.result = result
+        session = game.session
+        if session is not None and not session.campaign and not session.mode.startswith("treino"):
+            game.last_session = session             # o título oferece a REVANCHE desta partida
         self.menu = MenuList([("REVANCHE", "rematch"), ("TROCAR PERSONAGENS", "select"), ("MENU PRINCIPAL", "menu")],
                              topleft=(64, 330), width=320)
 

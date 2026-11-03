@@ -2,6 +2,7 @@
 import pygame
 
 from . import config, settings, theme
+from . import rumble
 from .assets import Assets
 from .controls import PlayerInput
 from .gamepads import Gamepads
@@ -37,6 +38,7 @@ class Game:
         self.ui = UI(self.assets)
         self.inputs = {s: PlayerInput(s) for s in SLOTS}
         self.gamepads = Gamepads(enabled=not headless)
+        rumble.register(self.gamepads)
         self.session = None
         self.assist_level = "media"     # assistência do futebol escolhida no menu
         self.backdrop = None

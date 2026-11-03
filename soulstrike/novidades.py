@@ -10,6 +10,27 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.9.0": [
+        {"title": "MODOS ORGANIZADOS", "scene": "modos", "lines": [
+            "JOGAR agora mostra quatro cartões: Campanha, Duelos, Futebol e Basquete.",
+            "Cada um abre os seus modos, com os treinos dentro da modalidade. LB e RB trocam de cartão.",
+            "O jogo lembra o último modo jogado, e o Y continua a campanha salva.",
+        ]},
+        {"title": "TELA DO CONTROLE", "scene": "controle", "lines": [
+            "CONTROLES com um controle ligado mostra ele desenhado: Xbox, PlayStation, Nintendo ou Joy-Con.",
+            "Troque o que cada botão faz na luta e nos esportes, ou escolha um perfil pronto.",
+            "Modo teste mostra o botão apertado e ajusta a zona morta do analógico. O controle vibra (dá para desligar).",
+        ]},
+        {"title": "P1 MANDA NA PARTIDA", "scene": "coroa", "lines": [
+            "O P1 tem a coroa: só ele pausa e navega os menus (no treino ou sozinho, qualquer um pausa).",
+            "Na escolha de personagens, START do P1 abre as regras. Na pausa, troque regras com a bola rolando.",
+            "START dos outros: pedir pausa ou sair (vira CPU). Um controle novo assume uma CPU no meio do jogo.",
+        ]},
+        {"title": "REVANCHE E RECORDES", "scene": "novidades", "lines": [
+            "O título oferece a REVANCHE da última partida, direto, sem passar pelos menus.",
+            "ESTATÍSTICAS: partidas por modalidade, vitórias contra a CPU, heróis mais usados e recordes.",
+        ]},
+    ],
     "1.8.1": [
         {"title": "PÊNALTIS COM CARA DE FIFA", "scene": "bate", "lines": [
             "A bola ficou bem maior, com gomos que giram no chute.",

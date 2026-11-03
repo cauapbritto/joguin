@@ -101,6 +101,22 @@ O botão compara a tag da última Release com o `__version__` de quem está joga
 
 ## Modos
 
+No **JOGAR** aparecem quatro cartões: **Campanha**, **Duelos**, **Futebol** e **Basquete**. Cada um
+abre os seus modos (os treinos ficam dentro da modalidade); LB/RB ou Q/E trocam de cartão, Y continua
+a campanha salva e o jogo já abre no último modo jogado. Depois de uma partida, o título oferece a
+**REVANCHE** dela, direto. **ESTATÍSTICAS** (no título) mostra as partidas por modalidade, as vitórias
+contra a CPU, os heróis mais usados e os recordes.
+
+### P1 manda na partida
+
+O P1 tem a **coroa**: só ele pausa e navega os menus (no treino ou jogando sozinho, qualquer um
+pausa; se o P1 vira CPU, a coroa passa para o próximo). Na escolha de personagens, **START do P1**
+(ou **R**) abre as regras: mapa ou quadra, dificuldade, assistência, tamanho da partida e armas por
+round. A pausa vira o **Painel da Partida**: continuar, reiniciar, regras com a partida rolando
+(tamanho do futebol, assistência e CPU, menos na campanha), trocar personagens e som e tela. O
+START dos outros abre um menu só deles: **pedir pausa** (avisa o P1) ou **sair**, e o herói vira
+CPU. Um controle ou celular novo que aperta START numa vaga de CPU **entra no meio** da partida.
+
 - **Campanha** (1 a 4 jogadores, juntos) — Aryel tocou no Cristal das Almas e virou **Aryel
   Corrompido**; quem ele derrota vira sombra. São 2 capítulos com 3 fases cada, e cada fase é um
   caminho de masmorras:
@@ -419,7 +435,18 @@ trocam de lugar. Fica salvo junto das opções.
 
 Controles de Xbox, PlayStation e genéricos funcionam sem configurar nada: o primeiro controle é o
 jogador 1, o segundo o jogador 2 e assim por diante (nas **Opções** dá para o primeiro controle ser o
-P2, deixando o P1 no teclado). Nos menus o direcional navega, A confirma e B volta.
+P2, deixando o P1 no teclado). Nos menus o direcional navega, A confirma e B volta (só o
+controle do P1 navega).
+
+Com um controle ligado, **CONTROLES** abre a tela do controle: ele aparece desenhado (Xbox,
+PlayStation, Nintendo ou Joy-Con sozinho, que não tem gatilhos) com uma linha de cada botão até o
+que ele faz. Dá para trocar a ação de cada botão, separado para **luta e campanha** e para **futebol
+e basquete**, ou escolher um perfil pronto (padrão, chute no gatilho, canhoto). START, BACK, o
+direcional e o analógico não mudam. O **modo teste** (Y) acende o botão apertado e ajusta a zona
+morta do analógico. Fica salvo por modelo de controle. O controle **vibra** ao apanhar, no gol ou
+na cesta e no SUPER (dá para desligar nas Opções).
+
+A tabela abaixo é o perfil padrão:
 
 | Botão (Xbox / PlayStation) | Ação                                   |
 |----------------------------|----------------------------------------|
@@ -505,6 +532,10 @@ soulstrike/
   gadgets.py            o que as armas da Lag Lobby fazem de especial (rede, plasma, drone, combo, escudo)
   upgrades.py           melhorias entre as fases
   progress.py           progresso salvo (campanha zerada, melhor tempo)
+  stats.py              estatísticas e recordes (tela ESTATÍSTICAS)
+  host.py               P1 controlador: quem pausa, sair vira CPU, entrar no meio e regras ao vivo
+  gamepads.py           controles USB/Bluetooth; pad_profiles.py (botões por controle) e pad_art.py (desenho)
+  rumble.py             vibração do controle
   updater.py            botão ATUALIZAR: versão nova no GitHub (única parte que usa a internet)
   fighter.py            o lutador
   abilities.py          uma subclasse de Ability por personagem (duelo)

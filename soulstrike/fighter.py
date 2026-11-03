@@ -5,6 +5,7 @@ import random
 import pygame
 
 from . import config, theme
+from . import rumble
 from .abilities import create_ability
 from .data import shot_sound
 from .entities import Entity, Particle, hostile
@@ -867,6 +868,7 @@ class Fighter(Entity):
                 return True
         dealt = min(amount, self.hp)
         self.hp -= dealt
+        rumble.hit(self, dealt)
         if self.hp <= 0 and match is not None and match.last_breath(self):
             self.hp = 1                                          # segurou o golpe que derrubaria
         if attacker is not None and attacker.lifesteal > 0 and attacker.hp > 0:

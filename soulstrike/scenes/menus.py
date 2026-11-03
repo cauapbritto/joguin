@@ -85,6 +85,17 @@ class _MenuScene(Scene):
         self.backdrop.draw(screen, self.game.clock_ticks)
 
 
+def rematch(game):
+    """Começa de novo a última partida (revanche rápida do título)."""
+    game.session = game.last_session
+    if game.session.penalty:
+        from .penalty import start_penalties
+        game.change(start_penalties(game))
+    else:
+        from .play import VersusScene
+        game.change(VersusScene(game))
+
+
 class TitleScene(_MenuScene):
     menu_keys = True
 
@@ -92,10 +103,16 @@ class TitleScene(_MenuScene):
         super().__init__(game)
         game.session = None
         self.cast = roster()
-        self.menu = MenuList(
-            [("JOGAR", "play"), ("CONTROLES", "controls"), ("OPÇÕES", "options"),
-             ("SOBRE O PROJETO", "about"), ("CRÉDITOS", "credits"), ("ATUALIZAR", "update"), ("SAIR", "quit")],
-            topleft=(config.SCREEN_W // 2 - 130, 184), width=260, row_h=32)
+        options = [("JOGAR", "play"), ("CONTROLES", "controls"), ("OPÇÕES", "options"),
+                   ("ESTATÍSTICAS", "stats"), ("SOBRE O PROJETO", "about"), ("CRÉDITOS", "credits"), ("ATUALIZAR", "update"), ("SAIR", "quit")]
+        last = getattr(game, "last_session", None)
+        if last is not None:
+            # revanche rápida: a última partida de novo, com os mesmos lutadores, sem passar pelos menus
+            options.insert(1, ("REVANCHE: " + last.title, "rematch"))
+        # com a revanche são 9 opções: o logo sobe um pouco para o elenco no chão não cobrir o SAIR
+        self.logo_y = 112 if last is None else 96
+        top, row_h = (176, 29) if last is None else (164, 26)
+        self.menu = MenuList(options, topleft=(config.SCREEN_W // 2 - 150, top), width=300, row_h=row_h)
 
     def handle(self, event):
         if self.is_back(event):
@@ -110,6 +127,8 @@ class TitleScene(_MenuScene):
         self.sfx("confirm")
         if choice == "play":
             self.game.change(ModeScene(self.game))
+        elif choice == "rematch":
+            rematch(self.game)
         elif choice == "controls":
             if self.game.gamepads.pads:
                 from .pad import PadScene               # com controle conectado: a tela do controle
@@ -118,6 +137,9 @@ class TitleScene(_MenuScene):
                 self.game.change(ControlsScene(self.game))
         elif choice == "options":
             self.game.change(OptionsScene(self.game))
+        elif choice == "stats":
+            from .stats import StatsScene
+            self.game.change(StatsScene(self.game))
         elif choice == "about":
             self.game.change(AboutScene(self.game))
         elif choice == "credits":
@@ -131,8 +153,9 @@ class TitleScene(_MenuScene):
     def draw(self, screen):
         W, H = config.SCREEN_W, config.SCREEN_H
         self.draw_background(screen)
-        self.ui.logo(screen, (W // 2, 112))
-        self.ui.text(screen, "CAMPANHA  ·  DUELO DE ARENA  ·  FUTEBOL", theme.XS, theme.MUTED, (W // 2, 158))
+        self.ui.logo(screen, (W // 2, self.logo_y))
+        self.ui.text(screen, "CAMPANHA  ·  DUELOS  ·  FUTEBOL  ·  BASQUETE", theme.XS, theme.MUTED,
+                     (W // 2, self.logo_y + 44))
         self.menu.draw(screen, self.ui, self.ticks)
 
         # elenco no chão
@@ -754,6 +777,7 @@ class OptionsScene(_InfoScene):
         ("tremor", "TREMOR DE TELA", "NOS IMPACTOS E EXPLOSÕES"),
         ("duplo_toque", "DUPLO TOQUE = ESQUIVA", "DUAS VEZES NA MESMA SETA"),
         ("controle_comeca_no_p2", "1º CONTROLE USB É O P2", "DESLIGADO: É O P1"),
+        ("vibracao", "VIBRAÇÃO DO CONTROLE", "AO APANHAR, NO GOL E NO SUPER"),
         ("novidades", "NOVIDADES", "O QUE MUDOU EM CADA VERSÃO"),
     ]
     ROW_H = 36
@@ -1548,11 +1572,59 @@ def _scene_agarra(screen, ui, rect, t):
     ball(screen, tx - 20, ground - img.get_height() - 12, 11, spin=2)
 
 
+
+def _scene_modos(screen, ui, rect, t):
+    """Os quatro cartões das modalidades, um de cada vez aceso."""
+    names = ("CAMPANHA", "DUELOS", "FUTEBOL", "BASQUETE")
+    colors = (theme.BRASS, theme.SLOT_COLORS[2], theme.TEAM_COLORS[0], theme.TEAM_COLORS[1])
+    hot = (t // 45) % 4
+    w, gap = 74, 6
+    x0 = rect.centerx - (4 * w + 3 * gap) // 2
+    for i, (name, color) in enumerate(zip(names, colors)):
+        card = pygame.Rect(x0 + i * (w + gap), rect.centery - 50 - (6 if i == hot else 0), w, 92)
+        ui.panel(screen, card, fill=theme.INK_3 if i == hot else theme.INK_2, shadow=False)
+        screen.fill(color if i == hot else theme.LINE, (card.x, card.y, card.w, 4))
+        pygame.draw.circle(screen, color, (card.centerx, card.y + 38), 13 if i == hot else 10)
+        ui.text(screen, name[:8], theme.XS, theme.BONE if i == hot else theme.MUTED, (card.centerx, card.bottom - 16),
+                shadow=False)
+
+
+def _scene_controle(screen, ui, rect, t):
+    """O controle desenhado com um botão aceso por vez, como na tela CONTROLE."""
+    from ..pad_art import draw_pad
+    order = ("a", "b", "x", "y", "rb", "rt", "lb", "lt")
+    fam = ("xbox", "playstation", "nintendo")[(t // 160) % 3]
+    draw_pad(screen, ui, fam, (rect.centerx, rect.centery + 4), 2, lit=order[(t // 20) % len(order)],
+             pulse=(t % 20) / 20)
+
+
+def _scene_coroa(screen, ui, rect, t):
+    """A coroa do P1 e o painel da partida abrindo."""
+    from .base import crown
+    k = min(1.0, (t % 150) / 40)
+    box = pygame.Rect(0, 0, round(190 * k) or 1, 118)
+    box.center = (rect.centerx, rect.centery + 6)
+    ui.panel(screen, box, fill=theme.INK_2, shadow=False)
+    if k >= 1:
+        crown(screen, box.x + 18, box.y + 16)
+        ui.text(screen, "PAINEL DA PARTIDA", theme.XS, theme.BRASS, (box.x + 32, box.y + 16), anchor="midleft",
+                shadow=False)
+        for i, label in enumerate(("CONTINUAR", "REGRAS", "SOM E TELA")):
+            row = pygame.Rect(box.x + 10, box.y + 34 + i * 26, box.w - 20, 22)
+            hot = i == (t // 30) % 3
+            screen.fill(theme.INK if hot else theme.INK_2, row)
+            if hot:
+                screen.fill(theme.BRASS, (row.x, row.y, 3, row.h))
+            ui.text(screen, label, theme.XS, theme.BONE if hot else theme.MUTED, (row.x + 12, row.centery),
+                    anchor="midleft", shadow=False)
+
+
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
                "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
                "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
                "chefao_lag": _scene_chefao_lag, "armas_lag": _scene_armas_lag,
-               "bate": _scene_bate, "agarra": _scene_agarra}
+               "bate": _scene_bate, "agarra": _scene_agarra, "modos": _scene_modos,
+               "controle": _scene_controle, "coroa": _scene_coroa}
 
 
 class NewsScene(_InfoScene):

@@ -9,6 +9,7 @@ from fractions import Fraction
 import pygame
 
 from . import config, hud, rare_fx, theme
+from . import rumble
 from .ai import BALL_DIFFICULTIES, FighterAI, SoccerAI
 from .arena import MAPS_BY_KEY, SOCCER_MAP, Arena, Pitch
 from .camera import Camera
@@ -2295,6 +2296,7 @@ class SoccerMatch(Match):
         own_goal = scorer is not None and scorer.team != scoring_team
         self.score[scoring_team] += 1
         self.freeze = config.GOAL_FREEZE
+        rumble.team(self, scoring_team)
         if scorer is not None and not own_goal:
             scorer.goals += 1
         self.goal_banner = (scoring_team, scorer.label if scorer else "", own_goal)

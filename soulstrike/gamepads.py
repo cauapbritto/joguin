@@ -165,6 +165,13 @@ class Pad:
         mag = math.hypot(dx, dy)
         return (dx / mag, dy / mag) if mag else (0.0, 0.0)
 
+    def rumble(self, low, high, ms):
+        """Vibra (se o controle tiver motor). Nunca derruba o jogo."""
+        try:
+            return bool(self.reader.dev.rumble(low, high, ms))
+        except (AttributeError, pygame.error, TypeError):
+            return False
+
     def actions(self, buttons, context="luta"):
         out = set()
         mapping = pad_profiles.mapping(self.name, context)
@@ -246,6 +253,12 @@ class Gamepads:
             if stick != (0.0, 0.0):
                 axes[slot] = stick
         return held, pressed, axes
+
+    def rumble(self, slot, low, high, ms):
+        for i, pad in enumerate(self.pads):
+            if self.slot_of(i) == slot:
+                return pad.rumble(low, high, ms)
+        return False
 
     def host_index(self):
         """Qual controle manda nos menus: o do P1 (ou o primeiro, se o P1 está no teclado)."""

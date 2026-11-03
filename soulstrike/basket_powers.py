@@ -9,6 +9,7 @@ import random
 from abc import ABC, abstractmethod
 
 from . import config, theme
+from . import rumble
 from .soccer_assist import unit
 
 COOLDOWN = 8 * config.FPS                   # no caos alto do basquete, o SUPER volta rápido
@@ -39,6 +40,7 @@ class BasketPower(ABC):
         if not self.activate(user, match):
             return False
         user.super_cd = self.cooldown
+        rumble.fighter(user, rumble.SUPER)
         match.popup(user.x, user.y - 96, self.name, theme.BRASS)
         match.assets.play(self.sound, 0.5)
         return True
