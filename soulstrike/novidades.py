@@ -10,6 +10,18 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.10.0": [
+        {"title": "BASQUETE 1 x 1", "scene": "enterrada", "lines": [
+            "Modo novo no cartão do Basquete: um contra um com poder demais. Sem o P2, joga contra a CPU.",
+            "O SUPER volta 4 s depois que o efeito acaba, e 2 cestas seguidas já pegam fogo.",
+            "Um tempo de 3 minutos ou 21 pontos, o que vier primeiro.",
+        ]},
+        {"title": "ULTRA E ORBES", "scene": "ultra", "lines": [
+            "Cada herói tem um ULTRA: a barra enche com cesta, toco e roubo. Barra cheia, aperte SUPER.",
+            "ESQUIVA (CORTE) bem na hora anula o ULTRA de ataque; o de defesa também segura.",
+            "A cada 12 s aparece um orbe: FOGO, ÍMÃ (o rebote vem para você), TURBO ou ESCUDO (aguenta um roubo).",
+        ]},
+    ],
     "1.9.0": [
         {"title": "MODOS ORGANIZADOS", "scene": "modos", "lines": [
             "JOGAR agora mostra quatro cartões: Campanha, Duelos, Futebol e Basquete.",

@@ -39,7 +39,7 @@ class BasketPower(ABC):
             return False
         if not self.activate(user, match):
             return False
-        user.super_cd = self.cooldown
+        user.super_cd = user.super_total = match.super_cooldown(self)
         rumble.fighter(user, rumble.SUPER)
         match.popup(user.x, user.y - 96, self.name, theme.BRASS)
         match.assets.play(self.sound, 0.5)
@@ -212,6 +212,7 @@ class Gancho(BasketPower):
     kind = "defesa"
     sound = "dash"
     RANGE = 280
+    SOLO_EXTRA = 4 * config.FPS              # 1 x 1: puxar a bola a cada 4 s era roubo garantido
 
     def activate(self, user, match):
         ball = match.ball
@@ -259,7 +260,9 @@ class Hack(BasketPower):
 
     def activate(self, user, match):
         from .entities import Hack as HackEffect
-        match.add_effect(HackEffect(user, self.TYPING, self.FREEZE))
+        from .basket_ultra import SOLO_HACK_FREEZE
+        freeze = SOLO_HACK_FREEZE if getattr(match, "solo", False) else self.FREEZE   # 1 x 1: o único, 2 s
+        match.add_effect(HackEffect(user, self.TYPING, freeze))
         return True
 
     def worth_using(self, user, match):
@@ -405,11 +408,19 @@ class AlleyOopTrovao(BasketPower):
     passive = "Passe trovão: os passes dele saem mais fortes."
     pass_speed = 1.3
 
+    SELF_RANGE = 700                         # 1 x 1: joga na tabela e ele mesmo crava, daqui para perto
+
     def activate(self, user, match):
         mates = match.mates_of(user)
-        if not mates:
-            return False
         hx, hy = _attack_hoop(user, match)
+        if not mates:
+            # 1 x 1: joga na tabela, sobe sozinho e crava (ninguém toca no ar)
+            if math.hypot(hx - user.x, hy - user.y) > self.SELF_RANGE or user.jump or user.dunking:
+                return False
+            match.popup(user.x, user.y - 110, "NA TABELA!", theme.BRASS)
+            match.burst(user.x, user.y - 40, (255, 236, 120), 12, speed=5)
+            match.camera.shake(4)
+            return match.dunk(user, alley=True)
         mate = min(mates, key=lambda m: math.hypot(m.x - hx, m.y - hy))
         return match.alley_oop(user, mate)
 
@@ -418,6 +429,8 @@ class AlleyOopTrovao(BasketPower):
             return False
         hx, hy = _attack_hoop(user, match)
         mine = math.hypot(hx - user.x, hy - user.y)
+        if not match.mates_of(user):
+            return mine < self.SELF_RANGE - 40
         return any(math.hypot(hx - m.x, hy - m.y) < min(mine, 470) for m in match.mates_of(user))
 
 
@@ -541,6 +554,8 @@ class Sombra(BasketPower):
     def worth_using(self, user, match):
         owner = match.holder
         if owner is None or owner.team != user.team:
+            return False
+        if owner is not user and not match.mates_of(user):
             return False
         hx, hy = _attack_hoop(user, match)
         return math.hypot(hx - user.x, hy - user.y) > 520

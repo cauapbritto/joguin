@@ -93,9 +93,14 @@ do jogo que usa a internet; sem conexão ela só avisa e nada muda).
 
 ### Publicar uma versão nova
 
-1. Suba o número em `soulstrike/__init__.py` (`__version__ = "1.1.0"`).
-2. No GitHub, em *Releases → Draft a new release*, crie a tag `v1.1.0` (mesmo número) e
-   publique. O texto da Release aparece na tela de atualização.
+1. Suba o número em `soulstrike/__init__.py` (`__version__ = "1.1.0"`) e escreva as novidades
+   em `soulstrike/novidades.py`.
+2. Depois do merge na `main`, crie a tag `v1.1.0` (mesmo número) na `main`: pelo terminal
+   (`git tag v1.1.0 && git push origin v1.1.0`) ou no GitHub, em *Releases → Draft a new release*.
+   A Action *Pacote Linux (.deb)* roda os testes, cria a Release com o texto das novidades
+   (`tools/notas_release.py`) e anexa o `.deb`. As 4 primeiras linhas aparecem na tela de atualização.
+3. A tag tem que bater com o `__version__` do código dela: o botão compara a tag da Release
+   mais nova com a versão de quem joga, e quem baixa recebe o código daquela tag.
 
 O botão compara a tag da última Release com o `__version__` de quem está jogando.
 
@@ -286,6 +291,14 @@ CPU. Um controle ou celular novo que aperta START numa vaga de CPU **entra no me
   mesmo arremesso) fica parado um instante.
   **Ponte aérea:** PASSE para o companheiro que está correndo para a cesta vira alley-oop, sem
   precisar de SUPER: a bola vai alta e ele sobe e crava. Quem pular na frente do passe corta.
+- **Basquete 1 x 1** — um contra um com poder demais (sem o P2, contra a CPU). Um tempo de 3
+  minutos ou 21 pontos, o que vier primeiro. O SUPER volta 4 s depois que o efeito acaba (pegando
+  fogo, 2x mais rápido), e 2 cestas seguidas já pegam fogo. Cada herói tem um **ULTRA**: a barra
+  enche com cesta, toco e roubo (e um pouco ao levar cesta); cheia, SUPER solta o ULTRA. Os de
+  ataque que pegam no adversário avisam antes, e a **ESQUIVA (CORTE) bem na hora anula**; os de
+  defesa (Guerreiro, Paredão e Tanque) também seguram. A cada 12 s aparece um **orbe**: FOGO, ÍMÃ
+  (o rebote vem para você), TURBO ou ESCUDO (aguenta um roubo). Quem leva cesta levanta na hora
+  (nada de cesta atrás de cesta com o adversário no chão). Os ULTRAs ficam em `basket_ultra.py`.
 - **Disputa de pênaltis** — a câmera fica atrás de quem bate, com o gol grande e o goleiro de
   frente. Quem bate segura CHUTE e solta na barrinha de força; o canto é a direção do analógico na
   hora de soltar (no celular, uma grade 3x3 que só ele vê) e nunca aparece na TV. PASSE é a
@@ -536,6 +549,7 @@ soulstrike/
   host.py               P1 controlador: quem pausa, sair vira CPU, entrar no meio e regras ao vivo
   gamepads.py           controles USB/Bluetooth; pad_profiles.py (botões por controle) e pad_art.py (desenho)
   rumble.py             vibração do controle
+  basket_ultra.py       basquete 1 x 1: os ULTRAs de cada herói, os orbes e as regras do modo
   updater.py            botão ATUALIZAR: versão nova no GitHub (única parte que usa a internet)
   fighter.py            o lutador
   abilities.py          uma subclasse de Ability por personagem (duelo)
@@ -554,6 +568,7 @@ tools/gerar_armas.py    gera os sprites das armas
 tools/gerar_sons.py     gera os efeitos novos (armas, futebol, campanha) e as músicas do acampamento e do chefão
 tools/build_exe.py      gera dist/SoulStrike.exe
 tools/build_deb.py      gera o pacote .deb para Linux
+tools/notas_release.py  texto da Release do GitHub a partir das novidades da versão
 tools/simular.py        partidas CPU x CPU sem janela: taxa de vitória no duelo, gols e pontos por personagem
 linux/instalar.sh       instalador do Linux (chamado pelo INSTALAR.sh)
 linux/teste_instalador.sh, linux/ver_janela.sh

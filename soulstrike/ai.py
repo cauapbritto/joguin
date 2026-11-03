@@ -461,10 +461,24 @@ class BasketballAI:
             if me.jump >= self.release_at:
                 match.release_shot(me)
             return
+        ultra = getattr(me, "ultra_power", None)
+        if (ultra is not None and me.ultra >= 1.0 and getattr(match, "solo", False) and not me.dunking
+                and random.random() < 0.04 * self.cfg["power"] and ultra.ready(me, match) and ultra.worth(me, match)
+                and match.use_power(me)):
+            return                                  # 1 x 1: a CPU solta o ULTRA também
         power = me.power
         if (power is not None and me.super_cd <= 0 and not me.dunking and random.random() < 0.05 * self.cfg["power"]
-                and power.worth_using(me, match) and match.use_power(me)):
+                and power.worth_using(me, match) and (ultra is None or me.ultra < 1.0)
+                and match.use_power(me)):
             return
+        orbs = getattr(match, "orbs", ())
+        if orbs and owner is not me and (owner is None or owner.team == me.team):
+            orb = min(orbs, key=lambda o: math.hypot(o.x - me.x, o.y - me.y))
+            d = math.hypot(orb.x - me.x, orb.y - me.y)
+            if 4 < d < 320:
+                me.steer((orb.x - me.x) / d, (orb.y - me.y) / d)     # 1 x 1: vai buscar o orbe
+                me.sprint_held = me.stamina > 0.3
+                return
         side = match.hoop_of(me.team)
         hx, hy = match.hoop_pos(side)
         home_x, _ = match.hoop_pos(1 - side)

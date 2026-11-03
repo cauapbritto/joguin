@@ -9,6 +9,8 @@ MODES = {
     "soccer1": {"title": "FUTEBOL 1 x 1", "soccer": True, "slots": 2},
     "duel2": {"title": "DUELO 2 x 2", "soccer": False, "slots": 4, "teams": True},
     "soccer2": {"title": "FUTEBOL 2 x 2", "soccer": True, "slots": 4, "teams": True},
+    # 1 x 1 com poder demais: SUPER a cada 4 s, ULTRA, orbes, 3 min ou 21 pontos (basket_ultra.py)
+    "basket1": {"title": "BASQUETE 1 x 1", "soccer": True, "basket": True, "slots": 2, "fill": True, "solo": True},
     "basket2": {"title": "BASQUETE 2 x 2", "soccer": True, "basket": True, "slots": 4, "teams": True},
     "campaign": {"title": "CAMPANHA", "soccer": False, "slots": 4},
     "treino": {"title": "TREINO", "soccer": False, "slots": 2},
@@ -73,6 +75,16 @@ class Session:
     def team_mode(self):
         """Dois times de dois (futebol 2 x 2 e duelo 2 x 2)."""
         return MODES[self.mode].get("teams", False)
+
+    @property
+    def fill_cpu(self):
+        """Quem não entrou vira CPU (2 x 2 e basquete 1 x 1): o P2 entra pelo teclado ou celular."""
+        return self.team_mode or MODES[self.mode].get("fill", False)
+
+    @property
+    def solo(self):
+        """Basquete 1 x 1 (as regras de poder demais)."""
+        return MODES[self.mode].get("solo", False)
 
     @property
     def penalty(self):

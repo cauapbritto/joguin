@@ -252,8 +252,9 @@ def _draw_powers(screen, ui, match):
     W, H = config.SCREEN_W, config.SCREEN_H
     per_team = {0: 0, 1: 0}
     w = 196
+    solo = getattr(match, "solo", False)
     for f in match.fighters:
-        if f.is_cpu:
+        if f.is_cpu and not solo:
             continue
         k = per_team[f.team]
         per_team[f.team] += 1
@@ -266,8 +267,27 @@ def _draw_powers(screen, ui, match):
         ui.text(screen, f.label, theme.XS, f.color, (rect.x + 12, rect.y + 10), anchor="midleft", shadow=False)
         ui.text(screen, f.power.name, theme.XS, theme.BRASS if ready else theme.MUTED,
                 (rect.right - 8, rect.y + 10), anchor="midright", shadow=False)
-        ratio = 1 - f.super_cd / f.power.cooldown
+        ratio = 1 - f.super_cd / max(1, getattr(f, "super_total", 0) or f.power.cooldown)
         ui.bar(screen, (rect.x + 12, rect.y + 19, w - 20, 6), ratio, theme.BRASS if ready else theme.SKY)
+        if solo and getattr(f, "ultra_power", None) is not None:
+            _draw_ultra(screen, ui, match, f, rect)
+
+
+def _draw_ultra(screen, ui, match, f, rect):
+    """1 x 1: a barra de ULTRA em cima da caixa do SUPER (cheia, pisca e diz o nome)."""
+    full = f.ultra >= 1.0
+    bar = pygame.Rect(rect.x, rect.y - 16, rect.w, 12)
+    screen.fill(theme.SHADOW, bar.move(2, 2))
+    screen.fill(theme.INK, bar)
+    fill = bar.inflate(-4, -4)
+    fill.w = round(fill.w * min(1.0, f.ultra))
+    glow = full and (match.frame // 8) % 2
+    color = (255, 236, 140) if glow else (f.ultra_power.color if full else theme.EMBER)
+    if fill.w > 0:
+        screen.fill(color, fill)
+    label = ("ULTRA: " + f.ultra_power.name) if full else "ULTRA"
+    ui.text(screen, label, theme.XS, theme.INK if full and fill.w > 60 else theme.BONE,
+            (bar.x + 6, bar.centery), anchor="midleft", shadow=False)
 
 
 def draw_soccer(screen, ui, match):
@@ -349,7 +369,8 @@ def draw_basket(screen, ui, match):
         ui.text(screen, "PRÓXIMA CESTA VENCE", theme.XS, theme.BRASS, (W // 2, board.bottom + 12))
     else:
         secs = max(0, -(-match.clock // config.FPS))
-        ui.text(screen, f"{match.half}º TEMPO  {secs // 60}:{secs % 60:02d}", theme.XS,
+        period = "21 PONTOS OU" if getattr(match, "solo", False) else f"{match.half}º TEMPO"
+        ui.text(screen, f"{period}  {secs // 60}:{secs % 60:02d}", theme.XS,
                 theme.BRASS if secs <= 10 else theme.MUTED, (W // 2, board.bottom + 12))
     owner = match.holder
     if owner is not None:
