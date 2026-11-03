@@ -111,7 +111,11 @@ class TitleScene(_MenuScene):
         if choice == "play":
             self.game.change(ModeScene(self.game))
         elif choice == "controls":
-            self.game.change(ControlsScene(self.game))
+            if self.game.gamepads.pads:
+                from .pad import PadScene               # com controle conectado: a tela do controle
+                self.game.change(PadScene(self.game))
+            else:
+                self.game.change(ControlsScene(self.game))
         elif choice == "options":
             self.game.change(OptionsScene(self.game))
         elif choice == "about":
@@ -688,6 +692,11 @@ class ControlsScene(_InfoScene):
             self.sfx("confirm", 0.4)
             self.game.change(RebindScene(self.game))
             return
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_c:
+            from .pad import PadScene
+            self.sfx("confirm", 0.4)
+            self.game.change(PadScene(self.game))
+            return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.toggle_rect.collidepoint(event.pos):
             self._toggle_double_tap()
             return
@@ -728,7 +737,7 @@ class ControlsScene(_InfoScene):
                           f"{self.game.base_url} e escolha o número do jogador. No futebol, empurre "
                           "o analógico até a borda para correr.",
                           theme.XS, theme.BONE, (phone.x + 20, phone.y + 32), phone.w - 40, spacing=13)
-        self.footer(screen, [("K", "TROCAR TECLAS"), ("T", "DUPLO TOQUE"), ("ESC", "VOLTAR")])
+        self.footer(screen, [("K", "TROCAR TECLAS"), ("C / Y", "CONTROLE"), ("T", "DUPLO TOQUE"), ("ESC", "VOLTAR")])
 
 
 class OptionsScene(_InfoScene):

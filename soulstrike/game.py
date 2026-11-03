@@ -110,7 +110,7 @@ class Game:
         held, pressed = hub.poll()
         axes = hub.axes()
         # controles USB entram como se fossem celulares (o celular conectado manda no analógico)
-        pad_held, pad_pressed, pad_axes = self.gamepads.poll()
+        pad_held, pad_pressed, pad_axes = self.gamepads.poll({s: inp.layout for s, inp in self.inputs.items()})
         held, pressed = held | pad_held, pressed | pad_pressed
         axes = {**pad_axes, **axes}
         keys_down = pygame.key.get_pressed()
