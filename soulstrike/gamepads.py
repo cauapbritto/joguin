@@ -247,10 +247,20 @@ class Gamepads:
                 axes[slot] = stick
         return held, pressed, axes
 
-    def menu_events(self):
-        """Botões apertados neste quadro como teclas (para as telas de menu que só leem o teclado)."""
+    def host_index(self):
+        """Qual controle manda nos menus: o do P1 (ou o primeiro, se o P1 está no teclado)."""
+        for i in range(len(self.pads)):
+            if self.slot_of(i) == 1:
+                return i
+        return 0
+
+    def menu_events(self, every_pad=False):
+        """Botões apertados neste quadro como teclas (para as telas de menu que só leem o teclado).
+
+        Só o controle do P1 navega (a coroa); a tela do controle aceita qualquer um (every_pad)."""
         out = []
-        for pad in self.pads:
+        pads = self.pads if every_pad else self.pads[self.host_index():self.host_index() + 1]
+        for pad in pads:
             for button in pad.pressed:
                 key = MENU_KEYS.get(button)
                 if key is not None:

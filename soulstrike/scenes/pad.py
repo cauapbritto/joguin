@@ -18,6 +18,7 @@ EXIT_HOLD = 40                  # segurar START no modo teste por ~0,7 s para sa
 
 
 class PadScene(_MenuScene):
+    every_pad = True                    # qualquer controle navega aqui (cada um configura o seu)
     menu_keys = True
     show_cursor = True
 

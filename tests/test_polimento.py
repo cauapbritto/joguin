@@ -58,7 +58,11 @@ class SairDaCampanhaTest(unittest.TestCase):
     def test_despausar_esquece_a_confirmacao(self):
         scene = self._pausada()
         scene._choose("quit")
-        scene.handle(tecla(pygame.K_ESCAPE))
+        scene.handle(tecla(pygame.K_ESCAPE))                # ESC na confirmação volta ao painel
+        self.assertTrue(scene.paused)
+        self.assertFalse(scene.confirming)
+        scene.handle(tecla(pygame.K_ESCAPE))                # e no painel, despausa
+        self.assertFalse(scene.paused)
         scene.handle(tecla(pygame.K_ESCAPE))
         self.assertTrue(scene.paused)
         self.assertFalse(scene.confirming)

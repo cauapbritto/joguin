@@ -118,7 +118,7 @@ class Game:
         for slot, inp in self.inputs.items():
             inp.update(keys_down, keys_pressed, held, pressed, now, axes.get(slot))
         if getattr(self.scene, "menu_keys", False):
-            events = list(events) + self.gamepads.menu_events()     # menus só de teclado: controle vira setas
+            events = list(events) + self.gamepads.menu_events(getattr(self.scene, "every_pad", False))     # menus só de teclado: controle vira setas
         for event in events:
             self.scene.handle(event)
         self.scene.update()

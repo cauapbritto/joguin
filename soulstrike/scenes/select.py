@@ -14,6 +14,8 @@ from ..soccer_powers import SOCCER_POWERS
 from .. import weapon_art
 from ..net.remote import hub
 from ..ui import mix
+from ..host import host_slot
+from .base import crown
 from .menus import ModeScene, _MenuScene, category_of
 
 
@@ -282,6 +284,8 @@ class CharSelectScene(_MenuScene):
                               pygame.Rect(self.center.right - 32, self.center.y + 288, 28, 28))
         # a assistência escolhida vale para as próximas partidas também
         session.assist = getattr(game, "assist_level", session.assist)
+        self.rules_open = False             # START do P1 (ou R): as regras da partida
+        self.rules_row = 0
         self._sync_phone_slots()
 
     # ── estado ───────────────────────────────
@@ -308,11 +312,11 @@ class CharSelectScene(_MenuScene):
             return f"{config.SOCCER_MINUTES} MINUTOS (EMPATE: PÊNALTIS)"
         return f"PRIMEIRO A {length} GOLS"
 
-    def _cycle_length(self):
+    def _cycle_length(self, step=1):
         order = config.SOCCER_LENGTHS
         now = settings.get("futebol_partida")
         i = order.index(now) if now in order else 0
-        settings.change("futebol_partida", order[(i + 1) % len(order)])
+        settings.change("futebol_partida", order[(i + step) % len(order)])
         self.sfx("click", 0.4)
 
     @property
@@ -398,6 +402,60 @@ class CharSelectScene(_MenuScene):
         self.game.assist_level = s.assist
         self.sfx("click", 0.4)
 
+    # ── regras do P1 (a coroa) ───────────────
+    @property
+    def host(self):
+        return host_slot(self.game.session)
+
+    def _toggle_weapons(self, step=1):
+        settings.change("armas_por_round", not settings.get("armas_por_round"))
+        self.sfx("click", 0.4)
+
+    def rule_rows(self):
+        """[(rótulo, valor, trocar(step))] que o P1 pode mexer aqui."""
+        s = self.game.session
+        rows = []
+        if self.basket:
+            rows.append(("QUADRA", MAPS_BY_KEY[self.court_key].name.upper(), self._cycle_court))
+        elif not self.soccer and not self.campaign:
+            rows.append(("MAPA", BATTLE_MAPS[self.map_index].name.upper(), self._cycle_map))
+        if self.campaign or s.mode == "cpu":
+            rows.append(("DIFICULDADE", DIFFICULTIES[s.difficulty]["label"], self._cycle_difficulty))
+        elif self._cpu_level_mode:
+            rows.append(("CPU", DIFFICULTIES[s.difficulty]["label"], self._cycle_difficulty))
+        if self.soccer and not self.basket:
+            rows.append(("ASSISTÊNCIA", ASSIST_LEVELS[s.assist].label, self._cycle_assist))
+        if self._length_mode:
+            length = settings.get("futebol_partida")
+            label = {"tempo": "3 MIN", "penaltis": "3 MIN + PÊNALTIS"}.get(length, f"{length} GOLS")
+            rows.append(("PARTIDA", label, self._cycle_length))
+        if self._weapon_pick_mode:
+            rows.append(("ARMAS", "A CADA ROUND" if settings.get("armas_por_round") else "FIXAS", self._toggle_weapons))
+        return rows
+
+    def _set_rules(self, value):
+        if value and (self.countdown or not self.rule_rows()):
+            return
+        self.rules_open = value
+        self.rules_row = 0
+        self.sfx("select" if value else "cancel", 0.4)
+
+    def _update_rules(self, inp):
+        rows = self.rule_rows()
+        if inp.pressed("pause") or inp.pressed("cancel"):
+            self._set_rules(False)
+            return
+        if inp.pressed("up"):
+            self.rules_row = (self.rules_row - 1) % len(rows)
+            self.sfx("click", 0.3)
+        if inp.pressed("down"):
+            self.rules_row = (self.rules_row + 1) % len(rows)
+            self.sfx("click", 0.3)
+        self.rules_row = min(self.rules_row, len(rows) - 1)
+        for action, step in (("char_left", -1), ("char_right", 1), ("confirm", 1)):
+            if inp.pressed(action):
+                rows[self.rules_row][2](step)
+
     def _first_open(self):
         for card in self._humans():
             if not card.ready:
@@ -406,6 +464,13 @@ class CharSelectScene(_MenuScene):
 
     # ── entrada ──────────────────────────────
     def handle(self, event):
+        if self.rules_open:
+            if self.is_back(event) or (event.type == pygame.KEYDOWN and event.key == pygame.K_r):
+                self._set_rules(False)
+            return
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+            self._set_rules(True)
+            return
         if self.is_back(event):
             self.sfx("cancel", 0.4)
             training = self.game.session.mode.startswith("treino")
@@ -481,9 +546,16 @@ class CharSelectScene(_MenuScene):
     def update(self):
         super().update()
         self._sync_phone_slots()
+        host = self.game.inputs.get(self.host)
+        if self.rules_open and host is not None:
+            self._update_rules(host)
+        elif host is not None and host.pressed("pause") and not self.countdown:
+            self._set_rules(True)
         for card in self._humans():
             if card in getattr(self, "_joined_now", ()):
                 continue
+            if self.rules_open and card.slot == self.host:
+                continue                        # o P1 está mexendo nas regras
             inp = self.game.inputs[card.slot]
             if card.ready:
                 if inp.pressed("cancel"):
@@ -505,7 +577,7 @@ class CharSelectScene(_MenuScene):
             hub.publish_slot(card.slot, char=card.setup.char, weapon=card.setup.weapon, ready=card.ready,
                              team=self.game.session.team_of(card.slot) if self.teams or self.soccer else None)
 
-        if all(c.ready for c in self.cards):
+        if all(c.ready for c in self.cards) and not self.rules_open:
             self.countdown += 1
             if self.countdown >= 50:
                 if self.campaign:
@@ -546,7 +618,7 @@ class CharSelectScene(_MenuScene):
             screen.blit(veil, (0, config.SCREEN_H - 44))
             self.ui.text(screen, "PREPARANDO A PARTIDA...", theme.S, theme.BRASS,
                          (config.SCREEN_W // 2, config.SCREEN_H - 24))
-        else:
+        elif not self.rules_open:
             items = [("ENTER", "CONFIRMAR"), ("ESC", "VOLTAR")]
             if self.campaign:
                 label = DIFFICULTIES[self.game.session.difficulty]["label"]
@@ -566,11 +638,40 @@ class CharSelectScene(_MenuScene):
                 length = settings.get("futebol_partida")
                 label = {"tempo": "3 MIN", "penaltis": "3 MIN + PÊNALTIS"}.get(length, f"{length} GOLS")
                 items.insert(1, ("T", "PARTIDA: " + label))
+            if self.rule_rows():
+                items.insert(-1, ("START / R", "REGRAS (P%d)" % self.host))
             if self.game.session.mode == "cpu":
                 items.insert(1, ("1 2 3", "DIFICULDADE"))
             elif self._cpu_level_mode and any(c.setup.cpu for c in self.cards):
                 items.insert(1, ("1 2 3", "CPU: " + DIFFICULTIES[self.game.session.difficulty]["label"]))
             self.footer(screen, items)
+        if self.rules_open:
+            self._draw_rules(screen)
+
+    def _draw_rules(self, screen):
+        """Painel das regras que só o dono da partida (coroa) mexe."""
+        rows = self.rule_rows()
+        veil = pygame.Surface((config.SCREEN_W, config.SCREEN_H), pygame.SRCALPHA)
+        veil.fill((0, 0, 0, 150))
+        screen.blit(veil, (0, 0))
+        w, h = 440, 62 + 40 * len(rows)
+        box = pygame.Rect((config.SCREEN_W - w) // 2, (config.SCREEN_H - h) // 2 - 10, w, h)
+        self.ui.panel(screen, box, fill=theme.INK_2)
+        crown(screen, box.x + 26, box.y + 24)
+        self.ui.text(screen, "REGRAS DA PARTIDA", theme.S, theme.BRASS, (box.x + 44, box.y + 24), anchor="midleft")
+        self.ui.text(screen, f"SÓ O P{self.host}", theme.XS, theme.MUTED, (box.right - 16, box.y + 24),
+                     anchor="midright")
+        for i, (label, value, _) in enumerate(rows):
+            r = pygame.Rect(box.x + 14, box.y + 50 + i * 40, box.w - 28, 34)
+            hot = i == self.rules_row
+            screen.fill(mix(theme.INK_2, theme.BRASS, 0.18) if hot else theme.INK, r)
+            if hot:
+                screen.fill(theme.BRASS, (r.x, r.y, 3, r.h))
+            self.ui.text(screen, label, theme.XS, theme.MUTED, (r.x + 14, r.centery), anchor="midleft")
+            color = theme.BONE if hot else mix(theme.BONE, theme.MUTED, 0.4)
+            self.ui.text(screen, ("◀  " if hot else "") + value + ("  ▶" if hot else ""), theme.XS, color,
+                         (r.right - 14, r.centery), anchor="midright")
+        self.footer(screen, [("↑ ↓", "ESCOLHER"), ("← →", "TROCAR"), ("START / R / ESC", "FECHAR")])
 
     def _draw_roster(self, screen):
         for i, (tile, stats) in enumerate(zip(self.tiles, self.roster)):
@@ -612,6 +713,8 @@ class CharSelectScene(_MenuScene):
         screen.fill(dark, head)
         screen.fill(setup.color, (head.x, head.bottom - 2, head.w, 2))
         ui.text(screen, setup.name, theme.XS, theme.BONE, (head.x + 8, head.centery), anchor="midleft")
+        if not setup.cpu and setup.slot == self.host and len(self._humans()) > 1:
+            crown(screen, head.x + 20 + self.assets.text_width(setup.name, theme.XS), head.centery)
         if setup.cpu:
             source = (DIFFICULTIES[self.game.session.difficulty]["label"]
                       if self._cpu_level_mode
