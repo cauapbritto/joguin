@@ -82,12 +82,12 @@ class CampanhaSalvaTest(unittest.TestCase):
 
     def test_menu_continua(self):
         g = game()
-        self.assertNotIn("continue", [v for _, v in ModeScene(g).menu.options])
+        self.assertNotIn("continue", [v for _, v in ModeScene(g, "campanha").menu.options])
         run = campanha()
         g.session = run.session
         start_phase(g, run, story=False)
         g.session = None
-        scene = ModeScene(g)
+        scene = ModeScene(g, "campanha")
         g.scene = scene
         self.assertEqual(scene.menu.value, "continue")       # primeira opção
         scene.draw(g.screen)
@@ -112,7 +112,7 @@ class CampanhaSalvaTest(unittest.TestCase):
 
     def test_salvo_ruim_nao_aparece(self):
         progress.save_campaign({"versao": 1, "lixo": True})
-        self.assertNotIn("continue", [v for _, v in ModeScene(game()).menu.options])
+        self.assertNotIn("continue", [v for _, v in ModeScene(game(), "campanha").menu.options])
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ DEFAULTS = {
     "armas_por_round": True,    # duelo: escolher as armas antes de cada round (V na escolha de personagem)
     "futebol_partida": "3",     # futebol: 3, 5 ou 7 gols, ou "tempo" (T na escolha de personagem)
     "versao_vista": "",     # última versão cujas novidades o jogador já viu (novidades.py)
+    "ultimo_modo": "",      # último modo jogado: a tela de modos já abre nele
 }
 VOLUME_KEYS = ("volume_geral", "volume_musica", "volume_efeitos")
 VOLUME_STEP = 0.1

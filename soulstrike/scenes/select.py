@@ -14,7 +14,7 @@ from ..soccer_powers import SOCCER_POWERS
 from .. import weapon_art
 from ..net.remote import hub
 from ..ui import mix
-from .menus import ModeScene, _MenuScene
+from .menus import ModeScene, _MenuScene, category_of
 
 
 def _button(screen, ui, rect, label, hot):
@@ -83,7 +83,7 @@ class LobbyScene(_MenuScene):
     def handle(self, event):
         if self.is_back(event):
             self.sfx("cancel", 0.4)
-            self.game.change(ModeScene(self.game))
+            self.game.change(ModeScene(self.game, category_of(self.game.session.mode)))
         elif event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
             self._continue()
         elif self.teams and event.type == pygame.KEYDOWN and event.key == pygame.K_TAB:
@@ -409,7 +409,8 @@ class CharSelectScene(_MenuScene):
         if self.is_back(event):
             self.sfx("cancel", 0.4)
             training = self.game.session.mode.startswith("treino")
-            nxt = ModeScene(self.game) if self.game.session.mode == "cpu" or training else LobbyScene(self.game)
+            back_to_modes = self.game.session.mode == "cpu" or training
+            nxt = ModeScene(self.game, category_of(self.game.session.mode)) if back_to_modes else LobbyScene(self.game)
             self.game.change(nxt)
             return
         if event.type == pygame.KEYDOWN:

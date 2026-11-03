@@ -150,7 +150,7 @@ class TreinoTest(unittest.TestCase):
 
     def test_menu_leva_para_a_selecao(self):
         g = game()
-        scene = ModeScene(g)
+        scene = ModeScene(g, "duelos")
         g.scene = scene
         scene.menu.index = [v for _, v in scene.menu.options].index("treino")
         scene.handle(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN, mod=0, unicode=""))

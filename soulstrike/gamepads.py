@@ -41,7 +41,8 @@ DIRECTION_ACTIONS = {
 }
 # nos menus (título, modos, opções) o controle vira teclas
 MENU_KEYS = {"up": pygame.K_UP, "down": pygame.K_DOWN, "left": pygame.K_LEFT, "right": pygame.K_RIGHT,
-             "a": pygame.K_RETURN, "start": pygame.K_RETURN, "b": pygame.K_ESCAPE, "back": pygame.K_ESCAPE}
+             "a": pygame.K_RETURN, "start": pygame.K_RETURN, "b": pygame.K_ESCAPE, "back": pygame.K_ESCAPE,
+             "y": pygame.K_c, "lb": pygame.K_PAGEUP, "rb": pygame.K_PAGEDOWN}
 
 # índices dos botões quando o SDL não reconhece o controle (layout do Xbox no Windows e no Linux)
 _RAW_BUTTONS = {"a": 0, "b": 1, "x": 2, "y": 3, "lb": 4, "rb": 5, "back": 6, "start": 7}
