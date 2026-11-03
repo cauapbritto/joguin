@@ -74,11 +74,12 @@ class ModosTest(unittest.TestCase):
 
     def test_lembra_o_ultimo_modo(self):
         g = game()
+        settings.change("ultimo_modo", "")
         scene = ModeScene(g, "basquete")
         g.scene = scene
-        scene.handle(tecla(pygame.K_RETURN))                # BASQUETE 2 x 2
+        scene.handle(tecla(pygame.K_RETURN))                # BASQUETE 1 x 1 (o primeiro)
         self.assertIsInstance(g.scene, LobbyScene)
-        self.assertEqual(settings.get("ultimo_modo"), "basket2")
+        self.assertEqual(settings.get("ultimo_modo"), "basket1")
         scene = ModeScene(g)
         self.assertEqual(CATEGORY_KEYS[scene.cat_index], "basquete")
         # voltar do lobby cai dentro da modalidade

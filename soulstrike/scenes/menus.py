@@ -194,6 +194,10 @@ MODE_TEXT = {
     "soccer2": ("Times de dois. O jogador 2 entra pelo teclado (;) ou celular; o 3 e o 4, pelo celular. "
                 "Quem faltar vira CPU para fechar o time.",
                 "1 A 4 JOGADORES"),
+    "basket1": ("Um contra um com poder demais: SUPER a cada 4 s, barra de ULTRA que enche com cesta, toco e "
+                "roubo, fogo com 2 cestas seguidas e orbes de poder na quadra. 3 minutos ou 21 pontos. "
+                "Sem o P2, joga contra a CPU.",
+                "1 OU 2 JOGADORES"),
     "basket2": ("Basquete 2 x 2 no caos: a bola quica sozinha, cesta de 2 ou de 3 e dois tempos de 2 minutos. "
                 "No empate, a próxima cesta vence. Quem faltar vira CPU.",
                 "1 A 4 JOGADORES"),
@@ -232,7 +236,7 @@ CATEGORIES = [
     ("campanha", "CAMPANHA", theme.EMBER, "2 CAPÍTULOS"),
     ("duelos", "DUELOS", theme.BLOOD, "CPU · 1X1 · 2X2"),
     ("futebol", "FUTEBOL", theme.MOSS, "PARTIDA · PÊNALTIS"),
-    ("basquete", "BASQUETE", (226, 112, 36), "2X2 · TREINO"),
+    ("basquete", "BASQUETE", (226, 112, 36), "1X1 · 2X2 · TREINO"),
 ]
 CATEGORY_KEYS = [c[0] for c in CATEGORIES]
 # grupos de cada modalidade: (título do grupo, [modos])
@@ -241,7 +245,7 @@ MODE_GROUPS = {
     "duelos": [("LUTAR", ["cpu", "duel", "duel2"]), ("TREINAR", ["treino"])],
     "futebol": [("PARTIDA", ["soccer1", "soccer2"]), ("PÊNALTIS", ["penaltis", "desafio_goleiro"]),
                 ("TREINAR", ["treino_futebol", "treino_penaltis"])],
-    "basquete": [("PARTIDA", ["basket2"]), ("TREINAR", ["treino_basquete"])],
+    "basquete": [("PARTIDA", ["basket1", "basket2"]), ("TREINAR", ["treino_basquete"])],
 }
 MODE_LABELS = {"continue": "CONTINUAR CAMPANHA", "campaign": "CAPÍTULO 1 · AS SOMBRAS",
                "campaign2": "CAPÍTULO 2 · LAG LOBBY", "cpu": "CONTRA A CPU", "duel": "DUELO LOCAL 1 x 1",
@@ -572,6 +576,7 @@ class ModeScene(_MenuScene):
             "soccer1": [("velocista", "direita", -110), ("atirador", "esquerda", 110)],
             "soccer2": [("tita", "direita", -150), ("fantasma", "direita", -70),
                         ("guerreiro", "esquerda", 70), ("aryel", "esquerda", 150)],
+            "basket1": [("trovao", "direita", -100), ("cauanzera", "esquerda", 100)],
             "basket2": [("ninja", "direita", -150), ("velocista", "direita", -70),
                         ("pirata", "esquerda", 70), ("tita", "esquerda", 150)],
             "penaltis": [("matador", "costas", -60), ("paredao", "frente", 60)],
@@ -644,7 +649,7 @@ def start_mode(game, choice):
     if choice == "campaign2":
         choice = "campaign"
     count = MODES[choice]["slots"]
-    teams = MODES[choice].get("teams", False)
+    teams = MODES[choice].get("teams", False) or MODES[choice].get("fill", False)
     training = choice.startswith("treino") or choice == "desafio_goleiro"
     slots = [SlotSetup(s, cpu=(choice == "cpu" and s == 2) or (training and s > 1) or (teams and s > 1))
              for s in range(1, count + 1)]
@@ -652,7 +657,7 @@ def start_mode(game, choice):
         slots = slots[:1]           # P2 a P4 entram na tela de conexão
     previous = game.session
     game.session = Session(choice, slots, chapter=chapter)
-    if previous is not None and teams:
+    if previous is not None and MODES[choice].get("teams", False):
         game.session.layout = previous.layout      # mantém a divisão de times escolhida
     from .select import CharSelectScene, LobbyScene
     if choice == "cpu" or training:
@@ -1619,12 +1624,35 @@ def _scene_coroa(screen, ui, rect, t):
                     anchor="midleft", shadow=False)
 
 
+
+def _scene_ultra(screen, ui, rect, t):
+    """A barra de ULTRA enchendo e os quatro orbes girando em volta."""
+    from ..basket_ultra import ORB_ORDER, ORBS
+    k = (t % 150) / 110
+    bar = pygame.Rect(0, 0, 200, 16)
+    bar.center = (rect.centerx, rect.centery + 50)
+    screen.fill(theme.INK, bar)
+    fill = bar.inflate(-4, -4)
+    fill.w = round(fill.w * min(1.0, k))
+    full = k >= 1
+    screen.fill((255, 236, 140) if full and (t // 6) % 2 else theme.EMBER, fill)
+    ui.text(screen, "ULTRA PRONTO!" if full else "ULTRA", theme.XS, theme.BRASS if full else theme.BONE,
+            (bar.centerx, bar.y - 12), shadow=False)
+    for i, kind in enumerate(ORB_ORDER):
+        a = t * 0.03 + i * math.pi / 2
+        x, y = rect.centerx + math.cos(a) * 90, rect.centery - 20 + math.sin(a) * 34
+        color = ORBS[kind][1]
+        pygame.draw.circle(screen, (20, 18, 24), (round(x), round(y)), 13)
+        pygame.draw.circle(screen, color, (round(x), round(y)), 12)
+        ui.text(screen, ORBS[kind][0], theme.XS, theme.BONE, (round(x), round(y) + 22), shadow=False)
+
+
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
                "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
                "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
                "chefao_lag": _scene_chefao_lag, "armas_lag": _scene_armas_lag,
                "bate": _scene_bate, "agarra": _scene_agarra, "modos": _scene_modos,
-               "controle": _scene_controle, "coroa": _scene_coroa}
+               "controle": _scene_controle, "coroa": _scene_coroa, "ultra": _scene_ultra}
 
 
 class NewsScene(_InfoScene):

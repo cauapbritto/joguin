@@ -34,12 +34,13 @@ class LobbyScene(_MenuScene):
         session = game.session
         self.campaign = session.campaign
         self.teams = session.team_mode           # 2 x 2 (duelo ou futebol)
-        if self.campaign or self.teams:
+        self.fill = session.fill_cpu             # vaga sem ninguém vira CPU (2 x 2 e basquete 1 x 1)
+        if self.campaign or self.fill:
             # P1 sempre joga; P2 entra pelo teclado (;) ou celular; P3 e P4 pelo celular.
             # Na campanha quem não entrou fica de fora; no 2x2 a CPU completa os times.
             self.setups = {s.slot: s for s in session.slots}
             self.joined = {s.slot for s in session.slots if not s.cpu} | {1}
-            self.slots = [1, 2, 3, 4]
+            self.slots = [1, 2, 3, 4] if self.campaign or self.teams else [s.slot for s in session.slots]
         else:
             self.slots = [s.slot for s in session.slots]
         self.card_w = 200
@@ -99,14 +100,14 @@ class LobbyScene(_MenuScene):
     def update(self):
         super().update()
         connected = self.game.connected_slots()
-        if self.campaign or self.teams:
+        if self.campaign or self.fill:
             self._update_joined(connected)
         # qualquer jogador no celular pode avançar
         if any(self.game.inputs[s].pressed("confirm") for s in self.slots if s in connected):
             self._continue()
 
     def _update_joined(self, connected):
-        for s in (2, 3, 4):
+        for s in self.slots[1:]:
             if s in connected and s not in self.joined:
                 self.joined.add(s)
                 self.sfx("select", 0.4)
@@ -126,7 +127,7 @@ class LobbyScene(_MenuScene):
         from ..session import SlotSetup
         if self.campaign:
             self.game.session.slots = [self.setups.get(s) or SlotSetup(s) for s in sorted(self.joined)]
-        elif self.teams:
+        elif self.fill:
             slots = []
             for s in self.slots:
                 setup = self.setups.get(s) or SlotSetup(s)
@@ -141,7 +142,7 @@ class LobbyScene(_MenuScene):
         self.title(screen, "QUEM VAI JOGAR?" if self.campaign else "CONECTE OS CELULARES", y=52)
         if self.campaign:
             sub = "ATÉ 4 JOGADORES · CELULAR NA MESMA REDE WI-FI · P1 E P2 TAMBÉM NO TECLADO"
-        elif self.teams:
+        elif self.fill:
             sub = f"MESMA REDE WI-FI · O P2 ENTRA COM {key_label(2, 'attack')} NO TECLADO · VAGA SEM NINGUÉM VIRA CPU"
         else:
             sub = "MESMA REDE WI-FI · QUEM NÃO CONECTAR JOGA NO TECLADO"
@@ -161,12 +162,12 @@ class LobbyScene(_MenuScene):
                 qr_rect = qr.get_rect(midtop=(rect.centerx, head.bottom + 12))
                 screen.blit(qr, qr_rect)
             on = slot in connected
-            if self.campaign or self.teams:
+            if self.campaign or self.fill:
                 on = slot in self.joined
-                empty = "CPU" if self.teams else "AGUARDANDO"
+                empty = "CPU" if self.fill else "AGUARDANDO"
                 status = f"NO JOGO · {self.game.device_of(slot)}" if on else empty
                 scolor = theme.MOSS if on else theme.MUTED
-                phone_only = "SEM CELULAR: CPU" if self.teams else "CELULAR OU CONTROLE"
+                phone_only = "SEM CELULAR: CPU" if self.fill else "CELULAR OU CONTROLE"
                 p2_keys = f"{key_label(2, 'attack')} ENTRA · {key_label(2, 'special')} SAI"
                 hint = {1: "SEMPRE JOGA", 2: p2_keys if slot not in connected else "",
                         3: phone_only, 4: phone_only}[slot]
@@ -296,7 +297,7 @@ class CharSelectScene(_MenuScene):
     @property
     def _cpu_level_mode(self):
         """Modos em que 1, 2 e 3 escolhem a dificuldade da CPU."""
-        return self.game.session.mode in ("cpu", "duel2", "soccer1", "soccer2", "basket2")
+        return self.game.session.mode in ("cpu", "duel2", "soccer1", "soccer2", "basket1", "basket2")
 
     @property
     def _length_mode(self):
@@ -334,7 +335,7 @@ class CharSelectScene(_MenuScene):
     def _sync_phone_slots(self):
         """No 2x2, quem não está jogando é CPU: o 2 assume apertando ; (ou conectando o celular)
         e sai com /; o 3 e o 4 entram e saem com o celular."""
-        if not self.game.session.team_mode:
+        if not self.game.session.fill_cpu:
             return
         before = self.active_slots()
         connected = self.game.connected_slots()
@@ -809,7 +810,7 @@ class CharSelectScene(_MenuScene):
 
         # rodapé do cartão
         foot = pygame.Rect(rect.x + 8, rect.bottom - 30, rect.w - 16, 22)
-        if setup.cpu and self.teams:
+        if setup.cpu and self.game.session.fill_cpu:
             # vaga sem ninguém: a CPU joga, mas dá para assumir
             if setup.slot == 2:
                 ui.hints(screen, [(key_label(2, "attack"), "ASSUMIR A VAGA")], foot.center, gap=8)

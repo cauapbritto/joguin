@@ -10,6 +10,7 @@ import random
 import pygame
 
 from . import config, hud, theme
+from . import basket_ultra as ultra_rules
 from . import rumble
 from .ai import BALL_DIFFICULTIES, BasketballAI
 from .arena import BASKET_MAPS, Court
@@ -264,6 +265,8 @@ class BasketballMatch(Match):
             fighter.protecting = False
             fighter.streak = 0               # cestas seguidas
             fighter.fire_timer = 0
+            ultra_rules.setup_fighter(fighter)
+            fighter.ultra_power = ultra_rules.create_ultra(fighter.stats) if session.solo else None
             self.spawn_of[fighter] = pos
             if setup.cpu:
                 self.controllers[fighter] = BasketballAI(session.difficulty)
@@ -279,7 +282,14 @@ class BasketballMatch(Match):
         self.score = [0, 0]
         self.attack = {0: 1, 1: 0}          # time 0 ataca a cesta da direita (troca no 2º tempo)
         self.half = 1
-        self.clock = HALF_SECONDS * config.FPS
+        self.solo = session.solo            # 1 x 1 com poder demais (basket_ultra.py)
+        self.clock = (ultra_rules.SOLO_SECONDS if self.solo else HALF_SECONDS) * config.FPS
+        self.orbs = []                      # 1 x 1: orbes de poder na quadra
+        self.orb_clock = ultra_rules.ORB_EVERY
+        self.casting = None                 # 1 x 1: ULTRA avisando (dá para esquivar)
+        self.vault = {0: None, 1: None}     # Cofre: de quem é a tampa de cada aro
+        self.winter = None                  # Inverno: [quem, quadros]
+        self.eclipse = None                 # Eclipse: [quem, [cegos], quadros]
         self.overtime = False
         self.holder = None                   # quem está com a bola na mão
         self.no_catch = {}                   # quem acabou de soltar a bola não pega de novo na hora
@@ -299,6 +309,8 @@ class BasketballMatch(Match):
         self.white_flash = 0                 # quadros de tela branca (toco)
         self.pinned = 0                      # PREGADO NA TABELA: quadros que a bola fica presa
         self._tip_off()
+        if self.solo:
+            self.add_effect(_SoloOverlay())
         if warmup:
             self._start_warmup()
 
@@ -319,7 +331,7 @@ class BasketballMatch(Match):
     def world_entities(self):
         if self.warmup:
             return self.fighters + [st["ball"] for st in self.warm.values()] + self.hoops
-        return self.fighters + [self.ball] + self.hoops
+        return self.fighters + [self.ball] + self.hoops + self.orbs
 
     def focus_points(self):
         if self.warmup:
@@ -373,9 +385,18 @@ class BasketballMatch(Match):
         foe.frost_timer = max(foe.frost_timer, frames)
         return True
 
+    def super_cooldown(self, power):
+        """Recarga do SUPER. No 1 x 1 ele volta 4 s depois que o efeito acaba (senão um SUPER de 5 s
+        com recarga de 4 s ficaria ligado o tempo todo: tampa no aro, gigante, marcação colada)."""
+        if not self.solo:
+            return power.cooldown
+        return ultra_rules.SOLO_SUPER + ultra_rules.effect_frames(power)
+
     def use_power(self, f):
         if self.warmup or self.freeze or self.ending or f.power is None:
             return False
+        if self.solo and ultra_rules.try_ultra(self, f):
+            return True
         if not f.power.use(f, self):
             return False
         hub.publish_slot(f.slot, cooldown=1.0) if not f.is_cpu else None
@@ -411,6 +432,10 @@ class BasketballMatch(Match):
             half = 0.5                        # Mão Quente: a faixa inteira
         if f.frost_timer > 0:
             half *= 0.4                       # Congelar: faixa estreita
+        if self.winter is not None and f.team != self.winter[0].team:
+            half *= 0.35                      # Inverno: a faixa verde quase some
+        if f.eclipsed > 0:
+            half *= 0.6                       # Eclipse: arremessa no escuro
         f.shot_half = half
         f.pushed = False
         f.facing = unit(hx - f.x, hy - f.y)
@@ -432,6 +457,8 @@ class BasketballMatch(Match):
         elif err > 0:
             self.popup(f.x, f.y - 90, "CEDO" if timing < 0.5 else "TARDE", theme.BRASS)
         self.launch_shot(f, miss_distance(err, Court.RIM_R))
+        if err == 0 and f.killer_timer > 0:
+            self.shot["bonus"] = 1               # Matador de Jogo: no verde vale 1 a mais
         return True
 
     def launch_shot(self, f, miss=0.0):
@@ -444,6 +471,10 @@ class BasketballMatch(Match):
         self._launch(f, tx, ty, Court.RIM_Z + 2, flight_frames(dist), z0=HAND_Z + f.lift)
         self.shot = {"team": f.team, "three": three, "shooter": f, "side": side, "ghost": f.ghost_timer > 0}
         f.ghost_timer = 0
+        if f.haunt_shots > 0:
+            f.haunt_shots -= 1                   # Assombração: atravessa tudo, até o Paredão
+            self.shot["haunt"] = True
+            self.burst(f.x, f.y - 50, (210, 210, 255), 14, speed=3)
         f.facing = unit(hx - f.x, hy - f.y)
         self.assets.play("arremesso", 0.35)
 
@@ -478,12 +509,15 @@ class BasketballMatch(Match):
             self.lids[side] = 0
             self.popup(hx, hy - 150, "ARRANCOU A TAMPA", theme.BRASS)
             self.burst(hx, hy - Court.RIM_Z, (150, 226, 240), 20, speed=5)
-        wall = None if f.alley_dunk else next(
+        wall = None if f.exo_max > 0 else next(
             (o for o in self.foes_of(f) if o.wall_timer > 0 and not o.stunned
-             and math.hypot(o.x - hx, o.y - hy) < 260), None)
+             and (o.wall_ultra > 0 or (not f.alley_dunk and math.hypot(o.x - hx, o.y - hy) < 260))), None)
         if wall is not None:
-            # Toco Voador: o Paredão sobe e tira a enterrada
-            wall.wall_timer = 0
+            # Toco Voador: o Paredão sobe e tira a enterrada (a Muralha do Aro segura até o alley-oop)
+            if wall.wall_ultra <= 0:
+                wall.wall_timer = 0
+            f.ultra_dunk_value = 0
+            f.thunder = False
             wall.jump = 1
             self._release(f, 30)
             ux, uy = unit(f.x - hx, f.y - hy)
@@ -499,6 +533,11 @@ class BasketballMatch(Match):
         ball.vx, ball.vy, ball.vz = shot_velocity(ball.x, ball.y, ball.z, hx, hy, Court.RIM_Z - 6, 8,
                                                   config.GRAVITY)
         self.shot = {"team": f.team, "three": False, "shooter": f, "side": side, "dunk": True}
+        if f.ultra_dunk_value or f.exo_max > 0:
+            self.shot["value"] = 3              # Enterrada do Meio e Exo Máximo valem 3
+            f.ultra_dunk_value = 0
+        if f.thunder:
+            ultra_rules.thunder_strike(self, f)
         show = f.fly_dunk or f.alley_dunk or f.dunk_move in SHOW_DUNKS
         f.facing = unit(hx - f.x, hy - f.y)
         f.spin = 0
@@ -541,6 +580,7 @@ class BasketballMatch(Match):
         if not f.dash(direction, frames=config.CUT_FRAMES, cooldown=36):
             return False
         f.feint_timer = FEINT_FRAMES + f.power.feint_bonus
+        ultra_rules.mark_dodge(f)
         self.popup(f.x, f.y - 80, "FINTA", theme.BONE)
         self.assets.play("dash", 0.3)
         return True
@@ -561,6 +601,7 @@ class BasketballMatch(Match):
         f.facing = direction
         f.steal_timer = config.CUT_FRAMES + 3
         f.steal_cd = STEAL_COOLDOWN
+        ultra_rules.mark_dodge(f)
         self.assets.play("dash", 0.3)
         self._check_steal(f)
         return True
@@ -582,14 +623,23 @@ class BasketballMatch(Match):
         if owner.magic_timer > 0 or owner.exo_timer > 0 or owner.moto_timer > 0:
             self.popup(f.x, f.y - 74, "NÃO TIRA", theme.MUTED)
             return False
+        if owner.shield_timer > 0:
+            owner.shield_timer = 0                  # orbe ESCUDO: aguenta um roubo
+            f.stun(FEINT_STUN)
+            self.popup(owner.x, owner.y - 90, "ESCUDO", theme.BONE)
+            self.burst(owner.x, owner.y - 20, (236, 230, 220), 12, speed=4)
+            return False
         chance = steal_chance(owner.facing, f.x - owner.x, f.y - owner.y, owner.protecting)
         chance *= owner.power.steal_mult
+        if owner.clone_timer > 0:
+            chance *= 0.4                           # Clones: qual deles está com a bola?
         if random.random() >= chance:
             self.popup(f.x, f.y - 74, "ERROU", theme.MUTED)
             return False
         self._release(owner, 30)
         self._give(f)
         f.steals += 1
+        ultra_rules.gain(self, f, "roubo")
         self.popup(f.x, f.y - 74, "ROUBO!", theme.BRASS)
         self.burst(self.ball.x, self.ball.y - 10, (236, 230, 220), 8, speed=3)
         self.assets.play("hit", 0.3)
@@ -698,10 +748,14 @@ class BasketballMatch(Match):
                 self._human(f, ctrl)
             else:
                 ctrl.update(f, self)
+            if f.invert_timer > 0 and not f.hacked:
+                f.input = (-f.input[0], -f.input[1])    # Tela Azul: controle invertido
             if f.glue_timer > 0 and not f.stunned and not self.freeze:
                 self._glue_steer(f)
             f.update(self)
             f.update_stamina()
+            if self.solo:
+                ultra_rules.slide(self, f)
         for i, a in enumerate(self.fighters):
             for b in self.fighters[i + 1:]:
                 if a.magic_timer > 0 or b.magic_timer > 0:
@@ -715,6 +769,8 @@ class BasketballMatch(Match):
                 self._tip_off()
             return
         self._power_rules()
+        if self.solo:
+            ultra_rules.update(self)
         for f in self.fighters:
             if f.steal_timer > 0:
                 self._check_steal(f)
@@ -753,7 +809,12 @@ class BasketballMatch(Match):
                     self.release_ball(owner, 30)
                     self._give(f)
                     f.steals += 1
-                    f.glue_timer = 0                    # a marcação colada rouba uma vez só
+                    ultra_rules.gain(self, f, "roubo")
+                    if f.royal_timer > 0:
+                        owner.stun(50)                  # Marcação Real: rouba de novo e deixa tonto
+                        self.popup(owner.x, owner.y - 80, "TONTO", theme.BONE)
+                    else:
+                        f.glue_timer = 0                # a marcação colada rouba uma vez só
                     self.popup(f.x, f.y - 74, "ROUBOU", theme.BRASS)
                     owner = f
             if f.moto_timer > 0:
@@ -851,10 +912,11 @@ class BasketballMatch(Match):
         """Faro de Cesta: a bola solta perto vem para a mão do Matador."""
         ball = self.ball
         for f in self.fighters:
-            if f.nose_timer <= 0 or f.stunned or ball.z > 130:
+            if (f.nose_timer <= 0 and f.magnet_timer <= 0) or f.stunned or ball.z > 130:
                 continue
             d = math.hypot(f.x - ball.x, f.y - ball.y)
-            if 10 < d < 280:
+            reach = 700 if (f.killer_timer > 0 or f.magnet_timer > 0) else 280
+            if 10 < d < reach:
                 ball.vx += (f.x - ball.x) / d * 0.45
                 ball.vy += (f.y - ball.y) / d * 0.45
                 speed = math.hypot(ball.vx, ball.vy)
@@ -915,6 +977,9 @@ class BasketballMatch(Match):
                      "ghost_timer", "frost_timer"):
             if getattr(f, name) > 0:
                 setattr(f, name, getattr(f, name) - 1)
+        ultra_rules.tick_fighter(f)
+        if f.wall_ultra > 0:
+            f.wall_timer = max(f.wall_timer, 2)  # Muralha do Aro: o toco voador não acaba
         if f.meter_flash is not None:
             timing, half, frames = f.meter_flash
             f.meter_flash = (timing, half, frames - 1) if frames > 1 else None
@@ -925,7 +990,10 @@ class BasketballMatch(Match):
         self._power_glow(f)
         f.sport_pose = self._sport_pose(f)
         if f.fire_timer > 0:
-            f.super_cd = 0                      # pegando fogo: o SUPER recarrega na hora
+            if self.solo:
+                f.super_cd = max(0, f.super_cd - 1)     # 1 x 1: pegando fogo, o SUPER volta 2x mais rápido
+            else:
+                f.super_cd = 0                  # pegando fogo: o SUPER recarrega na hora
             f.fire_timer -= 1
             if self.frame % 2 == 0:
                 self.burst(f.x + random.uniform(-12, 12), f.y - random.uniform(10, 50) - f.lift,
@@ -1107,7 +1175,7 @@ class BasketballMatch(Match):
             return False
         """Toco na enterrada: quem está no ar encosta em quem voa para o aro e a bola sai."""
         owner = self.holder
-        if owner is None or not owner.dunking or owner.fly_dunk or owner.alley_dunk:
+        if owner is None or not owner.dunking or owner.fly_dunk or owner.alley_dunk or owner.exo_max > 0:
             return False                        # a voadora e a do alley-oop passam por cima
         for f in self.foes_of(owner):
             if self._reach_lift(f) < 10 or f.distance_to(owner) > f.radius + owner.radius + self._block_reach(f):
@@ -1133,6 +1201,7 @@ class BasketballMatch(Match):
 
     def _toco(self, f, ball, text="TOCO!"):
         f.blocks += 1
+        ultra_rules.gain(self, f, "toco")
         f.swat_t = 10
         self.white_flash = 2                    # a tela pisca branco
         side = 0 if ball.x < Court.W / 2 else 1
@@ -1158,12 +1227,13 @@ class BasketballMatch(Match):
         for f in self.fighters:
             if f.team == shot["team"] or f.stunned:
                 continue
-            if shot.get("ghost") and not f.power.ghost_proof:
-                continue                        # bola fantasma: atravessa mãos e tocos
+            if shot.get("haunt") or (shot.get("ghost") and not f.power.ghost_proof):
+                continue                        # bola fantasma: atravessa mãos e tocos (a Assombração, tudo)
             if (f.wall_timer > 0 and ball.vz < 0 and math.hypot(ball.x - hx, ball.y - hy) < 110
-                    and math.hypot(f.x - hx, f.y - hy) < 260):
-                # Toco Voador: o Paredão sobe e tira a bola antes do aro
-                f.wall_timer = 0
+                    and (f.wall_ultra > 0 or math.hypot(f.x - hx, f.y - hy) < 260)):
+                # Toco Voador: o Paredão sobe e tira a bola antes do aro (na Muralha do Aro, sempre)
+                if f.wall_ultra <= 0:
+                    f.wall_timer = 0
                 f.jump = 1
                 ux, uy = unit(ball.x - hx, ball.y - hy) if math.hypot(ball.x - hx, ball.y - hy) > 1 else (0.0, 1.0)
                 ball.vx, ball.vy, ball.vz = ux * 6, uy * 6, 3.0
@@ -1194,7 +1264,14 @@ class BasketballMatch(Match):
         near = [f for f in self.fighters if not f.stunned and f not in self.no_catch]
         if not near:
             return
-        f = min(near, key=lambda o: math.hypot(o.x - ball.x, o.y - ball.y))
+        magnet = ultra_rules.magnet_owner(self)
+        f = magnet if magnet in near else min(near, key=lambda o: math.hypot(o.x - ball.x, o.y - ball.y))
+        if magnet is f:
+            d = math.hypot(f.x - ball.x, f.y - ball.y)
+            if d > 8:                           # orbe ÍMÃ: o rebote vem para ele
+                ball.vx += (f.x - ball.x) / d * 0.6
+                ball.vy += (f.y - ball.y) / d * 0.6
+            return
         d = math.hypot(f.x - ball.x, f.y - ball.y)
         if 8 < d < 200:
             ball.vx += (f.x - ball.x) / d * REBOUND_PULL
@@ -1212,6 +1289,7 @@ class BasketballMatch(Match):
             ball.vy *= BOARD_KEEP
             self.assets.play("tabela", 0.4)
         if (self.lids[side] > 0 and z0 >= Court.RIM_Z > ball.z - ball.radius
+                and not (self.shot or {}).get("haunt")
                 and math.hypot(ball.x - hx, ball.y - hy) < Court.RIM_R + ball.radius):
             # Tampa no Aro: a bola bate na tampa e volta
             ux, uy = unit(ball.x - hx, ball.y - hy) if math.hypot(ball.x - hx, ball.y - hy) > 1 \
@@ -1224,6 +1302,10 @@ class BasketballMatch(Match):
                 self.shot["touched"] = True
             self.assets.play("tabela", 0.5)
             self.burst(hx, hy - Court.RIM_Z, (150, 226, 240), 6, speed=3)
+            keeper = self.vault.get(side)
+            if keeper is not None and not keeper.stunned and keeper.guard_timer > 0:
+                self.grab(keeper)               # Cofre: a bola volta para a mão do Tanque
+                self.popup(keeper.x, keeper.y - 90, "COFRE", theme.BRASS)
             return
         hit = rim_contact(ball.x, ball.y, ball.z, hx, hy, Court.RIM_Z, Court.RIM_R, ball.radius)
         if hit is not None:
@@ -1298,6 +1380,12 @@ class BasketballMatch(Match):
             self.shot = None
             return
         points = 3 if shot is not None and shot["three"] and shot["team"] == team else 2
+        if shot is not None and shot["team"] == team:
+            shooter = shot["shooter"]
+            points = shot.get("value", points)
+            if points == 3 and shooter.rain_timer > 0 and not shot.get("dunk"):
+                points = 4                      # Chuva de Três: a de 3 vale 4
+            points += shot.get("bonus", 0)
         self.score[team] += points
         rumble.team(self, team)
         scorer = shot["shooter"] if shot is not None and shot["team"] == team else None
@@ -1305,7 +1393,13 @@ class BasketballMatch(Match):
             scorer.points += points
             if shot.get("dunk"):
                 scorer.dunks += 1
-        title = "CESTA DE 3!" if points == 3 else "CESTA!"
+        title = {3: "CESTA DE 3!", 4: "CESTA DE 4!", 5: "CESTA DE 5!"}.get(points, "CESTA!")
+        if self.solo:
+            ultra_rules.gain(self, scorer, "cesta")
+            for f in self.fighters:
+                if f.team != team:
+                    ultra_rules.gain(self, f, "levou")
+                    f.stun_timer = f.hack_timer = 0     # quem levou a cesta levanta: nada de cesta atrás de cesta
         self.banner = (title, scorer.label if scorer else "", team)
         self.banner_age = 0
         self._streak(scorer, team)
@@ -1326,7 +1420,7 @@ class BasketballMatch(Match):
             scorer.celebrate = CELEBRATE_FRAMES
         self.shot = None
         self.shot_clock = 0
-        if self.overtime:
+        if self.overtime or (self.solo and self.score[team] >= ultra_rules.SOLO_TARGET):
             self._end(team)
             return
         # sem cobrança: a bola já sai com o time que levou, embaixo da própria cesta
@@ -1348,11 +1442,12 @@ class BasketballMatch(Match):
         if scorer is None:
             return
         scorer.streak += 1
-        if scorer.streak >= FIRE_STREAK and scorer.fire_timer == 0:
+        need = ultra_rules.SOLO_FIRE_STREAK if self.solo else FIRE_STREAK
+        if scorer.streak >= need and scorer.fire_timer == 0:
             self.banner = ("PEGANDO FOGO!", scorer.label, team)
             self.burst(scorer.x, scorer.y - 30, (255, 150, 40), 24, speed=5, gravity=-0.05, size=4)
             self.assets.play("fogo", 0.6)
-        if scorer.streak >= FIRE_STREAK:
+        if scorer.streak >= need:
             scorer.fire_timer = FIRE_SECONDS * config.FPS
 
     def _update_clock(self):
@@ -1365,7 +1460,7 @@ class BasketballMatch(Match):
         self.clock -= 1
         if self.clock > 0:
             return
-        if self.half == 1:
+        if self.half == 1 and not self.solo:
             self.half = 2
             self.clock = HALF_SECONDS * config.FPS
             self.attack = {0: 0, 1: 1}                  # 2º tempo: os times trocam de lado
@@ -1633,4 +1728,25 @@ class BasketballMatch(Match):
 
     def hud_regions(self):
         W, H = config.SCREEN_W, config.SCREEN_H
-        return [pygame.Rect(W // 2 - 166, 0, 332, 96), pygame.Rect(0, H - 52, W, 52)]   # placar e SUPER
+        bottom = 70 if self.solo else 52                     # no 1 x 1, a barra de ULTRA em cima do SUPER
+        return [pygame.Rect(W // 2 - 166, 0, 332, 96), pygame.Rect(0, H - bottom, W, bottom)]   # placar e SUPER
+
+
+class _SoloOverlay:
+    """1 x 1: inverno (quadra gelada) e eclipse (escuro) por cima de tudo."""
+
+    alive = True
+
+    def __init__(self):
+        self.match = None
+
+    def update(self, match):
+        self.match = match
+
+    def draw(self, surf, camera):
+        pass
+
+    def draw_over(self, surf, camera):
+        if self.match is not None:
+            ultra_rules.draw_winter(self.match, surf)
+            ultra_rules.draw_eclipse(self.match, surf, camera)

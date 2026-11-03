@@ -286,6 +286,14 @@ CPU. Um controle ou celular novo que aperta START numa vaga de CPU **entra no me
   mesmo arremesso) fica parado um instante.
   **Ponte aérea:** PASSE para o companheiro que está correndo para a cesta vira alley-oop, sem
   precisar de SUPER: a bola vai alta e ele sobe e crava. Quem pular na frente do passe corta.
+- **Basquete 1 x 1** — um contra um com poder demais (sem o P2, contra a CPU). Um tempo de 3
+  minutos ou 21 pontos, o que vier primeiro. O SUPER volta 4 s depois que o efeito acaba (pegando
+  fogo, 2x mais rápido), e 2 cestas seguidas já pegam fogo. Cada herói tem um **ULTRA**: a barra
+  enche com cesta, toco e roubo (e um pouco ao levar cesta); cheia, SUPER solta o ULTRA. Os de
+  ataque que pegam no adversário avisam antes, e a **ESQUIVA (CORTE) bem na hora anula**; os de
+  defesa (Guerreiro, Paredão e Tanque) também seguram. A cada 12 s aparece um **orbe**: FOGO, ÍMÃ
+  (o rebote vem para você), TURBO ou ESCUDO (aguenta um roubo). Quem leva cesta levanta na hora
+  (nada de cesta atrás de cesta com o adversário no chão). Os ULTRAs ficam em `basket_ultra.py`.
 - **Disputa de pênaltis** — a câmera fica atrás de quem bate, com o gol grande e o goleiro de
   frente. Quem bate segura CHUTE e solta na barrinha de força; o canto é a direção do analógico na
   hora de soltar (no celular, uma grade 3x3 que só ele vê) e nunca aparece na TV. PASSE é a
@@ -536,6 +544,7 @@ soulstrike/
   host.py               P1 controlador: quem pausa, sair vira CPU, entrar no meio e regras ao vivo
   gamepads.py           controles USB/Bluetooth; pad_profiles.py (botões por controle) e pad_art.py (desenho)
   rumble.py             vibração do controle
+  basket_ultra.py       basquete 1 x 1: os ULTRAs de cada herói, os orbes e as regras do modo
   updater.py            botão ATUALIZAR: versão nova no GitHub (única parte que usa a internet)
   fighter.py            o lutador
   abilities.py          uma subclasse de Ability por personagem (duelo)

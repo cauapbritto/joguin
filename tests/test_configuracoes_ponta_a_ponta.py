@@ -2,7 +2,7 @@
 
 Confere perfis de botão (luta e bola), MEU JEITO salvo no arquivo, zona morta, vibração, 1º controle
 como P2, quem navega os menus, regras do P1 na escolha valendo na partida, a tela CONTROLE usada pelo
-próprio controle e o painel da partida (pausa, menu pessoal, sair e entrar no meio)."""
+próprio controle o painel da partida (pausa, menu pessoal, sair e entrar no meio) e o ULTRA do 1 x 1 pelo controle."""
 import json
 import unittest
 
@@ -171,4 +171,26 @@ class PontaAPontaTest(unittest.TestCase):
         tap(ns, "down"); tap(ns, "a")
         check("SAIR (VIRA CPU) pelo controle do P2", g.session.slots[1].cpu)
         tap(ns, "start"); check("P2 entra no meio apertando START", not g.session.slots[1].cpu)
+        # 13. basquete 1 x 1: o botão de SUPER do controle solta o ULTRA quando a barra enche
+        pad_profiles.set_preset(xbox.name, "padrao")
+        g.session = Session("basket1", [SlotSetup(1, char=0), SlotSetup(2, char=1, cpu=True)])
+        bm = create_match(g, g.session); g.change(PlayScene(g, bm)); frame()
+        check("1 x 1 é solo", getattr(bm, "solo", False))
+        f = bm.fighters[0]
+        if bm.warmup:                         # aquecimento: SUPER diz "estou pronto"
+            tap(xbox, "y")
+            check("SUPER no aquecimento marca PRONTO", f.warm_ready)
+            for _ in range(400):
+                if not bm.warmup: break
+                frame()
+        check("aquecimento acabou", not bm.warmup, bm.warmup)
+        used = False
+        for _ in range(300):
+            f.ultra = 1.0
+            f.stun_timer = 0
+            tap(xbox, "y")
+            if f.ultra < 1.0 and bm.banner and bm.banner[0] == "ULTRA!":
+                used = True
+                break
+        check("Y (SUPER) com a barra cheia solta o ULTRA", used, (f.ultra, bm.banner))
         self.assertEqual(failures, [])
