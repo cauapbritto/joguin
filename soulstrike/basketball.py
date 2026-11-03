@@ -10,6 +10,7 @@ import random
 import pygame
 
 from . import config, hud, theme
+from . import rumble
 from .ai import BALL_DIFFICULTIES, BasketballAI
 from .arena import BASKET_MAPS, Court
 from .basket_powers import create_basket_power
@@ -1298,6 +1299,7 @@ class BasketballMatch(Match):
             return
         points = 3 if shot is not None and shot["three"] and shot["team"] == team else 2
         self.score[team] += points
+        rumble.team(self, team)
         scorer = shot["shooter"] if shot is not None and shot["team"] == team else None
         if scorer is not None:
             scorer.points += points

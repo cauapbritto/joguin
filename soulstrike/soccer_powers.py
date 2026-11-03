@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 import pygame
 
 from . import config, theme
+from . import rumble
 from .entities import Entity, Particle
 
 
@@ -36,6 +37,7 @@ class SoccerPower(ABC):
         if not self.activate(user, match):
             return False
         user.super_cd = self.cooldown
+        rumble.fighter(user, rumble.SUPER)
         match.popup(user.x, user.y - 74, self.name, theme.BRASS)
         match.assets.play(self.sound, 0.5)
         return True

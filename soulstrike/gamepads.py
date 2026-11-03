@@ -14,16 +14,21 @@ Botões (nomes do Xbox; no PlayStation A = X, B = bola, X = quadrado, Y = triân
     analógico esquerdo ou direcional: mover e navegar
 """
 import math
+import os
 
-import pygame
+# Nintendo: o botão "A" é o que tem A escrito (à direita), como no Switch; o resto do jogo só vê "a"
+os.environ.setdefault("SDL_GAMECONTROLLER_USE_BUTTON_LABELS", "1")
 
-from . import settings
+import pygame  # noqa: E402
+
+from . import pad_profiles, settings  # noqa: E402
 
 DEADZONE = 0.22                 # analógico parado não fica andando sozinho
 MENU_THRESHOLD = 0.6            # analógico tem que ir bem para o lado para contar como "seta"
 TRIGGER_THRESHOLD = 0.5
 
-# botão → ações do jogo
+# botão → ações do jogo no perfil padrão (os botões trocados ficam em pad_profiles.py; A/B/START
+# continuam confirmando, voltando e pausando)
 BUTTON_ACTIONS = {
     "a": ("attack", "confirm"),
     "b": ("dodge", "cancel"),
@@ -35,13 +40,16 @@ BUTTON_ACTIONS = {
     "lt": ("dodge",),
     "start": ("pause",),
 }
+# o que não muda com o perfil: confirmar, voltar e pausar
+FIXED_ACTIONS = {"a": ("confirm",), "b": ("cancel",), "start": ("pause",)}
 DIRECTION_ACTIONS = {
     "up": ("up", "weapon"), "down": ("down", "weapon"),
     "left": ("left", "char_left"), "right": ("right", "char_right"),
 }
 # nos menus (título, modos, opções) o controle vira teclas
 MENU_KEYS = {"up": pygame.K_UP, "down": pygame.K_DOWN, "left": pygame.K_LEFT, "right": pygame.K_RIGHT,
-             "a": pygame.K_RETURN, "start": pygame.K_RETURN, "b": pygame.K_ESCAPE, "back": pygame.K_ESCAPE}
+             "a": pygame.K_RETURN, "start": pygame.K_RETURN, "b": pygame.K_ESCAPE, "back": pygame.K_ESCAPE,
+             "y": pygame.K_c, "lb": pygame.K_PAGEUP, "rb": pygame.K_PAGEDOWN}
 
 # índices dos botões quando o SDL não reconhece o controle (layout do Xbox no Windows e no Linux)
 _RAW_BUTTONS = {"a": 0, "b": 1, "x": 2, "y": 3, "lb": 4, "rb": 5, "back": 6, "start": 7}
@@ -112,11 +120,19 @@ class Pad:
     def name(self):
         return self.reader.name
 
+    @property
+    def family(self):
+        return pad_profiles.family(self.name)
+
+    @property
+    def deadzone(self):
+        return pad_profiles.deadzone(self.name)
+
     def update(self):
         r = self.reader
         x, y = r.axis("lx"), r.axis("ly")
         mag = math.hypot(x, y)
-        if mag < DEADZONE:
+        if mag < self.deadzone:
             x = y = 0.0
         elif mag > 1:
             x, y = x / mag, y / mag
@@ -149,10 +165,25 @@ class Pad:
         mag = math.hypot(dx, dy)
         return (dx / mag, dy / mag) if mag else (0.0, 0.0)
 
-    def actions(self, buttons):
+    def rumble(self, low, high, ms):
+        """Vibra (se o controle tiver motor). Nunca derruba o jogo."""
+        try:
+            return bool(self.reader.dev.rumble(low, high, ms))
+        except (AttributeError, pygame.error, TypeError):
+            return False
+
+    def actions(self, buttons, context="luta"):
         out = set()
+        mapping = pad_profiles.mapping(self.name, context)
         for b in buttons:
-            out.update(BUTTON_ACTIONS.get(b, ()))
+            action = mapping.get(b)
+            if action and action != "none":
+                out.add(action)
+                if action == "switch":
+                    out.add("super")            # TROCAR ARMA e SUPER são o mesmo botão no celular
+                elif action == "super":
+                    out.add("switch")
+            out.update(FIXED_ACTIONS.get(b, ()))
             out.update(DIRECTION_ACTIONS.get(b, ()))
         return out
 
@@ -204,8 +235,10 @@ class Gamepads:
     def slots(self):
         return {s for i in range(len(self.pads)) if (s := self.slot_of(i))}
 
-    def poll(self):
-        """(segurados, apertados, analógicos) no mesmo formato do celular: 'p1_attack'..."""
+    def poll(self, layouts=None):
+        """(segurados, apertados, analógicos) no mesmo formato do celular: 'p1_attack'...
+
+        layouts = {vaga: "battle" | "soccer"}: diz qual perfil do controle vale para cada jogador."""
         held, pressed, axes = set(), set(), {}
         for i, pad in enumerate(self.pads):
             slot = self.slot_of(i)
@@ -213,17 +246,34 @@ class Gamepads:
             if slot is None:
                 continue
             prefix = f"p{slot}_"
-            held.update(prefix + a for a in pad.actions(pad.held))
-            pressed.update(prefix + a for a in pad.actions(pad.pressed))
+            context = pad_profiles.context_of((layouts or {}).get(slot))
+            held.update(prefix + a for a in pad.actions(pad.held, context))
+            pressed.update(prefix + a for a in pad.actions(pad.pressed, context))
             stick = pad.axis()
             if stick != (0.0, 0.0):
                 axes[slot] = stick
         return held, pressed, axes
 
-    def menu_events(self):
-        """Botões apertados neste quadro como teclas (para as telas de menu que só leem o teclado)."""
+    def rumble(self, slot, low, high, ms):
+        for i, pad in enumerate(self.pads):
+            if self.slot_of(i) == slot:
+                return pad.rumble(low, high, ms)
+        return False
+
+    def host_index(self):
+        """Qual controle manda nos menus: o do P1 (ou o primeiro, se o P1 está no teclado)."""
+        for i in range(len(self.pads)):
+            if self.slot_of(i) == 1:
+                return i
+        return 0
+
+    def menu_events(self, every_pad=False):
+        """Botões apertados neste quadro como teclas (para as telas de menu que só leem o teclado).
+
+        Só o controle do P1 navega (a coroa); a tela do controle aceita qualquer um (every_pad)."""
         out = []
-        for pad in self.pads:
+        pads = self.pads if every_pad else self.pads[self.host_index():self.host_index() + 1]
+        for pad in pads:
             for button in pad.pressed:
                 key = MENU_KEYS.get(button)
                 if key is not None:

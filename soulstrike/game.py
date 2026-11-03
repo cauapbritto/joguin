@@ -2,6 +2,7 @@
 import pygame
 
 from . import config, settings, theme
+from . import rumble
 from .assets import Assets
 from .controls import PlayerInput
 from .gamepads import Gamepads
@@ -37,6 +38,7 @@ class Game:
         self.ui = UI(self.assets)
         self.inputs = {s: PlayerInput(s) for s in SLOTS}
         self.gamepads = Gamepads(enabled=not headless)
+        rumble.register(self.gamepads)
         self.session = None
         self.assist_level = "media"     # assistência do futebol escolhida no menu
         self.backdrop = None
@@ -110,7 +112,7 @@ class Game:
         held, pressed = hub.poll()
         axes = hub.axes()
         # controles USB entram como se fossem celulares (o celular conectado manda no analógico)
-        pad_held, pad_pressed, pad_axes = self.gamepads.poll()
+        pad_held, pad_pressed, pad_axes = self.gamepads.poll({s: inp.layout for s, inp in self.inputs.items()})
         held, pressed = held | pad_held, pressed | pad_pressed
         axes = {**pad_axes, **axes}
         keys_down = pygame.key.get_pressed()
@@ -118,7 +120,7 @@ class Game:
         for slot, inp in self.inputs.items():
             inp.update(keys_down, keys_pressed, held, pressed, now, axes.get(slot))
         if getattr(self.scene, "menu_keys", False):
-            events = list(events) + self.gamepads.menu_events()     # menus só de teclado: controle vira setas
+            events = list(events) + self.gamepads.menu_events(getattr(self.scene, "every_pad", False))     # menus só de teclado: controle vira setas
         for event in events:
             self.scene.handle(event)
         self.scene.update()

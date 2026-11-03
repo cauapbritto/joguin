@@ -204,7 +204,7 @@ class MenusTest(unittest.TestCase):
     def test_modo_no_menu(self):
         from soulstrike.scenes.menus import ModeScene
         g = game()
-        scene = ModeScene(g)
+        scene = ModeScene(g, "duelos")
         self.assertIn("duel2", [v for _, v in scene.menu.options])
 
 

@@ -75,3 +75,10 @@ class Scene:
 
     def footer(self, screen, items):
         self.ui.hints(screen, items, (config.SCREEN_W // 2, config.SCREEN_H - 22))
+
+
+def crown(screen, x, y, color=theme.BRASS):
+    """Coroa do dono da partida (P1)."""
+    pts = [(x - 9, y + 5), (x - 9, y - 3), (x - 4, y + 1), (x, y - 6), (x + 4, y + 1), (x + 9, y - 3), (x + 9, y + 5)]
+    pygame.draw.polygon(screen, theme.SHADOW, [(px + 1, py + 1) for px, py in pts])
+    pygame.draw.polygon(screen, color, pts)

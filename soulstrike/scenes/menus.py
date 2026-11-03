@@ -85,6 +85,17 @@ class _MenuScene(Scene):
         self.backdrop.draw(screen, self.game.clock_ticks)
 
 
+def rematch(game):
+    """Começa de novo a última partida (revanche rápida do título)."""
+    game.session = game.last_session
+    if game.session.penalty:
+        from .penalty import start_penalties
+        game.change(start_penalties(game))
+    else:
+        from .play import VersusScene
+        game.change(VersusScene(game))
+
+
 class TitleScene(_MenuScene):
     menu_keys = True
 
@@ -92,10 +103,16 @@ class TitleScene(_MenuScene):
         super().__init__(game)
         game.session = None
         self.cast = roster()
-        self.menu = MenuList(
-            [("JOGAR", "play"), ("CONTROLES", "controls"), ("OPÇÕES", "options"),
-             ("SOBRE O PROJETO", "about"), ("CRÉDITOS", "credits"), ("ATUALIZAR", "update"), ("SAIR", "quit")],
-            topleft=(config.SCREEN_W // 2 - 130, 184), width=260, row_h=32)
+        options = [("JOGAR", "play"), ("CONTROLES", "controls"), ("OPÇÕES", "options"),
+                   ("ESTATÍSTICAS", "stats"), ("SOBRE O PROJETO", "about"), ("CRÉDITOS", "credits"), ("ATUALIZAR", "update"), ("SAIR", "quit")]
+        last = getattr(game, "last_session", None)
+        if last is not None:
+            # revanche rápida: a última partida de novo, com os mesmos lutadores, sem passar pelos menus
+            options.insert(1, ("REVANCHE: " + last.title, "rematch"))
+        # com a revanche são 9 opções: o logo sobe um pouco para o elenco no chão não cobrir o SAIR
+        self.logo_y = 112 if last is None else 96
+        top, row_h = (176, 29) if last is None else (164, 26)
+        self.menu = MenuList(options, topleft=(config.SCREEN_W // 2 - 150, top), width=300, row_h=row_h)
 
     def handle(self, event):
         if self.is_back(event):
@@ -110,10 +127,19 @@ class TitleScene(_MenuScene):
         self.sfx("confirm")
         if choice == "play":
             self.game.change(ModeScene(self.game))
+        elif choice == "rematch":
+            rematch(self.game)
         elif choice == "controls":
-            self.game.change(ControlsScene(self.game))
+            if self.game.gamepads.pads:
+                from .pad import PadScene               # com controle conectado: a tela do controle
+                self.game.change(PadScene(self.game))
+            else:
+                self.game.change(ControlsScene(self.game))
         elif choice == "options":
             self.game.change(OptionsScene(self.game))
+        elif choice == "stats":
+            from .stats import StatsScene
+            self.game.change(StatsScene(self.game))
         elif choice == "about":
             self.game.change(AboutScene(self.game))
         elif choice == "credits":
@@ -127,8 +153,9 @@ class TitleScene(_MenuScene):
     def draw(self, screen):
         W, H = config.SCREEN_W, config.SCREEN_H
         self.draw_background(screen)
-        self.ui.logo(screen, (W // 2, 112))
-        self.ui.text(screen, "CAMPANHA  ·  DUELO DE ARENA  ·  FUTEBOL", theme.XS, theme.MUTED, (W // 2, 158))
+        self.ui.logo(screen, (W // 2, self.logo_y))
+        self.ui.text(screen, "CAMPANHA  ·  DUELOS  ·  FUTEBOL  ·  BASQUETE", theme.XS, theme.MUTED,
+                     (W // 2, self.logo_y + 44))
         self.menu.draw(screen, self.ui, self.ticks)
 
         # elenco no chão
@@ -200,38 +227,171 @@ MODE_TEXT = {
 }
 
 
-class ModeScene(_MenuScene):
-    menu_keys = True
+# (modalidade, rótulo, cor, linha de baixo do cartão, modo da cena do cartão)
+CATEGORIES = [
+    ("campanha", "CAMPANHA", theme.EMBER, "2 CAPÍTULOS"),
+    ("duelos", "DUELOS", theme.BLOOD, "CPU · 1X1 · 2X2"),
+    ("futebol", "FUTEBOL", theme.MOSS, "PARTIDA · PÊNALTIS"),
+    ("basquete", "BASQUETE", (226, 112, 36), "2X2 · TREINO"),
+]
+CATEGORY_KEYS = [c[0] for c in CATEGORIES]
+# grupos de cada modalidade: (título do grupo, [modos])
+MODE_GROUPS = {
+    "campanha": [("HISTÓRIA", ["continue", "campaign", "campaign2"])],
+    "duelos": [("LUTAR", ["cpu", "duel", "duel2"]), ("TREINAR", ["treino"])],
+    "futebol": [("PARTIDA", ["soccer1", "soccer2"]), ("PÊNALTIS", ["penaltis", "desafio_goleiro"]),
+                ("TREINAR", ["treino_futebol", "treino_penaltis"])],
+    "basquete": [("PARTIDA", ["basket2"]), ("TREINAR", ["treino_basquete"])],
+}
+MODE_LABELS = {"continue": "CONTINUAR CAMPANHA", "campaign": "CAPÍTULO 1 · AS SOMBRAS",
+               "campaign2": "CAPÍTULO 2 · LAG LOBBY", "cpu": "CONTRA A CPU", "duel": "DUELO LOCAL 1 x 1",
+               "treino": "TREINO E ARSENAL"}
+# cena do cartão de cada modalidade: (chão, linhas, [(sprite, direção, dx)], extra)
+_CARD_ART = {
+    "campanha": ((24, 34, 22), (30, 44, 28), [("guerreiro", "direita", -46), ("diabrete", "esquerda", 46)],
+                 "sombra"),
+    "duelos": (theme.INK, theme.INK_2, [("aryel", "direita", -46), ("ninja", "esquerda", 46)], None),
+    "futebol": ((34, 92, 46), (40, 104, 52), [("velocista", "direita", -46), ("atirador", "esquerda", 46)],
+                "bola"),
+    "basquete": ((120, 78, 44), (134, 88, 50), [("ninja", "direita", -46), ("tita", "esquerda", 46)], "basquete"),
+}
 
-    def __init__(self, game):
+
+def category_of(mode):
+    for cat, groups in MODE_GROUPS.items():
+        if any(mode in modes for _, modes in groups):
+            return cat
+    return None
+
+
+class ModeScene(_MenuScene):
+    """Escolha do modo em dois níveis: primeiro a modalidade (4 cartões), depois os modos dela."""
+
+    menu_keys = True
+    CARD_W, CARD_H, CARD_GAP, CARD_Y = 196, 300, 20, 112
+
+    def __init__(self, game, category=None):
         super().__init__(game)
         from .. import progress
         from ..campaign import CampaignRun
         saved = progress.saved_campaign()
         self.saved_run = CampaignRun.from_save(saved) if saved else None
-        options = [(MODES[k]["title"], k) for k in ("campaign", "cpu", "duel", "duel2", "soccer1", "soccer2", "basket2",
-                                                     "penaltis", "treino", "treino_futebol", "treino_basquete",
-                                                     "treino_penaltis", "desafio_goleiro")]
-        if progress.campaign_cleared():
-            options.insert(1, ("CAMPANHA: CAPÍTULO 2", "campaign2"))
-        if self.saved_run is not None:
-            options.insert(0, ("CONTINUAR CAMPANHA", "continue"))
-        options.append(("VOLTAR", "back"))
-        row_h = 36 if len(options) <= 11 else 30 if len(options) <= 13 else 27
-        self.menu = MenuList(options, topleft=(56, 88), width=320, row_h=row_h)
+        self.chapter2 = progress.campaign_cleared()
+        last = settings.get("ultimo_modo")
+        self.cat_index = CATEGORY_KEYS.index(category_of(last)) if category_of(last) else 0
+        self.category = None
+        self.menu = None
+        self.headers = []
+        x0 = (config.SCREEN_W - (self.CARD_W * 4 + self.CARD_GAP * 3)) // 2
+        self.card_rects = [pygame.Rect(x0 + i * (self.CARD_W + self.CARD_GAP), self.CARD_Y, self.CARD_W, self.CARD_H)
+                           for i in range(4)]
+        self.continue_rect = pygame.Rect(x0, 436, self.CARD_W * 4 + self.CARD_GAP * 3, 34)
+        self.tab_rects = []
+        if category is not None:
+            self.open(category)
+
+    # ── navegação ────────────────────────────
+    def modes_of(self, category):
+        out = []
+        for title, modes in MODE_GROUPS[category]:
+            keep = [m for m in modes if (m != "continue" or self.saved_run is not None)
+                    and (m != "campaign2" or self.chapter2)]
+            if keep:
+                out.append((title, keep))
+        return out
+
+    def open(self, category, select=None):
+        """Abre o segundo nível (os modos da modalidade)."""
+        self.category = category
+        self.cat_index = CATEGORY_KEYS.index(category)
+        options, rects, self.headers = [], [], []
+        y = 128
+        for title, modes in self.modes_of(category):
+            self.headers.append((title, y))
+            y += 14
+            for m in modes:
+                options.append((MODE_LABELS.get(m) or MODES[m]["title"], m))
+                rects.append(pygame.Rect(56, y, 340, 30))
+                y += 34
+            y += 10
+        self.menu = MenuList(options, topleft=(56, 128), width=340)
+        self.menu.rects = rects
+        values = [v for _, v in options]
+        last = select or ("continue" if "continue" in values else settings.get("ultimo_modo"))
+        if last in values:
+            self.menu.index = values.index(last)
+
+    def close(self):
+        self.category = None
+        self.menu = None
+
+    def _shift_category(self, step):
+        self.sfx("select", 0.25)
+        self.open(CATEGORY_KEYS[(self.cat_index + step) % len(CATEGORY_KEYS)])
 
     def handle(self, event):
+        if self.category is None:
+            self._handle_cards(event)
+        else:
+            self._handle_modes(event)
+
+    def _handle_cards(self, event):
         if self.is_back(event):
             self.sfx("cancel", 0.4)
             self.game.change(TitleScene(self.game))
             return
-        choice = self.menu.handle(event, self.sfx)
-        if choice is None:
-            return
-        if choice == "back":
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_LEFT, pygame.K_a):
+                self.cat_index = (self.cat_index - 1) % 4
+                self.sfx("select", 0.25)
+            elif event.key in (pygame.K_RIGHT, pygame.K_d):
+                self.cat_index = (self.cat_index + 1) % 4
+                self.sfx("select", 0.25)
+            elif event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
+                self.sfx("confirm")
+                self.open(CATEGORY_KEYS[self.cat_index])
+            elif event.key == pygame.K_c and self.saved_run is not None:
+                self.start("continue")
+        elif event.type == pygame.MOUSEMOTION:
+            for i, r in enumerate(self.card_rects):
+                if r.collidepoint(event.pos) and i != self.cat_index:
+                    self.cat_index = i
+                    self.sfx("hover", 0.15)
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for i, r in enumerate(self.card_rects):
+                if r.collidepoint(event.pos):
+                    self.sfx("confirm")
+                    self.open(CATEGORY_KEYS[i])
+                    return
+            if self.saved_run is not None and self.continue_rect.collidepoint(event.pos):
+                self.start("continue")
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
             self.sfx("cancel", 0.4)
             self.game.change(TitleScene(self.game))
+
+    def _handle_modes(self, event):
+        if self.is_back(event) or (event.type == pygame.MOUSEBUTTONDOWN and event.button == 3):
+            self.sfx("cancel", 0.4)
+            self.close()
             return
+        if event.type == pygame.KEYDOWN and event.key in (pygame.K_PAGEUP, pygame.K_q):
+            self._shift_category(-1)
+            return
+        if event.type == pygame.KEYDOWN and event.key in (pygame.K_PAGEDOWN, pygame.K_e):
+            self._shift_category(1)
+            return
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for i, r in enumerate(self.tab_rects):
+                if r.collidepoint(event.pos):
+                    if i != self.cat_index:
+                        self.sfx("select", 0.25)
+                        self.open(CATEGORY_KEYS[i])
+                    return
+        choice = self.menu.handle(event, self.sfx)
+        if choice is not None:
+            self.start(choice)
+
+    def start(self, choice):
         self.sfx("confirm")
         if choice == "continue":
             from .campaign import start_phase
@@ -239,45 +399,130 @@ class ModeScene(_MenuScene):
             self.game.session = run.session
             self.game.change(start_phase(self.game, run, story=False))
             return
-        chapter = 2 if choice == "campaign2" else 1
-        if choice == "campaign2":
-            choice = "campaign"
-        count = MODES[choice]["slots"]
-        teams = MODES[choice].get("teams", False)
-        training = choice.startswith("treino") or choice == "desafio_goleiro"
-        slots = [SlotSetup(s, cpu=(choice == "cpu" and s == 2) or (training and s > 1) or (teams and s > 1))
-                 for s in range(1, count + 1)]
-        if choice == "campaign":
-            slots = slots[:1]           # P2 a P4 entram na tela de conexão
-        previous = self.game.session
-        self.game.session = Session(choice, slots, chapter=chapter)
-        if previous is not None and teams:
-            self.game.session.layout = previous.layout      # mantém a divisão de times escolhida
-        from .select import CharSelectScene, LobbyScene
-        if choice == "cpu" or training:
-            self.game.change(CharSelectScene(self.game))
-        else:
-            self.game.change(LobbyScene(self.game))
+        settings.change("ultimo_modo", choice)
+        start_mode(self.game, choice)
 
+    # ── desenho ──────────────────────────────
     def draw(self, screen):
-        W, H = config.SCREEN_W, config.SCREEN_H
         self.draw_background(screen)
-        self.title(screen, "MODO DE JOGO", y=64)
+        if self.category is None:
+            self._draw_cards(screen)
+        else:
+            self._draw_modes(screen)
+
+    def _draw_cards(self, screen):
+        W = config.SCREEN_W
+        self.title(screen, "MODO DE JOGO", y=52)
+        self.ui.text(screen, "ESCOLHA A MODALIDADE", theme.XS, theme.MUTED, (W - 64, 52), anchor="midright")
+        for i, ((key, name, color, sub), rect) in enumerate(zip(CATEGORIES, self.card_rects)):
+            chosen = i == self.cat_index
+            r = rect.move(0, -8) if chosen else rect
+            screen.fill(theme.SHADOW, r.move(4, 4))
+            art = pygame.Rect(r.x, r.y, r.w, r.h - 92)
+            screen.set_clip(art)
+            self._card_art(screen, key, art)
+            screen.set_clip(None)
+            if not chosen:
+                veil = pygame.Surface(art.size, pygame.SRCALPHA)
+                veil.fill((8, 6, 14, 140))
+                screen.blit(veil, art)
+            base = pygame.Rect(r.x, art.bottom, r.w, r.h - art.h)
+            screen.fill(theme.INK_3 if chosen else theme.INK_2, base)
+            screen.fill(color, (r.x, art.bottom, r.w, 3))
+            self.ui.text(screen, name, theme.S, theme.BRASS if chosen else theme.BONE, (base.centerx, base.y + 26))
+            self.ui.text(screen, "1 A 4 JOGADORES", theme.XS, theme.MUTED, (base.centerx, base.y + 52))
+            self.ui.text(screen, sub, theme.XS, theme.BONE if chosen else theme.FAINT, (base.centerx, base.y + 70),
+                         shadow=False)
+            pygame.draw.rect(screen, theme.BRASS if chosen else theme.LINE, r, 3 if chosen else 2)
+            if chosen:
+                nudge = 1 if (self.ticks // 20) % 2 else 0
+                self.ui.arrow(screen, (r.centerx, r.y - 12 + nudge), "down", 7, theme.BRASS)
+        if self.saved_run is not None:
+            from ..campaign import PHASES
+            cont = self.continue_rect
+            screen.fill(theme.INK_2, cont)
+            pygame.draw.rect(screen, theme.LINE, cont, 1)
+            run = self.saved_run
+            text = f"CAMPANHA SALVA: FASE {run.phase_index + 1} DE {len(PHASES)} · {run.phase.name.upper()}"
+            self.ui.text(screen, text, theme.XS, theme.MUTED, (cont.x + 16, cont.centery), anchor="midleft",
+                         shadow=False)
+            cap = self.ui.keycap(screen, "Y / C", (cont.right - 170, cont.centery))
+            self.ui.text(screen, "CONTINUAR", theme.XS, theme.BRASS, (cap.right + 8, cont.centery), anchor="midleft",
+                         shadow=False)
+        self.footer(screen, [("←→", "MODALIDADE"), ("A / ENTER", "ABRIR"), ("B / ESC", "VOLTAR")])
+
+    def _card_art(self, screen, key, area):
+        floor, line, cast, extra = _CARD_ART[key]
+        screen.fill(floor, area)
+        for x in range(area.x, area.right, 28):
+            screen.fill(line, (x, area.y, 1, area.h))
+        for y in range(area.y, area.bottom, 28):
+            screen.fill(line, (area.x, y, area.w, 1))
+        if extra in ("bola", "basquete"):
+            color = (210, 220, 200) if extra == "bola" else (230, 220, 200)
+            screen.fill(color, (area.centerx - 1, area.y, 2, area.h))
+            pygame.draw.circle(screen, color, area.center, 36, 2)
+        ground = area.bottom - 30
+        step = self.ticks // 4
+        if extra == "sombra":
+            from ..enemies import SHADOW_RIM
+            from ..fighter import draw_aura
+            img = self.assets.shadow_sprites("aryel").frame("frente", step).copy()
+            img.set_alpha(170)
+            rect = img.get_rect(midbottom=(area.centerx, ground - 70))
+            draw_aura(screen, img, rect, SHADOW_RIM, self.ticks, 3)
+            screen.blit(img, rect)
+        for name, direction, dx in cast:
+            img = self.assets.sprites[name].frame(direction, step)
+            img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
+            x = area.centerx + dx
+            pygame.draw.ellipse(screen, (0, 0, 0), (x - 26, ground - 7, 52, 12))
+            screen.blit(img, img.get_rect(midbottom=(x, ground + 4)))
+        if extra == "bola":
+            bx = area.centerx + int(math.sin(self.ticks * 0.05) * 14)
+            pygame.draw.circle(screen, (20, 18, 24), (bx, ground - 6), 9)
+            pygame.draw.circle(screen, (238, 236, 228), (bx, ground - 6), 8)
+        elif extra == "basquete":
+            by = ground - 8 - int(abs(math.sin(self.ticks * 0.08)) * 46)
+            pygame.draw.circle(screen, (60, 24, 8), (area.centerx, by), 10)
+            pygame.draw.circle(screen, (226, 112, 36), (area.centerx, by), 9)
+            screen.fill((60, 24, 8), (area.centerx - 9, by, 18, 1))
+            screen.fill((60, 24, 8), (area.centerx, by - 9, 1, 18))
+
+    def _draw_modes(self, screen):
+        name = CATEGORIES[self.cat_index][1]
+        self.title(screen, "MODO DE JOGO", y=48)
+        x = 64 + self.assets.text_width("MODO DE JOGO", theme.M) + 14
+        self.ui.text(screen, "›  " + name, theme.M, theme.BRASS, (x, 48), anchor="midleft")
+        # abas das modalidades (LB/RB ou Q/E trocam sem voltar)
+        x, self.tab_rects = 64, []
+        for i, (_, label, color, _) in enumerate(CATEGORIES):
+            w = self.assets.text_width(label, theme.XS) + 28
+            r = pygame.Rect(x, 84, w, 24)
+            self.tab_rects.append(r)
+            on = i == self.cat_index
+            screen.fill(theme.INK_3 if on else theme.INK_2, r)
+            screen.fill(color if on else theme.LINE, (r.x, r.bottom - 3, r.w, 3))
+            self.ui.text(screen, label, theme.XS, theme.BRASS if on else theme.MUTED, r.center, shadow=False)
+            x += w + 6
+        self.ui.keycap(screen, "LB", (x + 10, 96))
+        self.ui.keycap(screen, "RB", (x + 44, 96))
+        for title, y in self.headers:
+            self.ui.text(screen, title, theme.XS, theme.FAINT, (60, y), anchor="midleft", shadow=False)
+            w = self.assets.text_width(title, theme.XS)
+            screen.fill(theme.LINE, (68 + w, y, 300 - w, 1))
         self.menu.draw(screen, self.ui, self.ticks)
 
         key = self.menu.value
-        panel = pygame.Rect(420, 112, 484, 330)
+        panel = pygame.Rect(420, 120, 484, 330)
         self.ui.panel(screen, panel)
-        if key == "back":
-            self.ui.text(screen, "VOLTAR AO MENU", theme.S, theme.MUTED, panel.center)
-        else:
-            desc, players = MODE_TEXT[key] if key != "continue" else self._continue_text()
-            self._illustration(screen, key, pygame.Rect(panel.x + 2, panel.y + 2, panel.w - 4, 170))
-            title = {"continue": "CONTINUAR CAMPANHA", "campaign2": "CAMPANHA: CAPÍTULO 2"}.get(key) or MODES[key]["title"]
-            self.ui.text(screen, title, theme.S, theme.BRASS, (panel.x + 24, panel.y + 196), anchor="topleft")
-            self.ui.text(screen, players, theme.XS, theme.MUTED, (panel.right - 24, panel.y + 200), anchor="topright")
-            self.ui.paragraph(screen, desc, theme.XS, theme.BONE, (panel.x + 24, panel.y + 232), panel.w - 48, spacing=16)
-        self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR"), ("ESC", "VOLTAR")])
+        desc, players = MODE_TEXT[key] if key != "continue" else self._continue_text()
+        self._illustration(screen, key, pygame.Rect(panel.x + 2, panel.y + 2, panel.w - 4, 170))
+        title = {"continue": "CONTINUAR CAMPANHA", "campaign2": "CAMPANHA: CAPÍTULO 2"}.get(key) or MODES[key]["title"]
+        self.ui.text(screen, title, theme.S, theme.BRASS, (panel.x + 24, panel.y + 196), anchor="topleft")
+        self.ui.text(screen, players, theme.XS, theme.MUTED, (panel.right - 24, panel.y + 200), anchor="topright")
+        self.ui.paragraph(screen, desc, theme.XS, theme.BONE, (panel.x + 24, panel.y + 232), panel.w - 48, spacing=16)
+        self.footer(screen, [("↑↓", "ESCOLHER"), ("LB RB", "MODALIDADE"), ("A", "JOGAR"), ("B", "VOLTAR")])
 
     def _continue_text(self):
         from ..ai import DIFFICULTIES
@@ -393,6 +638,29 @@ class ModeScene(_MenuScene):
         screen.fill(theme.LINE, (area.x, area.bottom, area.w, 2))
 
 
+def start_mode(game, choice):
+    """Monta a sessão do modo e vai para a tela certa (lobby ou escolha de personagem)."""
+    chapter = 2 if choice == "campaign2" else 1
+    if choice == "campaign2":
+        choice = "campaign"
+    count = MODES[choice]["slots"]
+    teams = MODES[choice].get("teams", False)
+    training = choice.startswith("treino") or choice == "desafio_goleiro"
+    slots = [SlotSetup(s, cpu=(choice == "cpu" and s == 2) or (training and s > 1) or (teams and s > 1))
+             for s in range(1, count + 1)]
+    if choice == "campaign":
+        slots = slots[:1]           # P2 a P4 entram na tela de conexão
+    previous = game.session
+    game.session = Session(choice, slots, chapter=chapter)
+    if previous is not None and teams:
+        game.session.layout = previous.layout      # mantém a divisão de times escolhida
+    from .select import CharSelectScene, LobbyScene
+    if choice == "cpu" or training:
+        game.change(CharSelectScene(game))
+    else:
+        game.change(LobbyScene(game))
+
+
 class _InfoScene(_MenuScene):
     heading = ""
     menu_keys = True
@@ -447,6 +715,11 @@ class ControlsScene(_InfoScene):
             self.sfx("confirm", 0.4)
             self.game.change(RebindScene(self.game))
             return
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_c:
+            from .pad import PadScene
+            self.sfx("confirm", 0.4)
+            self.game.change(PadScene(self.game))
+            return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.toggle_rect.collidepoint(event.pos):
             self._toggle_double_tap()
             return
@@ -487,7 +760,7 @@ class ControlsScene(_InfoScene):
                           f"{self.game.base_url} e escolha o número do jogador. No futebol, empurre "
                           "o analógico até a borda para correr.",
                           theme.XS, theme.BONE, (phone.x + 20, phone.y + 32), phone.w - 40, spacing=13)
-        self.footer(screen, [("K", "TROCAR TECLAS"), ("T", "DUPLO TOQUE"), ("ESC", "VOLTAR")])
+        self.footer(screen, [("K", "TROCAR TECLAS"), ("C / Y", "CONTROLE"), ("T", "DUPLO TOQUE"), ("ESC", "VOLTAR")])
 
 
 class OptionsScene(_InfoScene):
@@ -504,6 +777,7 @@ class OptionsScene(_InfoScene):
         ("tremor", "TREMOR DE TELA", "NOS IMPACTOS E EXPLOSÕES"),
         ("duplo_toque", "DUPLO TOQUE = ESQUIVA", "DUAS VEZES NA MESMA SETA"),
         ("controle_comeca_no_p2", "1º CONTROLE USB É O P2", "DESLIGADO: É O P1"),
+        ("vibracao", "VIBRAÇÃO DO CONTROLE", "AO APANHAR, NO GOL E NO SUPER"),
         ("novidades", "NOVIDADES", "O QUE MUDOU EM CADA VERSÃO"),
     ]
     ROW_H = 36
@@ -1298,11 +1572,59 @@ def _scene_agarra(screen, ui, rect, t):
     ball(screen, tx - 20, ground - img.get_height() - 12, 11, spin=2)
 
 
+
+def _scene_modos(screen, ui, rect, t):
+    """Os quatro cartões das modalidades, um de cada vez aceso."""
+    names = ("CAMPANHA", "DUELOS", "FUTEBOL", "BASQUETE")
+    colors = (theme.BRASS, theme.SLOT_COLORS[2], theme.TEAM_COLORS[0], theme.TEAM_COLORS[1])
+    hot = (t // 45) % 4
+    w, gap = 74, 6
+    x0 = rect.centerx - (4 * w + 3 * gap) // 2
+    for i, (name, color) in enumerate(zip(names, colors)):
+        card = pygame.Rect(x0 + i * (w + gap), rect.centery - 50 - (6 if i == hot else 0), w, 92)
+        ui.panel(screen, card, fill=theme.INK_3 if i == hot else theme.INK_2, shadow=False)
+        screen.fill(color if i == hot else theme.LINE, (card.x, card.y, card.w, 4))
+        pygame.draw.circle(screen, color, (card.centerx, card.y + 38), 13 if i == hot else 10)
+        ui.text(screen, name[:8], theme.XS, theme.BONE if i == hot else theme.MUTED, (card.centerx, card.bottom - 16),
+                shadow=False)
+
+
+def _scene_controle(screen, ui, rect, t):
+    """O controle desenhado com um botão aceso por vez, como na tela CONTROLE."""
+    from ..pad_art import draw_pad
+    order = ("a", "b", "x", "y", "rb", "rt", "lb", "lt")
+    fam = ("xbox", "playstation", "nintendo")[(t // 160) % 3]
+    draw_pad(screen, ui, fam, (rect.centerx, rect.centery + 4), 2, lit=order[(t // 20) % len(order)],
+             pulse=(t % 20) / 20)
+
+
+def _scene_coroa(screen, ui, rect, t):
+    """A coroa do P1 e o painel da partida abrindo."""
+    from .base import crown
+    k = min(1.0, (t % 150) / 40)
+    box = pygame.Rect(0, 0, round(190 * k) or 1, 118)
+    box.center = (rect.centerx, rect.centery + 6)
+    ui.panel(screen, box, fill=theme.INK_2, shadow=False)
+    if k >= 1:
+        crown(screen, box.x + 18, box.y + 16)
+        ui.text(screen, "PAINEL DA PARTIDA", theme.XS, theme.BRASS, (box.x + 32, box.y + 16), anchor="midleft",
+                shadow=False)
+        for i, label in enumerate(("CONTINUAR", "REGRAS", "SOM E TELA")):
+            row = pygame.Rect(box.x + 10, box.y + 34 + i * 26, box.w - 20, 22)
+            hot = i == (t // 30) % 3
+            screen.fill(theme.INK if hot else theme.INK_2, row)
+            if hot:
+                screen.fill(theme.BRASS, (row.x, row.y, 3, row.h))
+            ui.text(screen, label, theme.XS, theme.BONE if hot else theme.MUTED, (row.x + 12, row.centery),
+                    anchor="midleft", shadow=False)
+
+
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
                "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
                "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
                "chefao_lag": _scene_chefao_lag, "armas_lag": _scene_armas_lag,
-               "bate": _scene_bate, "agarra": _scene_agarra}
+               "bate": _scene_bate, "agarra": _scene_agarra, "modos": _scene_modos,
+               "controle": _scene_controle, "coroa": _scene_coroa}
 
 
 class NewsScene(_InfoScene):

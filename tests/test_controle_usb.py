@@ -107,7 +107,7 @@ class ControleTest(Limpo):
     def test_gatilhos(self):
         pads, (r,) = controles()
         r.axes = {"rt": 0.9, "lt": 0.2}
-        held, _, _ = pads.poll()
+        held, _, _ = pads.poll({1: "soccer"})
         self.assertIn("p1_sprint", held)
         self.assertNotIn("p1_dodge", held)
 
