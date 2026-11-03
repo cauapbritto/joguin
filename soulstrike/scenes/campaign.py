@@ -625,4 +625,7 @@ class CampaignEndScene(_RunMenuScene):
                     self.unlocked)
         self._stats_panel(screen, pygame.Rect(W - 400, 300, 340, 44 + 22 * (1 + len(self.run.slots))), self.run)
         self.menu.draw(screen, self.ui, self.ticks)
+        if self.ticks > 3 * config.FPS and (self.ticks // 30) % 4:      # easter egg do capítulo 3
+            self.ui.text(screen, "EM BREVE: CAPÍTULO 3 · CLÍNICA CLEPALOVERS", theme.XS, (240, 120, 190),
+                         (64, 336), anchor="midleft")
         self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR")])

@@ -1680,12 +1680,39 @@ def _scene_ultra(screen, ui, rect, t):
             theme.BRASS if full else theme.BONE, (bar.centerx, bar.y - 12), shadow=False)
 
 
+def _scene_clepalovers(screen, ui, rect, t):
+    """Easter egg do capítulo 3: o letreiro rosa da clínica piscando no escuro e um caco roxo."""
+    screen.fill((14, 10, 20), rect)
+    for i in range(0, rect.w, 46):                                           # prédios no escuro
+        h = 70 + (i * 37) % 60
+        screen.fill((24, 18, 32), (rect.x + i, rect.bottom - h, 40, h))
+    sign = pygame.Rect(0, 0, ui.assets.text_width("CLEPALOVERS", theme.M) + 36, 54)
+    sign.center = (rect.centerx, rect.y + 70)
+    flicker = (t // 4) % 23 not in (0, 2) and (t // 90) % 5 != 3
+    pink = (255, 110, 190) if flicker else (90, 40, 70)
+    pygame.draw.rect(screen, (30, 14, 28), sign)
+    pygame.draw.rect(screen, pink, sign, 2)
+    ui.text(screen, "CLEPALOVERS", theme.M, pink, sign.center, shadow=False)
+    ui.text(screen, "CLÍNICA DE ESTÉTICA", theme.XS, (200, 150, 180) if flicker else (70, 40, 60),
+            (sign.centerx, sign.bottom + 12), shadow=False)
+    door = pygame.Rect(0, 0, 60, 80)
+    door.midbottom = (rect.centerx, rect.bottom - 10)
+    screen.fill((40, 22, 40), door)
+    pulse = 4 + int(2 * abs(math.sin(t * 0.08)))
+    shard = [(door.centerx, door.centery - 14 - pulse), (door.centerx + 8, door.centery),
+             (door.centerx, door.centery + 12 + pulse // 2), (door.centerx - 7, door.centery)]
+    pygame.draw.polygon(screen, (170, 90, 240), shard)
+    pygame.draw.polygon(screen, (230, 200, 255), shard, 1)
+    ui.text(screen, "EM BREVE", theme.XS, theme.MUTED, (rect.centerx, rect.bottom - 100), shadow=False)
+
+
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
                "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
                "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
                "chefao_lag": _scene_chefao_lag, "armas_lag": _scene_armas_lag,
                "bate": _scene_bate, "agarra": _scene_agarra, "modos": _scene_modos,
-               "controle": _scene_controle, "coroa": _scene_coroa, "ultra": _scene_ultra}
+               "controle": _scene_controle, "coroa": _scene_coroa, "ultra": _scene_ultra,
+               "clepalovers": _scene_clepalovers}
 
 
 class NewsScene(_InfoScene):

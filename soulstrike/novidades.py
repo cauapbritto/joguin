@@ -10,6 +10,15 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.10.1": [
+        {"title": "???", "scene": "clepalovers", "lines": [
+            "Terminou o capítulo 2? Leia a história do final até a última página.",
+            "Alguém guardou um caquinho do fragmento...",
+        ]},
+        {"title": "ULTRA NA QUADRA", "scene": "ultra", "lines": [
+            "A página do ULTRA e dos orbes nas novidades ganhou um herói na quadra, sem textos encavalados.",
+        ]},
+    ],
     "1.10.0": [
         {"title": "BASQUETE 1 x 1", "scene": "enterrada", "lines": [
             "Modo novo no cartão do Basquete: um contra um com poder demais. Sem o P2, joga contra a CPU.",
