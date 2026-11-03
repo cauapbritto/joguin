@@ -1626,25 +1626,84 @@ def _scene_coroa(screen, ui, rect, t):
 
 
 def _scene_ultra(screen, ui, rect, t):
-    """A barra de ULTRA enchendo e os quatro orbes girando em volta."""
+    """Um herói na quadra com os quatro orbes girando em volta e a barra de ULTRA enchendo:
+    cheia, ele brilha e comemora."""
     from ..basket_ultra import ORB_ORDER, ORBS
-    k = (t % 150) / 110
-    bar = pygame.Rect(0, 0, 200, 16)
-    bar.center = (rect.centerx, rect.centery + 50)
+    sprites = ui.assets.sprites["trovao"]
+    k = (t % 180) / 120
+    full = k >= 1
+    floor = rect.bottom - 64
+    screen.fill((120, 80, 50), (rect.x, floor, rect.w, rect.bottom - floor))
+    pygame.draw.line(screen, (150, 104, 68), (rect.x, floor), (rect.right - 1, floor), 2)
+    hero = (rect.centerx, floor + 10)
+    orbit = (rect.centerx, hero[1] - 62)
+    orbs = []
+    for i, kind in enumerate(ORB_ORDER):
+        a = t * 0.03 + i * math.pi / 2
+        orbs.append((math.sin(a), round(orbit[0] + math.cos(a) * 125), round(orbit[1] + math.sin(a) * 30), kind))
+
+    def draw_orb(x, y, kind):
+        color = ORBS[kind][1]
+        pygame.draw.circle(screen, (20, 18, 24), (x, y), 13)
+        pygame.draw.circle(screen, color, (x, y), 12)
+        pygame.draw.circle(screen, (255, 255, 255), (x - 4, y - 4), 3)
+
+    for i, kind in enumerate(ORB_ORDER):                # legenda fixa no alto: o nome de cada orbe
+        x = rect.x + 14 + (rect.w - 28) * i // 4
+        pygame.draw.circle(screen, ORBS[kind][1], (x + 6, rect.y + 20), 6)
+        ui.text(screen, ORBS[kind][0], theme.XS, theme.BONE, (x + 18, rect.y + 20), anchor="midleft", shadow=False)
+
+    for depth, x, y, kind in sorted(orbs):
+        if depth < 0:
+            draw_orb(x, y, kind)                       # os de trás passam atrás do herói
+    pygame.draw.ellipse(screen, (0, 0, 0), (hero[0] - 40, hero[1] - 8, 80, 14))
+    if full:
+        glow = pygame.Surface((170, 190), pygame.SRCALPHA)
+        alpha = 70 + 40 * ((t // 6) % 2)
+        pygame.draw.ellipse(glow, (255, 236, 140, alpha), glow.get_rect())
+        screen.blit(glow, glow.get_rect(midbottom=(hero[0], hero[1] + 8)))
+        img = sprites.pose("frente", "comemora", (t // 8) % 2)
+    else:
+        img = sprites.frame("frente", 0)
+    img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
+    screen.blit(img, img.get_rect(midbottom=hero))
+    for depth, x, y, kind in sorted(orbs):
+        if depth >= 0:
+            draw_orb(x, y, kind)
+    bar = pygame.Rect(0, 0, 220, 14)
+    bar.midbottom = (rect.centerx, rect.bottom - 14)
     screen.fill(theme.INK, bar)
     fill = bar.inflate(-4, -4)
     fill.w = round(fill.w * min(1.0, k))
-    full = k >= 1
     screen.fill((255, 236, 140) if full and (t // 6) % 2 else theme.EMBER, fill)
-    ui.text(screen, "ULTRA PRONTO!" if full else "ULTRA", theme.XS, theme.BRASS if full else theme.BONE,
-            (bar.centerx, bar.y - 12), shadow=False)
-    for i, kind in enumerate(ORB_ORDER):
-        a = t * 0.03 + i * math.pi / 2
-        x, y = rect.centerx + math.cos(a) * 90, rect.centery - 20 + math.sin(a) * 34
-        color = ORBS[kind][1]
-        pygame.draw.circle(screen, (20, 18, 24), (round(x), round(y)), 13)
-        pygame.draw.circle(screen, color, (round(x), round(y)), 12)
-        ui.text(screen, ORBS[kind][0], theme.XS, theme.BONE, (round(x), round(y) + 22), shadow=False)
+    ui.text(screen, "ULTRA PRONTO: APERTE SUPER!" if full else "ULTRA", theme.XS,
+            theme.BRASS if full else theme.BONE, (bar.centerx, bar.y - 12), shadow=False)
+
+
+def _scene_clepalovers(screen, ui, rect, t):
+    """Easter egg do capítulo 3: o letreiro rosa da clínica piscando no escuro e um caco roxo."""
+    screen.fill((14, 10, 20), rect)
+    for i in range(0, rect.w, 46):                                           # prédios no escuro
+        h = 70 + (i * 37) % 60
+        screen.fill((24, 18, 32), (rect.x + i, rect.bottom - h, 40, h))
+    sign = pygame.Rect(0, 0, ui.assets.text_width("CLEPALOVERS", theme.M) + 36, 54)
+    sign.center = (rect.centerx, rect.y + 70)
+    flicker = (t // 4) % 23 not in (0, 2) and (t // 90) % 5 != 3
+    pink = (255, 110, 190) if flicker else (90, 40, 70)
+    pygame.draw.rect(screen, (30, 14, 28), sign)
+    pygame.draw.rect(screen, pink, sign, 2)
+    ui.text(screen, "CLEPALOVERS", theme.M, pink, sign.center, shadow=False)
+    ui.text(screen, "CLÍNICA DE ESTÉTICA", theme.XS, (200, 150, 180) if flicker else (70, 40, 60),
+            (sign.centerx, sign.bottom + 12), shadow=False)
+    door = pygame.Rect(0, 0, 60, 80)
+    door.midbottom = (rect.centerx, rect.bottom - 10)
+    screen.fill((40, 22, 40), door)
+    pulse = 4 + int(2 * abs(math.sin(t * 0.08)))
+    shard = [(door.centerx, door.centery - 14 - pulse), (door.centerx + 8, door.centery),
+             (door.centerx, door.centery + 12 + pulse // 2), (door.centerx - 7, door.centery)]
+    pygame.draw.polygon(screen, (170, 90, 240), shard)
+    pygame.draw.polygon(screen, (230, 200, 255), shard, 1)
+    ui.text(screen, "EM BREVE", theme.XS, theme.MUTED, (rect.centerx, rect.bottom - 100), shadow=False)
 
 
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
@@ -1652,7 +1711,8 @@ NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "n
                "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
                "chefao_lag": _scene_chefao_lag, "armas_lag": _scene_armas_lag,
                "bate": _scene_bate, "agarra": _scene_agarra, "modos": _scene_modos,
-               "controle": _scene_controle, "coroa": _scene_coroa, "ultra": _scene_ultra}
+               "controle": _scene_controle, "coroa": _scene_coroa, "ultra": _scene_ultra,
+               "clepalovers": _scene_clepalovers}
 
 
 class NewsScene(_InfoScene):

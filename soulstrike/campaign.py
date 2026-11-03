@@ -1650,5 +1650,11 @@ STORY = {
         ("borba", "BORBA JR", "Minha cabeça... Valeu, pessoal. Me ajudem a desligar o resto da fábrica."),
         ("sombra:borba_exo", None, "A sombra do Borba Jr ficou do lado dos heróis: BORBA JR CORROMPIDO está "
                                    "liberado no duelo."),
+        # easter egg do capítulo 3
+        (FRAGMENT, None, "Enquanto isso, do outro lado da cidade, um letreiro rosa acende no escuro: "
+                         "CLÍNICA CLEPALOVERS, ESTÉTICA AVANÇADA. Lá dentro, um caco do cristal brilha."),
+        ("sombra:albeguinio", "ALBEGUINIO CORROMPIDO", "Guardei um caquinho do fragmento antes de tudo quebrar. "
+                                                       "Agora sou o paciente número um da Clepalovers... "
+                                                       "e o tratamento é de graça."),
     )),
 }
