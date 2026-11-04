@@ -476,19 +476,20 @@ A tabela abaixo é o perfil padrão:
 
 No futebol:
 
-- Um toque em **chutar** ou **passe** manda a bola rasteira; **segurar e soltar** levanta
-  a bola (chute alto ou passe por cima da marcação). Bola na altura da cabeça: chutar vira
-  cabeçada.
+- Um toque em **chutar** manda a bola rasteira; **segurar e soltar** levanta a bola (chute
+  alto, por cima da marcação). Bola na altura da cabeça: chutar vira cabeçada.
 - **Quanto mais segura, mais longe**: o chute rasteiro atravessa meio campo e o chute alto
-  com a carga cheia cai a uns 750 px. O **passe alto** vira **lançamento**: chega no
-  companheiro até do outro lado do campo, e quem recebe domina a bola mesmo vindo rápida (se um
-  adversário desviar no caminho, já era). Sem companheiro naquela direção, o passe alto vai
-  para o espaço, mais longe quanto mais tempo segurou.
-- **Passe** vai para o companheiro na direção que você aponta (na frente dele, se estiver
-  correndo). Sem apontar, vai para o mais perto. Ninguém para aquele lado: vai para o espaço.
+  com a carga cheia cai a uns 750 px.
+- **Passe** é igual ao do basquete: sai na hora, sem carregar força, e vai **teleguiado** até
+  o pé do companheiro na direção que você aponta (sem apontar, o mais perto; ninguém para
+  aquele lado, o mais perto daquela direção). A bola corrige o caminho se ele estiver
+  correndo, mas um adversário que entrar na frente ainda corta. O jogo escolhe sozinho se vai
+  rasteiro ou por cima: companheiro longe ou adversário no caminho, vira **lançamento**, que
+  cai no pé dele e é dominado mesmo vindo rápido. Com a bola no pé, um anel marca quem vai
+  receber (e um alvo onde o lançamento cai).
 - **Cruzamento** (2 x 2): na ponta, no último terço do campo, com um companheiro entrando
-  na área, o passe vira cruzamento. **Passe alto** chega na altura da cabeça, na frente da
-  corrida dele; **passe normal** vai rasteiro e forte, para finalizar de primeira. Cabeçada
+  na área, o passe vira cruzamento: por cima, na altura da cabeça, se tiver marcador no
+  meio; rasteiro e forte, para finalizar de primeira, se o caminho estiver livre. Cabeçada
   na área vai para o gol (com a assistência ligada). Apontar para trás continua sendo recuo.
   A CPU também abre pela ponta, cruza e entra na área.
 - **Correr** (segurar): 40% mais rápido, gastando o fôlego (barrinha embaixo do nome). Com a
