@@ -78,6 +78,10 @@ LOB_MAX_FRAMES = 72         # passe alto para o espaço fica no máximo isso no 
 LOB_MATE_MAX_FRAMES = 96    # lançamento para o companheiro do outro lado do campo pode subir mais
 PASS_HOMING_FORCE = 0.15
 PASS_HOMING_FRAMES = 45
+# passe teleguiado (igual ao do basquete): sai na hora, sem carregar, e corrige o caminho até o pé
+PASS_GUIDE_FRAMES = 120     # quadros no máximo que o passe persegue o companheiro
+PASS_GUIDE_SPEED = 8.0      # velocidade do passe rasteiro teleguiado
+PASS_LOB_DIST = 620         # companheiro mais longe que isso: o passe vira lançamento sozinho
 # bola no alto
 GRAVITY = 0.32
 BOUNCE = 0.55               # quanto da velocidade vertical sobra depois do quique

@@ -763,6 +763,8 @@ class Ball(Entity):
         self.homing_target = None
         self.homing_player = None
         self.homing_force = 0.0
+        self.homing_guide = 0.0     # passe teleguiado: velocidade com que a bola vai até o companheiro
+        self.passer = None          # quem acabou de passar (o corpo dele não rebate o próprio passe)
         self.spin = 0.0
         self.ghost_timer = 0
         self.ghost_team = None
@@ -851,7 +853,21 @@ class Ball(Entity):
         if speed > limit:
             self.vx *= limit / speed
             self.vy *= limit / speed
-        if self.homing_timer > 0:
+        if self.homing_timer > 0 and self.homing_guide > 0 and self.homing_player is not None:
+            # passe teleguiado: a cada quadro a bola refaz o caminho até a frente da corrida dele
+            self.homing_timer -= 1
+            mate = self.homing_player
+            if mate.stunned or self.airborne:
+                self.homing_timer = 0
+            else:
+                mvx, mvy = mate.x - mate.prev_pos[0], mate.y - mate.prev_pos[1]
+                speed = max(self.homing_guide, math.hypot(mvx, mvy) * 1.6)
+                frames = min(20.0, math.hypot(mate.x - self.x, mate.y - self.y) / speed)
+                hx, hy = mate.x + mvx * frames - self.x, mate.y + mvy * frames - self.y
+                hm = math.hypot(hx, hy)
+                if hm > 1:
+                    self.vx, self.vy = hx / hm * speed, hy / hm * speed
+        elif self.homing_timer > 0:
             if self.homing_player is not None:
                 self.homing_target = (self.homing_player.x, self.homing_player.y)
             hx, hy = self.homing_target[0] - self.x, self.homing_target[1] - self.y
@@ -1109,8 +1125,8 @@ class SoccerMatch(Match):
             rect = pygame.Rect(0, 0, 54, 18)
             rect.center = (round(p.x - cam.x), round(p.y - cam.y) + 22)
             pygame.draw.ellipse(view, (232, 232, 220), rect, 1)
-            if not p.is_cpu and p.pass_charge > 0:
-                self._draw_pass_aim(view, cam, p)
+            if not p.is_cpu and not self.freeze:
+                self._draw_pass_aim(view, cam, p)       # quem recebe o passe (e onde cai, se for por cima)
         for f in self.fighters:
             if not f.is_cpu and self.keeping(f):
                 self._draw_keeper(view, cam, f)
@@ -1123,21 +1139,10 @@ class SoccerMatch(Match):
             return None, None
         aim = unit(*stick) if math.hypot(*stick) > 0.3 else None
         cone = self.assist.pass_cone
-        mate = self.cross_receiver(f, mates, aim)
-        if mate is None:
-            if aim is None and cone > 0:
-                mate = min(mates, key=f.distance_to)
-            elif cone > 0:
-                mate = pick_receiver(f.x, f.y, aim, mates, cone)
+        mate = self.cross_receiver(f, mates, aim) or self.pass_target(f, mates, aim, cone)
         spot = None
-        if f.pass_charge >= config.LOFT_FRAMES:
-            if mate is not None:
-                spot = (mate.x + (mate.x - mate.prev_pos[0]) * 24, mate.y + (mate.y - mate.prev_pos[1]) * 24)
-            else:
-                lo, hi = config.LOB_SPACE
-                reach = lo + (hi - lo) * _loft(f.pass_charge)
-                dx, dy = aim or f.facing
-                spot = (f.x + dx * reach, f.y + dy * reach)
+        if self.auto_lob(f, mate):
+            spot = (mate.x + (mate.x - mate.prev_pos[0]) * 24, mate.y + (mate.y - mate.prev_pos[1]) * 24)
         return mate, spot
 
     def _draw_pass_aim(self, view, cam, f):
@@ -1237,6 +1242,7 @@ class SoccerMatch(Match):
         if frames > 0:
             self.no_trap[f] = frames
         self.contest.clear()
+        self.ball.passer = None
         if not keep_receiver:
             self.ball.receiver, self.ball.receiver_timer = None, 0
 
@@ -1582,6 +1588,7 @@ class SoccerMatch(Match):
             ball.homing_player = mate
             ball.homing_target = (tx, ty)
             ball.homing_force = 0.12
+            ball.homing_guide = 0.0
         f.facing = (dx, dy)
         self.last_touch = f
         self.popup(f.x, f.y - 74, "CRUZAMENTO", theme.BONE)
@@ -1589,11 +1596,12 @@ class SoccerMatch(Match):
         return True
 
     def pass_ball(self, f, high=False, direction=None, power=1.0):
-        """Passe. Sem direção: para o companheiro mais perto. Com direção (analógico/setas): para o
-        companheiro que estiver para aquele lado, na frente dele se estiver correndo; se ninguém
-        estiver para lá, a bola vai para o espaço. Com a assistência desligada, vai reto.
-        Passe alto (``high``): lançamento por cima, que alcança o companheiro mesmo do outro lado
-        do campo; para o espaço, vai mais longe quanto mais tempo segurou (``power`` de 0 a 1)."""
+        """Passe totalmente assistido, como no basquete. Sem direção: para o companheiro mais
+        perto. Com direção (analógico/setas): para o companheiro que estiver para aquele lado (ou o
+        mais perto daquela direção). O rasteiro vai teleguiado até o pé dele, na frente da corrida.
+        Passe alto (``high``): lançamento por cima, que cai no pé do companheiro mesmo do outro
+        lado do campo. ``high=None`` deixa o jogo escolher (longe ou com adversário no caminho
+        vai por cima). Sem companheiro, vai para o espaço (``power`` de 0 a 1 = distância)."""
         if self.freeze or f.busy or not self.touching(f):
             return False
         self._release(f)
@@ -1604,13 +1612,10 @@ class SoccerMatch(Match):
         # na ponta, no último terço, com companheiro entrando na área: vira cruzamento
         receiver = self.cross_receiver(f, mates, aim)
         if receiver is not None:
-            return self._cross(f, receiver, high)
-        if f.is_cpu or (aim is None and cone > 0):
-            mate = min(mates, key=f.distance_to) if mates else None
-        elif cone > 0:
-            mate = pick_receiver(f.x, f.y, aim, mates, cone)
-        else:
-            mate = None                              # assistência desligada: vai reto
+            return self._cross(f, receiver, self.auto_lob(f, receiver) if high is None else high)
+        mate = self.pass_target(f, mates, aim, cone)
+        if high is None:
+            high = self.auto_lob(f, mate)
         if mate is None and aim is not None:
             f.facing = aim
         if high:
@@ -1639,22 +1644,49 @@ class SoccerMatch(Match):
             if mate is not None:
                 # mira um pouco à frente de quem está correndo
                 mvx, mvy = mate.x - mate.prev_pos[0], mate.y - mate.prev_pos[1]
-                lead = min(20.0, f.distance_to(mate) / config.PASS_POWER * 0.5)
+                lead = min(20.0, f.distance_to(mate) / config.PASS_GUIDE_SPEED)
                 tx, ty = mate.x + mvx * lead, mate.y + mvy * lead
                 f.facing = unit(tx - ball.x, ty - ball.y)
-                ball.homing_timer = config.PASS_HOMING_FRAMES
+                # passe teleguiado (igual ao basquete): a bola corrige o caminho até o pé dele;
+                # quem entrar na frente ainda corta
+                power = config.PASS_GUIDE_SPEED
+                ball.homing_timer = config.PASS_GUIDE_FRAMES
                 ball.homing_player = mate
                 ball.homing_target = (mate.x, mate.y)
                 ball.homing_force = config.PASS_HOMING_FORCE
+                ball.homing_guide = config.PASS_GUIDE_SPEED
+                ball.receiver, ball.receiver_timer = mate, config.PASS_GUIDE_FRAMES
             else:
                 power *= 1.15                         # passe para o espaço vai um pouco mais forte
                 ball.homing_timer = 0
             ball.vx, ball.vy = f.facing[0] * power, f.facing[1] * power
         self.last_touch = f
+        ball.passer = f
         if mate is not None and not f.is_cpu:
             f.give_go = (mate, config.GIVE_GO_FRAMES)
         self.assets.play("chute", 0.25)
         return True
+
+    def pass_target(self, f, mates, aim, cone):
+        """Para quem vai o passe: sem direção, o mais perto; com direção, quem estiver para
+        aquele lado. Como no basquete, se ninguém estiver no cone, vai para o companheiro mais
+        perto da direção apontada (o passe é sempre assistido)."""
+        if not mates:
+            return None
+        if f.is_cpu or aim is None:
+            return min(mates, key=f.distance_to)
+        mate = pick_receiver(f.x, f.y, aim, mates, max(cone, 60))
+        if mate is None:
+            mate = max(mates, key=lambda m: sum(a * b for a, b in zip(unit(m.x - f.x, m.y - f.y), aim)))
+        return mate
+
+    def auto_lob(self, f, mate):
+        """O passe decide sozinho se vai por cima: companheiro longe ou adversário no caminho."""
+        if mate is None:
+            return False
+        if f.distance_to(mate) > config.PASS_LOB_DIST:
+            return True
+        return any(_in_lane(o, f, mate) for o in self.foes_of(f) if not o.stunned)
 
     def curve_of(self, f, stick):
         """Chute com curva: o analógico inclinado para o lado de onde ele olha (-1, 0 ou 1)."""
@@ -1973,16 +2005,13 @@ class SoccerMatch(Match):
         # TABELA: logo depois de passar, PASSE de novo pede a bola de volta
         if inp.pressed("special") and self.possessor is not f and self.give_and_go(f):
             f.pass_charge = -1                     # o aperto foi a tabela: não vira passe
-        # PASSE: mesma ideia
+        # PASSE: como no basquete, sai na hora, sem carregar força. A bola vai teleguiada até o
+        # companheiro e o jogo decide sozinho se vai rasteira ou por cima (longe ou com alguém no meio)
         if f.pass_charge < 0:
             if not inp.held("special"):
                 f.pass_charge = 0
-        elif inp.held("special"):
-            f.pass_charge = min(f.pass_charge + 1, config.MAX_CHARGE)
-        elif f.pass_charge:
-            self.pass_ball(f, high=f.pass_charge >= config.LOFT_FRAMES, direction=stick,
-                           power=_loft(f.pass_charge))
-            f.pass_charge = 0
+        elif inp.pressed("special"):
+            self.pass_ball(f, high=None, direction=stick)
         if inp.pressed("super"):
             if not self.use_power(f):
                 self.assets.play("cancel", 0.2)
@@ -1997,6 +2026,8 @@ class SoccerMatch(Match):
     # ── posse e condução ─────────────────────
     def _can_touch(self, f):
         ball = self.ball
+        if ball.passer is f and ball.homing_guide > 0 and ball.homing_timer > 0:
+            return False            # o passe teleguiado está indo para o companheiro: não volta para quem passou
         return not f.stunned and f not in self.no_trap and not self._ghost_passes(f)
 
     def _ghost_passes(self, f):
@@ -2129,6 +2160,7 @@ class SoccerMatch(Match):
             self.popup(f.x, f.y - 74, "DOMINOU", theme.BONE)
         ball.z = ball.vz = 0.0
         ball.receiver, ball.receiver_timer = None, 0
+        ball.passer = None
         self.possessor = f
         self.contest.clear()
         dx, dy = ball.x - f.x, ball.y - f.y
@@ -2204,6 +2236,8 @@ class SoccerMatch(Match):
                 continue        # a bola vem presa à corrente do gancho: não bate em ninguém
             if ball.receiver_timer > 0 and f is ball.receiver:
                 continue        # o lançamento é para ele: domina em vez de rebater
+            if ball.passer is f and (f in self.no_trap or ball.homing_guide > 0 and ball.homing_timer > 0):
+                continue        # o passe para trás não bate no corpo de quem acabou de passar
             owner = self.possessor
             if owner is not None and owner.magic_timer > 0 and f.team != owner.team:
                 continue        # drible mágico: a bola passa pelo marcador como se ele não estivesse lá
@@ -2441,6 +2475,16 @@ def lob(dist, max_speed=None, t_min=22, t_max=None):
             frames += 1
             covered += speed * 0.996 ** frames
     return speed, frames
+
+
+def _in_lane(o, a, b, width=34):
+    """O jogador ``o`` está no caminho do passe de ``a`` para ``b``?"""
+    abx, aby = b.x - a.x, b.y - a.y
+    length2 = abx * abx + aby * aby or 1
+    t = ((o.x - a.x) * abx + (o.y - a.y) * aby) / length2
+    if not 0.08 < t < 0.92:
+        return False
+    return math.hypot(o.x - (a.x + abx * t), o.y - (a.y + aby * t)) < width
 
 
 def _loft(charge):
