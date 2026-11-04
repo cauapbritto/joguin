@@ -955,6 +955,32 @@ def fuzil():
     return s.finish(), (6, 4)
 
 
+def boleto():
+    """Boleto (Albeguinio Corrompido): o maço de boletos na mão, com o código de barras e a
+    faixa rosa da Clepalovers."""
+    s = Sprite(12, 9)
+    s.rect(1, 0, 10, 8, (210, 206, 196))         # o de trás
+    s.rect(0, 1, 10, 8, (246, 244, 236))
+    s.rect(0, 1, 10, 1, (255, 110, 190))         # faixa rosa
+    for x in range(1, 9, 2):
+        s.rect(x, 5, 1, 3, (40, 40, 48))         # código de barras
+    s.rect(1, 3, 5, 1, (150, 146, 156))
+    return s.finish(), (2, 6)
+
+
+def carimbo():
+    """Carimbo (Albeguinio Corrompido): cabo de madeira e a base vermelha (PAGO / VENCIDO)."""
+    s = Sprite(16, 9)
+    s.rect(0, 3, 7, 3, (150, 96, 60))            # cabo
+    s.rect(0, 3, 7, 1, (190, 130, 84))
+    s.rect(0, 2, 3, 5, (120, 76, 48))            # bolota do cabo
+    s.rect(7, 2, 2, 5, (60, 60, 70))             # pescoço de metal
+    s.rect(9, 0, 4, 9, (70, 40, 30))             # base
+    s.rect(13, 0, 2, 9, (220, 60, 70))           # a borracha com tinta vermelha
+    s.px(10, 1, (110, 70, 50))
+    return s.finish(), (2, 4)
+
+
 # ── armas forjadas (fusão do ferreiro) ───────
 # paleta das forjadas: cada letra é uma cor (as maiúsculas são as versões escuras)
 FORGE = {
@@ -1170,6 +1196,8 @@ WEAPONS = {
     "Taser de Rede": taser_rede, "Rede": rede, "Rifle de Plasma": rifle_plasma, "Drone de Bolso": drone_bolso,
     "Teclado Mecânico": teclado_mecanico, "Escudo de Choque": escudo_choque, "Manopla do Exo": manopla_exo,
     "Punho Corrompido": punho_corrompido, "Fuzil": fuzil,
+    # Clínica Clepalovers (capítulo 3): o Albeguinio Corrompido
+    "Boleto": boleto, "Carimbo": carimbo,
     # forjadas do ferreiro
     "Lâmina Solar": lamina_solar, "Martelo do Trovão Eterno": martelo_trovao,
     "Arco das Mil Almas": arco_mil_almas, "Canhão do Vazio": canhao_vazio,

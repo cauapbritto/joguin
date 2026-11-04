@@ -17,7 +17,8 @@ from .entities import Entity, hostile
 
 SHADOW_TINT = (86, 66, 108)          # almas corrompidas: quase pretas, puxando para o roxo
 TINTS = {"aryel": (66, 48, 86),      # Aryel Corrompido é a sombra mais escura de todas
-         "borba_exo": (74, 60, 96)}  # Borba Jr Corrompido: placas pretas com veios roxos
+         "borba_exo": (74, 60, 96),  # Borba Jr Corrompido: placas pretas com veios roxos
+         "albeguinio_adm": (112, 64, 104)}   # Albeguinio Corrompido: puxando para o rosa da clínica
 SHADOW_KEEP = 0.22                   # quanto da cor original sobra (para ainda reconhecer o herói)
 SHADOW_AURA = (170, 90, 230)         # cor dos textos e avisos das sombras
 SHADOW_RIM = (104, 34, 160)          # contorno que pulsa em volta delas
@@ -80,6 +81,20 @@ def shadow_stats(char_key):
         base.key, f"{base.name} Sombrio", round(base.max_hp * 0.8), base.speed * 0.95, SHADOW_AURA,
         base.ability_name, base.ability_desc, base.weapons, base.sprite,
         elite=True, armed=True, knock_resist=0.3, drop_chance=1.0)
+
+
+REFLEX_TINT = (226, 200, 236)         # reflexo do Espelho Vivo: prateado puxando para o rosa
+REFLEX_RIM = (255, 150, 210)
+REFLEX_EYES = (255, 120, 200)
+
+
+def reflex_stats(char_key):
+    """Reflexo de um herói (Espelho Vivo, capítulo 3): metade da vida, não é elite e não deixa nada."""
+    base = next(c for c in CHARACTERS if c.key == char_key)
+    return EnemyStats(
+        base.key, f"Reflexo de {base.name}", round(base.max_hp * 0.45), base.speed * 0.9, REFLEX_RIM,
+        base.ability_name, base.ability_desc, base.weapons, base.sprite,
+        armed=True, knock_resist=0.1, drop_chance=0.0)
 
 
 def tint_sprites(sprite_set, tint=SHADOW_TINT, eyes=SHADOW_EYES):
@@ -443,6 +458,8 @@ class DroneAI(EnemyAI):
     reaction = 5
     WINDUP = 24
     DIVE = 16
+    COLOR = PATROL_RED
+    SOUND = "drone"
 
     def __init__(self, difficulty="normal"):
         super().__init__(difficulty)
@@ -484,10 +501,10 @@ class DroneAI(EnemyAI):
             self.dive_dir = me.direction_to(target)
             me.face(target)
             frames = round(self.WINDUP / max(0.8, self.aggression))
-            me.start_windup(frames, PATROL_RED)
+            me.start_windup(frames, self.COLOR)
             length = me.stats.speed * 4 * self.DIVE
-            match.add_effect(AimLine(me.x, me.y, *self.dive_dir, length, frames, width=2))
-            match.assets.play("drone", 0.25)
+            match.add_effect(AimLine(me.x, me.y, *self.dive_dir, length, frames, color=self.COLOR, width=2))
+            match.assets.play(self.SOUND, 0.25)
 
 
 class MilicianoAI(EnemyAI):
@@ -608,6 +625,7 @@ class TorretaAI(EnemyAI):
     TURN = 0.028
     LOCK = 30
     BURST = 4
+    COLOR = PATROL_RED
 
     def __init__(self, difficulty="normal"):
         super().__init__(difficulty)
@@ -623,7 +641,7 @@ class TorretaAI(EnemyAI):
 
     def _ensure_sight(self, me, match):
         if self.sight is None or not self.sight.alive:
-            self.sight = AimLine(me.x, me.y, 1.0, 0.0, 520, 10 ** 6, color=PATROL_RED, width=1, follow=me)
+            self.sight = AimLine(me.x, me.y, 1.0, 0.0, 520, 10 ** 6, color=self.COLOR, width=1, follow=me)
             match.add_effect(self.sight)
 
     def act(self, me, match, target):
@@ -659,7 +677,7 @@ class TorretaAI(EnemyAI):
         clear = not match.arena.blocks_segment((me.x, me.y), (target.x, target.y))
         if self.cooldown <= 0 and abs(diff) < 0.12 and clear and me.distance_to(target) < 520:
             self.locked = round(self.LOCK / max(0.8, self.aggression))
-            me.start_windup(self.locked, PATROL_RED)
+            me.start_windup(self.locked, self.COLOR)
             match.assets.play("bip", 0.3)
 
 
@@ -743,6 +761,11 @@ def spawn_enemy(match, kind, x, y):
         sprites = match.assets.shadow_sprites(key)
         # a sombra luta um nível abaixo da dificuldade escolhida (ela é uma cópia mais fraca)
         brain = ShadowAI(SHADOW_LEVEL.get(difficulty, "normal"))
+    elif kind.startswith("reflexo:"):
+        key = kind.split(":", 1)[1]
+        stats = reflex_stats(key)
+        sprites = match.assets.reflex_sprites(key)
+        brain = ShadowAI("facil")             # o reflexo do Espelho Vivo: uma cópia fraquinha
     else:
         stats = CREATURES[kind]
         sprites = match.assets.sprites.get(stats.key) or match.assets.sprites["guerreiro"]
@@ -753,7 +776,12 @@ def spawn_enemy(match, kind, x, y):
     f.armed = stats.armed
     f.knock_resist = stats.knock_resist
     f.kind = kind
-    if kind.startswith("sombra:"):
+    if kind.startswith("reflexo:"):
+        f.damage_bonus = 0.6
+        f.aura = REFLEX_RIM
+        f.ring_color = REFLEX_RIM
+        f.overlay = "hp"
+    elif kind.startswith("sombra:"):
         f.damage_bonus = 0.85
         f.aura = SHADOW_RIM
         f.ring_color = SHADOW_RIM
@@ -762,3 +790,11 @@ def spawn_enemy(match, kind, x, y):
         f.ring_color = (90, 40, 50)
         f.overlay = "hp"
     return f, brain
+
+
+# Clínica Clepalovers (capítulo 3): as criaturas e os cérebros moram em clinica.py
+from . import clinica as _clinica  # noqa: E402
+
+CREATURES.update(_clinica.creature_stats())
+BRAINS.update(_clinica.brains())
+BIG_KINDS = BIG_KINDS + _clinica.BIG

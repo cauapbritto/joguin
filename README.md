@@ -123,7 +123,7 @@ START dos outros abre um menu só deles: **pedir pausa** (avisa o P1) ou **sair*
 CPU. Um controle ou celular novo que aperta START numa vaga de CPU **entra no meio** da partida.
 
 - **Campanha** (1 a 4 jogadores, juntos) — Aryel tocou no Cristal das Almas e virou **Aryel
-  Corrompido**; quem ele derrota vira sombra. São 2 capítulos com 3 fases cada, e cada fase é um
+  Corrompido**; quem ele derrota vira sombra. São 3 capítulos com 3 fases cada, e cada fase é um
   caminho de masmorras:
   1. **Acampamento** (no tema da fase, sem batalha): a **fogueira** recupera vida devagar (até
      70%) para quem fica perto. Na parede ficam as **entradas das duas masmorras**: a 1 aberta e a
@@ -160,13 +160,32 @@ CPU. Um controle ou celular novo que aperta START numa vaga de CPU **entra no me
     leque), três socos seguidos com onda de choque e o salto do exo. A **blindagem total** quase não
     deixa passar dano: esperem ele **SUPERAQUECER**. Chama drones e um Miliciano Exo.
 
-  Quem já zerou o capítulo 1 pode começar direto no 2 (**CAMPANHA: CAPÍTULO 2** no menu), com
-  almas e duas melhorias para compensar (esse jeito não conta para o recorde de tempo).
+  **Capítulo 3: Clínica Clepalovers.** O Albeguinio, do administrativo da clínica de estética,
+  ligou um caco do fragmento na máquina de rejuvenescimento para bater a meta do mês, e um "oi
+  sumido" às 3h da manhã fez o resto. As fases: **Recepção** (Sala de Espera, com **piso molhado**
+  que faz escorregar, e Corredor dos Consultórios, com as máquinas corrompidas), **Ala de
+  Procedimentos** (Sala do Laser, com **ladrilhos rosa** que acendem e queimam, e Spa e Sauna, com
+  **vapor**: ATACAR perto dos 3 registros fecha) e **Suíte VIP** (Sala dos Espelhos e a Sala do
+  Administrativo, com o chefe **Albeguinio Corrompido**).
+  - Monstros: Máscara de Argila (pula e deixa poça que deixa lento), Seringuinha (dardo de botox:
+    sem habilidade por 3 s), Rolinho de Jade, Toalha Fantasma (quase invisível), Esteti-bot,
+    Cadeira de Procedimento (puxa e prende; bater nela solta), Espelho Vivo (solta o reflexo de um
+    herói), Grampeador Vivo e a Máquina Corrompida (solta monstros enquanto está ligada).
+  - **Daiwone**: aparece em 3 salas digitando; se a mensagem chegar, o balão "oi sumido" tapa a tela
+    de um herói. Bater nela enquanto digita cancela; com 3 acertos ela vai embora e deixa almas.
+  - **Albeguinio Corrompido**: boletos em leque, carimbo gigante (o retângulo vermelho avisa) e a
+    agenda, que espalha argila. Faz **PAUSA PRO CAFÉ** depois de cada sequência. Com metade da vida
+    se **HARMONIZA**: cortem os 3 cabos da máquina. Com 20% vem a **RECAÍDA**.
+
+  Quem já zerou o capítulo 1 pode começar direto no 2 (**CAMPANHA: CAPÍTULO 2** no menu), e quem
+  zerou o 2 pode começar no 3, com almas e melhorias para compensar (esse jeito não conta para o
+  recorde de tempo).
 
   **Armas que caem dos inimigos:** de vez em quando um inimigo (quase sempre os elites) deixa cair a
   arma de outro herói, uma que ninguém do grupo está usando. Perto dela, ATACAR pega: ela entra no
   lugar da arma do herói do mesmo tipo (de tiro ou de perto) e a antiga fica no chão. A troca vale
-  até o fim da campanha e fica salva. A cor do nome mostra a raridade: **comum branca**, **rara
+  até o fim da campanha e fica salva. Para largar a arma da mão, segure **TROCAR ARMA** por meio
+  segundo: a rara do baú sai da 3ª vaga e a de outro herói volta a ser a arma do seu herói. A cor do nome mostra a raridade: **comum branca**, **rara
   azul** e **roubada dourada** (no chão e no HUD).
   **Almas, loja e ferreiro:** cada inimigo derrotado dá almas para o grupo todo (3 o comum, 12 o
   elite, 60 o chefão). Na volta da Masmorra 1, o acampamento tem o **mercado** perto da fogueira.
@@ -238,7 +257,8 @@ CPU. Um controle ou celular novo que aperta START numa vaga de CPU **entra no me
   atravessam, esquiva, vampirismo, escudo ou munição), que se acumulam. Mais jogadores, mais inimigos.
   O jogador 1 sempre joga; o 2 entra pelo teclado (tecla `;`) ou celular; o 3 e o 4, pelo celular.
   Escolha a dificuldade na seleção de personagem (TAB). Zerar o capítulo 1 libera o **Aryel
-  Corrompido** e zerar o capítulo 2 libera o **Borba Jr Corrompido** para jogar em todos os modos;
+  Corrompido**, zerar o capítulo 2 libera o **Borba Jr Corrompido** e zerar o 3 libera o
+  **Albeguinio Corrompido** para jogar em todos os modos;
   a campanha inteira guarda o melhor tempo (em
   `%APPDATA%/SoulStrike/progresso.json` no Windows).
 - **Duelo contra CPU** — escolha a dificuldade (fácil, normal, difícil) e a arena. Cada arena tem
@@ -334,8 +354,9 @@ CPU. Um controle ou celular novo que aperta START numa vaga de CPU **entra no me
 | Borba Jr   | 125  | Exoesqueleto: 4,5 s de armadura (veja abaixo)             | Exoesqueleto: 4 s em que ninguém toma a bola dele |
 | Aryel Corrompido* | 135 | Chuva Sombria: 5 bombas caem em cima e em volta do inimigo | Bomba sombria: maior, atordoa e deixa lento |
 | Borba Jr Corrompido** | 145 | Sobrecarga: canhão de pulso gigante em linha reta, atravessa e empurra todo mundo | Exoesqueleto: igual ao do Borba Jr |
+| Albeguinio Corrompido*** | 140 | Fechamento do Mês: três carimbos gigantes em cima e em volta do inimigo (machucam e deixam tonto) | Hack: igual ao do Albeguinio |
 
-\* Liberado ao zerar o capítulo 1 da campanha. \*\* Liberado ao zerar o capítulo 2.
+\* Liberado ao zerar o capítulo 1 da campanha. \*\* Liberado ao zerar o capítulo 2. \*\*\* Liberado ao zerar o capítulo 3.
 
 ### Aryel
 

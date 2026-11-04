@@ -20,9 +20,10 @@ from .menus import TitleScene, _MenuScene
 # ── fluxo ────────────────────────────────────
 def start_campaign(game):
     run = CampaignRun(game.session)
-    if getattr(game.session, "chapter", 1) == 2:
-        # direto no capítulo 2: almas, melhorias sorteadas e mais uma escolhida antes de entrar
-        run.start_at_chapter(2)
+    chapter = getattr(game.session, "chapter", 1)
+    if chapter > 1:
+        # direto no capítulo 2 ou 3: almas, melhorias sorteadas e mais uma escolhida antes de entrar
+        run.start_at_chapter(chapter)
         return UpgradeScene(game, run, lambda: start_phase(game, run), intro=True)
     return StoryScene(game, "prologo", lambda: start_phase(game, run))
 
@@ -58,11 +59,11 @@ def after_phase(game, run):
         return start_phase(game, run)
 
     if run.chapter_end:
-        # fim do capítulo 1: a história do cristal, a melhoria da fase e a tela do capítulo
+        # fim do capítulo 1 ou 2: a história do capítulo, a melhoria da fase e a tela do capítulo
         def chapter_break():
             run.advance()
             return ChapterEndScene(game, run)
-        return StoryScene(game, "fim_capitulo1", lambda: UpgradeScene(game, run, chapter_break))
+        return StoryScene(game, f"fim_capitulo{run.chapter}", lambda: UpgradeScene(game, run, chapter_break))
     return UpgradeScene(game, run, next_phase)
 
 
@@ -213,7 +214,7 @@ class StoryScene(_MenuScene):
             draw_fragment(screen, (W // 2, stage_y - 20), self.ticks)
         else:
             sprites = (self.assets.shadow_sprites(portrait.split(":", 1)[1]) if portrait.startswith("sombra:")
-                       else self.assets.sprites[portrait])
+                       else self.assets.sheet_sprites(portrait))
             img = (sprites.frame("frente", self.ticks // 7) if self.page_ticks < 60
                    else sprites.pose("frente", "parado", (self.ticks // 36) % 2))
             factor = 3 if img.get_height() > 50 else 4
@@ -519,24 +520,35 @@ def draw_unlock(scene, screen, box, sprite, name, now):
     scene.ui.text(screen, name, theme.S, (200, 150, 250), (box.centerx, box.y + 178))
 
 
+# o que a tela de fim de capítulo mostra: texto, sprite e nome do lutador liberado
+CHAPTER_END = {
+    1: ("O cristal quebrou, mas um fragmento sumiu. A próxima parada é a LAG LOBBY, "
+        "a empresa tomada pela Patrulha Cinza.", "aryel", "ARYEL CORROMPIDO"),
+    2: ("O fragmento se partiu, mas um caco sumiu no bolso de alguém. A próxima parada é a CLÍNICA "
+        "CLEPALOVERS, estética avançada.", "borba_exo", "BORBA JR CORROMPIDO"),
+}
+
+
 class ChapterEndScene(_RunMenuScene):
-    """Fim do capítulo 1: libera o Aryel Corrompido e guarda a campanha no começo do capítulo 2
-    (dá para parar aqui e continuar depois pelo CONTINUAR CAMPANHA)."""
+    """Fim do capítulo 1 ou 2: libera o lutador secreto dele e guarda a campanha no começo do
+    próximo capítulo (dá para parar aqui e continuar depois pelo CONTINUAR CAMPANHA)."""
 
     music = "menu"
 
     def __init__(self, game, run):
         super().__init__(game)
         self.run = run
-        self.unlocked = progress.record_chapter1()
+        self.done = max(1, run.chapter - 1)          # o capítulo que acabou (o run já avançou)
+        self.unlocked = progress.record_chapter(self.done)
         run.begin_phase()
         progress.save_campaign(run.to_save())
-        self.menu = MenuList([("IR PARA O CAPÍTULO 2", "next"), ("PARAR AQUI (FICA SALVO)", "menu")],
+        self.menu = MenuList([(f"IR PARA O CAPÍTULO {self.done + 1}", "next"), ("PARAR AQUI (FICA SALVO)", "menu")],
                              topleft=(64, 356), width=360)
 
     def enter(self):
         super().enter()
-        hub.set_phase("results", mode="campaign", active=self.active_slots(), banner="CAPÍTULO 1 CONCLUÍDO")
+        hub.set_phase("results", mode="campaign", active=self.active_slots(),
+                      banner=f"CAPÍTULO {self.done} CONCLUÍDO")
         self.sfx("victory", 0.5)
 
     def _choose(self, choice):
@@ -550,14 +562,14 @@ class ChapterEndScene(_RunMenuScene):
         W = config.SCREEN_W
         self.draw_background(screen)
         self.ui.text(screen, "CAMPANHA", theme.XS, theme.MUTED, (64, 64), anchor="midleft")
-        self.ui.text(screen, "CAPÍTULO 1 CONCLUÍDO!", theme.L, theme.MOSS, (64, 100), anchor="midleft")
+        text, sprite, name = CHAPTER_END[self.done]
+        self.ui.text(screen, f"CAPÍTULO {self.done} CONCLUÍDO!", theme.L, theme.MOSS, (64, 100), anchor="midleft")
         screen.fill(theme.MOSS, (64, 124, 120, 3))
-        self.ui.paragraph(screen, "O cristal quebrou, mas um fragmento sumiu. A próxima parada é a LAG LOBBY, "
-                                  "a empresa tomada pela Patrulha Cinza.",
-                          theme.XS, theme.BONE, (64, 156), 420, spacing=16)
-        self.ui.paragraph(screen, "Se pararem aqui, o CONTINUAR CAMPANHA do menu volta no começo do capítulo 2.",
+        self.ui.paragraph(screen, text, theme.XS, theme.BONE, (64, 156), 420, spacing=16)
+        self.ui.paragraph(screen, "Se pararem aqui, o CONTINUAR CAMPANHA do menu volta no começo do "
+                                  f"capítulo {self.done + 1}.",
                           theme.XS, theme.MUTED, (64, 236), 420, spacing=16)
-        draw_unlock(self, screen, pygame.Rect(W - 400, 70, 340, 200), "aryel", "ARYEL CORROMPIDO", self.unlocked)
+        draw_unlock(self, screen, pygame.Rect(W - 400, 70, 340, 200), sprite, name, self.unlocked)
         self._stats_panel(screen, pygame.Rect(W - 400, 300, 340, 44 + 22 * (1 + len(self.run.slots))), self.run)
         self.menu.draw(screen, self.ui, self.ticks)
         self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR")])
@@ -603,7 +615,7 @@ class CampaignEndScene(_RunMenuScene):
         if self.record:
             line, color = "NOVO RECORDE DE TEMPO!", theme.BRASS
         elif not self.full:
-            line, color = "COMEÇARAM NO CAPÍTULO 2: SEM RECORDE", theme.MUTED
+            line, color = f"COMEÇARAM NO CAPÍTULO {self.run.start_chapter}: SEM RECORDE", theme.MUTED
         elif best is None:
             line, color = "", theme.MUTED
         else:
@@ -621,11 +633,8 @@ class CampaignEndScene(_RunMenuScene):
             pygame.draw.ellipse(screen, theme.SHADOW, (x - 30, 318 - 8, 60, 14))
             screen.blit(img, img.get_rect(midbottom=(x, 318 + 2 - bob)))
 
-        draw_unlock(self, screen, pygame.Rect(W - 400, 70, 340, 200), "borba_exo", "BORBA JR CORROMPIDO",
+        draw_unlock(self, screen, pygame.Rect(W - 400, 70, 340, 200), "albeguinio_adm", "ALBEGUINIO CORROMPIDO",
                     self.unlocked)
         self._stats_panel(screen, pygame.Rect(W - 400, 300, 340, 44 + 22 * (1 + len(self.run.slots))), self.run)
         self.menu.draw(screen, self.ui, self.ticks)
-        if self.ticks > 3 * config.FPS and (self.ticks // 30) % 4:      # easter egg do capítulo 3
-            self.ui.text(screen, "EM BREVE: CAPÍTULO 3 · CLÍNICA CLEPALOVERS", theme.XS, (240, 120, 190),
-                         (64, 336), anchor="midleft")
         self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR")])

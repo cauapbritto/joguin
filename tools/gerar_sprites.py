@@ -13,6 +13,7 @@ de cor; o resto do desenho e o .json são os mesmos da folha normal).
 O jogo amplia 2x sem suavizar, então cada pixel daqui vira um bloco.
 """
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -2250,6 +2251,636 @@ def miliciano_exo(p):
     return c
 
 
+# ── Clínica Clepalovers (capítulo 3) ───────────
+CLEPA, CLEPA_D, CLEPA_L = (255, 110, 190), (184, 56, 128), (255, 192, 226)
+PORCELAIN, PORCELAIN_D = (240, 238, 236), (196, 192, 198)
+GOLD, GOLD_D, GOLD_L = (226, 186, 92), (160, 120, 50), (252, 228, 150)
+CACO, CACO_L = (170, 90, 230), (230, 190, 255)       # roxo do caco do fragmento
+
+
+def _by(p, table, default=0):
+    """Valor da pose atual numa tabela {tipo: número ou tupla por quadro}."""
+    v = table.get(p.kind, default)
+    return v[p.frame % len(v)] if isinstance(v, tuple) else v
+
+
+def _pulse(p):
+    """0..2: o quanto a luz de aviso está acesa (só no ataque)."""
+    return (1, 2, 1)[p.frame] if p.kind == "ataque" else 0
+
+
+def mascara_argila(p):
+    """Máscara de Argila: gosma verde de máscara facial que pula, com duas rodelas de pepino no
+    lugar dos olhos. Esmaga quando cai e espicha quando pula."""
+    c = Canvas(24, 22)
+    clay, clay_d, clay_l = (128, 168, 92), (84, 120, 60), (178, 212, 132)
+    squash = _by(p, {"andar": (0, 1, 0, -1, 0, 1, 0, -1), "parado": (0, 1), "ataque": (1, -2, -1),
+                     "dano": 2, "esquiva": 2})
+    lift = WALK_LIFT[p.frame] * 2 if p.kind == "andar" else (0, 4, 2)[p.frame] if p.kind == "ataque" else 0
+    w, h = 16 + squash * 2, 12 - squash * 2
+    x, y = 12 - w // 2, 20 - h - lift
+    c.rect(x + 2, y, w - 4, 1, clay_l)
+    c.rect(x + 1, y + 1, w - 2, h - 1, clay)
+    c.rect(x, y + 2, w, h - 3, clay)
+    c.rect(x + 2, y + 1, w // 2, 1, clay_l)
+    c.rect(x, y + h - 2, w, 1, clay_d)
+    c.rect(x + 1, y + h - 1, w - 2, 1, clay_d)
+    for dx in (2, w // 2, w - 4):                                 # pingos de argila
+        c.px(x + dx, y + h, clay_d)
+    if lift == 0:
+        c.px(x + w // 2 + 2, y + h + 1, clay_d)
+
+    def cucumber(cx, cy):
+        pygame.draw.circle(c.surf, (66, 120, 50), (cx, cy), 3)
+        pygame.draw.circle(c.surf, (196, 230, 150), (cx, cy), 2)
+        if p.hurt:
+            c.rect(cx - 2, cy, 5, 1, (40, 70, 30))
+        else:
+            c.px(cx, cy, (232, 246, 200))
+            for sx, sy in ((cx - 1, cy - 1), (cx + 1, cy + 1), (cx + 1, cy - 1)):
+                c.px(sx, sy, (120, 160, 80))
+
+    ey = y + max(3, h // 2 - 1)
+    if p.dir == "frente":
+        cucumber(x + 4, ey)
+        cucumber(x + w - 5, ey)
+        c.rect(x + w // 2 - 1, ey + 3, 3, 1, clay_d)              # boquinha
+    elif p.side:
+        cucumber(x + w - 5, ey)
+        c.px(x + w - 2, ey + 3, clay_d)
+    else:
+        c.px(x + 4, y + 3, clay_l)
+        c.px(x + w - 6, y + 4, clay_l)
+    c.hand = (12, y + h // 2)
+    return c
+
+
+def seringuinha(p):
+    """Seringuinha: seringa de pé que pula no próprio êmbolo, com o "botox" rosa dentro.
+    A agulha mira para a frente e brilha antes do dardo."""
+    c = Canvas(18, 32)
+    glass, glass_d = (226, 236, 244), (160, 176, 192)
+    hop = WALK_LIFT[p.frame] * 2 if p.kind == "andar" else 0
+    squish = 2 if p.kind == "andar" and p.frame in (0, 4) else 1 if p.kind == "dano" else 0
+    top = 1 - hop + squish + (1 if p.kind == "ataque" and p.frame == 0 else 0)
+    bx = 4
+    # êmbolo (a "perna"): haste e o apoio no chão
+    rod_top = top + 20
+    c.rect(8, rod_top, 2, 28 - rod_top, (200, 204, 212))
+    c.px(8, rod_top, (240, 242, 246))
+    c.rect(5, 28, 8, 2, (150, 156, 168))
+    c.rect(5, 28, 8, 1, (210, 214, 222))
+    # corpo de vidro com o líquido rosa e a escala
+    c.rect(bx, top + 8, 10, 13, glass)
+    c.rect(bx, top + 8, 1, 13, (250, 252, 255))
+    c.rect(bx + 9, top + 8, 1, 13, glass_d)
+    c.rect(bx + 1, top + 12, 8, 8, CLEPA)
+    c.rect(bx + 1, top + 12, 8, 1, CLEPA_L)
+    c.rect(bx + 1, top + 19, 8, 1, CLEPA_D)
+    for k in range(4):
+        c.px(bx + 1, top + 10 + k * 3, glass_d)
+    c.rect(bx - 2, top + 20, 14, 2, glass_d)                       # aba de segurar
+    c.rect(bx - 2, top + 20, 14, 1, (236, 240, 246))
+    # bico e agulha
+    glow = _pulse(p)
+    tip = (255, 240, 250) if glow == 2 else CLEPA_L if glow else (210, 214, 222)
+    if p.side:
+        c.rect(bx + 3, top + 5, 4, 3, glass_d)
+        for k in range(6):
+            c.px(bx + 7 + k, top + 5 - k // 2, (200, 204, 212))
+        c.px(bx + 13, top + 2, tip)
+        c.hand = (bx + 13, top + 3)
+    else:
+        c.rect(bx + 3, top + 5, 4, 3, glass_d)
+        c.rect(bx + 4, top, 2, 5, (200, 204, 212))
+        c.px(bx + 4, top, tip)
+        c.hand = (bx + 5, top + 1)
+    # carinha no vidro
+    ey = top + 14
+    dark = (60, 20, 44)
+    if p.dir == "frente":
+        for ex in (bx + 2, bx + 6):
+            if p.hurt:
+                c.rect(ex, ey + 1, 2, 1, dark)
+            else:
+                c.rect(ex, ey, 2, 2, dark)
+                c.px(ex, ey, (255, 240, 250))
+        c.rect(bx + 4, ey + 3, 2, 1, dark)
+    elif p.side:
+        c.rect(bx + 6, ey, 2, 2, dark if not p.hurt else CLEPA_D)
+        c.px(bx + 6, ey, (255, 240, 250))
+    return c
+
+
+def rolinho_jade(p):
+    """Rolinho de Jade: o rolo de pedra verde de massagem facial, com o cabo de metal pra cima
+    como um rabo. Rola rápido em linha reta."""
+    c = Canvas(26, 20)
+    jade, jade_d, jade_l = (92, 178, 132), (52, 120, 88), (168, 228, 190)
+    metal = (196, 200, 210)
+    roll = p.frame % 4 if p.kind == "andar" else 0
+    bump = 1 if p.kind == "andar" and p.frame % 2 else 0
+    y = 9 - bump + (1 if p.hurt else 0)
+    if p.side:
+        cx, cy = 11, y + 4
+        pygame.draw.circle(c.surf, jade_d, (cx, cy), 6)
+        pygame.draw.circle(c.surf, jade, (cx, cy), 5)
+        pygame.draw.circle(c.surf, jade_l, (cx - 1, cy - 1), 2)
+        a = roll * math.pi / 2
+        c.px(cx + round(math.cos(a) * 4), cy + round(math.sin(a) * 4), (230, 250, 236))
+        c.rect(cx - 1, cy - 1, 2, 2, metal)                        # eixo
+        c.line(cx, cy, cx - 7, cy - 6, metal, 2)                   # cabo pra trás
+        c.rect(cx - 10, cy - 8, 4, 3, (236, 236, 240))
+        c.rect(cx + 3, cy - 2, 2, 2, (30, 40, 34) if not p.hurt else jade_d)   # olho
+        c.px(cx + 3, cy - 2, (240, 255, 246))
+        c.hand = (cx + 5, cy)
+        return c
+    x0 = 5
+    c.rect(x0, y, 16, 8, jade)
+    c.rect(x0, y, 16, 1, jade_l)
+    c.rect(x0, y + 7, 16, 1, jade_d)
+    for k in range(4):                                             # veios do jade girando
+        vx = x0 + 2 + (k * 4 + roll) % 15
+        c.px(vx, y + 2 + k % 3, jade_l)
+        c.px(vx, y + 5 - k % 2, jade_d)
+    c.rect(x0 - 2, y + 2, 2, 4, metal)                             # tampas de metal
+    c.rect(x0 + 16, y + 2, 2, 4, metal)
+    c.line(x0 + 17, y + 2, x0 + 19, y - 6, metal, 1)               # cabo em U subindo
+    c.line(x0 - 2, y + 2, x0 - 4, y - 6, metal, 1)
+    c.rect(x0 - 4, y - 8, 24, 2, (236, 236, 240))
+    if p.dir == "frente":
+        for ex in (x0 + 4, x0 + 10):
+            if p.hurt:
+                c.rect(ex, y + 4, 2, 1, (30, 40, 34))
+            else:
+                c.rect(ex, y + 3, 2, 2, (30, 40, 34))
+                c.px(ex, y + 3, (240, 255, 246))
+    c.hand = (13, y + 4)
+    return c
+
+
+def toalha_fantasma(p):
+    """Toalha Fantasma: toalha branca felpuda flutuando, com a toalhinha de turbante (listra rosa)
+    na cabeça e a barra franjada balançando. Some no vapor do spa."""
+    c = Canvas(24, 30)
+    towel, towel_d, towel_l = (236, 234, 230), (186, 182, 182), (255, 255, 252)
+    fly = p.float + (1 if p.hurt else 0)
+    x, y = 5, 5 + fly
+    w = 14
+    # corpo (pano caído)
+    c.rect(x + 1, y + 6, w - 2, 15, towel)
+    c.rect(x, y + 8, w, 12, towel)
+    c.rect(x, y + 8, 1, 12, towel_l)
+    c.rect(x + w - 1, y + 8, 1, 12, towel_d)
+    for k in range(3):                                             # dobras do pano
+        c.rect(x + 3 + k * 4, y + 12, 1, 7, towel_d)
+    # barra com franja balançando
+    for k in range(w):
+        dy = (k + p.wave + p.frame) % 3
+        c.rect(x + k, y + 20, 1, 1 + dy, towel if k % 2 else towel_d)
+    c.rect(x, y + 18, w, 1, CLEPA_L)
+    # braços (pontas da toalha)
+    reach = max(0, p.reach)
+    if p.side:
+        c.rect(x + w - 2, y + 11, 4 + reach, 3, towel)
+        c.px(x + w + 1 + reach, y + 13, towel_d)
+    else:
+        c.rect(x - 2, y + 10 - (1 if p.kind == "ataque" else 0), 2, 6, towel)
+        c.rect(x + w, y + 10 - (1 if p.kind == "ataque" else 0), 2, 6, towel)
+    # cabeça com o turbante de toalhinha
+    c.rect(x + 2, y + 1, w - 4, 8, towel)
+    c.rect(x + 1, y - 1, w - 2, 4, CLEPA_L)
+    c.rect(x + 2, y - 2, w - 5, 2, towel_l)
+    c.rect(x + 1, y + 1, w - 2, 1, CLEPA)
+    c.px(x + w - 3, y - 3, towel_l)
+    eye = (40, 34, 50)
+    if p.dir == "frente":
+        for ex in (x + 4, x + w - 6):
+            if p.hurt:
+                c.rect(ex, y + 5, 2, 1, eye)
+            else:
+                c.rect(ex, y + 4, 2, 3, eye)
+                c.px(ex, y + 4, (120, 110, 140))
+        c.rect(x + 6, y + 8, 2, 2 if p.kind == "ataque" else 1, eye)
+    elif p.side:
+        c.rect(x + w - 5, y + 4, 2, 3, eye if not p.hurt else towel_d)
+    c.surf.set_alpha(None)
+    c.hand = (x + w // 2, y + 12)
+    return c
+
+
+def esteti_bot(p):
+    """Esteti-bot: o aparelho de laser da cabine, num carrinho de rodinhas, com a tela rosa e o
+    braço articulado. A ponteira acende antes do disparo."""
+    c = Canvas(28, 34)
+    body, body_d, body_l = (232, 230, 236), (176, 172, 184), (252, 252, 255)
+    shake = 1 if p.hurt else 0
+    recoil = (0, 2, 1)[p.frame] if p.kind == "ataque" else 0
+    x = 6 + shake
+    # rodinhas e base
+    for wx in (x + 1, x + 12):
+        c.rect(wx, 30, 3, 3, (60, 60, 70))
+        c.px(wx + 1, 31, (150, 150, 160))
+    c.rect(x, 27, 16, 3, body_d)
+    # gabinete
+    c.rect(x + 1, 13, 14, 15, body)
+    c.rect(x + 1, 13, 14, 1, body_l)
+    c.rect(x + 14, 13, 1, 15, body_d)
+    c.rect(x + 3, 15, 10, 6, (40, 30, 48))                         # tela
+    c.rect(x + 4, 16, 8, 4, CLEPA_D)
+    c.px(x + 6, 17, CLEPA_L)
+    c.px(x + 8, 17, CLEPA_L)
+    c.rect(x + 6, 18, 3, 1, CLEPA_L)                                # coraçãozinho
+    c.px(x + 7, 19, CLEPA_L)
+    c.rect(x + 3, 23, 10, 1, CLEPA)                                 # faixa da marca
+    c.px(x + 4, 25, (120, 230, 140))
+    c.px(x + 6, 25, CLEPA)
+    # braço articulado
+    glow = _pulse(p)
+    tip = (255, 250, 254) if glow == 2 else CLEPA_L if glow else CLEPA
+    arm = (150, 154, 166)
+    if p.side:
+        c.line(x + 8, 13, x + 12, 6, arm, 2)
+        c.line(x + 12, 6, x + 20 - recoil, 8, arm, 2)
+        c.rect(x + 19 - recoil, 7, 3, 3, (90, 90, 100))
+        c.px(x + 21 - recoil, 8, tip)
+        c.hand = (x + 21 - recoil, 8)
+    elif p.dir == "frente":
+        c.line(x + 8, 13, x + 4, 6, arm, 2)
+        c.line(x + 4, 6, x + 8, 3 + recoil, arm, 2)
+        c.rect(x + 7, 2 + recoil, 4, 4, (90, 90, 100))
+        c.rect(x + 8, 3 + recoil, 2, 2, tip)
+        c.hand = (x + 9, 4 + recoil)
+    else:
+        c.line(x + 8, 13, x + 8, 5, arm, 2)
+        c.rect(x + 7, 3, 4, 3, (90, 90, 100))
+        c.rect(x + 2, 14, 12, 12, body_d)                          # traseira com as aberturas
+        for k in range(4):
+            c.rect(x + 4, 16 + k * 2, 8, 1, (130, 126, 140))
+        c.hand = (x + 9, 4)
+    return c
+
+
+def cadeira(p):
+    """Cadeira de Procedimento (elite): a cadeira reclinável estofada de rosa, de base hidráulica
+    e rodinhas, com duas luzinhas no encosto de cabeça. No ataque ela deita e "puxa" o paciente."""
+    c = Canvas(32, 32)
+    seat, seat_d, seat_l = CLEPA, CLEPA_D, CLEPA_L
+    metal, metal_d = (210, 212, 220), (140, 144, 156)
+    roll = p.frame % 2 if p.kind == "andar" else 0
+    shake = 1 if p.hurt else 0
+    recline = (0, 3, 2)[p.frame] if p.kind == "ataque" else 0
+    bx = 6 + shake
+    # base: rodinhas, estrela e coluna
+    for wx in (bx, bx + 9, bx + 18):
+        c.rect(wx + roll, 29, 3, 3, (60, 60, 70))
+    c.rect(bx + 1, 28, 19, 2, metal_d)
+    c.rect(bx + 9, 21, 3, 7, metal)
+    c.px(bx + 9, 21, (240, 240, 246))
+    if p.side:
+        # assento e encosto (deita para trás no ataque)
+        c.rect(bx + 2, 17, 15, 4, seat)
+        c.rect(bx + 2, 17, 15, 1, seat_l)
+        c.rect(bx + 2, 20, 15, 1, seat_d)
+        top = 4 + recline
+        c.line(bx + 2, 18, bx + 1 - recline * 2, top, seat, 4)
+        c.rect(bx - 1 - recline * 2, top - 3, 5, 4, seat_l)          # apoio de cabeça
+        c.rect(bx + 16, 16, 6, 2, seat)                              # apoio dos pés
+        c.line(bx + 21, 17, bx + 24, 23, seat_d, 2)
+        c.rect(bx + 5, 14, 9, 2, metal)                              # braço da cadeira
+        lit = (255, 240, 250) if p.kind == "ataque" else (255, 80, 150)
+        c.px(bx + 1 - recline * 2, top - 2, lit if not p.hurt else seat_d)
+        c.hand = (bx + 20, 16)
+        return c
+    # de frente/costas
+    c.rect(bx + 1, 16, 19, 5, seat)
+    c.rect(bx + 1, 16, 19, 1, seat_l)
+    c.rect(bx + 1, 20, 19, 1, seat_d)
+    top = 3 + recline
+    c.rect(bx + 4, top + 4, 13, 13 - recline, seat)
+    c.rect(bx + 4, top + 4, 13, 1, seat_l)
+    c.rect(bx + 16, top + 4, 1, 13 - recline, seat_d)
+    c.rect(bx + 6, top, 9, 4, seat_l)
+    if p.dir == "frente":
+        for k in range(3):                                           # botões do estofado
+            c.px(bx + 7 + k * 3, top + 9, seat_d)
+        lit = (255, 240, 250) if p.kind == "ataque" else (255, 70, 140)
+        for ex in (bx + 7, bx + 12):
+            if p.hurt:
+                c.rect(ex, top + 2, 2, 1, seat_d)
+            else:
+                c.rect(ex, top + 1, 2, 2, (60, 20, 44))
+                c.px(ex, top + 1, lit)
+    else:
+        c.rect(bx + 5, top + 6, 11, 9, seat_d)
+    reach = max(0, p.reach)
+    for ax in (bx - 1 - reach, bx + 19 + reach):                     # braços (apoios)
+        c.rect(ax, 13, 3, 6, metal)
+        c.rect(ax, 13, 3, 1, (240, 240, 246))
+    c.hand = (bx + 21 + reach, 15)
+    return c
+
+
+def espelho_vivo(p):
+    """Espelho Vivo (elite): espelho oval de pé com moldura dourada. O reflexo dentro pisca rosa
+    antes de soltar a cópia de um herói; levando dano, o vidro racha."""
+    c = Canvas(26, 36)
+    glow = _pulse(p)
+    shake = 1 if p.hurt else 0
+    cx = 13 + shake
+    # pé
+    c.rect(cx - 6, 32, 12, 2, GOLD_D)
+    c.rect(cx - 1, 26, 3, 6, GOLD)
+    c.line(cx - 5, 33, cx - 1, 29, GOLD_D, 1)
+    c.line(cx + 5, 33, cx + 1, 29, GOLD_D, 1)
+    # moldura e vidro
+    w = 18 if not p.side else 10
+    rect = pygame.Rect(cx - w // 2, 2, w, 25)
+    pygame.draw.ellipse(c.surf, GOLD_D, rect.inflate(2, 2))
+    pygame.draw.ellipse(c.surf, GOLD, rect)
+    inner = rect.inflate(-4, -4)
+    if p.dir == "costas":
+        pygame.draw.ellipse(c.surf, (120, 90, 60), inner)            # costas de madeira
+        c.rect(inner.centerx - 1, inner.y + 3, 2, inner.h - 6, (90, 66, 44))
+    else:
+        glass = (200, 214, 230) if not glow else (255, 170, 220) if glow == 1 else (255, 220, 240)
+        pygame.draw.ellipse(c.surf, glass, inner)
+        pygame.draw.ellipse(c.surf, (150, 166, 190) if not glow else CLEPA, inner.inflate(-4, -6))
+        c.line(inner.x + 3, inner.y + 5, inner.x + 6, inner.y + 2, (250, 252, 255), 1)    # reflexo
+        c.line(inner.x + 3, inner.y + 9, inner.x + 8, inner.y + 4, (236, 242, 250), 1)
+        if p.dir == "frente" or p.side:                              # o olhar dentro do espelho
+            ey = inner.centery
+            for ex in ((inner.centerx - 3, inner.centerx + 2) if not p.side else (inner.centerx,)):
+                c.rect(ex, ey, 2, 1, (60, 20, 60) if not glow else (255, 255, 255))
+        if p.hurt:                                                   # rachadura
+            c.line(inner.centerx, inner.y + 3, inner.centerx - 3, inner.centery, (90, 96, 110), 1)
+            c.line(inner.centerx - 3, inner.centery, inner.centerx + 2, inner.bottom - 4, (90, 96, 110), 1)
+    c.px(cx, 1, GOLD_L)                                               # enfeite em cima
+    c.rect(cx - 1, 0, 3, 2, GOLD)
+    c.hand = (cx, 14)
+    return c
+
+
+def grampeador(p):
+    """Grampeador Vivo: o grampeador da mesa do administrativo, que abre a boca (cheia de grampos)
+    e cospe rajadas. Depois de 3 rajadas fica de boca aberta, recarregando."""
+    c = Canvas(24, 18)
+    top, top_d, top_l = (52, 50, 60), (30, 28, 36), (96, 94, 110)
+    base = (40, 38, 46)
+    hop = WALK_LIFT[p.frame] if p.kind == "andar" else 0
+    gape = _by(p, {"ataque": (2, 4, 3), "dano": 1})
+    y = 9 - hop
+    if p.side:
+        c.rect(3, y + 5, 18, 3, base)                               # base
+        c.rect(3, y + 7, 18, 1, (20, 20, 26))
+        c.rect(3, y - gape + 1, 4, gape + 4, top_d)                 # dobradiça atrás
+        for k in range(16):                                         # parte de cima abrindo
+            yy = y + 1 - round(gape * (k / 15))
+            c.rect(4 + k, yy, 1, 3, top if k % 5 else top_l)
+        c.rect(5, y + 1 - gape, 14, 1, top_l)
+        if gape:
+            for k in range(3):                                      # grampos
+                c.rect(15 + k, y + 3, 1, 2, (220, 224, 232))
+            c.rect(18, y + 4 - gape // 2, 2, 1, CLEPA)              # língua rosa
+        c.rect(15, y - gape + 1, 2, 2, (250, 250, 250))             # olho
+        c.px(16, y - gape + 2, (20, 20, 26) if not p.hurt else top)
+        c.hand = (20, y + 3)
+        return c
+    c.rect(4, y + 5, 16, 3, base)
+    c.rect(4, y + 7, 16, 1, (20, 20, 26))
+    c.rect(5, y - gape, 14, 5, top)
+    c.rect(5, y - gape, 14, 1, top_l)
+    c.rect(5, y + 4 - gape, 14, 1, top_d)
+    if p.dir == "frente":
+        if gape:
+            c.rect(6, y + 5 - gape, 12, gape, (24, 18, 26))         # boca aberta
+            for k in range(5):
+                c.px(7 + k * 2, y + 5 - gape, (220, 224, 232))
+        for ex in (8, 14):
+            if p.hurt:
+                c.rect(ex, y + 1 - gape, 2, 1, (250, 250, 250))
+            else:
+                c.rect(ex, y - gape, 2, 2, (250, 250, 250))
+                c.px(ex + 1, y + 1 - gape, (20, 20, 26))
+        c.rect(10, y + 2 - gape, 4, 1, CLEPA)                       # etiqueta rosa da clínica
+    c.hand = (12, y + 4)
+    return c
+
+
+def maquina(p):
+    """Máquina corrompida (objetivo do Corredor dos Consultórios): o aparelho de estética alto, de
+    tela rosa, com o caco roxo rachando a lateral e as mangueiras. Enquanto está ligada, solta
+    monstros; no ataque as luzes piscam forte."""
+    c = Canvas(30, 38)
+    body, body_d, body_l = (234, 232, 238), (178, 174, 188), (252, 252, 255)
+    glow = _pulse(p)
+    shake = 1 if p.hurt else 0
+    x = 7 + shake
+    c.rect(x - 1, 34, 18, 3, body_d)
+    for wx in (x, x + 13):
+        c.rect(wx, 36, 3, 2, (60, 60, 70))
+    c.rect(x, 6, 16, 28, body)
+    c.rect(x, 6, 16, 1, body_l)
+    c.rect(x + 15, 6, 1, 28, body_d)
+    c.rect(x, 33, 16, 1, body_d)
+    c.rect(x + 2, 2, 12, 5, body_d)                                 # tampa de cima
+    c.rect(x + 2, 2, 12, 1, body_l)
+    if p.dir != "costas":
+        c.rect(x + 2, 9, 12, 8, (34, 26, 40))                        # tela
+        c.rect(x + 3, 10, 10, 6, CLEPA_D if not glow else CLEPA)
+        for k in range(5):                                           # gráfico subindo
+            c.px(x + 4 + k * 2, 14 - (k * 3 + p.frame) % 4, CLEPA_L)
+        c.rect(x + 2, 19, 12, 1, CLEPA)
+        for k in range(3):                                           # botões
+            c.rect(x + 3 + k * 4, 21, 2, 2, ((120, 230, 140), CLEPA, (255, 210, 90))[k])
+        # caco roxo rachando a lateral
+        lit = CACO_L if glow else CACO
+        c.line(x + 12, 24, x + 14, 31, lit, 1)
+        c.line(x + 13, 27, x + 10, 30, lit, 1)
+        c.rect(x + 11, 25, 3, 3, lit)
+    else:
+        for k in range(6):
+            c.rect(x + 3, 9 + k * 3, 10, 1, body_d)
+    # mangueiras saindo dos lados
+    hose = (200, 200, 210)
+    c.line(x - 1, 22, x - 5, 30, hose, 2)
+    c.rect(x - 7, 30, 4, 3, CLEPA_D)
+    if not p.side:
+        c.line(x + 16, 22, x + 20, 30, hose, 2)
+        c.rect(x + 19, 30, 4, 3, CLEPA_D)
+    if p.hurt:
+        c.px(x + 4, 4, (255, 240, 120))
+        c.px(x + 9, 1, (255, 200, 80))
+    c.hand = (x + 8, 12)
+    return c
+
+
+def cabo(p):
+    """Cabo da máquina (luta do chefe): tomada grossa presa no chão, com o cabo roxo pulsando.
+    Cortar os três tira o brilho da Harmonização."""
+    c = Canvas(22, 22)
+    glow = _pulse(p) or (1 if p.kind == "andar" and p.frame % 4 < 2 else 0)
+    shake = 1 if p.hurt else 0
+    x = 4 + shake
+    c.rect(x, 12, 14, 8, (60, 58, 70))
+    c.rect(x, 12, 14, 1, (110, 108, 124))
+    c.rect(x + 2, 14, 10, 4, (230, 230, 236))
+    c.rect(x + 4, 15, 2, 2, (40, 40, 48))
+    c.rect(x + 8, 15, 2, 2, (40, 40, 48))
+    lit = CACO_L if glow else CACO
+    c.line(x + 7, 12, x + 7, 4, lit, 3)
+    c.line(x + 7, 4, x + 1, 0, lit, 3)
+    c.px(x + 8, 7, (255, 255, 255) if glow else CACO_L)
+    c.hand = (x + 7, 10)
+    return c
+
+
+def daiwone(p):
+    """Daiwone: a influenciadora parceira da clínica, bem pequenininha (menor que a diabrete).
+    O que marca ela é o celular sempre na mão e o ring light; de óculos escuros na cabeça e
+    conjunto de moletom rosa. No ataque ela levanta o celular para mandar mensagem."""
+    c = Canvas(20, 28)
+    skin = (236, 196, 170)
+    hair_c, hair_d = (110, 70, 46), (78, 48, 32)
+    suit, suit_d, suit_l = (250, 160, 206), (206, 102, 160), (255, 214, 236)
+    phone, screen = (34, 30, 40), (150, 220, 255)
+    walk = p.kind == "andar"
+    bob = WALK_BOB[p.frame] if walk else (0, 1)[p.frame] if p.kind == "parado" else 1 if p.hurt else 0
+    step = WALK_STRIDE[p.frame] if walk else 0
+    hx, hy = 5, 3 + bob
+    tx, ty = 7, 14 + bob
+    # pernas e tênis
+    if p.side:
+        for off, col in ((step, suit_d), (-step, suit)):
+            c.rect(9 + off // 2, ty + 6, 2, 4 - bob, col)
+            c.rect(9 + off // 2, 25, 3, 2, (250, 250, 250))
+    else:
+        for lx, lift in ((7, 1 if step > 0 else 0), (11, 1 if step < 0 else 0)):
+            c.rect(lx, ty + 6, 2, 5 - bob - lift, suit_d)
+            c.rect(lx, 25 - lift, 3, 2, (250, 250, 250))
+    # moletom
+    c.rect(tx, ty, 7, 7, suit)
+    c.rect(tx, ty, 7, 1, suit_l)
+    c.rect(tx, ty + 6, 7, 1, suit_d)
+    if p.dir == "frente":
+        c.rect(tx + 3, ty + 1, 1, 5, suit_l)                          # zíper
+    # braços: um com o celular
+    up = p.kind == "ataque"
+    if p.side:
+        if up:
+            c.line(tx + 4, ty + 1, tx + 8, ty - 4, suit, 2)
+            c.rect(tx + 8, ty - 8, 3, 5, phone)
+            c.rect(tx + 9, ty - 7, 1, 3, screen)
+            c.hand = (tx + 9, ty - 6)
+        else:
+            c.line(tx + 4, ty + 1, tx + 7, ty + 4, suit, 2)
+            c.rect(tx + 7, ty + 1, 3, 5, phone)
+            c.px(tx + 8, ty + 2, screen)
+            c.hand = (tx + 8, ty + 3)
+    else:
+        c.rect(tx - 2, ty + 1, 2, 5, suit)
+        c.rect(tx - 2, ty + 6, 2, 1, skin)
+        if up:
+            c.rect(tx + 7, ty - 3, 2, 5, suit)
+            c.rect(tx + 7, ty - 8, 3, 5, phone)
+            c.rect(tx + 8, ty - 7, 1, 3, screen if p.dir == "costas" else phone)
+            # ring light atrás do celular
+            pygame.draw.circle(c.surf, (255, 250, 236), (tx + 9, ty - 6), 4, 1)
+            c.hand = (tx + 8, ty - 6)
+        else:
+            c.rect(tx + 7, ty + 1, 2, 4, suit)
+            c.rect(tx + 7, ty + 4, 3, 4, phone)
+            c.px(tx + 8, ty + 5, screen if p.dir == "frente" else phone)
+            c.hand = (tx + 8, ty + 6)
+    # cabeça
+    c.rect(hx, hy, 10, 10, skin)
+    for cx, cy in ((hx, hy), (hx + 9, hy), (hx, hy + 9), (hx + 9, hy + 9)):
+        c.erase(cx, cy)
+    # cabelo comprido e coque alto
+    if p.dir == "costas":
+        c.rect(hx, hy, 10, 10, hair_c)
+        c.rect(hx + 1, hy + 9, 8, 4, hair_c)
+        c.rect(hx + 3, hy - 3, 4, 3, hair_d)
+    else:
+        c.rect(hx, hy, 10, 3, hair_c)
+        c.rect(hx + 3, hy - 3, 4, 3, hair_d)                          # coque
+        c.rect(hx + 4, hy - 3, 2, 1, hair_c)
+        if p.side:
+            c.rect(hx, hy, 4, 10, hair_c)
+            c.rect(hx + 1, hy + 10, 3, 3, hair_c)
+        else:
+            c.rect(hx - 1, hy + 2, 2, 9, hair_c)
+            c.rect(hx + 9, hy + 2, 2, 9, hair_c)
+        # óculos escuros em cima da cabeça
+        c.rect(hx + 2, hy + 1, 6, 1, (30, 26, 34))
+        c.px(hx + 2, hy + 1, (120, 110, 140))
+        dark = (40, 28, 40)
+        if p.dir == "frente":
+            for ex in (hx + 2, hx + 6):
+                if p.hurt:
+                    c.rect(ex, hy + 6, 2, 1, dark)
+                else:
+                    c.rect(ex, hy + 5, 2, 2, dark)
+                    c.px(ex, hy + 5, (255, 255, 255))
+            c.px(hx + 1, hy + 7, (246, 150, 170))
+            c.px(hx + 8, hy + 7, (246, 150, 170))
+            c.rect(hx + 4, hy + 8, 2, 1, (200, 90, 120))
+        else:
+            c.rect(hx + 7, hy + 5, 2, 2, dark)
+            c.px(hx + 7, hy + 5, (255, 255, 255))
+            c.px(hx + 6, hy + 8, (200, 90, 120))
+    return c
+
+
+def albeguinio_adm(p):
+    """Albeguinio do administrativo da Clepalovers (o chefe do capítulo 3 e o Albeguinio
+    Corrompido do duelo): camisa social lilás com gravata rosa, crachá da clínica no peito, calça
+    cinza-chumbo e o caco roxo brilhando no bolso."""
+    c = Canvas()
+    skin, hair_c = (238, 198, 168), (118, 78, 48)
+    stubble = shade(skin, -34)
+    shirt, shirt_d, shirt_l = uni(p, (206, 190, 236)), uni(p, (160, 140, 200), "dark"), uni(p, (232, 222, 250), "light")
+    tie, pants, shoes = CLEPA_D, (70, 70, 82), (40, 30, 30)
+    x, y, w, h = p.torso
+    hx, hy, hw, hh = p.head
+    legs(c, p, pants, shoes)
+    far_arm(c, p, shirt, skin)
+    torso(c, p, shirt, belt=(40, 36, 44), buckle=GOLD)
+    if p.dir == "frente":
+        c.rect(x + w // 2 - 1, y, 2, 1, shirt_l)                    # colarinho
+        c.rect(x + w // 2 - 1, y + 1, 2, h - 2, tie)                # gravata
+        c.px(x + w // 2 - 1, y + 1, CLEPA)
+        c.rect(x + 1, y + 2, 2, 3, (250, 250, 250))                 # crachá
+        c.px(x + 1, y + 2, CLEPA)
+        c.px(x + 2, y + 4, (40, 40, 48))
+        c.px(x + w - 2, y + 2, CACO_L)                              # caco no bolso
+        c.px(x + w - 3, y + 3, CACO)
+    elif p.side:
+        c.rect(x + w - 2, y + 1, 1, h - 3, tie)
+        c.px(x + 1, y + 2, (250, 250, 250))
+    else:
+        c.rect(x + 1, y, w - 2, 1, shirt_d)
+    arms(c, p, shirt, skin, cuff=shirt_l)
+    head(c, p, skin)
+    hair(c, p, hair_c)
+    if p.dir != "costas":
+        c.rect(hx + 2, hy - 1, 5, 1, hair_c)                         # topete
+        c.px(hx + 3, hy - 2, hair_c)
+        c.px(hx + 4, hy - 1, shade(hair_c, 30))
+        eyes(c, p)
+        if p.dir == "frente":
+            c.rect(hx + 1, hy + 8, hw - 2, 1, stubble)
+            c.rect(hx + 2, hy + 9, hw - 4, 1, stubble)
+            c.rect(hx + 3, hy + 7, 4, 1, stubble)
+        else:
+            c.rect(hx + 4, hy + 8, hw - 5, 1, stubble)
+            c.rect(hx + 5, hy + 9, hw - 6, 1, stubble)
+        mouth(c, p, skin)
+    else:
+        c.rect(hx, hy + 1, hw, 2, hair_c)
+    return c
+
+
 # ── catálogo ──────────────────────────────────
 # nome → (desenho, largo, cores que acendem de vermelho na alma corrompida)
 CHARACTERS = {
@@ -2279,11 +2910,24 @@ CHARACTERS = {
     "miliciano": (miliciano, False, []),
     "torreta": (torreta, False, []),
     "miliciano_exo": (miliciano_exo, False, []),
+    # Clínica Clepalovers (capítulo 3)
+    "albeguinio_adm": (albeguinio_adm, False, [EYE, WHITE]),
+    "mascara_argila": (mascara_argila, False, []),
+    "seringuinha": (seringuinha, False, []),
+    "rolinho_jade": (rolinho_jade, False, []),
+    "toalha_fantasma": (toalha_fantasma, False, []),
+    "esteti_bot": (esteti_bot, False, []),
+    "cadeira": (cadeira, False, []),
+    "espelho_vivo": (espelho_vivo, False, []),
+    "grampeador": (grampeador, False, []),
+    "maquina": (maquina, False, []),
+    "cabo": (cabo, False, []),
+    "daiwone": (daiwone, False, []),
 }
 HEROES = ("guerreiro", "atirador", "tanque", "ninja", "velocista", "aryel", "fantasma", "tita", "pirata", "geada",
           "faisca", "trovao", "ginga", "matador", "cauanzera", "albeguinio", "borba", "paredao")
 KIT_DIR = OUT / "uniformes"
-VARIANTS = ("borba_exo",)            # não são personagens, mas também ganham uniforme (futebol)
+VARIANTS = ("borba_exo", "albeguinio_adm")   # não são personagens, mas também ganham uniforme (futebol)
 
 
 def build_sheet(name, kit=None):

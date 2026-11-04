@@ -316,6 +316,31 @@ class Sobrecarga(Ability):
         return 80 < dist < 600
 
 
+class FechamentoDoMes(Ability):
+    """Albeguinio Corrompido: o carimbo gigante cai em cima do inimigo (e mais dois em volta).
+    O retângulo vermelho aparece no chão antes: dá para sair de baixo."""
+    sound = "carimbo"
+    DAMAGE = 26
+    DELAY = 28
+
+    def activate(self, user, match, target):
+        from .clinica import Stamp
+        tx, ty = (target.x, target.y) if target is not None else (user.x + user.facing[0] * 200,
+                                                                  user.y + user.facing[1] * 200)
+        spots = [(tx, ty)]
+        for k in (-1, 1):
+            a = math.atan2(ty - user.y, tx - user.x) + k * math.pi / 2
+            spots.append((tx + math.cos(a) * 110, ty + math.sin(a) * 110))
+        w, h = match.arena.width, match.arena.height
+        for i, (x, y) in enumerate(spots):
+            x, y = min(max(x, 40), w - 40), min(max(y, 40), h - 40)      # o carimbo cai até em cima de mesa
+            match.add_effect(Stamp(user, x, y, self.DELAY + i * 6, _dmg(user, self.DAMAGE), radius=64,
+                                   word="PAGO" if i == 0 else "VENCIDO"))
+
+    def worth_using(self, user, target, dist):
+        return 60 < dist < 480
+
+
 def _nearest_foe(user, match, target):
     if target is not None and getattr(target, "alive_in_match", False):
         return target
@@ -433,6 +458,7 @@ ABILITIES = {
     "albeguinio": Hacker,
     "borba": Exoesqueleto,
     "borba_corrompido": Sobrecarga,
+    "albeguinio_corrompido": FechamentoDoMes,
 }
 
 

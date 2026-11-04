@@ -66,8 +66,8 @@ class CapituloTest(unittest.TestCase):
         run.phase_index = CHAPTER_START[2] - 1
         self.assertTrue(run.chapter_end)
         run.phase_index = FASE["cobertura"]
-        self.assertTrue(run.last_phase)
-        self.assertFalse(run.chapter_end)
+        self.assertFalse(run.last_phase)          # o capítulo 3 (Clepalovers) vem depois
+        self.assertTrue(run.chapter_end)
 
     def test_comecar_no_capitulo_2_compensa(self):
         g, run = corrida()

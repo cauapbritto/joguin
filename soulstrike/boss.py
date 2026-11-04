@@ -1,4 +1,5 @@
-"""Os chefões da campanha: Aryel Corrompido (capítulo 1) e Borba Jr Corrompido (capítulo 2).
+"""Os chefões da campanha: Aryel Corrompido (capítulo 1), Borba Jr Corrompido (capítulo 2) e
+Albeguinio Corrompido (capítulo 3, lá embaixo).
 
 Aryel alterna golpes em sequência (chuva de bombas, anel de granadas, martelada com pulo e a
 investida sombria) e depois de cada sequência fica CANSADO por um tempo: é a hora de bater.
@@ -13,10 +14,12 @@ de Exo, e com 20% liga a blindagem total, que só cai quando ele superaquece.
 import math
 import random
 
+import pygame
+
 from . import theme
 from .data import WeaponStats
 from .enemies import PATROL_RED, SHADOW_AURA, SHADOW_RIM, AimLine, EnemyAI, EnemyStats, Shockwave
-from .entities import GroundMark, ShadowBomb
+from .entities import Entity, GroundMark, ShadowBomb
 
 BOSS_STATS = EnemyStats(
     "aryel_corrompido", "Aryel Corrompido", 1500, 2.6, SHADOW_AURA,
@@ -61,9 +64,17 @@ class BossAI(EnemyAI):
     ARMOR_NAME = "ARMADURA DE SOMBRA"
     ARMOR = ARMOR
     LAND_COLOR = (220, 120, 255)
+    ENRAGE_POPUP = "FURIOSO!"
 
     def summon_kinds(self):
         return ("diabrete",) * 3 + ("esqueleto", random.choice(SHADES))
+
+    def _on_half(self, me, match):
+        """Metade da vida: chama ajuda."""
+        match.summon(self.summon_kinds(), me)
+
+    def _on_enrage(self, me, match):
+        """20% da vida (depois do rugido)."""
 
     def __init__(self, difficulty="normal", players=1):
         super().__init__(difficulty)
@@ -112,13 +123,14 @@ class BossAI(EnemyAI):
         if not self.summoned and ratio <= 0.5 and self.state not in ("jump", "air"):
             self.summoned = True
             self._roar(me, match)
-            match.summon(self.summon_kinds(), me)
+            self._on_half(me, match)
         elif not self.enraged and ratio <= 0.2 and self.state not in ("jump", "air"):
             self.enraged = True
             me.aura = ENRAGED_AURA
             me.speed_mult *= 1.25
             self._roar(me, match)
-            match.popup(me.x, me.y - 120, "FURIOSO!", ENRAGED_AURA)
+            match.popup(me.x, me.y - 120, self.ENRAGE_POPUP, ENRAGED_AURA)
+            self._on_enrage(me, match)
             match.popup(me.x, me.y - 100, self.ARMOR_NAME, (190, 120, 255))
 
         target = match.nearest_player(me)
@@ -471,7 +483,186 @@ class BorbaBossAI(BossAI):
         match.burst(fx, fy - 20, (255, 200, 120), 8, speed=4)
 
 
-BOSSES = {"aryel": (BOSS_STATS, "aryel", BossAI), "borba": (BORBA_STATS, "borba_exo", BorbaBossAI)}
+# ─────────────────────────────────────────────
+#  Albeguinio Corrompido (capítulo 3)
+# ─────────────────────────────────────────────
+CLEPA = (255, 110, 190)
+CACO = (170, 90, 230)
+PAPER = (240, 238, 230)
+STAMP_RED = (220, 60, 70)
+ALBEGUINIO_STATS = EnemyStats(
+    "albeguinio_corrompido", "Albeguinio Corrompido", 1600, 2.6, SHADOW_AURA,
+    "Fechamento do Mês", "Carimbo gigante.",
+    (WeaponStats("Boleto", "ranged", 11, bullet_speed=8, cooldown=30, style="boleto"),
+     WeaponStats("Carimbo", "melee", 22, reach=60, cooldown=40)), "albeguinio_adm",
+    radius=26, elite=True, armed=True, knock_resist=1.0, drop_chance=0.0)
+CABLE_SPOTS = ((120, 600), (1480, 600), (800, 1040))
+HARMONY_ARMOR = 0.1          # harmonizado (cabos inteiros): quase nada passa
+
+
+class CableLink(Entity):
+    """O cabo roxo que liga a máquina ao chefe enquanto os dois estão de pé (Harmonização)."""
+
+    def __init__(self, cable, boss):
+        super().__init__(cable.x, cable.y)
+        self.cable, self.boss = cable, boss
+        self.age = 0
+
+    def update(self, match):
+        self.age += 1
+        if not (self.cable.alive_in_match and self.boss.alive_in_match):
+            self.alive = False
+
+    def draw(self, surf, camera):
+        x0, y0 = self.cable.x - camera.x, self.cable.y - 16 - camera.y
+        x1, y1 = self.boss.x - camera.x, self.boss.y - 40 - camera.y
+        dx, dy = x1 - x0, y1 - y0
+        length = math.hypot(dx, dy) or 1
+        nx, ny = -dy / length, dx / length
+        points = []
+        for k in range(17):
+            t = k / 16
+            wave = math.sin(t * 9 + self.age * 0.25) * 6 * math.sin(t * math.pi)
+            points.append((x0 + dx * t + nx * wave, y0 + dy * t + ny * wave))
+        pygame.draw.lines(surf, (60, 20, 90), False, points, 6)
+        pygame.draw.lines(surf, CACO, False, points, 3)
+        k = (self.age // 2) % 17                      # a energia correndo até ele
+        px, py = points[k]
+        pygame.draw.circle(surf, (240, 210, 255), (round(px), round(py)), 4)
+
+
+class AlbeguinioBossAI(BossAI):
+    """Albeguinio Corrompido, na Sala do Administrativo: chuva de boletos em leque, o carimbo
+    gigante (o retângulo vermelho aparece no chão antes: PAGO ou VENCIDO) e a agenda, que "marca
+    horário" e solta argila no chão em volta de todo mundo. Depois de cada sequência faz a PAUSA PRO
+    CAFÉ (hora de bater). Com metade da vida liga a HARMONIZAÇÃO: três cabos da máquina saem do chão
+    e, enquanto um estiver inteiro, quase nada passa nele. Com 20% vem a RECAÍDA: o celular vibra,
+    ele fica mais rápido e a armadura só cai na pausa pro café."""
+
+    PATTERNS = ("boletos", "carimbo", "agenda")
+    WINDUPS = {"boletos": 30, "carimbo": 36, "agenda": 44}
+    COLORS = {"boletos": PAPER, "carimbo": STAMP_RED, "agenda": CLEPA}
+    TIRED_LABEL = "PAUSA PRO CAFÉ! HORA DE ATACAR"
+    TIRED_POPUP = "PAUSA PRO CAFÉ"
+    ROAR_LABEL = "HARMONIZAÇÃO: CORTEM OS 3 CABOS"
+    ARMOR_LABEL = "RECAÍDA: ESPERE A PAUSA PRO CAFÉ"
+    ARMOR_NAME = "RECAÍDA"
+    ENRAGE_POPUP = "O CELULAR VIBROU..."
+    LAND_COLOR = CLEPA
+
+    def __init__(self, difficulty="normal", players=1):
+        super().__init__(difficulty, players)
+        self.cables = []
+        self.harmony = False
+        self.boleto = ALBEGUINIO_STATS.weapons[0]
+
+    def summon_kinds(self):
+        return ("mascara_argila",) * 2 + ("seringuinha",)
+
+    # ── harmonização ─────────────────────────
+    def _on_half(self, me, match):
+        self.cables = []
+        for x, y in CABLE_SPOTS:
+            x, y = match.arena.free_spot(x, y, 20)
+            cable = match.spawn_now("cabo", x, y)
+            self.cables.append(cable)
+            match.add_effect(CableLink(cable, me))
+        self.harmony = True
+        me.vulnerability = HARMONY_ARMOR
+        me.aura = CLEPA
+        match.popup(me.x, me.y - 140, "HARMONIZAÇÃO", CLEPA)
+        match.summon(self.summon_kinds(), me)
+
+    def _on_enrage(self, me, match):
+        match.popup(me.x, me.y - 160, "BZZZ BZZZ", (230, 230, 240))
+        match.assets.play("notificacao", 0.6)
+
+    def _set(self, me, state, frames):
+        super()._set(me, state, frames)
+        if self.harmony:
+            me.vulnerability = HARMONY_ARMOR
+            if state != "roar":
+                me.phase_label = self.ROAR_LABEL
+
+    def update(self, me, match):
+        if self.harmony and me.alive_in_match and not any(c.alive_in_match for c in self.cables):
+            self.harmony = False
+            me.aura = ENRAGED_AURA if self.enraged else SHADOW_RIM
+            match.popup(me.x, me.y - 140, "HARMONIZAÇÃO DESFEITA!", theme.MOSS)
+            match.assets.play("vidro", 0.5)
+            self._set(me, self.state, self.timer)
+        super().update(me, match)
+
+    # ── golpes ───────────────────────────────
+    def _basic_attack(self, me, match, target, d):
+        if d < 90:
+            me.weapon_index = 1
+            me.attack(match, target)
+            return
+        me.attack_cd = 30
+        match.spawn_projectile(me, self.boleto, me.direction_to(target), round(10 * me.damage_bonus))
+
+    def _begin(self, me, match, pattern, frames):
+        target = match.nearest_player(me)
+        if target is not None:
+            me.face(target)
+        if pattern == "carimbo":
+            # o carimbo cai em cima de cada um (com a Recaída, mais dois pela sala)
+            from .clinica import Stamp
+            dmg = round(22 * me.damage_bonus)
+            spots = [(p.x, p.y) for p in match.alive_players]
+            if self.enraged:
+                spots += [match.arena.random_free_spot(30) for _ in range(2)]
+            for x, y in spots:
+                match.add_effect(Stamp(me, x, y, frames + self._wait(26), dmg))
+
+    def _pattern(self, me, match, target, state):
+        me.steer(0, 0)
+        if state == "boletos":
+            me.face(target)
+            if self.timer == 1:
+                self._boletos(me, match, target, 0.0)
+            if self.enraged and self.timer == -12:
+                self._boletos(me, match, target, 0.13)
+            if self.timer <= (-14 if self.enraged else 0):
+                self._next(me, match, pause=36)
+        elif state == "carimbo":
+            if self.timer <= -26:
+                self._next(me, match, pause=30)
+        elif state == "agenda":
+            if self.timer == 1:
+                self._agenda(me, match)
+            if self.timer <= 0:
+                self._next(me, match, pause=40)
+
+    def _boletos(self, me, match, target, offset):
+        """Leque de boletos (5; com a Recaída, 7)."""
+        count = 7 if self.enraged else 5
+        dx, dy = me.direction_to(target) if me.distance_to(target) > 1 else me.facing
+        base = math.atan2(dy, dx) + offset
+        dmg = round(12 * me.damage_bonus)
+        for k in range(count):
+            a = base + (k - (count - 1) / 2) * 0.2
+            match.spawn_projectile(me, self.boleto, (math.cos(a), math.sin(a)), dmg)
+        match.assets.play("arremesso", 0.5)
+
+    def _agenda(self, me, match):
+        """A agenda "marca horário": argila no chão em volta de cada um (deixa lento)."""
+        from .clinica import ClayPuddle
+        for p in match.alive_players:
+            for k in range(3):
+                a = k * math.tau / 3 + random.uniform(-0.4, 0.4)
+                r = random.uniform(60, 110)
+                x, y = match.arena.free_spot(p.x + math.cos(a) * r, p.y + math.sin(a) * r, 10)
+                match.add_effect(ClayPuddle(x, y, radius=40))
+        if len([e for e in match.alive_enemies if e is not me and getattr(e, "kind", "") != "cabo"]) < 2:
+            match.summon(("mascara_argila",), me)
+        match.popup(me.x, me.y - 130, "AGENDA CHEIA", CLEPA)
+        match.assets.play("gosma", 0.5)
+
+
+BOSSES = {"aryel": (BOSS_STATS, "aryel", BossAI), "borba": (BORBA_STATS, "borba_exo", BorbaBossAI),
+          "albeguinio": (ALBEGUINIO_STATS, "albeguinio_adm", AlbeguinioBossAI)}
 
 
 class _P:

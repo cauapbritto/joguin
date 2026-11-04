@@ -1441,6 +1441,8 @@ register_projectiles(PROJECTILES)
 from .gadgets import register_projectiles as register_gadgets  # noqa: E402  (armas da Lag Lobby)
 
 register_gadgets(PROJECTILES)
+# capítulo 3: os tiros da Clínica Clepalovers (botox, boleto, grampo) se registram sozinhos em
+# clinica.py, que enemies.py importa (importar daqui faria um ciclo)
 
 
 def projectile_class(style):

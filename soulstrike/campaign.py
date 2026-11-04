@@ -64,6 +64,7 @@ class Dungeon:
     boss_spot: tuple = None
     boss: str = "aryel"       # qual chefão sai no "chefe" (boss.BOSSES)
     hazard: str = None        # perigo da sala: "laser" (no chão) ou "vento" (empurra), em hazards.py
+    daiwone: bool = False     # capítulo 3: a Daiwone aparece uma vez no meio da 1ª onda
 
 
 @dataclass(frozen=True)
@@ -146,18 +147,52 @@ PHASES = (
                 ((("chefe", 1),),),
                 exit_spot=(800, 460), boss_spot=(800, 330), boss="borba"),
     ), chapter=2),
+    # ── capítulo 3: Clínica Clepalovers, tomada pelo caco do fragmento ──
+    Phase("clinica_recepcao", "RECEPÇÃO CLEPALOVERS", "clinica_fachada", (
+        Dungeon("clinica_espera", "SALA DE ESPERA", LEFT, (1.0, 0.0),
+                ((("mascara_argila", 4),),
+                 (("mascara_argila", 3), ("seringuinha", 2))),
+                exit_spot=(1400, 650), hazard="piso_molhado", daiwone=True),
+        Dungeon("clinica_consultorios", "CORREDOR DOS CONSULTÓRIOS", LEFT, (1.0, 0.0),
+                ((("seringuinha", 2), ("rolinho_jade", 3)),
+                 (("maquina", 3), ("mascara_argila", 2))),
+                exit_spot=(1840, 700)),
+    ), chapter=3),
+    Phase("procedimentos", "ALA DE PROCEDIMENTOS", "clinica_vestiario", (
+        Dungeon("clinica_laser", "SALA DO LASER", LEFT, (1.0, 0.0),
+                ((("esteti_bot", 2), ("mascara_argila", 3)),
+                 (("cadeira", 1), ("rolinho_jade", 3), ("seringuinha", 2))),
+                exit_spot=(1400, 600), hazard="laser_grade"),
+        Dungeon("clinica_spa", "SPA E SAUNA", LEFT, (1.0, 0.0),
+                ((("toalha_fantasma", 4), ("mascara_argila", 2)),
+                 (("sombra:geada", 1), ("cadeira", 1), ("toalha_fantasma", 3))),
+                exit_spot=(1700, 700), hazard="vapor", daiwone=True),
+    ), chapter=3),
+    Phase("suite_vip", "SUÍTE VIP", "clinica_antessala", (
+        Dungeon("clinica_espelhos", "SALA DOS ESPELHOS", LEFT, (1.0, 0.0),
+                ((("espelho_vivo", 2), ("grampeador", 2)),
+                 (("sombra:fantasma", 1), ("espelho_vivo", 1), ("cadeira", 1), ("seringuinha", 2))),
+                exit_spot=(1440, 600), daiwone=True),
+        Dungeon("clinica_adm", "SALA DO ADMINISTRATIVO", BOTTOM, (0.0, -1.0),
+                ((("chefe", 1),),),
+                exit_spot=(800, 460), boss_spot=(800, 330), boss="albeguinio"),
+    ), chapter=3),
 )
-CHAPTER_START = {ch: next(i for i, p in enumerate(PHASES) if p.chapter == ch) for ch in (1, 2)}
+CHAPTER_START = {ch: next(i for i, p in enumerate(PHASES) if p.chapter == ch) for ch in (1, 2, 3)}
 CHAPTER2_SOULS = 120          # começando do capítulo 2: almas para a loja da primeira fase
 CHAPTER2_UPGRADES = 2         # ... e melhorias sorteadas (mais a escolhida antes de entrar)
 
 # etapas de uma fase (CampaignRun.stage)
 LOBBY_START, DUNGEON_1, LOBBY_BACK, DUNGEON_2 = range(4)
-STAGE_REVIVE = 0.3            # quem estava caído ao fim de uma masmorra volta com essa vida
+STAGE_REVIVE = 0.3
+DROP_HOLD = 30                # segurar TROCAR ARMA por meio segundo larga a arma da mão            # quem estava caído ao fim de uma masmorra volta com essa vida
 
 
 def is_elite(kind):
-    return kind == "chefe" or kind.startswith("sombra:") or CREATURES[kind].elite
+    if kind == "chefe" or kind.startswith("sombra:"):
+        return True
+    creature = CREATURES.get(kind)
+    return creature is not None and creature.elite
 
 
 def scaled_count(kind, base, players):
@@ -238,9 +273,10 @@ class CampaignRun:
         self.start_chapter = chapter
         self.phase_index = CHAPTER_START[chapter]
         if chapter > 1:
+            # quanto mais adiante, mais almas e melhorias (o capítulo 3 recebe o dobro do 2)
             for s in self.slots:
-                self.souls[s] += CHAPTER2_SOULS
-                for _ in range(CHAPTER2_UPGRADES):
+                self.souls[s] += CHAPTER2_SOULS * (chapter - 1)
+                for _ in range(CHAPTER2_UPGRADES * (chapter - 1)):
                     self.upgrades[s].append(random.choice(choices(self.upgrades[s])))
 
     def _state(self):
@@ -457,6 +493,7 @@ class CoopMatch(Match):
         self.ground = []                # armas no chão (largadas ou derrubadas por inimigos)
         self.menus = {}                 # menu do mercado aberto, por jogador
         self.revive_progress = {f: 0.0 for f in self.players}
+        self.switch_hold = {}           # quadros segurando TROCAR ARMA (segurar larga a arma)
         self.strain = {f: 0 for f in self.players}     # quadros forçando o limite do grupo
         self.was_down = set()
         self.wave = -1
@@ -680,8 +717,7 @@ class CoopMatch(Match):
             f.attack(self, target)
         if inp.pressed("special"):
             f.use_ability(self, target)
-        if inp.pressed("switch") and f.switch_weapon():
-            self.assets.play("click", 0.4)
+        self._switch_or_drop(f, inp)
         direction = None
         if inp.pressed("dodge"):
             direction = f.input if any(f.input) else f.facing
@@ -689,6 +725,50 @@ class CoopMatch(Match):
             direction = inp.double_tap
         if direction and f.dash(direction):
             self.assets.play("dash", 0.3)
+
+    def _switch_or_drop(self, f, inp):
+        """TROCAR ARMA: toque rápido troca; segurar (meio segundo) larga a arma da mão no chão."""
+        held = inp.held("switch")
+        hold = self.switch_hold.get(f, 0)
+        if held:
+            if hold >= 0:
+                hold += 1
+                if hold >= DROP_HOLD:
+                    self.drop_held(f)
+                    hold = -1                       # já largou: só volta a contar depois de soltar
+            self.switch_hold[f] = hold
+            return
+        if inp.pressed("switch") or 0 < hold < DROP_HOLD:
+            if f.switch_weapon():
+                self.assets.play("click", 0.4)
+        self.switch_hold[f] = 0
+
+    def drop_held(self, f):
+        """Larga a arma da mão: a rara do baú sai da 3ª vaga; a de outro herói volta a ser a arma
+        dele do mesmo tipo. A arma do próprio herói não sai (ele precisa de uma de cada tipo)."""
+        weapon = f.weapon
+        if f.relic is not None and weapon is f.relic:
+            f.relic = None
+            f.clips.pop(weapon, None)
+            f.weapon_index = 0
+            self.run.relics[f.slot] = None
+        elif weapon not in f.stats.weapons:
+            base = list(f.base_weapons)
+            i = base.index(weapon)
+            own = next(w for w in f.stats.weapons if w.is_melee == weapon.is_melee)
+            base[i] = own
+            f.loadout = None if tuple(base) == f.stats.weapons else tuple(base)
+            f.clips.pop(weapon, None)
+            f.weapon_index = i
+            self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
+        else:
+            self.popup(f.x, f.y - 80, "ESSA É A SUA ARMA", theme.MUTED)
+            return False
+        f.bow_draw = 0
+        self.drop_weapon(f, weapon)
+        self.popup(f.x, f.y - 80, "LARGOU " + weapon.name.upper(), theme.BONE)
+        self.assets.play("click", 0.5)
+        return True
 
     def _separate_bodies(self):
         bodies = [f for f in self.fighters if f.alive_in_match and f.lift <= 0]
@@ -926,6 +1006,9 @@ class CampaignMatch(CoopMatch):
         self.votes = set()              # quem já confirmou o teletransporte (masmorra 2)
         self.vote_button = None         # retângulo do botão na tela (para o clique)
         self.hazard = make_hazard(self.dungeon.hazard, self.arena)   # laser no chão, vento...
+        self.notices = []               # balões do "oi sumido" (capítulo 3), na tela
+        self.daiwone_at = None          # quadro em que a Daiwone chega (None = não vem / já veio)
+        self._vanished = []
         hub_vote(self, 0)
 
     @property
@@ -974,6 +1057,10 @@ class CampaignMatch(CoopMatch):
     def update_stage(self):
         if self.hazard is not None and self.state in ("fight", "between"):
             self.hazard.update(self)
+        self._update_daiwone()
+        for n in self.notices:
+            n.update()
+        self.notices = [n for n in self.notices if n.alive]
         self._update_portals()
         self._update_corpses()
         self._update_downed()
@@ -983,6 +1070,8 @@ class CampaignMatch(CoopMatch):
     def _start_wave(self, index):
         self.wave = index
         self.wave_banner = 100
+        if index == 0 and self.dungeon.daiwone:
+            self.daiwone_at = self.frame + random.randint(5, 11) * config.FPS
         delay = 0
         for kind, count in self.waves[index]:
             for _ in range(scaled_count(kind, count, len(self.players))):
@@ -1020,6 +1109,53 @@ class CampaignMatch(CoopMatch):
             x, y = self.arena.free_spot(near.x + math.cos(a) * r, near.y + math.sin(a) * r, config.PLAYER_RADIUS + 6)
             self.portals.append(Portal(x, y, kind, i * 10))
 
+    # ── capítulo 3: a Daiwone, o "oi sumido" e quem nasce na hora ──
+    def _update_daiwone(self):
+        if self._vanished:
+            for e in self._vanished:
+                for group in (self.enemies, self.fighters):
+                    if e in group:
+                        group.remove(e)
+                self.controllers.pop(e, None)
+            self._vanished = []
+        if self.daiwone_at is not None and self.state == "fight" and self.frame >= self.daiwone_at:
+            self.daiwone_at = None
+            x, y = self._spawn_spot("daiwone")
+            e = self.spawn_now("daiwone", x, y)
+            e.max_hp = e.hp = 9999                      # ela nunca cai: foge no 3º acerto
+            self.popup(x, y - 60, "DAIWONE", (255, 192, 226))
+            self.burst(x, y - 10, (255, 110, 190), 20, speed=4)
+            self.assets.play("notificacao", 0.5)
+
+    @property
+    def daiwone(self):
+        return next((e for e in self.enemies if getattr(e, "kind", "") == "daiwone" and e.alive_in_match), None)
+
+    def fighting_enemies(self):
+        """Inimigos que seguram a onda (a Daiwone não conta: ela não luta)."""
+        return [e for e in self.alive_enemies if getattr(e, "kind", "") != "daiwone"]
+
+    def spawn_now(self, kind, x, y):
+        """Nasce agora, sem portal (o reflexo do espelho, o monstro da máquina, a Daiwone)."""
+        return self._spawn(kind, x, y)
+
+    def add_notice(self, notice):
+        self.notices = [n for n in self.notices if n.target is not notice.target] + [notice]
+
+    def vanish(self, e):
+        """Sai da sala sem morrer (sem almas, sem corpo)."""
+        if e not in self._vanished:
+            self._vanished.append(e)
+        e.cloak = 1.0
+        e.overlay = "none"
+
+    def _send_daiwone_away(self):
+        d = self.daiwone
+        if d is not None:
+            brain = self.controllers.get(d)
+            if brain is not None and hasattr(brain, "flee"):
+                brain.flee(d, self)
+
     def _update_portals(self):
         still = []
         for portal in self.portals:
@@ -1055,6 +1191,7 @@ class CampaignMatch(CoopMatch):
         if kind.startswith("sombra:") or kind == "chefe":
             self.popup(x, y - 80, enemy.stats.name.upper(), SHADOW_AURA)
             self.camera.shake(5)
+        return enemy
 
     def _update_corpses(self):
         for e in self.enemies:
@@ -1191,8 +1328,11 @@ class CampaignMatch(CoopMatch):
             self._set_banner("TODOS CAÍRAM", None, theme.BLOOD)
             return
         if state == "fight":
-            if self.portals or self.alive_enemies:
+            if self.portals or self.fighting_enemies():
                 return
+            if self.daiwone_at is not None and self.wave == 0:
+                self.daiwone_at = self.frame            # ainda não veio: chega agora, antes da 2ª onda
+            self._send_daiwone_away()
             if self.wave + 1 < len(self.waves):
                 self.state, self.state_timer = "between", BETWEEN_FRAMES
             else:
@@ -1249,13 +1389,15 @@ class CampaignMatch(CoopMatch):
     def _clear(self):
         """Sala limpa: quem caiu levanta, e daqui a pouco aparece a porta (ou o portal)."""
         self.state, self.state_timer = "clear", EXIT_DELAY
+        self.daiwone_at = None
         self.bullets.clear()
         for p in self.players:
             if not p.alive_in_match:
                 self._revive(p, STAGE_REVIVE)
         if self.last:
             title = ("FASE CONCLUÍDA!" if not self.slain_boss else
-                     "O FRAGMENTO SE PARTIU!" if self.dungeon.boss == "borba" else "O CRISTAL ESTÁ LIVRE!")
+                     "O FRAGMENTO SE PARTIU!" if self.dungeon.boss == "borba" else
+                     "O CACO SAIU!" if self.dungeon.boss == "albeguinio" else "O CRISTAL ESTÁ LIVRE!")
             self._set_banner(title, self.phase.name, theme.MOSS)
             self.assets.stop_music(1500)
             self.assets.play("victory", 0.5)
@@ -1291,6 +1433,9 @@ class CampaignMatch(CoopMatch):
     def interact(self, f):
         if self.voting:
             self.vote(f)
+            return True
+        if (self.hazard is not None and hasattr(self.hazard, "interact") and self.state in ("fight", "between")
+                and self.hazard.interact(f, self)):
             return True
         return self.pick_ground(f)
 
@@ -1356,6 +1501,13 @@ class CampaignMatch(CoopMatch):
         self.draw_ground(screen, cam, ui)
         if self.hazard is not None and self.state in ("fight", "between"):
             self.hazard.draw_screen(screen, ui, self.frame)
+        d = self.daiwone
+        if d is not None and getattr(d, "phase_label", ""):
+            sx, sy = cam.to_screen(d.x, d.y - 48)
+            ui.text(screen, d.phase_label, theme.XS, (255, 192, 226), (round(sx), round(sy)))
+        for n in self.notices:
+            if n.target.alive_in_match:
+                n.draw(screen, cam, ui)
         if self.voting:
             self.vote_button = hud.draw_teleport_vote(screen, ui, self)
         else:
@@ -1645,16 +1797,51 @@ STORY = {
         ("sombra:borba_exo", "BORBA JR CORROMPIDO", "Eu criei o exo para ajudar as pessoas. Agora ele só obedece "
                                                     "ao fragmento."),
     )),
-    "final": ("FIM", "lag_diretor", (
+    "fim_capitulo2": ("FIM DO CAPÍTULO 2", "lag_diretor", (
         (BROKEN, None, "O fragmento se parte. A luz roxa some dos cabos e as máquinas da fábrica de exos param."),
         ("borba", "BORBA JR", "Minha cabeça... Valeu, pessoal. Me ajudem a desligar o resto da fábrica."),
         ("sombra:borba_exo", None, "A sombra do Borba Jr ficou do lado dos heróis: BORBA JR CORROMPIDO está "
                                    "liberado no duelo."),
-        # easter egg do capítulo 3
         (FRAGMENT, None, "Enquanto isso, do outro lado da cidade, um letreiro rosa acende no escuro: "
                          "CLÍNICA CLEPALOVERS, ESTÉTICA AVANÇADA. Lá dentro, um caco do cristal brilha."),
-        ("sombra:albeguinio", "ALBEGUINIO CORROMPIDO", "Guardei um caquinho do fragmento antes de tudo quebrar. "
-                                                       "Agora sou o paciente número um da Clepalovers... "
-                                                       "e o tratamento é de graça."),
+        ("albeguinio_adm", "ALBEGUINIO", "Guardei um caquinho do fragmento antes de tudo quebrar. Se eu ligar "
+                                         "isso na máquina de rejuvenescimento... a meta do mês tá batida."),
+    )),
+    # ── capítulo 3: Clínica Clepalovers ──
+    "clinica_recepcao": ("CAPÍTULO 3 · FASE 7 · RECEPÇÃO CLEPALOVERS", "clinica_espera", (
+        (FRAGMENT, None, "A Clepalovers é a clínica de estética mais cara da cidade. O Albeguinio trabalha no "
+                         "administrativo e, para bater a meta do mês, ligou o caco do fragmento na máquina de "
+                         "rejuvenescimento."),
+        ("daiwone", None, "Às 3h da manhã, no meio do fechamento do mês, o celular dele vibrou. Era a DAIWONE."),
+        ("daiwone", "DAIWONE", "oi sumido"),
+        ("sombra:albeguinio_adm", None, "Foi a gota d'água: o caco tomou conta. Agora é ALBEGUINIO CORROMPIDO, "
+                                        "e todo produto da clínica ganhou vida."),
+        ("mascara_argila", None, "Na sala de espera o piso está molhado: quem anda em cima escorrega. E a Daiwone "
+                                 "aparece em algumas salas digitando: batam nela antes de a mensagem chegar."),
+    )),
+    "procedimentos": ("FASE 8 · ALA DE PROCEDIMENTOS", "clinica_laser", (
+        ("esteti_bot", None, "Na ala de procedimentos o laser liga sozinho: quando os ladrilhos rosa piscarem, "
+                             "saiam de cima deles."),
+        ("toalha_fantasma", None, "No spa, o vapor tapa tudo. Fechem os três registros das paredes (ATACAR perto) "
+                                  "para enxergar de novo."),
+        ("sombra:geada", "GEADA SOMBRIA", "Vim fazer criolipólise e congelei por dentro. Agora quem esfria "
+                                          "vocês sou eu."),
+    )),
+    "suite_vip": ("FASE 9 · SUÍTE VIP", "clinica_espelhos", (
+        ("espelho_vivo", None, "A suíte VIP é cheia de espelhos. Quebrem os espelhos vivos antes que eles soltem "
+                               "o reflexo de vocês."),
+        ("sombra:fantasma", "FANTASMA SOMBRIO", "Eu atravesso parede, mas espelho não. Fiquei preso aqui dentro."),
+        ("sombra:albeguinio_adm", "ALBEGUINIO CORROMPIDO", "O administrativo fica no fim do corredor. Tragam os "
+                                                           "boletos... eu carimbo tudo."),
+    )),
+    "final": ("FIM", "clinica_adm", (
+        (BROKEN, None, "O golpe final arranca o caco da máquina. Ele vira pó roxo e as luzes da clínica voltam "
+                       "ao normal."),
+        ("albeguinio_adm", "ALBEGUINIO", "Hã... que horas são? Alguém fechou o caixa?"),
+        ("albeguinio_adm", None, "O celular vibra em cima da mesa. Ele olha a tela, respira fundo e vira o "
+                                 "celular para baixo."),
+        ("sombra:albeguinio_adm", None, "A sombra do Albeguinio ficou do lado dos heróis: ALBEGUINIO CORROMPIDO "
+                                        "está liberado no duelo."),
+        (BROKEN, None, "Sem cristal, sem fragmento, sem caco. Por enquanto, a cidade pode descansar."),
     )),
 }

@@ -10,6 +10,32 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.11.0": [
+        {"title": "CAPÍTULO 3: CLEPALOVERS", "scene": "clinica", "lines": [
+            "A campanha ganhou o capítulo 3: a Clínica Clepalovers, tomada pelo caco do fragmento.",
+            "Três fases novas: Recepção, Ala de Procedimentos e Suíte VIP, com dez monstros novos.",
+            "Zerou o capítulo 2? CAMPANHA: CAPÍTULO 3 no menu começa direto nele, com almas e melhorias.",
+        ]},
+        {"title": "PERIGOS DA CLÍNICA", "scene": "clinica", "lines": [
+            "Piso molhado faz escorregar, o laser acende ladrilhos rosa e o vapor do spa tapa a sala.",
+            "No spa, ATACAR perto dos três registros fecha o vapor.",
+            "Espelhos vivos soltam o reflexo de um herói: quebrem antes.",
+        ]},
+        {"title": "OI SUMIDO", "scene": "oi_sumido", "lines": [
+            "A Daiwone aparece em algumas salas digitando. Se a mensagem chegar, o balão tapa a tela.",
+            "Bater nela enquanto digita cancela. Com 3 acertos ela vai embora e deixa almas.",
+        ]},
+        {"title": "LARGAR A ARMA", "scene": "loja", "lines": [
+            "Na campanha, segure TROCAR ARMA por meio segundo para largar a arma da mão no chão.",
+            "A rara do baú sai da 3ª vaga; a de outro herói volta a ser a arma do seu herói.",
+            "Toque rápido continua só trocando de arma.",
+        ]},
+        {"title": "ALBEGUINIO CORROMPIDO", "scene": "clepalovers", "lines": [
+            "O chefe do administrativo: boletos em leque, carimbo gigante e a agenda cheia de argila.",
+            "Com metade da vida ele se HARMONIZA: cortem os 3 cabos da máquina para ele voltar a sentir dano.",
+            "Zerou o capítulo 3? Ele fica liberado em todos os modos, com Boleto e Carimbo.",
+        ]},
+    ],
     "1.10.2": [
         {"title": "VIBRAÇÃO", "scene": "controle", "lines": [
             "Controles de PlayStation pelo Bluetooth agora vibram.",

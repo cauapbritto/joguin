@@ -21,9 +21,9 @@ FUSION_COST = 150
 FAMILIES = {
     "corte": ("Espada", "Faca", "Katana", "Garras", "Espadão", "Sabre", "Machado do Lenhador"),
     "impacto": ("Maça", "Capacete", "Martelo", "Notebook", "Punho Mecânico", "Corrente", "Cabo de Rede", "Cajado",
-                "Teclado Mecânico", "Manopla do Exo", "Punho Corrompido"),
+                "Teclado Mecânico", "Manopla do Exo", "Punho Corrompido", "Carimbo"),
     "flecha": ("Arco", "Besta", "Arco de Espinhos", "Shuriken", "Estrela", "Disquete", "Bumerangue", "Rifle",
-               "Pistola", "Lança", "Rifle de Plasma"),
+               "Pistola", "Lança", "Rifle de Plasma", "Boleto"),
     "explosao": ("Granada", "Canhão de Mão", "Colmeia", "Canhão de Pulso", "Drone de Bolso"),
     "gelo": ("Cristal", "Estalactites", "Bola de Neve", "Espelho de Cristal"),
     "fogo": ("Lança-chamas",),
