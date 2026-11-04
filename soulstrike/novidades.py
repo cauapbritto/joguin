@@ -10,6 +10,17 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.10.2": [
+        {"title": "VIBRAÇÃO", "scene": "controle", "lines": [
+            "Controles de PlayStation pelo Bluetooth agora vibram.",
+            "Se o controle não aceitar a vibração de um jeito, o jogo tenta de outro.",
+            "Apanhar vibra um pouco mais forte.",
+        ]},
+        {"title": "TESTE A VIBRAÇÃO", "scene": "controle", "lines": [
+            "OPÇÕES > CONTROLES > modo teste (Y): cada botão apertado dá uma vibrada.",
+            "Embaixo aparece VIBRAÇÃO: OK ou se o controle não aceitou.",
+        ]},
+    ],
     "1.10.1": [
         {"title": "???", "scene": "clepalovers", "lines": [
             "Terminou o capítulo 2? Leia a história do final até a última página.",

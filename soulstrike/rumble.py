@@ -7,7 +7,7 @@ from . import settings
 _pads = None        # o Gamepads do jogo (game.py registra)
 
 # (forte, fraco, milissegundos)
-HIT = (0.35, 0.55, 110)
+HIT = (0.5, 0.7, 140)
 BIG_HIT = (0.7, 0.9, 200)
 SCORE = (0.5, 0.9, 380)
 SUPER = (0.25, 0.6, 160)

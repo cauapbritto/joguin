@@ -6,7 +6,7 @@ controle que apertou o último botão, então cada um arruma o seu.
 """
 import pygame
 
-from .. import config, pad_profiles, theme
+from .. import config, pad_profiles, settings, theme
 from ..pad_art import draw_pad, face_positions, keycap
 from .menus import ControlsScene, TitleScene, _MenuScene
 
@@ -231,6 +231,8 @@ class PadScene(_MenuScene):
             if b in pad.pressed and not (self.joycon and b in ("lt", "rt")):
                 self.last_test = b
                 self.sfx("click", 0.25)
+                if settings.get("vibracao"):
+                    pad.rumble(0.6, 0.8, 160)    # cada botão no teste dá uma vibrada: dá para conferir o motor
         if "back" in pad.held:              # BACK + ←→ ajusta a zona morta pelo controle
             if "left" in pad.pressed:
                 self._nudge_deadzone(-1)
@@ -464,6 +466,16 @@ class PadScene(_MenuScene):
         self.ui.bar(screen, bar, (dz - lo) / (hi - lo), theme.BRASS, ticks=10)
         self.ui.text(screen, f"{round(dz * 100)}%", theme.XS, theme.BONE, (box2.centerx, box2.y + 70), shadow=False)
         self.ui.text(screen, pad_profiles.text_label(self.name, "back") + " + ←→", theme.XS, theme.FAINT, (box2.centerx, box2.y + 86), shadow=False)
+        # vibração: cada botão apertado no teste vibra, e aqui diz se o controle aceitou
+        if not settings.get("vibracao"):
+            line, color = "VIBRAÇÃO DESLIGADA NAS OPÇÕES", theme.MUTED
+        elif pad is None or pad.rumble_ok is None:
+            line, color = "APERTE UM BOTÃO PARA TESTAR A VIBRAÇÃO", theme.MUTED
+        elif pad.rumble_ok:
+            line, color = "VIBRAÇÃO: OK", theme.MOSS
+        else:
+            line, color = "VIBRAÇÃO: ESTE CONTROLE NÃO ACEITOU", theme.BLOOD
+        self.ui.text(screen, line, theme.XS, color, (W // 2, 496), shadow=False)
         hold = self.start_hold / EXIT_HOLD
         self.footer(screen, [("SEGURE START" if hold == 0 else f"SAINDO {round(hold * 100)}%", "SAIR DO TESTE"),
                              ("ESC", "SAIR")])

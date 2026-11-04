@@ -18,6 +18,9 @@ import os
 
 # Nintendo: o botão "A" é o que tem A escrito (à direita), como no Switch; o resto do jogo só vê "a"
 os.environ.setdefault("SDL_GAMECONTROLLER_USE_BUTTON_LABELS", "1")
+# PlayStation pelo Bluetooth: o SDL só liga o motor de vibração com estas dicas
+os.environ.setdefault("SDL_JOYSTICK_HIDAPI_PS4_RUMBLE", "1")
+os.environ.setdefault("SDL_JOYSTICK_HIDAPI_PS5_RUMBLE", "1")
 
 import pygame  # noqa: E402
 
@@ -68,8 +71,9 @@ class _ControllerReader:
     AXES = {"lx": "CONTROLLER_AXIS_LEFTX", "ly": "CONTROLLER_AXIS_LEFTY",
             "lt": "CONTROLLER_AXIS_TRIGGERLEFT", "rt": "CONTROLLER_AXIS_TRIGGERRIGHT"}
 
-    def __init__(self, controller):
+    def __init__(self, controller, joystick=None):
         self.dev = controller
+        self.joy = joystick              # o mesmo controle como joystick: outro caminho para vibrar
         self.name = controller.name
 
     def button(self, name):
@@ -112,6 +116,7 @@ class Pad:
 
     def __init__(self, reader):
         self.reader = reader
+        self.rumble_ok = None           # None: ainda não tentou vibrar; True/False: o controle aceitou?
         self.held = set()               # botões ("a", "up"...) segurados agora
         self.pressed = set()            # e os que foram apertados neste quadro
         self.stick = (0.0, 0.0)
@@ -166,11 +171,20 @@ class Pad:
         return (dx / mag, dy / mag) if mag else (0.0, 0.0)
 
     def rumble(self, low, high, ms):
-        """Vibra (se o controle tiver motor). Nunca derruba o jogo."""
-        try:
-            return bool(self.reader.dev.rumble(low, high, ms))
-        except (AttributeError, pygame.error, TypeError):
-            return False
+        """Vibra (se o controle tiver motor). Tenta pelo controle e, se ele não aceitar, pelo
+        joystick. Guarda o resultado em rumble_ok (a tela CONTROLE mostra). Nunca derruba o jogo."""
+        ok = False
+        for dev in (getattr(self.reader, "dev", None), getattr(self.reader, "joy", None)):
+            if dev is None:
+                continue
+            try:
+                ok = bool(dev.rumble(low, high, int(ms)))
+            except (AttributeError, pygame.error, TypeError, ValueError):
+                ok = False
+            if ok:
+                break
+        self.rumble_ok = ok
+        return ok
 
     def actions(self, buttons, context="luta"):
         out = set()
@@ -213,7 +227,11 @@ class Gamepads:
         for i in range(pygame.joystick.get_count()):
             try:
                 if self._controller is not None and self._controller.is_controller(i):
-                    reader = _ControllerReader(self._controller.Controller(i))
+                    try:
+                        joy = pygame.joystick.Joystick(i)
+                    except pygame.error:
+                        joy = None
+                    reader = _ControllerReader(self._controller.Controller(i), joy)
                 else:
                     reader = _JoystickReader(pygame.joystick.Joystick(i))
             except pygame.error:

@@ -194,3 +194,47 @@ class PontaAPontaTest(unittest.TestCase):
                 break
         check("Y (SUPER) com a barra cheia solta o ULTRA", used, (f.ultra, bm.banner))
         self.assertEqual(failures, [])
+
+
+class VibracaoTest(unittest.TestCase):
+    """O controle que recusa pelo caminho do controle vibra pelo joystick; a tela de teste vibra."""
+
+    def test_cai_para_o_joystick_quando_o_controle_recusa(self):
+        class Recusa:
+            def rumble(self, lo, hi, ms):
+                return False
+        r = Reader("Xbox Wireless Controller")
+        r.dev, r.joy = Recusa(), Dev()
+        pad = Pad(r)
+        self.assertTrue(pad.rumble(0.5, 0.5, 100))
+        self.assertEqual(r.joy.rumbles, [(0.5, 0.5, 100)])
+        self.assertTrue(pad.rumble_ok)
+
+    def test_controle_sem_motor_nao_quebra(self):
+        class Quebra:
+            def rumble(self, lo, hi, ms):
+                raise AttributeError
+        r = Reader("genérico")
+        r.dev = Quebra()
+        pad = Pad(r)
+        self.assertFalse(pad.rumble(0.5, 0.5, 100))
+        self.assertFalse(pad.rumble_ok)
+
+    def test_modo_teste_vibra_a_cada_botao(self):
+        from soulstrike.scenes.pad import PadScene
+        g = game()
+        old = g.gamepads.pads
+        try:
+            settings.change("vibracao", True)
+            xbox = Pad(Reader("Xbox Wireless Controller"))
+            g.gamepads.pads = [xbox]
+            g.change(PadScene(g))
+            g.update([])
+            g.scene.testing = True
+            xbox.reader.down = {"x"}
+            g.update([])
+            self.assertTrue(xbox.reader.dev.rumbles)
+            self.assertTrue(xbox.rumble_ok)
+            g.scene.draw(g.screen)
+        finally:
+            g.gamepads.pads = old
