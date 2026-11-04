@@ -238,3 +238,31 @@ class VibracaoTest(unittest.TestCase):
             g.scene.draw(g.screen)
         finally:
             g.gamepads.pads = old
+
+
+class VibracaoForteTest(unittest.TestCase):
+    """CONTROLES: gatilho direito, V ou clique no botão VIBRAR FORTE dão uma vibração no máximo."""
+
+    def test_gatilho_direito_vibra_forte_mesmo_desligada(self):
+        from soulstrike.scenes.pad import PadScene
+        g = game()
+        old, saved = g.gamepads.pads, settings.get("vibracao")
+        try:
+            settings.change("vibracao", False)
+            ps = Pad(Reader("PS4 Controller"))
+            g.gamepads.pads = [ps]
+            g.change(PadScene(g))
+            g.update([])
+            ps.reader.ax = {"rt": 1.0}
+            g.update([])
+            self.assertEqual(ps.reader.dev.rumbles, [PadScene.STRONG_VIBE])
+            self.assertEqual(g.scene.vibe[0], True)
+            g.scene.draw(g.screen)
+            ps.reader.ax = {}
+            g.update([])
+            import pygame
+            g.scene.handle(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_v, mod=0, unicode="v"))
+            self.assertEqual(len(ps.reader.dev.rumbles), 2)
+        finally:
+            g.gamepads.pads = old
+            settings.change("vibracao", saved)

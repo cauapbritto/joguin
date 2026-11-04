@@ -17,7 +17,8 @@ NEWS = {
             "Apanhar vibra um pouco mais forte.",
         ]},
         {"title": "TESTE A VIBRAÇÃO", "scene": "controle", "lines": [
-            "OPÇÕES > CONTROLES > modo teste (Y): cada botão apertado dá uma vibrada.",
+            "OPÇÕES > CONTROLES: aperte o gatilho direito (R2/RT) ou VIBRAR FORTE para uma vibração no máximo.",
+            "No modo teste (Y), cada botão apertado também dá uma vibrada.",
             "Embaixo aparece VIBRAÇÃO: OK ou se o controle não aceitou.",
         ]},
     ],

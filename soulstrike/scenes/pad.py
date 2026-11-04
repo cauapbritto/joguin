@@ -33,6 +33,8 @@ class PadScene(_MenuScene):
         self.start_hold = 0
         self.last_test = None           # último botão apertado no modo teste
         self.message = ""
+        self.vibe = None                # resultado do teste de vibração forte: (aceitou?, quadros)
+        self.vibe_rect = None
         self.boxes = {}                 # botão → retângulo (para o mouse)
         self.preset_rects = {}
         self.pick_rects = []
@@ -119,6 +121,19 @@ class PadScene(_MenuScene):
         self.sfx("cancel", 0.4)
         self.game.change(self.back(self.game))
 
+    # ── vibração forte ───────────────────────
+    STRONG_VIBE = (1.0, 1.0, 1200)      # motores no máximo por 1,2 s
+
+    def _strong_vibe(self):
+        """Teste de vibração bem forte (vale mesmo com a vibração desligada nas opções)."""
+        pad = self.pad
+        if pad is None:
+            self.message = "CONECTE UM CONTROLE PARA TESTAR A VIBRAÇÃO"
+            return
+        ok = pad.rumble(*self.STRONG_VIBE)
+        self.vibe = (ok, 0)
+        self.sfx("confirm" if ok else "cancel", 0.4)
+
     # ── eventos ──────────────────────────────
     def handle(self, event):
         if self.testing:
@@ -151,9 +166,14 @@ class PadScene(_MenuScene):
             elif key == pygame.K_k and not getattr(event, "from_pad", False):
                 self.sfx("confirm", 0.4)
                 self.game.change(ControlsScene(self.game))
+            elif key == pygame.K_v:
+                self._strong_vibe()
             elif key == pygame.K_n and len(self.pads) > 1:
                 self.pad_index = (self.pad_index + 1) % len(self.pads)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.vibe_rect is not None and self.vibe_rect.collidepoint(event.pos):
+                self._strong_vibe()
+                return
             for b, r in self.boxes.items():
                 if r.collidepoint(event.pos):
                     for side, col in enumerate(self.columns()):
@@ -218,10 +238,14 @@ class PadScene(_MenuScene):
     def update(self):
         super().update()
         # quem apertou o último botão é o controle que a tela mostra (cada um arruma o seu)
+        if self.vibe is not None:
+            self.vibe = (self.vibe[0], self.vibe[1] + 1)
         if not self.testing:
             for i, pad in enumerate(self.pads):
                 if pad.pressed:
                     self.pad_index = i
+                if "rt" in pad.pressed and self.picking is None:     # gatilho direito: vibração forte
+                    self._strong_vibe()
             return
         pad = self.pad
         if pad is None:
@@ -368,6 +392,7 @@ class PadScene(_MenuScene):
             pygame.draw.rect(screen, theme.BRASS if on else theme.LINE, r, 1)
             self.ui.text(screen, text, theme.XS, theme.BRASS if on else theme.MUTED, r.center, shadow=False)
             x += w + 8
+        self._draw_vibe_button(screen)
         if self.message:
             self.ui.text(screen, self.message, theme.XS, theme.BLOOD, (W // 2, 476))
         if self.picking is not None:
@@ -377,7 +402,29 @@ class PadScene(_MenuScene):
         else:
             t = lambda b: pad_profiles.text_label(self.name, b)         # noqa: E731
             self.footer(screen, [("SETAS", "BOTÃO"), (t("a"), "TROCAR"), (f"{t('lb')} {t('rb')}", "ABA"),
-                                 (t("x"), "PERFIL"), (t("y"), "TESTAR"), ("K", "TECLADO"), (t("b"), "VOLTAR")])
+                                 (t("x"), "PERFIL"), (t("y"), "TESTAR"), (t("rt") if not self.joycon else "V", "VIBRAR"),
+                                 ("K", "TECLADO"), (t("b"), "VOLTAR")])
+
+    def _draw_vibe_button(self, screen):
+        """Botão VIBRAR FORTE (gatilho direito, V ou clique) e o resultado do último teste."""
+        W = config.SCREEN_W
+        label = "VIBRAR FORTE"
+        r = pygame.Rect(0, 0, self.assets.text_width(label, theme.XS) + 26, 22)
+        r.midright = (W - 64, 446)
+        self.vibe_rect = r
+        shaking = self.vibe is not None and self.vibe[0] and self.vibe[1] < self.STRONG_VIBE[2] * config.FPS // 1000
+        shake = ((self.ticks // 2) % 3 - 1) * 2 if shaking else 0
+        box = r.move(shake, 0)
+        screen.fill(theme.INK_3 if shaking else theme.INK_2, box)
+        pygame.draw.rect(screen, theme.BRASS if shaking else theme.LINE_HI, box, 1)
+        self.ui.text(screen, label, theme.XS, theme.BRASS if shaking else theme.BONE, box.center, shadow=False)
+        if self.vibe is None or self.message or self.vibe[1] > 4 * config.FPS:
+            return
+        if self.vibe[0]:
+            line, color = "VIBRAÇÃO: OK" + ("" if settings.get("vibracao") else " (DESLIGADA NAS OPÇÕES)"), theme.MOSS
+        else:
+            line, color = "ESTE CONTROLE NÃO ACEITOU A VIBRAÇÃO", theme.BLOOD
+        self.ui.text(screen, line, theme.XS, color, (r.centerx, r.bottom + 14), shadow=False)
 
     def _draw_picker(self, screen):
         W = config.SCREEN_W
