@@ -10,7 +10,7 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
-    "1.11.0": [
+    "1.12.0": [
         {"title": "CAPÍTULO 3: CLEPALOVERS", "scene": "clinica", "lines": [
             "A campanha ganhou o capítulo 3: a Clínica Clepalovers, tomada pelo caco do fragmento.",
             "Três fases novas: Recepção, Ala de Procedimentos e Suíte VIP, com dez monstros novos.",

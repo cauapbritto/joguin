@@ -256,7 +256,7 @@ def lag_effects():
 
 
 def clinic_effects():
-    """Sons da v1.11 (capítulo 3, Clínica Clepalovers): monstros, perigos e o chefe (semente própria)."""
+    """Sons da v1.12 (capítulo 3, Clínica Clepalovers): monstros, perigos e o chefe (semente própria)."""
     r = random.Random(31)
     sons = {
         # o "oi sumido" chegando: duas notinhas de notificação
