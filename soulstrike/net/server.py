@@ -226,6 +226,12 @@ class _Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    def setup(self):
+        super().setup()
+        global remote_seen
+        if not str(self.client_address[0]).startswith(("127.", "::1", "::ffff:127.")):
+            remote_seen = True        # algum aparelho da rede chegou ao jogo: a rede está liberada
+
     def _read_body(self):
         try:
             n = int(self.headers.get("Content-Length") or 0)
@@ -342,6 +348,37 @@ def make_server(host="0.0.0.0", port=config.WEB_PORT):
 
 
 start_error = None     # motivo de o controle pelo celular não ter iniciado (aparece no menu)
+remote_seen = False    # já chegou algum pedido de outro aparelho (celular) desde que o jogo abriu
+
+UFW_CONF = "/etc/ufw/ufw.conf"
+_ufw_cache = None
+
+
+def ufw_enabled(path=None):
+    """O firewall do Linux Mint/Ubuntu (ufw) está ligado?
+
+    Ligado, ele descarta em silêncio as conexões de fora: o celular fica carregando e não abre.
+    O ufw.conf pode ser lido sem senha (o "ufw status" precisaria de sudo).
+    """
+    try:
+        with open(path or UFW_CONF, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                key, _, value = line.strip().partition("=")
+                if key.strip() == "ENABLED":
+                    return value.strip().strip("'\"").lower() == "yes"
+    except OSError:
+        pass
+    return False
+
+
+def firewall_hint():
+    """Dica para o menu quando o celular provavelmente está barrado pelo firewall (ou None)."""
+    global _ufw_cache
+    if remote_seen or not sys.platform.startswith("linux"):
+        return None
+    if _ufw_cache is None:
+        _ufw_cache = ufw_enabled()
+    return f"sudo ufw allow {config.WEB_PORT}/tcp" if _ufw_cache else None
 
 
 def start_in_background():

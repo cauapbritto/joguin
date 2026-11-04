@@ -176,6 +176,12 @@ class TitleScene(_MenuScene):
             self.ui.text(screen, "FECHE A OUTRA JANELA DO JOGO E ABRA DE NOVO", theme.XS, theme.MUTED,
                          (W - 16, H - 14), anchor="bottomright")
         else:
+            hint = server.firewall_hint()
+            if hint:
+                # Linux com o firewall (ufw) ligado e nenhum celular chegou até agora
+                self.ui.text(screen, "CELULAR NÃO CONECTA? FIREWALL LIGADO, NO TERMINAL: " + hint,
+                             theme.XS, theme.BRASS,
+                             (W - 16, H - 42), anchor="bottomright")
             self.ui.text(screen, "CELULAR COMO CONTROLE:", theme.XS, theme.FAINT, (W - 16, H - 28), anchor="bottomright")
             self.ui.text(screen, self.game.base_url, theme.XS, theme.MUTED, (W - 16, H - 14), anchor="bottomright")
         self.ui.text(screen, "F11 TELA CHEIA", theme.XS, theme.FAINT, (16, H - 14), anchor="bottomleft")
