@@ -12,6 +12,8 @@ from .ui import UI
 
 
 class Game:
+    URL_REFRESH_MS = 5000   # de quanto em quanto tempo confere de novo o IP da rede
+
     def __init__(self, fullscreen=True, headless=False, vsync=True):
         pygame.init()
         pygame.display.set_caption(config.TITLE)
@@ -42,7 +44,8 @@ class Game:
         self.session = None
         self.assist_level = "media"     # assistência do futebol escolhida no menu
         self.backdrop = None
-        self.base_url = f"http://{server.local_ip()}:{config.WEB_PORT}"
+        self._url = f"http://{server.local_ip()}:{config.WEB_PORT}"
+        self._url_at = pygame.time.get_ticks()
         self._thumbs = {}
         self.running = True
         self.show_fps = False           # F3 mostra os quadros por segundo
@@ -51,6 +54,19 @@ class Game:
         from .scenes.menus import LoadingScene
         self.scene = None
         self.change(LoadingScene(self))
+
+    @property
+    def base_url(self):
+        """Endereço do controle pelo celular, conferido de novo a cada poucos segundos.
+
+        No Linux o jogo pode abrir antes de o Wi-Fi conectar (ou a rede mudar com ele aberto):
+        com o IP lido uma vez só, o QR e o endereço ficavam presos no 127.0.0.1 ou na rede antiga.
+        """
+        now = pygame.time.get_ticks()
+        if now - self._url_at >= self.URL_REFRESH_MS or now < self._url_at:
+            self._url_at = now
+            self._url = f"http://{server.local_ip()}:{config.WEB_PORT}"
+        return self._url
 
     FADE_FRAMES = 12
 

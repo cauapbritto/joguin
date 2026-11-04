@@ -12,6 +12,7 @@ from ..soccer_assist import ASSIST_LEVELS, ASSIST_ORDER
 from ..basket_powers import BASKET_POWERS
 from ..soccer_powers import SOCCER_POWERS
 from .. import weapon_art
+from ..net import server
 from ..net.remote import hub
 from ..ui import mix
 from ..host import host_slot
@@ -180,7 +181,13 @@ class LobbyScene(_MenuScene):
             self.ui.text(screen, hint, theme.XS, theme.FAINT, (rect.centerx, rect.bottom - 22))
         hot = self.button.collidepoint(pygame.mouse.get_pos())
         _button(screen, self.ui, self.button, "CONTINUAR", hot or (self.ticks // 40) % 2 == 0)
-        self.ui.text(screen, f"OU ABRA {self.game.base_url}/?player=N", theme.XS, theme.FAINT, (W // 2, 470))
+        fw = server.firewall_hint() if not connected else None
+        if fw and (self.ticks // 120) % 2:
+            # Linux com o firewall ligado: sem liberar a porta, o celular nunca abre a página
+            self.ui.text(screen, f"CELULAR NÃO ABRE? FIREWALL LIGADO, NO TERMINAL: {fw}", theme.XS,
+                         theme.BRASS, (W // 2, 470))
+        else:
+            self.ui.text(screen, f"OU ABRA {self.game.base_url}/?player=N", theme.XS, theme.FAINT, (W // 2, 470))
         items = [("ENTER", "CONTINUAR"), ("ESC", "VOLTAR")]
         if self.teams:
             items.insert(0, ("TAB", "TROCAR TIMES"))
