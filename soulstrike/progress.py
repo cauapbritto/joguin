@@ -1,5 +1,5 @@
 """Progresso salvo no computador: capítulos zerados (o 1 libera o Aryel Corrompido, o 2 o Borba Jr
-Corrompido) e melhores tempos da campanha inteira.
+Corrompido e o 3 o Albeguinio Corrompido) e melhores tempos da campanha inteira.
 
 Fica em %APPDATA%/SoulStrike/progresso.json no Windows (ou ~/.soulstrike no Linux/Mac).
 A variável de ambiente SOULSTRIKE_PROGRESS troca o arquivo (usada nos testes).
@@ -43,7 +43,7 @@ def chapter_cleared(chapter):
     data = load()
     if chapter == 1:
         return bool(data.get("capitulo1_zerado") or data.get("campanha_zerada"))
-    return bool(data.get("capitulo2_zerado"))
+    return bool(data.get(f"capitulo{chapter}_zerado"))
 
 
 def campaign_cleared():
@@ -51,16 +51,23 @@ def campaign_cleared():
     return chapter_cleared(1)
 
 
-def record_chapter1():
-    """Fim do capítulo 1 (o cristal quebrou). Devolve True se o Aryel Corrompido foi liberado agora."""
+def record_chapter(chapter):
+    """Fim de um capítulo que não é o último (1: o cristal quebrou; 2: o fragmento se partiu).
+    Devolve True se o lutador secreto dele foi liberado agora."""
+    unlocked_now = not chapter_cleared(chapter)
     data = load()
-    unlocked_now = not (data.get("capitulo1_zerado") or data.get("campanha_zerada"))
-    data["capitulo1_zerado"] = True
+    for k in range(1, chapter + 1):
+        data[f"capitulo{k}_zerado"] = True
     save(data)
     return unlocked_now
 
 
-TIMES = "melhor_tempo_2cap"      # a campanha ganhou o capítulo 2: os tempos antigos (só o 1) ficam de fora
+def record_chapter1():
+    return record_chapter(1)
+
+
+LAST_CHAPTER = 3
+TIMES = "melhor_tempo_3cap"      # a campanha ganhou o capítulo 3: os tempos de 2 capítulos ficam de fora
 
 
 def best_time(difficulty):
@@ -69,12 +76,13 @@ def best_time(difficulty):
 
 
 def record_campaign(seconds, difficulty, players, full=True):
-    """Registra a campanha zerada (fim do capítulo 2). Devolve (recorde_novo, desbloqueou_agora):
-    o desbloqueio é o do Borba Jr Corrompido. O tempo só conta como recorde na campanha inteira
-    (``full``); quem começou direto do capítulo 2 não entra no recorde."""
+    """Registra a campanha zerada (fim do último capítulo). Devolve (recorde_novo, desbloqueou_agora):
+    o desbloqueio é o do Albeguinio Corrompido. O tempo só conta como recorde na campanha inteira
+    (``full``); quem começou direto de outro capítulo não entra no recorde."""
     data = load()
-    unlocked_now = not data.get("capitulo2_zerado")
-    data["capitulo1_zerado"] = data["capitulo2_zerado"] = True
+    unlocked_now = not data.get(f"capitulo{LAST_CHAPTER}_zerado")
+    for k in range(1, LAST_CHAPTER + 1):
+        data[f"capitulo{k}_zerado"] = True
     times = data.setdefault(TIMES, {})
     old = times.get(difficulty)
     record = full and (not isinstance(old, (int, float)) or seconds < old)

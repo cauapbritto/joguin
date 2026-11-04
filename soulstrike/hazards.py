@@ -1,10 +1,12 @@
-"""Perigos de algumas masmorras do capítulo 2 (Lag Lobby). Cada um avisa antes de pegar:
+"""Perigos de algumas masmorras dos capítulos 2 (Lag Lobby) e 3 (Clínica Clepalovers).
+Cada um avisa antes de pegar:
 
 - laser (Corredor de servidores): feixes atravessam o chão de lado a lado. Primeiro aparece a
   linha pontilhada e os emissores piscam; depois o feixe queima quem estiver em cima dele.
 - vento (Heliponto): rajadas empurram todo mundo para um lado. As setas aparecem antes, e quem
   está atrás de uma parede (do lado de onde o vento vem) fica protegido.
 """
+import math
 import random
 
 import pygame
@@ -225,7 +227,277 @@ class Wind:
                 ui.arrow(screen, pos, arrow, 9, (200, 230, 255))
 
 
-HAZARDS = {"laser": LaserGrid, "vento": Wind}
+# ─────────────────────────────────────────────
+#  Clínica Clepalovers (capítulo 3)
+# ─────────────────────────────────────────────
+CLEPA = (255, 110, 190)
+CLEPA_DARK = (120, 30, 80)
+CAUTION = (250, 206, 50)
+
+
+class WetFloor:
+    """Sala de Espera: poças de piso molhado (com a plaquinha amarela). Quem anda em cima
+    escorrega: o passo continua um pouco depois de soltar. E o painel de senhas chamando lá em
+    cima (SENHA 042 · SALA 3), que é de onde os monstros "são chamados"."""
+
+    COUNT = 5
+    SLIDE = 0.8                  # quanto do passo anterior continua em cima da poça
+    CALL = (260, 360)
+
+    def __init__(self, arena, rng=random):
+        self.arena = arena
+        self.rng = rng
+        self.puddles = []
+        for _ in range(60):
+            if len(self.puddles) >= self.COUNT:
+                break
+            x, y = arena.random_free_spot(60)
+            if all(abs(x - px) > 220 or abs(y - py) > 160 for px, py, _ in self.puddles):
+                self.puddles.append((x, y, rng.randint(70, 100)))
+        self.last = {}
+        self.ticket = rng.randint(30, 60)
+        self.room = rng.randint(1, 6)
+        self.call = 90
+        self.flash = 0
+
+    def on_puddle(self, f):
+        return any(((f.x - x) / r) ** 2 + ((f.y - y) / (r * 0.45)) ** 2 < 1 for x, y, r in self.puddles)
+
+    def update(self, match):
+        seen = {}
+        for f in match.fighters:
+            if not f.alive_in_match or f.lift > 0:
+                continue
+            prev = self.last.get(f)
+            seen[f] = (f.x, f.y)
+            if prev is None or getattr(f, "knock_resist", 0.0) >= 1 or not self.on_puddle(f):
+                continue
+            dx, dy = f.x - prev[0], f.y - prev[1]
+            if 0.3 < abs(dx) + abs(dy) < 12:
+                f.x += dx * self.SLIDE
+                f.y += dy * self.SLIDE
+                self.arena.resolve(f)
+                seen[f] = (f.x, f.y)
+                if match.frame % 9 == 0:
+                    match.burst(f.x, f.y + 14, (170, 210, 240), 2, speed=1.2)
+        self.last = seen
+        self.call -= 1
+        self.flash = max(0, self.flash - 1)
+        if self.call <= 0:
+            self.call = self.rng.randint(*self.CALL)
+            self.ticket += 1
+            self.room = self.rng.randint(1, 6)
+            self.flash = 60
+            match.assets.play("senha", 0.35)
+
+    def draw(self, view, cam, frame):
+        for x, y, r in self.puddles:
+            sx, sy = round(x - cam.x), round(y - cam.y)
+            rect = pygame.Rect(0, 0, r * 2, round(r * 0.9))
+            rect.center = (sx, sy)
+            layer = pygame.Surface(rect.size, pygame.SRCALPHA)
+            pygame.draw.ellipse(layer, (150, 200, 236, 90), layer.get_rect())
+            pygame.draw.ellipse(layer, (220, 240, 255, 140), layer.get_rect(), 2)
+            shine = (frame // 3 + x) % (r * 2)
+            pygame.draw.line(layer, (255, 255, 255, 120), (shine - 8, rect.h // 3), (shine + 6, rect.h // 3 - 3), 2)
+            view.blit(layer, rect)
+            # plaquinha amarela de CUIDADO
+            px, py = rect.right - 10, rect.top - 6
+            pygame.draw.polygon(view, (60, 50, 20), [(px - 9, py + 14), (px + 9, py + 14), (px, py - 14)])
+            pygame.draw.polygon(view, CAUTION, [(px - 7, py + 12), (px + 7, py + 12), (px, py - 11)])
+            view.fill((60, 50, 20), (px - 1, py - 4, 2, 9))
+            view.fill((60, 50, 20), (px - 1, py + 7, 2, 2))
+
+    def draw_screen(self, screen, ui, frame):
+        w = screen.get_width()
+        box = pygame.Rect(0, 0, 300, 44)
+        box.midtop = (w // 2, 60)
+        lit = self.flash > 0 and (frame // 6) % 2 == 0
+        pygame.draw.rect(screen, (24, 14, 22), box, border_radius=6)
+        pygame.draw.rect(screen, CLEPA if lit else CLEPA_DARK, box, 2, border_radius=6)
+        color = (255, 236, 120) if lit else (255, 170, 210)
+        ui.text(screen, f"SENHA {self.ticket:03d} · SALA {self.room}", theme.S, color, box.center)
+
+
+class LaserTiles:
+    """Sala do Laser: o chão é uma grade de ladrilhos. Alguns acendem com o contorno rosa
+    piscando (aviso) e depois queimam quem ficou em cima. Sempre sobra chão livre do lado."""
+
+    CELL = 160
+    WARN = 66
+    BURN = 22
+    GAP = (120, 170)
+    DAMAGE = 11
+    SHARE = 0.32
+
+    def __init__(self, arena, rng=random):
+        self.arena = arena
+        self.rng = rng
+        cols, rows = arena.width // self.CELL, arena.height // self.CELL
+        self.cells = [(c, r) for c in range(cols) for r in range(rows)
+                      if arena.is_free(c * self.CELL + self.CELL / 2, r * self.CELL + self.CELL / 2, 20)]
+        self.lit = []                # ladrilhos da vez
+        self.age = 0
+        self.timer = 120
+        self.hit = set()
+
+    @property
+    def burning(self):
+        return bool(self.lit) and self.WARN <= self.age < self.WARN + self.BURN
+
+    def cell_of(self, f):
+        return int(f.x // self.CELL), int(f.y // self.CELL)
+
+    def update(self, match):
+        if self.lit:
+            self.age += 1
+            if self.age == self.WARN:
+                match.assets.play("laser", 0.3)
+            if self.burning:
+                lit = set(self.lit)
+                for f in match.fighters:
+                    if f in self.hit or not f.alive_in_match or f.lift > 0 or self.cell_of(f) not in lit:
+                        continue
+                    self.hit.add(f)
+                    if f.take_damage(round(self.DAMAGE * match.enemy_dmg), f.x, f.y, match=match):
+                        match.burst(f.x, f.y - 10, CLEPA, 6, speed=3)
+            if self.age >= self.WARN + self.BURN:
+                self.lit = []
+            return
+        self.timer -= 1
+        if self.timer <= 0 and self.cells:
+            self.timer = self.rng.randint(*self.GAP)
+            # tabuleiro: só uma das "cores" do xadrez, mais umas sorteadas (nunca a sala inteira)
+            parity = self.rng.randint(0, 1)
+            pool = [c for c in self.cells if (c[0] + c[1]) % 2 == parity]
+            self.lit = self.rng.sample(pool, max(1, round(len(self.cells) * self.SHARE)) if len(pool) > 2 else len(pool))
+            self.age = 0
+            self.hit = set()
+
+    def draw(self, view, cam, frame):
+        if not self.lit:
+            return
+        for c, r in self.lit:
+            rect = pygame.Rect(round(c * self.CELL - cam.x) + 4, round(r * self.CELL - cam.y) + 4,
+                               self.CELL - 8, self.CELL - 8)
+            if self.burning:
+                t = (self.age - self.WARN) / self.BURN
+                layer = pygame.Surface(rect.size, pygame.SRCALPHA)
+                layer.fill((*CLEPA, round(170 * (1 - 0.5 * t))))
+                view.blit(layer, rect)
+                pygame.draw.rect(view, (255, 230, 244), rect, 3)
+                for k in range(0, rect.w, 22):
+                    view.fill((255, 240, 250), (rect.x + k, rect.y + (frame * 5 + k) % rect.h, 2, 6))
+            else:
+                t = self.age / self.WARN
+                on = (frame // 4) % 2 == 0 or t > 0.75
+                layer = pygame.Surface(rect.size, pygame.SRCALPHA)
+                layer.fill((*CLEPA, round(20 + 50 * t)))
+                view.blit(layer, rect)
+                pygame.draw.rect(view, CLEPA if on else CLEPA_DARK, rect, 2)
+
+    def draw_screen(self, screen, ui, frame):
+        if self.lit and not self.burning and (frame // 8) % 2 == 0:
+            ui.text(screen, "LASER! SAIAM DOS LADRILHOS ROSA", theme.XS, CLEPA, (screen.get_width() // 2, 96))
+
+
+class Valve:
+    """Registro do vapor (Spa): ATACAR perto fecha."""
+
+    RADIUS = 70
+
+    def __init__(self, x, y):
+        self.x, self.y = x, y
+        self.closed = False
+        self.turn = 0
+
+    def near(self, f):
+        return abs(f.x - self.x) < self.RADIUS and abs(f.y - self.y) < self.RADIUS
+
+
+class Steam:
+    """Spa e Sauna: o vapor tapa a sala; só dá para ver em volta de cada herói. Três registros
+    nas paredes: ATACAR perto de um fecha (o vapor afina); os três fechados, o vapor some."""
+
+    SIGHT = 190
+    SPOTS = ((150, 160), (1850, 160), (1000, 1260))
+
+    def __init__(self, arena, rng=random):
+        self.arena = arena
+        self.valves = [Valve(*arena.free_spot(x, y, 24)) for x, y in self.SPOTS]
+        self.density = 1.0
+        self.match = None
+        self._veil = None
+
+    @property
+    def open_valves(self):
+        return [v for v in self.valves if not v.closed]
+
+    def interact(self, f, match):
+        for v in self.open_valves:
+            if v.near(f):
+                v.closed = True
+                v.turn = 30
+                match.burst(v.x, v.y - 20, (240, 240, 246), 16, speed=3)
+                left = len(self.open_valves)
+                text = "VAPOR DESLIGADO!" if left == 0 else f"REGISTRO FECHADO ({3 - left}/3)"
+                match.popup(v.x, v.y - 60, text, (220, 240, 255))
+                match.assets.play("vapor", 0.5)
+                return True
+        return False
+
+    def update(self, match):
+        self.match = match
+        want = len(self.open_valves) / len(self.valves)
+        self.density += (want - self.density) * 0.03
+        for v in self.valves:
+            v.turn = max(0, v.turn - 1)
+            if not v.closed and match.frame % 7 == 0:
+                match.burst(v.x, v.y - 26, (236, 236, 242), 1, speed=1.2)
+
+    def draw(self, view, cam, frame):
+        for v in self.valves:
+            sx, sy = round(v.x - cam.x), round(v.y - cam.y)
+            view.fill((70, 74, 86), (sx - 4, sy - 34, 8, 34))
+            color = (90, 200, 120) if v.closed else (220, 60, 70)
+            spin = v.turn * 0.4 + (0 if v.closed else frame * 0.02)
+            for k in range(4):
+                a = spin + k * math.pi / 2
+                pygame.draw.line(view, color, (sx, sy - 34), (sx + round(math.cos(a) * 13), sy - 34 + round(math.sin(a) * 13)), 3)
+            pygame.draw.circle(view, (40, 40, 48), (sx, sy - 34), 4)
+
+    def draw_screen(self, screen, ui, frame):
+        match = self.match
+        if self.density < 0.03 or match is None:
+            return
+        w, h = screen.get_size()
+        if self._veil is None or self._veil.get_size() != (w, h):
+            self._veil = pygame.Surface((w, h), pygame.SRCALPHA)
+        veil = self._veil
+        veil.fill((232, 234, 240, round(215 * self.density)))
+        cam = match.camera
+        sight = round(self.SIGHT * cam.zoom) if hasattr(cam, "zoom") else self.SIGHT
+        steps = 10                                    # a borda da visão vai clareando aos poucos
+        for k in range(steps + 1):
+            t = k / steps
+            r = max(10, round(sight + 60 - 120 * t))
+            alpha = round(215 * self.density * (1 - t) ** 1.6)
+            for p in match.alive_players:
+                sx, sy = cam.to_screen(p.x, p.y - 10)
+                pygame.draw.circle(veil, (232, 234, 240, alpha), (round(sx), round(sy)), r)
+        for rect in getattr(match, "hud_regions", lambda: [])():
+            veil.fill((232, 234, 240, round(50 * self.density)), rect)   # placar e vidas sempre à vista
+        screen.blit(veil, (0, 0))
+        for v in self.open_valves:                    # os registros abertos aparecem através do vapor
+            sx, sy = cam.to_screen(v.x, v.y - 60)
+            if (frame // 10) % 2 == 0:
+                ui.text(screen, "REGISTRO", theme.XS, (220, 60, 70), (round(sx), round(sy)))
+        if self.open_valves and (frame // 30) % 4 == 0:
+            ui.text(screen, "FECHEM OS REGISTROS DO VAPOR (ATACAR PERTO)", theme.XS, (90, 110, 140), (w // 2, 96))
+
+
+HAZARDS = {"laser": LaserGrid, "vento": Wind, "piso_molhado": WetFloor, "laser_grade": LaserTiles,
+           "vapor": Steam}
 
 
 def make_hazard(key, arena):

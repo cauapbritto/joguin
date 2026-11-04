@@ -398,6 +398,20 @@
    5
   ]
  },
+ "Boleto": {
+  "file": "boleto.png",
+  "grip": [
+   3,
+   7
+  ]
+ },
+ "Carimbo": {
+  "file": "carimbo.png",
+  "grip": [
+   3,
+   5
+  ]
+ },
  "Lâmina Solar": {
   "file": "lamina_solar.png",
   "grip": [

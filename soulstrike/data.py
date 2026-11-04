@@ -59,6 +59,7 @@ SHOT_SOUNDS = {
     "tempestade": "eletrico", "martelo_trovao": "eletrico",
     # Lag Lobby
     "rede": "eletrico", "plasma": "plasma", "drone_bolso": "bip", "tecla": "arremesso",
+    "botox": "arco", "boleto": "arremesso", "grampo": "arremesso",
 }
 
 
@@ -158,6 +159,12 @@ CHARACTERS = (
                    (_ranged("Canhão de Pulso", 12, 11, 26, "pulso", mag=4, reload=70, charge=True,
                             note="Segure para carregar: tiro maior que empurra."),
                     _melee("Punho Corrompido", 24, 58)), "borba_exo"),
+    # liberado ao zerar o capítulo 3 (Clínica Clepalovers): o Albeguinio do administrativo, com o caco no bolso
+    CharacterStats("albeguinio_corrompido", "Albeguinio Corrompido", 140, 3.6, (255, 110, 190),
+                   "Fechamento do Mês", "Carimbo gigante em cima do inimigo e em volta: machuca e deixa tonto.",
+                   (_ranged("Boleto", 10, 10, 17, "boleto", mag=8, reload=64,
+                            note="Papel girando: rápido e sem fim de pente longo."),
+                    _melee("Carimbo", 23, 56)), "albeguinio_adm"),
 )
 SOCCER_STARS = tuple(c.key for c in CHARACTERS if c.soccer_only)
 FIGHTERS = tuple(c for c in CHARACTERS if not c.soccer_only)     # quem luta (duelo e campanha)
@@ -219,11 +226,15 @@ PHASE_RELICS = {
     "recepcao": ("taser_rede", "teclado_mecanico", "besta", "cajado_raio"),
     "datacenter": ("rifle_plasma", "drone_bolso", "escudo_choque", "lanca_chamas"),
     "cobertura": ("manopla_exo", "bola_neve", "espelho", "raio_supremo"),
+    # capítulo 3: Clínica Clepalovers
+    "clinica_recepcao": ("arco_espinhos", "taser_rede", "bumerangue", "colmeia"),
+    "procedimentos": ("bola_neve", "rifle_plasma", "foice_espectral", "lanca_chamas"),
+    "suite_vip": ("espelho", "raio_supremo", "manopla_exo", "canhao"),
 }
 
 UNLOCKABLE = "aryel_corrompido"
-UNLOCKABLES = {"aryel_corrompido": 1, "borba_corrompido": 2}   # segredo → capítulo da campanha que libera
-SHADOW_CHARACTERS = {"aryel_corrompido", "borba_corrompido"}  # usam a versão sombria do sprite (campo "sprite")
+UNLOCKABLES = {"aryel_corrompido": 1, "borba_corrompido": 2, "albeguinio_corrompido": 3}   # segredo → capítulo da campanha que libera
+SHADOW_CHARACTERS = {"aryel_corrompido", "borba_corrompido", "albeguinio_corrompido"}  # usam a versão sombria do sprite (campo "sprite")
 
 
 def roster(soccer=False):

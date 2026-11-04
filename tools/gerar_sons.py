@@ -255,6 +255,47 @@ def lag_effects():
         print("som", name)
 
 
+def clinic_effects():
+    """Sons da v1.12 (capítulo 3, Clínica Clepalovers): monstros, perigos e o chefe (semente própria)."""
+    r = random.Random(31)
+    sons = {
+        # o "oi sumido" chegando: duas notinhas de notificação
+        "notificacao": mix(tone(1319, 0.12, "sine", 0.6, curve=3), tone(1760, 0.22, "sine", 0.6, curve=3),
+                           at=[0, 0.11]),
+        # carimbo gigante: pancada seca de madeira
+        "carimbo": mix(tone(70, 0.3, "sine", 1.0, slide=40, curve=4), noise(0.08, 0.9, rng=r, curve=5, lowpass=0.5),
+                       tone(240, 0.12, "triangle", 0.5, slide=160, curve=5)),
+        # grampeador: três "tchecs" metálicos
+        "grampo": mix(*[mix(noise(0.03, 0.9, rng=r, curve=6, lowpass=0.9), tone(1900, 0.04, "square", 0.2, curve=6))
+                        for _ in range(3)], at=[0, 0.06, 0.12]),
+        # máscara de argila: gosma caindo no chão
+        "gosma": mix(tone(180, 0.25, "sine", 0.8, slide=70, curve=3, vibrato=0.08),
+                     noise(0.15, 0.4, rng=r, curve=3, lowpass=0.1)),
+        # rolinho de jade rolando
+        "rolo": mix(tone(260, 0.45, "triangle", 0.5, slide=420, attack=0.02, curve=1.5, vibrato=0.12),
+                    noise(0.45, 0.3, rng=r, attack=0.05, curve=1.5, lowpass=0.2)),
+        # cadeira de procedimento: o pistão subindo
+        "cadeira": mix(sweep_noise(0.4, 0.1, 0.5, 0.6, rng=r, attack=0.02, curve=1.6),
+                       tone(140, 0.4, "saw", 0.3, slide=220, curve=2)),
+        # espelho vivo: brilho de vidro
+        "espelho": mix(tone(2637, 0.5, "sine", 0.4, curve=3), tone(3136, 0.4, "sine", 0.3, curve=3),
+                       tone(1976, 0.6, "sine", 0.3, curve=2, vibrato=0.03), at=[0, 0.06, 0.1]),
+        # vidro quebrando (espelho e a harmonização desfeita)
+        "vidro": mix(*[tone(2000 + i * 330, 0.18, "triangle", 0.3, curve=5) for i in range(5)],
+                     noise(0.25, 0.7, rng=r, curve=4, lowpass=1.0), at=[i * 0.03 for i in range(5)] + [0]),
+        # painel de senhas da recepção: "plim-plom"
+        "senha": mix(tone(988, 0.3, "sine", 0.5, curve=2), tone(784, 0.45, "sine", 0.5, curve=2), at=[0, 0.25]),
+        # comemoração do Albeguinio Corrompido: carimbo e a notificação
+        "comemora_albeguinio_corrompido": mix(tone(70, 0.3, "sine", 1.0, slide=40, curve=4),
+                                              noise(0.08, 0.9, rng=r, curve=5, lowpass=0.5),
+                                              tone(1319, 0.12, "sine", 0.5, curve=3),
+                                              tone(1760, 0.22, "sine", 0.5, curve=3), at=[0, 0, 0.35, 0.46]),
+    }
+    for name, samples in sons.items():
+        save_wav(name, samples)
+        print("som", name)
+
+
 def crowd(seconds, base, slide=None, voices=9, vol=1.0, rng=None, attack=0.08, curve=1.5, kind="saw"):
     """Várias vozes desafinadas cantando juntas (o "uuuh", o "ooh" e a vaia da torcida)."""
     rng = rng or random.Random(3)
@@ -462,5 +503,6 @@ if __name__ == "__main__":
     souls_effects()
     sport_effects()
     lag_effects()
+    clinic_effects()
     music()
     lag_music()

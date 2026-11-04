@@ -130,6 +130,22 @@ class Assets:
             self.sprites[name] = tint_sprites(self.sprites[key], TINTS.get(key, SHADOW_TINT))
         return self.sprites[name]
 
+    def sheet_sprites(self, key):
+        """Sprites de quem não é personagem nem criatura (o Albeguinio do administrativo)."""
+        if key not in self.sprites:
+            self.sprites[key] = load_sheet(key)
+        return self.sprites[key]
+
+    def reflex_sprites(self, key):
+        """Reflexo do herói no Espelho Vivo (capítulo 3): prateado, puxando para o rosa."""
+        name = "reflexo:" + key
+        if name not in self.sprites:
+            from .enemies import REFLEX_EYES, REFLEX_TINT, tint_sprites
+            if key not in self.sprites:
+                self.sprites[key] = load_sheet(key)
+            self.sprites[name] = tint_sprites(self.sprites[key], REFLEX_TINT, REFLEX_EYES)
+        return self.sprites[name]
+
     def kit_sprites(self, key, team):
         """Sprites do herói com o uniforme do time (futebol). Carregados na primeira vez que
         alguém pede; sem a folha do uniforme (ex.: Aryel Corrompido), ficam os de sempre."""

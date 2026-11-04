@@ -301,6 +301,8 @@ class Fighter(Entity):
         self.chain_ball = None          # bola da Corrente em voo
         self.down_age = 0               # quadros desde que caiu (animação da queda)
         self.fade = 1.0                 # transparência do corpo caído (inimigo sumindo)
+        self.cloak = 0.0                # quase invisível (Toalha Fantasma, a Daiwone indo embora): 0 a 1
+        self.botox_timer = 0            # cara congelada (dardo da Seringuinha): sem habilidade
         self.breath_phase = random.randrange(BREATH * 2)
 
         # efeitos visuais
@@ -920,7 +922,7 @@ class Fighter(Entity):
         for name in ("attack_cd", "ability_cd", "dash_cd", "speed_timer", "invulnerable_timer",
                      "super_cd", "kick_cd", "stun_timer", "fury_timer", "giant_timer", "sprint_timer",
                      "magic_timer", "nose_timer", "zaga_timer", "moto_timer", "cut_timer", "hack_timer",
-                     "type_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer",
+                     "type_timer", "rush_timer", "thrown_timer", "root_timer", "botox_timer", "fear_timer", "frozen_timer",
                      "slow_timer", "windup", "aim_timer", "haste_timer", "dry_click",
                      "hit_flash", "melee_flash", "shoot_flash", "teleport_flash", "perfect_flash",
                      "celebrate", "release_t", "swat_t"):
@@ -1223,7 +1225,7 @@ class Fighter(Entity):
         shadow.center = (sx, feet)
         if self.hp > 0 or self.fade > 0.5:
             pygame.draw.ellipse(surf, (10, 8, 14), shadow)
-        if self.hp > 0:
+        if self.hp > 0 and self.cloak < 0.5:
             pygame.draw.ellipse(surf, self.ring_color, shadow.inflate(6, 4), 2)
 
         if self.hp <= 0:
@@ -1278,6 +1280,9 @@ class Fighter(Entity):
             rect = img.get_rect(center=rect.center)
         if self.aura is not None:
             self._draw_aura(surf, img, rect, ticks)
+        if self.cloak > 0.02:
+            img = img.copy()
+            img.set_alpha(round(255 * max(0.08, 1 - self.cloak)))
         surf.blit(img, rect)
         if riding:                                     # a moto na frente das pernas (ele vai sentado)
             if dodging_moto:

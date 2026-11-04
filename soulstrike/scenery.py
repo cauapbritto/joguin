@@ -1,4 +1,5 @@
-"""Cenário dos mapas que não têm arte própria (Floresta, Calabouço, Templo Gelado e a Lag Lobby).
+"""Cenário dos mapas que não têm arte própria (Floresta, Calabouço, Templo Gelado, a Lag Lobby e a
+Clínica Clepalovers).
 
 - O chão é pintado uma vez só, em "pixels" de 2x2 (a mesma escala dos personagens), com
   grama, trilhas, pedras, rachaduras, poças, neve... e guardado pronto.
@@ -421,9 +422,195 @@ def _lag_cobertura(s, rng):
     _vignette(s, (40, 44, 52), 36)
 
 
+# ── Clínica Clepalovers (capítulo 3): porcelanato branco, rosa da marca e dourado ──
+CLEPA = (255, 110, 190)
+CLEPA_D = (184, 56, 128)
+CLEPA_L = (255, 192, 226)
+GOLD = (226, 186, 92)
+CACO = (170, 90, 230)
+
+
+def _heart(s, x, y, color, size=1):
+    """Coraçãozinho da Clepalovers (o logo) em pixels."""
+    for dx, dy in ((0, 0), (2, 0), (-1, 1), (0, 1), (1, 1), (2, 1), (3, 1), (0, 2), (1, 2), (2, 2), (1, 3)):
+        s.fill(color, (x + dx * size, y + dy * size, size, size))
+
+
+def _veins(s, rng, count, color=CACO):
+    """Veios roxos do caco correndo pelo chão (a corrupção vazando das máquinas)."""
+    w, h = s.get_size()
+    for _ in range(count):
+        x, y = rng.randrange(w), rng.randrange(h)
+        for _ in range(rng.randint(8, 18)):
+            nx, ny = x + rng.randint(-4, 4), y + rng.randint(-4, 4)
+            pygame.draw.line(s, color, (x, y), (nx, ny))
+            x, y = nx, ny
+
+
+def _clinica(s, rng):
+    """Recepção e consultórios: porcelanato branco polido em placas grandes, passadeira rosa,
+    o coração da marca no chão, marcas de rodinha e os veios roxos do caco."""
+    w, h = s.get_size()
+    tile = 32
+    for gy in range(0, h, tile):
+        for gx in range(0, w, tile):
+            c = _shade((232, 228, 232), rng.randint(-4, 4))
+            s.fill(c, (gx, gy, tile, tile))
+            s.fill(_shade(c, -26), (gx, gy, tile, 1))
+            s.fill(_shade(c, -26), (gx, gy, 1, tile))
+            if rng.random() < 0.25:                                   # brilho do piso encerado
+                for i in range(8):
+                    s.set_at((gx + 6 + i, gy + 20 - i), (252, 250, 252))
+    for _ in range(max(1, w * h // 90000)):                           # passadeiras rosa
+        cw, ch = rng.randint(70, 160), rng.randint(22, 34)
+        if rng.random() < 0.5:
+            cw, ch = ch, cw
+        x, y = rng.randrange(0, max(1, w - cw)), rng.randrange(0, max(1, h - ch))
+        rug = (246, 222, 236)
+        s.fill(rug, (x, y, cw, ch))
+        pygame.draw.rect(s, (238, 196, 220), (x, y, cw, ch), 1)
+        pygame.draw.rect(s, (250, 236, 244), (x + 3, y + 3, cw - 6, ch - 6), 1)
+        for _ in range(cw * ch // 40):
+            s.set_at((x + rng.randrange(cw), y + rng.randrange(ch)), _shade(rug, rng.randint(-8, 3)))
+    for _ in range(max(2, w * h // 70000)):                           # logo no chão
+        _heart(s, rng.randrange(10, w - 20), rng.randrange(10, h - 20), CLEPA_L, 3)
+    for _ in range(16):                                               # marcas de rodinha de maca
+        x, y = rng.randrange(w), rng.randrange(h)
+        length = rng.randint(30, 90)
+        horizontal = rng.random() < 0.5
+        for k in (0, 6):
+            if horizontal:
+                s.fill((206, 200, 208), (x, y + k, length, 1))
+            else:
+                s.fill((206, 200, 208), (x + k, y, 1, length))
+    _veins(s, rng, 7)
+    _vignette(s, (170, 120, 160), 26)
+
+
+def _clinica_spa(s, rng):
+    """Spa e sauna: deck de madeira clara em réguas, pedrinhas brancas nas bordas, toalhas
+    dobradas e pétalas rosa caídas."""
+    w, h = s.get_size()
+    plank = 12
+    for gy in range(0, h, plank):
+        offset = rng.randrange(0, 60)
+        c0 = _shade((176, 132, 92), rng.randint(-8, 8))
+        s.fill(c0, (0, gy, w, plank))
+        s.fill(_shade(c0, 20), (0, gy, w, 1))
+        s.fill(_shade(c0, -34), (0, gy + plank - 1, w, 1))
+        for x in range(-offset, w, rng.randint(70, 110)):             # emendas das réguas
+            s.fill(_shade(c0, -40), (x, gy, 1, plank))
+        for _ in range(w // 30):                                      # veio da madeira
+            x = rng.randrange(w)
+            s.fill(_shade(c0, -12), (x, gy + rng.randint(3, plank - 4), rng.randint(6, 18), 1))
+    for _ in range(max(2, w * h // 60000)):                           # canteiros de pedrinha branca
+        cx, cy = rng.randrange(20, w - 20), rng.randrange(20, h - 20)
+        r = rng.randint(14, 26)
+        pygame.draw.ellipse(s, (120, 116, 110), (cx - r, cy - r // 2, r * 2, r))
+        for _ in range(r * 3):
+            px, py = cx + rng.randint(-r + 2, r - 2), cy + rng.randint(-r // 2 + 2, r // 2 - 2)
+            s.fill(rng.choice(((236, 234, 228), (210, 206, 200), (250, 248, 244))), (px, py, 2, 2))
+        s.fill((80, 140, 70), (cx - 2, cy - 4, 3, 4))                 # bambuzinho
+    for _ in range(10):                                               # toalhas dobradas
+        x, y = rng.randrange(4, w - 20), rng.randrange(4, h - 14)
+        s.fill((240, 238, 234), (x, y, 16, 9))
+        s.fill(CLEPA_L, (x, y + 3, 16, 2))
+        s.fill((200, 196, 196), (x, y + 8, 16, 1))
+    for _ in range(60):                                               # pétalas
+        x, y = rng.randrange(w), rng.randrange(h)
+        s.fill(rng.choice((CLEPA, CLEPA_L, (250, 230, 240))), (x, y, 2, 1))
+    for _ in range(6):                                                # poças de água
+        x, y = rng.randrange(w), rng.randrange(h)
+        pygame.draw.ellipse(s, (150, 120, 96), (x, y, rng.randint(20, 40), rng.randint(8, 14)))
+    _veins(s, rng, 4)
+    _vignette(s, (60, 40, 30), 30)
+
+
+def _clinica_vip(s, rng):
+    """Suíte VIP e sala dos espelhos: mármore escuro com veios rosados e as frisas douradas."""
+    w, h = s.get_size()
+    tile = 40
+    for gy in range(0, h, tile):
+        for gx in range(0, w, tile):
+            c = _shade((52, 40, 56), rng.randint(-4, 4))
+            s.fill(c, (gx, gy, tile, tile))
+            s.fill(GOLD if (gx // tile + gy // tile) % 4 == 0 else _shade(c, -16), (gx, gy, tile, 1))
+            s.fill(_shade(c, -16), (gx, gy, 1, tile))
+    for _ in range(w * h // 900):                                     # veios do mármore
+        x, y = rng.randrange(w), rng.randrange(h)
+        color = rng.choice(((120, 90, 120), (150, 110, 140), (86, 66, 92)))
+        for _ in range(rng.randint(3, 8)):
+            nx, ny = x + rng.randint(-1, 4), y + rng.randint(-2, 2)
+            pygame.draw.line(s, color, (x, y), (nx, ny))
+            x, y = nx, ny
+    cx, cy = w // 2, h // 2                                           # rosa dos ventos dourada no meio
+    pygame.draw.circle(s, GOLD, (cx, cy), 48, 2)
+    pygame.draw.circle(s, (120, 90, 50), (cx, cy), 44, 1)
+    _heart(s, cx - 12, cy - 12, CLEPA_D, 6)
+    for _ in range(40):                                               # glitter caído
+        s.fill(rng.choice((GOLD, CLEPA_L, (255, 255, 255))), (rng.randrange(w), rng.randrange(h), 1, 1))
+    _veins(s, rng, 6, (190, 110, 240))
+    _vignette(s, (14, 8, 18), 40)
+
+
+def _clinica_adm(s, rng):
+    """Administrativo: carpete de escritório cinza-azulado, folhas espalhadas, boletos, post-its
+    rosa e carimbos de PAGO no chão."""
+    w, h = s.get_size()
+    s.fill((96, 102, 118))
+    for _ in range(w * h // 3):
+        s.set_at((rng.randrange(w), rng.randrange(h)), _shade((96, 102, 118), rng.randint(-10, 10)))
+    for gy in range(0, h, 48):                                        # placas do carpete
+        s.fill((86, 92, 108), (0, gy, w, 1))
+    for gx in range(0, w, 48):
+        s.fill((86, 92, 108), (gx, 0, 1, h))
+    for _ in range(w * h // 9000):                                    # papéis
+        x, y = rng.randrange(w - 12), rng.randrange(h - 14)
+        s.fill((70, 70, 84), (x + 1, y + 1, 10, 13))
+        s.fill((240, 238, 230), (x, y, 10, 13))
+        for k in range(2, 12, 2):
+            s.fill((180, 180, 190), (x + 2, y + k, rng.randint(3, 7), 1))
+        if rng.random() < 0.3:                                        # carimbo de PAGO
+            pygame.draw.rect(s, (220, 60, 70), (x + 1, y + 4, 8, 5), 1)
+    for _ in range(30):                                               # post-its
+        s.fill(rng.choice((CLEPA_L, (255, 236, 120), (170, 230, 200))), (rng.randrange(w), rng.randrange(h), 4, 4))
+    for _ in range(8):                                                # grampos e clipes
+        x, y = rng.randrange(w), rng.randrange(h)
+        s.fill((200, 204, 214), (x, y, 3, 1))
+    _veins(s, rng, 9, (190, 110, 240))
+    _vignette(s, (30, 30, 40), 34)
+
+
+def _clinica_calcada(s, rng):
+    """Calçada da fachada: pedra portuguesa em ondas preto e branco, o meio-fio e as vagas."""
+    w, h = s.get_size()
+    for y in range(h):
+        for x in range(0, w, 2):
+            wave = math.sin(x * 0.05 + math.sin(y * 0.03) * 2) * 10
+            dark = (y + wave) % 56 < 7
+            base = (150, 146, 152) if dark else (226, 224, 218)
+            s.fill(_shade(base, rng.randint(-10, 10)), (x, y, 2, 1))
+    for y in range(0, h, 3):                                          # rejunte das pedrinhas
+        for x in range((y // 3) % 2 * 2, w, 4):
+            if rng.random() < 0.35:
+                s.set_at((x, y), (120, 118, 116))
+    s.fill((150, 150, 146), (0, h - 22, w, 4))                        # meio-fio e o asfalto
+    s.fill((56, 58, 62), (0, h - 18, w, 18))
+    for x in range(10, w, 40):
+        s.fill((236, 236, 226), (x, h - 9, 20, 2))
+    for _ in range(14):                                               # pétalas e panfletos
+        x, y = rng.randrange(w), rng.randrange(h - 30)
+        s.fill(CLEPA_L, (x, y, 6, 4))
+        _heart(s, x + 1, y, CLEPA, 1)
+    _veins(s, rng, 4)
+    _vignette(s, (30, 26, 34), 30)
+
+
 _PAINTERS = {"floresta": _floresta, "calabouco": _calabouco, "templo_gelado": _templo,
              "lag_escritorio": _lag_escritorio, "lag_datacenter": _lag_datacenter, "lag_garagem": _lag_garagem,
-             "lag_cobertura": _lag_cobertura}
+             "lag_cobertura": _lag_cobertura,
+             "clinica": _clinica, "clinica_spa": _clinica_spa, "clinica_vip": _clinica_vip,
+             "clinica_adm": _clinica_adm, "clinica_calcada": _clinica_calcada}
 THEMED_MAPS = tuple(_PAINTERS)
 
 
@@ -613,8 +800,104 @@ class Barrier(_Style):
         pygame.draw.rect(s, (70, 70, 70), (0, 0, w, h), 1)
 
 
+class ClinicWall(_Style):
+    """Clínica: parede branca de painel liso, rodapé e faixa rosa da marca, frisos dourados."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((40, 20, 40, 120), (0, 6, w, h))
+        s.fill((244, 240, 244), (0, 0, w, h))
+        s.fill((255, 255, 255), (0, 0, w, 3))
+        s.fill((214, 206, 216), (0, h - 3, w, 3))
+        if w >= h:
+            s.fill(CLEPA, (0, h // 2 - 2, w, 4))
+            s.fill(GOLD, (0, h // 2 + 2, w, 1))
+            for x in range(30, w - 10, 70):                              # painéis
+                s.fill((222, 214, 224), (x, 0, 1, h))
+            if w > 120 and rng.random() < 0.5:                           # quadrinho de antes e depois
+                x = rng.randrange(10, w - 40)
+                s.fill(GOLD, (x, 4, 28, min(14, h - 8)))
+                s.fill((240, 220, 200), (x + 2, 6, 11, min(10, h - 12)))
+                s.fill((90, 50, 120), (x + 15, 6, 11, min(10, h - 12)))
+        else:
+            s.fill(CLEPA, (w // 2 - 2, 0, 4, h))
+            s.fill(GOLD, (w // 2 + 2, 0, 1, h))
+            for y in range(30, h - 10, 70):
+                s.fill((222, 214, 224), (0, y, w, 1))
+        pygame.draw.rect(s, (190, 180, 194), (0, 0, w, h), 1)
+
+
+class SpaWall(_Style):
+    """Spa: painel de ripas de madeira escura com bambus e uma vela acesa de vez em quando."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((20, 10, 6, 140), (0, 6, w, h))
+        s.fill((96, 62, 40), (0, 0, w, h))
+        if w >= h:
+            for x in range(0, w, 6):
+                s.fill(_shade((110, 72, 46), rng.randint(-10, 10)), (x, 0, 5, h))
+            s.fill((140, 98, 64), (0, 0, w, 3))
+            for x in range(rng.randrange(10, 40), w - 10, rng.randint(60, 120)):
+                s.fill((110, 170, 90), (x, 2, 3, h - 4))                 # bambu
+                for y in range(4, h - 4, 10):
+                    s.fill((80, 130, 64), (x, y, 3, 1))
+        else:
+            for y in range(0, h, 6):
+                s.fill(_shade((110, 72, 46), rng.randint(-10, 10)), (0, y, w, 5))
+            s.fill((140, 98, 64), (0, 0, 3, h))
+        pygame.draw.rect(s, (54, 34, 22), (0, 0, w, h), 2)
+
+
+class MirrorWall(_Style):
+    """Sala dos espelhos e suíte VIP: espelhos em moldura dourada, com o reflexo azulado."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((10, 4, 14, 160), (0, 6, w, h))
+        s.fill(GOLD, (0, 0, w, h))
+        s.fill((252, 228, 150), (0, 0, w, 2))
+        s.fill((160, 120, 50), (0, h - 2, w, 2))
+        inner = pygame.Rect(3, 3, w - 6, h - 6)
+        if inner.w > 2 and inner.h > 2:
+            s.fill((150, 170, 196), inner)
+            for _ in range(max(1, (w + h) // 26)):                       # reflexos inclinados
+                x = rng.randrange(inner.x, inner.right)
+                for i in range(min(inner.h, 18)):
+                    if inner.x <= x + i < inner.right and inner.y + i < inner.bottom:
+                        s.set_at((x + i, inner.y + i), (226, 236, 250))
+            if w >= h:
+                for x in range(40, w - 10, 50):
+                    s.fill(GOLD, (x, 0, 2, h))
+            else:
+                for y in range(40, h - 10, 50):
+                    s.fill(GOLD, (0, y, w, 2))
+
+
+class FileCabinet(_Style):
+    """Administrativo: arquivos de aço cinza com as gavetas etiquetadas e pastas saindo."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((10, 10, 16, 150), (0, 6, w, h))
+        s.fill((150, 156, 168), (0, 0, w, h))
+        s.fill((196, 202, 214), (0, 0, w, 3))
+        drawer = 18
+        if w >= h:
+            for x in range(2, w - drawer + 2, drawer + 2):
+                s.fill((128, 134, 148), (x, 4, drawer, h - 8))
+                s.fill((236, 236, 228), (x + 5, 6, 8, 3))                # etiqueta
+                s.fill((70, 74, 86), (x + 6, h // 2, 6, 2))              # puxador
+                if rng.random() < 0.25:
+                    s.fill(rng.choice((CLEPA_L, (255, 236, 120))), (x + 2, 2, 4, 6))   # pasta saindo
+        else:
+            for y in range(4, h - drawer + 2, drawer + 2):
+                s.fill((128, 134, 148), (2, y, w - 4, drawer))
+                s.fill((236, 236, 228), (w // 2 - 4, y + 3, 8, 3))
+                s.fill((70, 74, 86), (w // 2 - 3, y + drawer // 2 + 2, 6, 2))
+        pygame.draw.rect(s, (80, 84, 96), (0, 0, w, h), 1)
+
+
 _STYLES = {"floresta": Hedge, "calabouco": DungeonStone, "templo_gelado": IceBlock,
-           "lag_escritorio": GlassWall, "lag_datacenter": ServerRack, "lag_garagem": Barrier, "lag_cobertura": Barrier}
+           "lag_escritorio": GlassWall, "lag_datacenter": ServerRack, "lag_garagem": Barrier, "lag_cobertura": Barrier,
+           "clinica": ClinicWall, "clinica_spa": SpaWall, "clinica_vip": MirrorWall, "clinica_adm": FileCabinet,
+           "clinica_calcada": ClinicWall}
 
 
 def wall_style(key):
@@ -782,6 +1065,63 @@ class Papers(Ambience):
             view.fill(color, (round(x), round(y), 3, 2))
 
 
+class Sparkles(Ambience):
+    """Clínica: brilhinhos rosa e dourados piscando pelo ar (o glitter da Clepalovers)."""
+
+    COUNT = 34
+
+    def __init__(self, colors=((255, 192, 226), (252, 228, 150), (255, 255, 255))):
+        rng = random.Random("glitter")
+        self.bits = [(rng.uniform(0, 1), rng.uniform(0, 1), rng.uniform(0.02, 0.06), rng.uniform(0, math.tau),
+                      rng.choice(colors)) for _ in range(self.COUNT)]
+
+    def draw(self, view, cam, frame, layer):
+        if layer != "air":
+            return
+        vw, vh = view.get_size()
+        for fx, fy, speed, phase, color in self.bits:
+            light = math.sin(frame * speed + phase)
+            if light < 0.55:
+                continue
+            x = round((fx * vw + frame * 0.15) % vw)
+            y = round((fy * vh - frame * 0.25) % vh)
+            view.fill(color, (x, y, 2, 2))
+            if light > 0.9:                                           # cruzinha do brilho
+                view.fill(color, (x - 2, y + 1, 1, 1))
+                view.fill(color, (x + 3, y + 1, 1, 1))
+                view.fill(color, (x + 1, y - 2, 1, 1))
+                view.fill(color, (x + 1, y + 3, 1, 1))
+
+
+class Steam(Ambience):
+    """Spa: fiapos de vapor subindo devagar (o vapor de verdade, que tapa a visão, é o perigo)."""
+
+    COUNT = 18
+
+    def __init__(self):
+        rng = random.Random("vapor")
+        self.puffs = [(rng.uniform(0, 1), rng.uniform(0, 1), rng.uniform(0.3, 0.7), rng.randint(10, 22))
+                      for _ in range(self.COUNT)]
+        self.cache = {}
+
+    def _puff(self, r):
+        if r not in self.cache:
+            s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            for k in range(r, 0, -2):
+                pygame.draw.circle(s, (240, 240, 246, round(30 * (1 - k / r)) + 6), (r, r), k)
+            self.cache[r] = s
+        return self.cache[r]
+
+    def draw(self, view, cam, frame, layer):
+        if layer != "air":
+            return
+        vw, vh = view.get_size()
+        for fx, fy, speed, r in self.puffs:
+            x = (fx * vw + math.sin(frame * 0.01 + fy * 6) * 30) % vw
+            y = (fy * (vh + 60) - frame * speed) % (vh + 60) - 30
+            view.blit(self._puff(r), (round(x) - r, round(y) - r))
+
+
 def create_ambience(key, size, walls):
     if key == "floresta":
         return Fireflies(size)
@@ -792,5 +1132,11 @@ def create_ambience(key, size, walls):
     if key in ("lag_escritorio", "lag_datacenter"):
         return ServerLights(walls, emergency=True)
     if key == "lag_cobertura":
+        return Papers()
+    if key in ("clinica", "clinica_vip", "clinica_calcada"):
+        return Sparkles()
+    if key == "clinica_spa":
+        return Steam()
+    if key == "clinica_adm":
         return Papers()
     return Ambience()

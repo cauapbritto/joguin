@@ -220,20 +220,26 @@ MODE_TEXT = {
     "desafio_goleiro": ("Defenda 3 seguidas contra a CPU para passar de rodada. A CPU fica mais difícil a cada "
                         "rodada, e 3 gols tomados acabam o desafio.",
                         "1 JOGADOR"),
-    "campaign": ("Juntos contra as sombras, em 2 capítulos: em cada fase, um acampamento e duas masmorras, "
-                 "com um baú escondido de armas raras no caminho. O capítulo 1 acaba no Aryel Corrompido; o 2 "
-                 "entra na Lag Lobby atrás do Borba Jr Corrompido. Quem cair pode ser levantado.",
+    "campaign": ("Juntos contra as sombras, em 3 capítulos: em cada fase, um acampamento e duas masmorras, "
+                 "com um baú escondido de armas raras no caminho. O capítulo 1 acaba no Aryel Corrompido, o 2 "
+                 "no Borba Jr Corrompido (Lag Lobby) e o 3 no Albeguinio Corrompido (Clínica Clepalovers). "
+                 "Quem cair pode ser levantado.",
                  "1 A 4 JOGADORES"),
     "campaign2": ("Direto para a Lag Lobby, tomada pela Patrulha Cinza: drones, milicianos, torretas e soldados "
                   "de exo. Cada um começa com almas e 3 melhorias (2 sorteadas e 1 escolhida). Sem recorde de "
                   "tempo: ele vale só para a campanha inteira.",
+                  "1 A 4 JOGADORES"),
+    "campaign3": ("Direto para a Clínica Clepalovers, tomada pelo caco do fragmento: máscaras de argila, "
+                  "seringuinhas, cadeiras que puxam, espelhos que copiam e o Albeguinio Corrompido no "
+                  "administrativo. Cada um começa com mais almas e 5 melhorias (4 sorteadas e 1 escolhida). "
+                  "Sem recorde de tempo.",
                   "1 A 4 JOGADORES"),
 }
 
 
 # (modalidade, rótulo, cor, linha de baixo do cartão, modo da cena do cartão)
 CATEGORIES = [
-    ("campanha", "CAMPANHA", theme.EMBER, "2 CAPÍTULOS"),
+    ("campanha", "CAMPANHA", theme.EMBER, "3 CAPÍTULOS"),
     ("duelos", "DUELOS", theme.BLOOD, "CPU · 1X1 · 2X2"),
     ("futebol", "FUTEBOL", theme.MOSS, "PARTIDA · PÊNALTIS"),
     ("basquete", "BASQUETE", (226, 112, 36), "1X1 · 2X2 · TREINO"),
@@ -241,14 +247,15 @@ CATEGORIES = [
 CATEGORY_KEYS = [c[0] for c in CATEGORIES]
 # grupos de cada modalidade: (título do grupo, [modos])
 MODE_GROUPS = {
-    "campanha": [("HISTÓRIA", ["continue", "campaign", "campaign2"])],
+    "campanha": [("HISTÓRIA", ["continue", "campaign", "campaign2", "campaign3"])],
     "duelos": [("LUTAR", ["cpu", "duel", "duel2"]), ("TREINAR", ["treino"])],
     "futebol": [("PARTIDA", ["soccer1", "soccer2"]), ("PÊNALTIS", ["penaltis", "desafio_goleiro"]),
                 ("TREINAR", ["treino_futebol", "treino_penaltis"])],
     "basquete": [("PARTIDA", ["basket1", "basket2"]), ("TREINAR", ["treino_basquete"])],
 }
 MODE_LABELS = {"continue": "CONTINUAR CAMPANHA", "campaign": "CAPÍTULO 1 · AS SOMBRAS",
-               "campaign2": "CAPÍTULO 2 · LAG LOBBY", "cpu": "CONTRA A CPU", "duel": "DUELO LOCAL 1 x 1",
+               "campaign2": "CAPÍTULO 2 · LAG LOBBY", "campaign3": "CAPÍTULO 3 · CLEPALOVERS",
+               "cpu": "CONTRA A CPU", "duel": "DUELO LOCAL 1 x 1",
                "treino": "TREINO E ARSENAL"}
 # cena do cartão de cada modalidade: (chão, linhas, [(sprite, direção, dx)], extra)
 _CARD_ART = {
@@ -281,6 +288,7 @@ class ModeScene(_MenuScene):
         saved = progress.saved_campaign()
         self.saved_run = CampaignRun.from_save(saved) if saved else None
         self.chapter2 = progress.campaign_cleared()
+        self.chapter3 = progress.chapter_cleared(2)
         last = settings.get("ultimo_modo")
         self.cat_index = CATEGORY_KEYS.index(category_of(last)) if category_of(last) else 0
         self.category = None
@@ -299,7 +307,7 @@ class ModeScene(_MenuScene):
         out = []
         for title, modes in MODE_GROUPS[category]:
             keep = [m for m in modes if (m != "continue" or self.saved_run is not None)
-                    and (m != "campaign2" or self.chapter2)]
+                    and (m != "campaign2" or self.chapter2) and (m != "campaign3" or self.chapter3)]
             if keep:
                 out.append((title, keep))
         return out
@@ -522,7 +530,8 @@ class ModeScene(_MenuScene):
         self.ui.panel(screen, panel)
         desc, players = MODE_TEXT[key] if key != "continue" else self._continue_text()
         self._illustration(screen, key, pygame.Rect(panel.x + 2, panel.y + 2, panel.w - 4, 170))
-        title = {"continue": "CONTINUAR CAMPANHA", "campaign2": "CAMPANHA: CAPÍTULO 2"}.get(key) or MODES[key]["title"]
+        title = ({"continue": "CONTINUAR CAMPANHA", "campaign2": "CAMPANHA: CAPÍTULO 2",
+                  "campaign3": "CAMPANHA: CAPÍTULO 3"}.get(key) or MODES[key]["title"])
         self.ui.text(screen, title, theme.S, theme.BRASS, (panel.x + 24, panel.y + 196), anchor="topleft")
         self.ui.text(screen, players, theme.XS, theme.MUTED, (panel.right - 24, panel.y + 200), anchor="topright")
         self.ui.paragraph(screen, desc, theme.XS, theme.BONE, (panel.x + 24, panel.y + 232), panel.w - 48, spacing=16)
@@ -540,9 +549,9 @@ class ModeScene(_MenuScene):
         return desc, f"{n} JOGADOR" + ("ES" if n > 1 else "")
 
     def _illustration(self, screen, key, area):
-        if key in ("campaign", "continue", "campaign2"):
-            self._campaign_illustration(screen, area, lag=key == "campaign2" or (
-                key == "continue" and self.saved_run.chapter == 2))
+        if key in ("campaign", "continue", "campaign2", "campaign3"):
+            chapter = self.saved_run.chapter if key == "continue" else {"campaign2": 2, "campaign3": 3}.get(key, 1)
+            self._campaign_illustration(screen, area, chapter=chapter)
             return
         battle = key in ("cpu", "duel", "duel2", "treino")
         floor = theme.INK if battle else (34, 92, 46)
@@ -609,8 +618,9 @@ class ModeScene(_MenuScene):
         screen.fill(theme.LINE, (area.x, area.bottom, area.w, 2))
 
 
-    def _campaign_illustration(self, screen, area, lag=False):
-        floor, line = ((150, 158, 170), (176, 184, 194)) if lag else ((24, 34, 22), (30, 44, 28))
+    def _campaign_illustration(self, screen, area, chapter=1):
+        floor, line = {2: ((150, 158, 170), (176, 184, 194)),
+                       3: ((236, 214, 226), (246, 228, 238))}.get(chapter, ((24, 34, 22), (30, 44, 28)))
         screen.fill(floor, area)
         for x in range(area.x, area.right, 32):
             screen.fill(line, (x, area.y, 1, area.h))
@@ -619,7 +629,11 @@ class ModeScene(_MenuScene):
         sprites = self.assets.sprites
         ground = area.bottom - 22
         step = self.ticks // 4
-        if lag:
+        if chapter == 3:
+            cast = [("cauanzera", "direita", -170, False), ("borba", "direita", -100, False),
+                    ("mascara_argila", "esquerda", 30, False), ("seringuinha", "esquerda", 100, False),
+                    ("albeguinio_adm", "esquerda", 180, True)]
+        elif chapter == 2:
             cast = [("borba", "direita", -170, False), ("albeguinio", "direita", -100, False),
                     ("drone", "esquerda", 30, False), ("miliciano", "esquerda", 100, False),
                     ("borba_exo", "esquerda", 180, True)]
@@ -645,8 +659,8 @@ class ModeScene(_MenuScene):
 
 def start_mode(game, choice):
     """Monta a sessão do modo e vai para a tela certa (lobby ou escolha de personagem)."""
-    chapter = 2 if choice == "campaign2" else 1
-    if choice == "campaign2":
+    chapter = {"campaign2": 2, "campaign3": 3}.get(choice, 1)
+    if chapter > 1:
         choice = "campaign"
     count = MODES[choice]["slots"]
     teams = MODES[choice].get("teams", False) or MODES[choice].get("fill", False)
@@ -1703,7 +1717,60 @@ def _scene_clepalovers(screen, ui, rect, t):
              (door.centerx, door.centery + 12 + pulse // 2), (door.centerx - 7, door.centery)]
     pygame.draw.polygon(screen, (170, 90, 240), shard)
     pygame.draw.polygon(screen, (230, 200, 255), shard, 1)
-    ui.text(screen, "EM BREVE", theme.XS, theme.MUTED, (rect.centerx, rect.bottom - 100), shadow=False)
+
+
+def _scene_clinica(screen, ui, rect, t):
+    """Capítulo 3: a sala de espera da Clepalovers, com a máscara de argila pulando e a seringuinha."""
+    screen.fill((236, 214, 226), rect)
+    for x in range(rect.x, rect.right, 32):
+        screen.fill((246, 228, 238), (x, rect.y, 1, rect.h))
+    panel = pygame.Rect(0, 0, 200, 30)
+    panel.midtop = (rect.centerx, rect.y + 12)
+    screen.fill((24, 14, 22), panel)
+    lit = (t // 60) % 3 == 0 and (t // 6) % 2
+    pygame.draw.rect(screen, (255, 110, 190), panel, 2)
+    ui.text(screen, f"SENHA {40 + (t // 180) % 9:03d} · SALA 3", theme.XS, (255, 236, 120) if lit else (255, 170, 210),
+            panel.center, shadow=False)
+    ground = rect.bottom - 20
+    sprites = ui.assets.sprites
+    cast = [("guerreiro", "direita", rect.x + 70, 0), ("geada", "direita", rect.x + 130, 0),
+            ("mascara_argila", "esquerda", rect.right - 160, abs(math.sin(t * 0.12)) * 16),
+            ("seringuinha", "esquerda", rect.right - 90, 0)]
+    for name, direction, x, hop in cast:
+        sset = sprites.get(name)
+        if sset is None:
+            continue
+        img = sset.frame(direction, t // 6)
+        img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
+        pygame.draw.ellipse(screen, (180, 150, 170), (x - 24, ground - 6, 48, 10))
+        screen.blit(img, img.get_rect(midbottom=(x, ground + 2 - round(hop))))
+
+
+def _scene_oi_sumido(screen, ui, rect, t):
+    """A Daiwone digitando e o balão do "oi sumido" tapando a tela de um herói."""
+    screen.fill((40, 24, 40), rect)
+    ground = rect.bottom - 20
+    sprites = ui.assets.sprites
+    hero = sprites.get("borba")
+    k = t % 180
+    if hero:
+        img = hero.frame("direita", t // 6)
+        img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
+        screen.blit(img, img.get_rect(midbottom=(rect.x + 120, ground)))
+    dw = sprites.get("daiwone")
+    if dw:
+        img = dw.frame("esquerda", 0)
+        img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
+        screen.blit(img, img.get_rect(midbottom=(rect.right - 110, ground)))
+        if k < 80 and (t // 10) % 2:
+            ui.text(screen, "DIGITANDO...", theme.XS, (255, 192, 226), (rect.right - 110, ground - 70), shadow=False)
+    if 80 <= k < 160:
+        box = pygame.Rect(0, 0, 220, 80)
+        box.midbottom = (rect.x + 130, ground - 50)
+        pygame.draw.rect(screen, (250, 248, 252), box, border_radius=14)
+        pygame.draw.rect(screen, (255, 110, 190), box, 3, border_radius=14)
+        ui.text(screen, "DAIWONE", theme.XS, (184, 56, 128), (box.x + 16, box.y + 16), anchor="midleft", shadow=False)
+        ui.text(screen, "oi sumido", theme.S, (40, 30, 44), (box.centerx, box.y + 50), shadow=False)
 
 
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
@@ -1712,7 +1779,7 @@ NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "n
                "chefao_lag": _scene_chefao_lag, "armas_lag": _scene_armas_lag,
                "bate": _scene_bate, "agarra": _scene_agarra, "modos": _scene_modos,
                "controle": _scene_controle, "coroa": _scene_coroa, "ultra": _scene_ultra,
-               "clepalovers": _scene_clepalovers}
+               "clepalovers": _scene_clepalovers, "clinica": _scene_clinica, "oi_sumido": _scene_oi_sumido}
 
 
 class NewsScene(_InfoScene):

@@ -81,6 +81,8 @@ KICK_STYLES = {
     "paredao": KickStyle("De bico", "bate como goleiro", band=0.6, deviation=1.8),
     "borba_corrompido": KickStyle("Pulso Sombrio", "exo com veios roxos: força enorme, na trave ela entorta",
                                   speed=1.18, run=1.4, trick="exo"),
+    "albeguinio_corrompido": KickStyle("Boleto Vencido", "trava o pulo do goleiro por 0,3 s, uma vez na disputa",
+                                       trick="hack"),
 }
 
 
@@ -126,6 +128,7 @@ SAVE_STYLES = {
     "borba": SaveStyle("Exoesqueleto", "segura chute forte sem espalmar", hold="segura", dive=0.8),
     "borba_corrompido": SaveStyle("Blindagem", "segura chute forte e alcança mais embaixo", hold="segura", dive=0.8,
                                   low=1.2),
+    "albeguinio_corrompido": SaveStyle("Carimbo de PAGO", "anula a troca de canto do batedor, uma vez", trick="hack"),
     "paredao": SaveStyle("Antecipação", "o melhor alcance e a melhor leitura", radius=1.2, read=1.5, late=1.2),
 }
 

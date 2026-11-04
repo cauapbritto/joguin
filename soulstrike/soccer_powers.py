@@ -780,6 +780,7 @@ SOCCER_POWERS = {
     "albeguinio": Hackear,
     "borba": ExoBola,
     "borba_corrompido": ExoBola,
+    "albeguinio_corrompido": Hackear,
 }
 
 
