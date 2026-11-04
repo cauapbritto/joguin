@@ -31,12 +31,13 @@ class PasseTest(unittest.TestCase):
         self.assertIs(match.ball.homing_player, p3)
         self.assertLess(match.ball.vy, -3)
 
-    def test_ninguem_na_direcao_passe_para_o_espaco(self):
+    def test_ninguem_na_direcao_vai_para_o_companheiro_mesmo_assim(self):
+        """Como no basquete: o passe é sempre assistido, não se perde no espaço."""
         match, inputs, p1, p3 = self._dois_x_dois()
         p3.x, p3.y = 700, 150                       # companheiro em cima, apontou para baixo
         self.assertTrue(match.pass_ball(p1, direction=(0.0, 1.0)))
-        self.assertEqual(match.ball.homing_timer, 0)
-        self.assertGreater(match.ball.vy, 3)
+        self.assertIs(match.ball.homing_player, p3)
+        self.assertLess(match.ball.vy, -3)
 
     def test_sem_direcao_vai_para_o_mais_perto(self):
         match, inputs, p1, p3 = self._dois_x_dois()
@@ -44,12 +45,11 @@ class PasseTest(unittest.TestCase):
         self.assertTrue(match.pass_ball(p1))
         self.assertIs(match.ball.homing_player, p3)
 
-    def test_desligada_vai_reto(self):
+    def test_desligada_tambem_e_teleguiado(self):
         match, inputs, p1, p3 = self._dois_x_dois("desligada")
-        p3.x, p3.y = 760, 150                       # quase na direção, mas sem ajuda
+        p3.x, p3.y = 760, 150
         self.assertTrue(match.pass_ball(p1, direction=(0.0, -1.0)))
-        self.assertEqual(match.ball.homing_timer, 0)
-        self.assertAlmostEqual(match.ball.vx, 0.0, places=3)
+        self.assertIs(match.ball.homing_player, p3)
 
 
 class ChuteTest(unittest.TestCase):

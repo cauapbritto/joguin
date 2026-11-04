@@ -111,6 +111,7 @@ class ChuteCerteiro(SoccerPower):
         ball.homing_player = None
         ball.homing_target = (gx, gy)
         ball.homing_force = config.SUPER_HOMING_FORCE
+        ball.homing_guide = 0.0
         match.last_touch = user
         match.camera.shake(6)
         match.burst(ball.x, ball.y, theme.BRASS, 14, speed=5)
@@ -335,6 +336,7 @@ class GanchoNaBola(SoccerPower):
         ball.homing_player = user
         ball.homing_target = (user.x, user.y)
         ball.homing_force = 0.6
+        ball.homing_guide = 0.0
         ball.hook_timer = 60
         ball.hook_owner = user
         user.face(ball)

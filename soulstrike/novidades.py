@@ -36,6 +36,18 @@ NEWS = {
             "Zerou o capítulo 3? Ele fica liberado em todos os modos, com Boleto e Carimbo.",
         ]},
     ],
+    "1.11.0": [
+        {"title": "PASSE TELEGUIADO", "scene": "futebol", "lines": [
+            "No futebol, o passe agora é igual ao do basquete: aperte e a bola sai na hora, sem barra de força.",
+            "A bola vai teleguiada até o pé do companheiro, mesmo se ele estiver correndo.",
+            "Com a bola no pé, um anel mostra quem vai receber.",
+        ]},
+        {"title": "POR CIMA SOZINHO", "scene": "futebol", "lines": [
+            "Companheiro longe ou adversário no meio: o passe vira lançamento sem você segurar nada.",
+            "O lançamento cai no pé dele, e o cruzamento na ponta escolhe a altura do mesmo jeito.",
+            "Quem entrar na frente do passe ainda corta.",
+        ]},
+    ],
     "1.10.2": [
         {"title": "VIBRAÇÃO", "scene": "controle", "lines": [
             "Controles de PlayStation pelo Bluetooth agora vibram.",
