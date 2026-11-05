@@ -48,6 +48,7 @@ KITS = {
 KIT_DETAIL = (240, 238, 230)   # estampa/raio que sumiria no uniforme vira branco
 
 
+OUTLINE, OUTLINE_LIT = 0.28, 0.42   # força do contorno (fração da cor vizinha): mais leve no topo, onde bate a luz
 MARGIN = 4      # sobra em volta da área do desenho: o que passa da borda (chapéu, escudo, braço) não é cortado
 
 
@@ -175,19 +176,34 @@ class Canvas:
                 if get((x, y))[3]:
                     continue
                 best = None
+                lit = True              # contorno que só encosta no desenho por baixo: é o topo, onde bate a luz
                 for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
                     if 0 <= nx < bw and 0 <= ny < bh:
                         col = get((nx, ny))
-                        if col[3] and (best is None or sum(col[:3]) < sum(best[:3])):
-                            best = col
+                        if col[3]:
+                            if ny != y + 1:
+                                lit = False
+                            if best is None or sum(col[:3]) < sum(best[:3]):
+                                best = col
                 if best is not None:
-                    out.set_at((x, y), (int(best[0] * 0.28) + 10, int(best[1] * 0.28) + 7,
-                                        int(best[2] * 0.28) + 14, 255))
+                    k = OUTLINE_LIT if lit else OUTLINE
+                    out.set_at((x, y), (int(best[0] * k) + 10, int(best[1] * k) + 7,
+                                        int(best[2] * k) + 14, 255))
         return out
 
 
+# luz quente de cima e da esquerda, sombra fria: o tom escuro puxa para o azul/roxo e o claro para
+# o amarelo, em vez de só escurecer ou clarear (é o que dá volume na pixel art)
+WARM = (0.10, 0.04, -0.14)     # por unidade de claridade somada: + vermelho, + verde, - azul
+COOL = (0.22, 0.10, -0.12)     # por unidade de escuridão: tira mais vermelho que azul
+
+
 def shade(color, amount):
-    return tuple(max(0, min(255, c + amount)) for c in color[:3])
+    """Mais claro (amount > 0) ou mais escuro (< 0), puxando o matiz: brilho quente, sombra fria."""
+    k = abs(amount)
+    tilt = WARM if amount > 0 else COOL
+    sign_ = 1 if amount > 0 else -1
+    return tuple(max(0, min(255, round(c + sign_ * k + sign_ * k * t))) for c, t in zip(color[:3], tilt))
 
 
 def sign(v):
@@ -353,7 +369,8 @@ def legs(c, p, pants, boots, wide=False):
         else:
             c.rect(x, top, 3, bottom - top, pants)
             c.rect(x + 2, top, 1, bottom - top, shade(pants, -24))
-            c.px(x, top, shade(pants, 20))
+            c.rect(x, top, 2, 1, shade(pants, -16))               # sombra da camisa no alto da perna
+            c.px(x, top + 1, shade(pants, 20))
         if p.sole and dx == 0 and x == rx:
             sole(c, x, bottom, boots)
             continue
@@ -373,9 +390,13 @@ def sole(c, x, y, boots):
 def torso(c, p, main, belt=None, buckle=None):
     x, y, w, h = p.torso
     c.rect(x, y, w, h, main)
+    c.rect(x + w - 2, y + 1, 1, h - 2, shade(main, -14))          # meio-tom antes da sombra
     c.rect(x, y, 1, h, shade(main, 28))
+    c.rect(x + 1, y, 1, 1, shade(main, 16))                       # ombro pegando luz
     c.rect(x + w - 1, y, 1, h, shade(main, -34))
     c.rect(x, y + h - 1, w, 1, shade(main, -22))
+    if not p.side:
+        c.rect(x + 2, y, w - 4, 1, shade(main, -18))              # sombra do queixo no peito
     if not p.side:
         c.px(x + w // 2 - 1, y + h - 3, shade(main, -16))     # dobra do pano
     if belt:
@@ -429,6 +450,8 @@ def arms(c, p, sleeve, hand, thick=2, cuff=None):
         c.rect(ax, y + 1, thick, length, sleeve)
         edge = ax if light > 0 else ax + thick - 1
         c.rect(edge, y + 1, 1, length, shade(sleeve, light))
+        if light > 0:                                              # lado que encosta no tronco: linha interna
+            c.rect(ax + thick - 1, y + 2, 1, length - 1, shade(sleeve, -20))
         c.rect(ax, y, thick, 1, shade(sleeve, 18))                 # ombro
         hy = y + 1 + length
         if cuff:
@@ -460,6 +483,7 @@ def near_arm(c, p, sleeve, hand, thick=2, cuff=None):
     hx = x + w - 1 + reach
     hy = y + 5 - (1 if p.reach >= 3 else 0) + (1 if p.hurt else 0)
     ex = sx + (1 if reach >= 0 else 0)
+    c.line(sx, y + 2, ex, y + 4, shade(sleeve, -36), thick)       # sombra do braço no tronco (separa os dois)
     c.line(sx, y + 1, ex, y + 3, sleeve, thick)
     c.line(ex, y + 3, hx, hy, sleeve, 2)
     c.rect(sx, y + 1, 1, 2, shade(sleeve, 24))
@@ -488,7 +512,9 @@ def far_arm(c, p, sleeve, hand, thick=2):
 def head(c, p, skin, nose=True):
     x, y, w, h = p.head
     c.rect(x, y, w, h, skin)
+    c.rect(x + w - 2, y + 2, 1, h - 4, shade(skin, -7))           # meio-tom
     c.rect(x, y + h - 1, w, 1, shade(skin, -28))
+    c.rect(x + 1, y + h - 2, w - 2, 1, shade(skin, -12))          # queixo
     c.rect(x + w - 1, y + 1, 1, h - 2, shade(skin, -16))
     c.rect(x + 1, y + 1, 1, h - 3, shade(skin, 14))
     for cx, cy in ((x, y), (x + w - 1, y), (x, y + h - 1), (x + w - 1, y + h - 1)):
@@ -1446,47 +1472,105 @@ def cacheado_degrade(c, p, color):
         c.px(bx, top - 1, mid)
 
 
+def hair_volume(c, p, color, top_rows=3):
+    """Volume no cabelo já pintado (luz de cima e da esquerda): o alto da cabeça clareia, a nuca e o
+    lado direito escurecem. Mexe só nos pixels de cabelo (cor de ``color`` ou perto dela)."""
+    x, y, w, h = p.head
+    base = sum(color)
+    for yy in range(y - 5, y + 8):
+        for xx in range(x - 2, x + w + 2):
+            col = c.surf.get_at((xx, yy))
+            if not col[3] or abs(sum(col[:3]) - base) > 180 or max(col[:3]) - min(col[:3]) > 40:
+                continue
+            up = yy - (y - 4)                                     # 0 no topo dos cachos
+            right = xx - x - w // 2
+            amount = 0
+            if up < top_rows:
+                amount += (top_rows - up) * 6
+            if right > 1:
+                amount -= 6
+            if right < -2:
+                amount += 4
+            if amount:
+                c.px(xx, yy, shade(col, amount))
+
+
 def cauanzera(p):
     """Cauanzera: o mais alto da turma — cabelo cacheado, óculos, jaqueta preta aberta sobre a
     camiseta cinza, calça preta e tênis branco de listras pretas."""
     c = Canvas()
     skin, hair_c = (196, 142, 104), (30, 26, 30)
     jacket, jacket_d, jacket_l = uni(p, (46, 46, 56)), uni(p, (28, 28, 36), "dark"), uni(p, (78, 78, 92), "light")
+    jacket_hl = shade(jacket_l, 24)
     tee, pants, shoes = (156, 158, 166), (34, 34, 42), (240, 240, 236)
+    tee_d, tee_l = shade(tee, -26), shade(tee, 18)
+    stripe = (40, 40, 48)
     x, y, w, h = p.torso
     hx, hy, hw, hh = p.head
     legs(c, p, pants, shoes)
-    for fx, fy, fw in feet(p):                                # listras pretas no tênis branco
+    for fx, fy, fw in feet(p):                                # listras pretas e sola cinza no tênis branco
         if p.side:
-            c.px(fx + 1, fy + 1, (40, 40, 48))
-            c.px(fx + 2, fy, (40, 40, 48))
+            c.px(fx + 1, fy + 1, stripe)
+            c.px(fx + 2, fy, stripe)
+            c.rect(fx, fy + 2, 4, 1, (150, 150, 160))
         else:
-            c.px(fx + 1, fy, (40, 40, 48))
+            c.px(fx + 1, fy, stripe)
+            c.rect(fx, fy + 1, 3, 1, (206, 206, 214))
+    if not p.side:                                            # joelho da calça pegando luz
+        for kx in (12 - 1 - 3, 12 + 1):
+            ky = 27 + p.bob
+            c.px(kx, ky, shade(pants, 26))
     far_arm(c, p, jacket, skin)
-    torso(c, p, jacket)
+    torso(c, p, jacket, belt=(52, 46, 50), buckle=(176, 178, 188))   # cinto separa a jaqueta da calça
     if p.dir == "frente":
         c.rect(x + 3, y, w - 6, h - 1, tee)                     # jaqueta aberta: a camiseta aparece
-        c.rect(x + 2, y + 1, 1, h - 2, jacket_l)                # zíper
-        c.rect(x + w - 3, y + 1, 1, h - 2, jacket_l)
-        c.rect(x + 1, y, 1, 2, jacket_d)                        # gola
-        c.rect(x + w - 2, y, 1, 2, jacket_d)
+        c.rect(x + 3, y + 1, 1, h - 3, tee_l)                   # lado da luz
+        c.rect(x + 3, y, w - 6, 1, tee_d)                       # sombra da gola
+        c.px(x + w - 4, y + h - 2, tee_d)
+        c.rect(x + 2, y + 1, 1, h - 2, jacket_l)                # zíper / borda da jaqueta aberta
+        c.rect(x + w - 3, y + 1, 1, h - 2, jacket_d)
+        c.rect(x + 1, y, 2, 1, jacket_l)                        # gola virada
+        c.rect(x + w - 3, y, 2, 1, jacket_l)
+        c.px(x + 2, y + 2, jacket_d)                            # lapela
+        c.px(x + w - 3, y + 2, jacket_d)
+        c.px(x + 1, y + h - 3, jacket_d)                        # bolsos
+        c.px(x + w - 2, y + h - 3, jacket_d)
     elif p.side:
         c.rect(x + w - 2, y, 1, h - 2, tee)
+        c.rect(x + w - 1, y + 1, 1, h - 3, tee_d)
         c.rect(x, y, w - 2, 1, jacket_d)
+        c.rect(x + 1, y, 2, 1, jacket_l)                        # gola
+        c.px(x + 1, y + h - 3, jacket_d)                        # bolso
+        c.rect(x, y + h - 1, w, 1, jacket_d)
     else:
         c.rect(x + 1, y, w - 2, 2, jacket_d)
+        c.rect(x + 1, y, w - 2, 1, jacket_l)                    # gola de trás
         c.rect(x + w // 2, y + 2, 1, h - 3, jacket_d)           # costura das costas
+        c.px(x + 1, y + 2, jacket_hl)                           # ombro pegando luz
+        c.rect(x, y + h - 1, w, 1, jacket_d)
     arms(c, p, jacket, skin, cuff=jacket_d)
+    if not p.side:
+        for ax in (x - 2 - (1 if p.dash else 0),):              # dobra da manga no cotovelo (braço livre)
+            if not p.raise_a:
+                c.px(ax, y + 4, jacket_l)
     if not p.side:                                             # smartwatch no pulso da mão livre
         wy = y + 1 + max(2, 5 + p.arm_a) - 1
         wx = x - 2 - (1 if p.dash else 0)
         c.rect(wx, wy, 2, 1, (24, 24, 30))
         c.px(wx + (1 if p.dir == "frente" else 0), wy, (90, 220, 200))
     head(c, p, skin)
+    if p.dir == "frente":                                       # sombra do cabelo na testa e nariz
+        c.rect(hx + 1, hy + 4, hw - 2, 1, shade(skin, -20))
+        c.px(hx + hw // 2, hy + 7, shade(skin, -26))
+    elif p.side:
+        c.rect(hx + 5, hy + 4, 4, 1, shade(skin, -20))
     cacheado_degrade(c, p, hair_c)                             # cachos em cima, degradê nos lados
+    hair_volume(c, p, hair_c)
     glasses(c, p, frame=(150, 152, 164))
     if p.dir != "costas":
         mouth(c, p, skin)
+        if p.dir == "frente" and not p.hurt:                   # canto da boca subindo: meio sorriso
+            c.px(hx + 6, hy + 7, shade(skin, -40))
     return c
 
 
