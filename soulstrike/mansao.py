@@ -98,6 +98,10 @@ def creature_stats():
             "projetor", "Projetor de Slides", 60, 1.6, (230, 230, 210), "", "",
             (_w("Feixe", "melee", 6, cooldown=50, reach=24),), "projetor",
             radius=15, drop_chance=0.16),
+        "iara_nucleo": EnemyStats(
+            "iara_nucleo", "IARA", 900, 0.0, IARA, "", "",
+            (_w("Tentáculo", "melee", 0, cooldown=60, reach=10),), "iara",
+            radius=30, elite=True, knock_resist=1.0, drop_chance=0.0),
         "arquivo_aco": EnemyStats(
             "arquivo_aco", "Arquivo de Aço", 250, 2.0, (150, 160, 176), "", "",
             (_w("Gaveta", "melee", 14, cooldown=60, reach=44),), "arquivo_aco",
@@ -105,7 +109,9 @@ def creature_stats():
     }
 
 
-BIG = ("arquivo_aco",)
+BIG = ("arquivo_aco", "iara_nucleo")
+IARA_CABLE_ARMOR = 0.1        # IARA com cabo inteiro: quase nada passa
+IARA_EXPOSED = 1.3            # sem os 4 cabos: leva mais dano
 
 
 # ─────────────────────────────────────────────
@@ -265,6 +271,63 @@ class PieChart(Entity):
             pygame.draw.polygon(layer, (40, 40, 50, 120), pts, 1)
         pygame.draw.ellipse(layer, (250, 250, 240, 200), (2, 2, r * 2, r), 2)
         surf.blit(layer, (round(cx - r - 2), round(cy - r // 2 - 2)))
+
+
+class TentacleBeam(Entity):
+    """Tentáculo de cabo da IARA: a linha ciano aparece no chão (aviso) e depois o choque corre
+    por ela, machucando quem estiver em cima."""
+
+    flat = True
+    BURN = 14
+    HALF = 16
+
+    def __init__(self, owner, x, y, dx, dy, length, frames, damage):
+        super().__init__(x, y)
+        self.owner = owner
+        self.dx, self.dy = dx, dy
+        self.length = length
+        self.frames = self.left = max(1, frames)
+        self.damage = damage
+        self.burn = self.BURN
+        self.hit = set()
+
+    def touches(self, f):
+        px, py = f.x - self.x, f.y - self.y
+        t = px * self.dx + py * self.dy
+        return 0 < t < self.length and abs(px * self.dy - py * self.dx) < self.HALF + f.radius * 0.5
+
+    def update(self, match):
+        if self.left > 0:
+            self.left -= 1
+            if self.left == 0:
+                match.assets.play("eletrico", 0.35)
+            return
+        self.burn -= 1
+        for f in match.fighters:
+            if f in self.hit or not hostile(self.owner, f) or not f.alive_in_match or f.lift > 0 or not self.touches(f):
+                continue
+            self.hit.add(f)
+            if f.take_damage(self.damage, f.x, f.y, attacker=self.owner, match=match):
+                match.burst(f.x, f.y - 10, IARA, 6, speed=3)
+        if self.burn <= 0:
+            self.alive = False
+
+    def draw(self, surf, camera):
+        x0, y0 = self.x - camera.x, self.y - camera.y
+        x1, y1 = x0 + self.dx * self.length, y0 + self.dy * self.length
+        if self.left > 0:
+            t = 1 - self.left / self.frames
+            on = (self.left // 4) % 2 == 0 or t > 0.7
+            pygame.draw.line(surf, IARA if on else IARA_D, (x0, y0), (x1, y1), 2 + round(4 * t))
+            return
+        nx, ny = -self.dy, self.dx
+        pts = []
+        for k in range(13):
+            t = k / 12
+            wob = math.sin(t * 14 + self.burn) * 6
+            pts.append((x0 + (x1 - x0) * t + nx * wob, y0 + (y1 - y0) * t + ny * wob))
+        pygame.draw.lines(surf, IARA_D, False, pts, 12)
+        pygame.draw.lines(surf, IARA_L, False, pts, 4)
 
 
 class CookieNotice:
@@ -625,7 +688,66 @@ def brains():
                 match.popup(me.x, me.y - 76, "GAVETAS ABERTAS", (230, 236, 244))
                 match.assets.play("soco_metal", 0.4)
 
-    return {"processo": ProcessoAI, "apenso": ApensoAI, "carimbador": CarimbadorAI, "impressora": ImpressoraAI,
+    class IaraAI(en.EnemyAI):
+        """A IARA, flutuando no meio do núcleo. Enquanto um dos 4 cabos estiver inteiro, quase
+        nada passa nela. De tempos em tempos estica os tentáculos na direção de cada herói (a linha
+        ciano avisa antes) e abre pop-ups pela sala."""
+
+        reaction = 6
+        CAST = 50
+
+        def __init__(self, difficulty="normal"):
+            super().__init__(difficulty)
+            self.cd = 120
+            self.cables = []
+            self.casts = 0
+            self.exposed = False
+
+        def decide(self, me, match, target):
+            self.move = (0.0, 0.0)
+
+        def act(self, me, match, target):
+            me.steer(0, 0)
+            me.face(target)
+            if not self.exposed and self.cables and not any(c.alive_in_match for c in self.cables):
+                self.exposed = True
+                me.vulnerability = IARA_EXPOSED
+                match.popup(me.x, me.y - 120, "CABOS CORTADOS: IARA EXPOSTA!", theme.MOSS)
+                match.assets.play("vidro", 0.5)
+            elif not self.exposed:
+                me.vulnerability = IARA_CABLE_ARMOR
+                me.phase_label = "CORTEM OS 4 CABOS"
+            else:
+                me.phase_label = ""
+            if match.frame % 6 == 0:
+                match.particles.append(Particle(me.x + random.uniform(-30, 30), me.y - random.uniform(10, 70),
+                                                0, -0.6, IARA_L, 20, 2))
+            if me.windup > 0:
+                if me.windup == 1:
+                    self._cast(me, match)
+                return
+            self.cd -= 1
+            if self.cd <= 0:
+                self.cd = round(random.randint(130, 170) / self.aggression)
+                me.start_windup(24, IARA)
+
+        def _cast(self, me, match):
+            self.casts += 1
+            frames = round(self.CAST / max(0.8, self.aggression))
+            dmg = round(14 * me.damage_bonus)
+            for p in match.alive_players:
+                dx, dy = me.direction_to(p)
+                if (dx, dy) == (0.0, 0.0):
+                    continue
+                for off in ((0.0,) if self.casts % 2 else (-0.35, 0.35)):
+                    c, s_ = math.cos(off), math.sin(off)
+                    match.add_effect(TentacleBeam(me, me.x, me.y, dx * c - dy * s_, dx * s_ + dy * c, 700, frames, dmg))
+            popups = [e for e in match.alive_enemies if getattr(e, "kind", "") == "popup_iara"]
+            if self.casts % 2 == 0 and len(popups) < 2:
+                match.summon(("popup_iara",), me)
+            match.assets.play("bip", 0.4)
+
+    return {"iara_nucleo": IaraAI, "processo": ProcessoAI, "apenso": ApensoAI, "carimbador": CarimbadorAI, "impressora": ImpressoraAI,
             "garrafa_termica": GarrafaAI, "tuiuiu_drone": TuiuiuAI, "ponto_eletronico": PontoAI,
             "popup_iara": PopupAI, "projetor": ProjetorAI, "arquivo_aco": ArquivoAI}
 

@@ -1218,7 +1218,8 @@ class CampaignMatch(CoopMatch):
             return f"TELETRANSPORTE DE FASE: TODOS CONFIRMAM ({ready}/{len(alive)})"
         if self.exit is not None:
             return "VOLTEM PELA PORTA PARA O ACAMPAMENTO"
-        return ""
+        brain = self.controllers.get(self.boss) if self.boss is not None else None
+        return getattr(brain, "turn_text", "")
 
     def step(self):
         if self.state_timer > 0:
@@ -1645,6 +1646,9 @@ class CampaignMatch(CoopMatch):
         if self.voting:
             self.vote(f)
             return True
+        brain = self.controllers.get(self.boss) if self.boss is not None else None
+        if brain is not None and hasattr(brain, "interact") and brain.interact(f, self):
+            return True                    # capítulo 4: tirar a IARA da tomada
         if (self.hazard is not None and hasattr(self.hazard, "interact") and self.state in ("fight", "between")
                 and self.hazard.interact(f, self)):
             return True
@@ -2103,8 +2107,14 @@ STORY = {
         ("iara", "IARA", "Sua solicitação está em análise. Prazo estimado: nunca."),
     )),
     "final": ("FIM", "mansao_nucleo", (
-        (BROKEN, None, "O último golpe derruba o Cauanzera. A IARA pisca, trava e a lasca escorrega do servidor."),
-        ("cauanzera_ti", "CAUANZERA", "Eu só queria uma GPU de graça... Da próxima vez eu leio os termos."),
+        ("iara", "IARA", "Sua sessão expirou. Deseja salvar as alterações? [ ]SIM [ ]NÃO"),
+        (BROKEN, None, "O cabo sai da tomada. A IARA pisca, trava e a lasca escorrega do servidor e vira pó, "
+                       "a última do cristal."),
+        ("cauanzera_ti", "CAUANZERA", "Gente... o que eu fiz? Eu só queria uma GPU de graça. Da próxima vez eu "
+                                      "leio os termos."),
+        ("aryel", "ARYEL", "Relaxa. Todo mundo aqui já foi corrompido uma vez. Agora você é da turma de verdade."),
+        ("borba", "BORBA JR", "E o servidor? Deixa que eu desligo direito. Com laudo, protocolo e três carimbos."),
+        ("albeguinio", "ALBEGUINIO", "E eu fecho o caixa. Pela primeira vez no mês, sem ninguém mandando oi sumido."),
         ("sombra:cauanzera_ti", None, "A sombra do Cauanzera ficou do lado dos heróis: CAUANZERA CORROMPIDO está "
                                       "liberado no duelo."),
         (BROKEN, None, "Sem cristal, sem fragmento, sem caco e sem lasca. Agora sim, a cidade pode descansar."),

@@ -52,7 +52,7 @@ def next_stage(game, run, stage):
 
 def after_phase(game, run):
     if run.last_phase:
-        return StoryScene(game, "final", lambda: CampaignEndScene(game, run))
+        return StoryScene(game, "final", lambda: CreditsScene(game, lambda: CampaignEndScene(game, run)))
 
     def next_phase():
         run.advance()
@@ -519,6 +519,107 @@ def draw_unlock(scene, screen, box, sprite, name, now):
     draw_aura(screen, img, rect, SHADOW_RIM, scene.ticks, 3)
     screen.blit(img, rect)
     scene.ui.text(screen, name, theme.S, (200, 150, 250), (box.centerx, box.y + 178))
+
+
+# créditos do fim da campanha: (sprite, nome de verdade, personagem)
+CAST = (("cauanzera", "Cauã Pedrozo Brito", "CAUANZERA"),
+        ("aryel", "Adryel Assunção Rocha", "ARYEL"),
+        ("borba", "João Francisco da Silva Malaquias", "BORBA JR"),
+        ("albeguinio", "Alber Alberguini Cabral", "ALBEGUINIO"))
+CREDITS_SPEED = 0.9
+
+
+class CreditsScene(_MenuScene):
+    """Créditos depois do fim da campanha: o elenco de verdade (com o sprite de cada um) subindo
+    pela tela. ATACAR, ENTER ou ESC pulam."""
+
+    phase = "story"
+    music = "menu"
+
+    def __init__(self, game, then):
+        super().__init__(game)
+        self.then = then
+        self.offset = 0.0
+        self.done = False
+        bg = game.thumbnail(MAPS_BY_KEY["mansao_nucleo"], (config.SCREEN_W, config.SCREEN_H)).copy()
+        darken(bg, 190)
+        self.background = bg
+        self.lines = self._build()
+
+    def _build(self):
+        rows = [("title", "SOUL STRIKE"), ("sub", "A CAMPANHA"), ("gap", 30), ("head", "ELENCO")]
+        for sprite, name, role in CAST:
+            rows.append(("cast", (sprite, name, role)))
+        rows += [("gap", 20), ("head", "IDEIA E DIREÇÃO"), ("text", "Cauã Pedrozo Brito"),
+                 ("gap", 20), ("head", "VILÕES"),
+                 ("text", "Aryel Corrompido · Borba Jr Corrompido"),
+                 ("text", "Albeguinio Corrompido · Cauanzera Corrompido e a IARA"),
+                 ("text", "a Patrulha Cinza, a Daiwone e o comitê da Mansão do Carimbo"),
+                 ("gap", 20),
+                 ("small", "Mato Grelhado, Cuiabrasa e a Mansão do Carimbo são de mentira."),
+                 ("small", "Os 47 graus à sombra, infelizmente, não."),
+                 ("gap", 60), ("title", "OBRIGADO POR JOGAR!")]
+        return rows
+
+    @staticmethod
+    def _height(kind, value):
+        return {"title": 60, "sub": 34, "head": 44, "cast": 92, "text": 30, "small": 26}.get(kind, value or 0)
+
+    @property
+    def total(self):
+        return sum(self._height(k, v) for k, v in self.lines)
+
+    def enter(self):
+        super().enter()
+        hub.set_phase("story", mode="campaign", active=self.active_slots(), banner="CRÉDITOS")
+
+    def _finish(self):
+        if not self.done:
+            self.done = True
+            self.game.change(self.then())
+
+    def handle(self, event):
+        if event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE,
+                                                          pygame.K_KP_ENTER, pygame.K_TAB):
+            self._finish()
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self._finish()
+
+    def update(self):
+        super().update()
+        self.offset += CREDITS_SPEED
+        if self.ticks > 30 and _pressed(self.game, self.active_slots(), "confirm", "attack", "pause"):
+            self._finish()
+        elif self.offset > self.total + config.SCREEN_H * 0.6:
+            self._finish()
+
+    def draw(self, screen):
+        W, H = config.SCREEN_W, config.SCREEN_H
+        screen.blit(self.background, (0, 0))
+        y = H - self.offset
+        for kind, value in self.lines:
+            h = self._height(kind, value)
+            if -100 < y < H + 100:
+                if kind == "title":
+                    self.ui.text(screen, value, theme.L, theme.BRASS, (W // 2, round(y + h / 2)))
+                elif kind == "sub":
+                    self.ui.text(screen, value, theme.S, theme.MUTED, (W // 2, round(y + h / 2)))
+                elif kind == "head":
+                    self.ui.text(screen, value, theme.S, (200, 150, 250), (W // 2, round(y + h / 2)))
+                elif kind == "text":
+                    self.ui.text(screen, value, theme.S, theme.BONE, (W // 2, round(y + h / 2)))
+                elif kind == "small":
+                    self.ui.text(screen, value, theme.XS, theme.MUTED, (W // 2, round(y + h / 2)))
+                elif kind == "cast":
+                    sprite, name, role = value
+                    img = self.assets.sprites[sprite].frame("frente", self.ticks // 6)
+                    screen.blit(img, img.get_rect(midbottom=(W // 2 - 190, round(y + h - 8))))
+                    self.ui.text(screen, name, theme.S, theme.BONE, (W // 2 - 120, round(y + h / 2 - 10)),
+                                 anchor="midleft")
+                    self.ui.text(screen, "como " + role, theme.XS, theme.BRASS, (W // 2 - 120, round(y + h / 2 + 16)),
+                                 anchor="midleft")
+            y += h
+        self.ui.text(screen, "ATACAR PULA", theme.XS, theme.MUTED, (W - 24, H - 20), anchor="midright")
 
 
 # o que a tela de fim de capítulo mostra: texto, sprite e nome do lutador liberado

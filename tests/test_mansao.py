@@ -309,8 +309,58 @@ class PerigosTest(unittest.TestCase):
         self.assertIsNone(make_hazard("nada", None))
 
 
+def chefe():
+    random.seed(2)
+    match = masmorra("mansao_gabinete", 3)
+    match.wave = -1
+    match._start_wave(0)
+    passo(match, 80)
+    return match, match.boss, match.controllers[match.boss]
+
+
+def pancada(match, e, frac):
+    e.invulnerable_timer = 0
+    e.hp = round(e.max_hp * frac)
+    passo(match, 2)
+
+
 class ChefeTest(unittest.TestCase):
-    def test_chefe_provisorio_aparece_e_luta(self):
+    def test_tres_etapas_virada_e_tomada(self):
+        match, boss, brain = chefe()
+        self.assertEqual(brain.stage, 1)
+        pancada(match, boss, 0.49)
+        self.assertEqual(brain.stage, 2)
+        self.assertIsNotNone(brain.iara)
+        self.assertEqual(len(brain.cables), 4)
+        self.assertEqual(boss.vulnerability, 0.0)
+        passo(match, 80)
+        self.assertGreaterEqual(boss.hp, boss.max_hp * 0.5 - 1)          # FIREWALL segura
+        iara = brain.iara
+        self.assertLess(iara.vulnerability, 1.0)
+        for c in brain.cables:
+            c.hp = 0
+        passo(match, 12)
+        self.assertGreater(iara.vulnerability, 1.0)                       # IARA exposta
+        iara.hp = 0
+        passo(match, 12)
+        self.assertEqual(brain.stage, 3)
+        self.assertTrue(brain.enraged)
+        passo(match, 90)
+        pancada(match, boss, 0.1)
+        self.assertEqual(brain.stage, 4)
+        self.assertTrue(boss.alive_in_match)
+        passo(match, 700)
+        self.assertEqual(len(brain.allies), 3)
+        self.assertIsNotNone(brain.plug)
+        self.assertTrue(boss.stunned)
+        p = match.players[0]
+        p.x, p.y = brain.plug.x, brain.plug.y + 30
+        self.assertTrue(match.interact(p))
+        passo(match, 20)
+        self.assertFalse(boss.alive_in_match)
+        self.assertTrue(match.slain_boss)
+
+    def test_chefe_aparece_e_luta(self):
         random.seed(2)
         match = masmorra("mansao_gabinete", 3)
         match.wave = -1
@@ -325,3 +375,25 @@ class ChefeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CreditosTest(unittest.TestCase):
+    def test_creditos_tem_o_elenco_e_acabam_sozinhos(self):
+        from soulstrike.scenes.campaign import CAST, CreditsScene
+        names = [n for _, n, _ in CAST]
+        self.assertIn("Cauã Pedrozo Brito", names)
+        self.assertIn("João Francisco da Silva Malaquias", names)
+        g = game()
+        g.session = Session("campaign", [SlotSetup(1, char=0)])
+        done = []
+        scene = CreditsScene(g, lambda: done.append(True) or scene)
+        g.change = lambda nxt: done.append(nxt)
+        try:
+            for _ in range(6000):
+                scene.update()
+                if done:
+                    break
+        finally:
+            del g.change                  # volta o método de verdade (o jogo é o mesmo nos testes)
+        self.assertTrue(done)
+        scene.draw(g.screen)
