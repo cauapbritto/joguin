@@ -1816,13 +1816,64 @@ def _scene_oi_sumido(screen, ui, rect, t):
         ui.text(screen, "oi sumido", theme.S, (40, 30, 44), (box.centerx, box.y + 50), shadow=False)
 
 
+def _scene_mansao(screen, ui, rect, t):
+    """Capítulo 4: a fachada da Mansão do Carimbo no sol de Cuiabrasa, com o termômetro a 47°C."""
+    screen.fill((250, 196, 120), rect)
+    sun = (rect.right - 60, rect.y + 40)
+    pygame.draw.circle(screen, (255, 236, 150), sun, 26 + int(3 * math.sin(t * 0.08)))
+    for k in range(0, rect.w, 18):                                             # calor subindo do chão
+        y = rect.bottom - 30 - (t + k * 7) % 40
+        screen.fill((255, 220, 160), (rect.x + k, y, 6, 2))
+    house = pygame.Rect(0, 0, 260, 110)
+    house.midbottom = (rect.centerx, rect.bottom - 18)
+    screen.fill((236, 226, 206), house)
+    pygame.draw.polygon(screen, (176, 96, 70), [(house.x - 14, house.y), (house.centerx, house.y - 40),
+                                                (house.right + 14, house.y)])
+    for i in range(5):                                                         # colunas
+        screen.fill((250, 244, 230), (house.x + 18 + i * 52, house.y + 6, 12, house.h - 6))
+    sign = pygame.Rect(0, 0, ui.assets.text_width("MANSÃO DO CARIMBO", theme.XS) + 16, 20)
+    sign.center = (house.centerx, house.y - 12)
+    screen.fill((40, 92, 168), sign)
+    ui.text(screen, "MANSÃO DO CARIMBO", theme.XS, (246, 244, 236), sign.center, shadow=False)
+    ui.text(screen, "47°C", theme.S, (200, 50, 30) if (t // 20) % 2 else (240, 90, 40),
+            (rect.x + 46, rect.y + 30), shadow=False)
+    imp = ui.assets.sprites.get("carimbador")
+    if imp is not None:
+        img = imp.frame("esquerda", t // 8)
+        screen.blit(img, img.get_rect(midbottom=(house.right + 40, rect.bottom - 14 - abs(math.sin(t * 0.1)) * 10)))
+
+
+def _scene_iara(screen, ui, rect, t):
+    """A IARA de água-viva flutuando e a tomada: o golpe final do capítulo 4."""
+    screen.fill((10, 14, 26), rect)
+    for k in range(0, rect.w, 40):                                             # racks do CPD
+        screen.fill((24, 32, 48), (rect.x + k + 4, rect.y + 20, 30, rect.h - 40))
+        if (t // 7 + k) % 5:
+            screen.fill((60, 230, 255), (rect.x + k + 10, rect.y + 30 + (k * 3) % 50, 4, 2))
+    iara = ui.assets.sprites.get("iara_nucleo")
+    if iara is not None:
+        img = iara.frame("frente", t // 10)
+        screen.blit(img, img.get_rect(midbottom=(rect.centerx - 40, rect.bottom - 30 + round(math.sin(t * 0.06) * 8))))
+    plug = pygame.Rect(0, 0, 34, 44)
+    plug.midbottom = (rect.right - 90, rect.bottom - 26)
+    screen.fill((230, 230, 222), plug)
+    for dx in (-6, 6):                                                         # os furos da tomada
+        screen.fill((40, 40, 46), (plug.centerx + dx - 2, plug.centery - 4, 4, 8))
+    pulled = (t % 240) > 170
+    pygame.draw.line(screen, (170, 90, 240), (rect.centerx - 10, rect.bottom - 60),
+                     (plug.centerx, plug.y + (-30 if pulled else 18)), 3)
+    if pulled:
+        ui.text(screen, "TIROU DA TOMADA!", theme.XS, (140, 220, 120), (plug.centerx, plug.y - 46), shadow=False)
+
+
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
                "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
                "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
                "chefao_lag": _scene_chefao_lag, "armas_lag": _scene_armas_lag,
                "bate": _scene_bate, "agarra": _scene_agarra, "modos": _scene_modos,
                "controle": _scene_controle, "coroa": _scene_coroa, "ultra": _scene_ultra,
-               "clepalovers": _scene_clepalovers, "clinica": _scene_clinica, "oi_sumido": _scene_oi_sumido}
+               "clepalovers": _scene_clepalovers, "clinica": _scene_clinica, "oi_sumido": _scene_oi_sumido,
+               "mansao": _scene_mansao, "iara": _scene_iara}
 
 
 class NewsScene(_InfoScene):

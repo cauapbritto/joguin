@@ -10,6 +10,27 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.14.0": [
+        {"title": "CAPÍTULO 4: MANSÃO DO CARIMBO", "scene": "mansao", "lines": [
+            "O último capítulo: Cuiabrasa, estado de Mato Grelhado, 47°C na sombra.",
+            "O Cauanzera ligou a lasquinha do caco no servidor e nasceu a IARA. Deu ruim.",
+            "Três fases novas: Sede, Pátio e CPD, Gabinete. Dez monstros da repartição.",
+        ]},
+        {"title": "PERIGOS DA MANSÃO", "scene": "perigos", "lines": [
+            "A fila anda e arrasta quem está nela. Pilhas de processo caem do alto.",
+            "No pátio, fique na sombra. No CPD, ATACAR perto dos no-breaks traz a luz de volta.",
+            "Na sala de reunião, a apresentação puxa todo mundo para o meio.",
+        ]},
+        {"title": "O CHEFE FINAL", "scene": "iara", "lines": [
+            "Cauanzera Corrompido em 3 etapas: ele, a IARA presa por 4 cabos e a fusão dos dois.",
+            "Quando a vida dele baixar, a turma chega para ajudar. O golpe final é tirar da tomada.",
+        ]},
+        {"title": "ZEROU? TEM PRESENTE", "scene": "novidades", "lines": [
+            "Cauanzera Corrompido jogável, mapas de Cuiabrasa no duelo, futebol e basquete.",
+            "REUNIÃO DOS CORROMPIDOS: os 4 chefes em sequência. CINEMA: todas as histórias.",
+            "Selos de zerado por dificuldade, o crachá da Mansão nas regras e a IARA mascote.",
+        ]},
+    ],
     "1.13.0": [
         {"title": "CINCO DIFICULDADES", "scene": "perigos", "lines": [
             "A campanha agora tem FÁCIL, NORMAL, DIFÍCIL, IBRAHIM e BORBA.",
