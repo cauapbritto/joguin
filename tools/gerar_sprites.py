@@ -3329,67 +3329,193 @@ def cauanzera_ti(p):
 
 
 def iara(p):
-    """IARA: o holograma da Inteligência Artificial de Resposta Administrativa. Uma moça de
-    holograma ciano com o cabelo feito de cabos de rede e, no lugar das pernas, uma cauda de
-    dados (como a Iara da lenda, que mora no rio). Ela flutua e as linhas de varredura correm."""
-    c = Canvas(40, 54)
+    """IARA: o holograma da Inteligência Artificial de Resposta Administrativa. Uma moça de luz
+    ciano, de rosto delicado e olhos brilhando, com o cabelo feito de dezenas de cabos de rede
+    flutuando como se estivesse debaixo d'água (cada um com o conector na ponta), um corpete com
+    trilhas de circuito e, no lugar das pernas, uma cauda de sereia feita de dados, com escamas e
+    a nadadeira dupla, como a Iara da lenda que mora no rio. No ataque ela ergue a mão e acende um
+    prompt; levando dano, o holograma falha e fica mais transparente."""
+    c = Canvas(48, 64)
     sway = WALK_FLOAT[p.frame] if p.kind == "andar" else (-1, 0)[p.frame] if p.kind == "parado" else 0
-    raise_ = (0, 2, 1)[p.frame] if p.kind == "ataque" else 0
-    flick = p.hurt
-    a = 170 if flick else 235
-    body, body_d, body_l = (*IARA, a), (*IARA_D, a), (*IARA_L, a)
-    cx, top = 20, 6 + sway
-    # cauda de dados (afina para baixo e balança)
-    for k in range(18):
-        yy = top + 28 + k
-        half = max(1, 6 - k // 3)
-        off = round(math.sin((k + p.frame * 2) * 0.5) * 2)
-        c.rect(cx - half + off, yy, half * 2, 1, body if k % 3 else body_l)
-    c.rect(cx - 5, top + 44, 3, 2, body_l)                                # nadadeira da cauda
-    c.rect(cx + 3, top + 45, 3, 2, body_l)
-    # tronco e braços
-    c.rect(cx - 5, top + 15, 10, 13, body)
-    c.rect(cx - 5, top + 15, 10, 1, body_l)
-    c.rect(cx - 1, top + 17, 2, 9, body_d)                                # "gravata" de circuito
-    for side in (-1, 1):
-        ax = cx + side * 6
-        if p.dir == "costas":
-            c.rect(ax - 1, top + 16, 2, 9, body_d)
+    cast = (0, 2, 1)[p.frame] if p.kind == "ataque" else 0
+    t = p.frame
+    a = 160 if p.hurt else 238
+    deep, dark, mid = (8, 60, 96, a), (18, 120, 168, a), (44, 196, 238, a)
+    light, white = (150, 240, 255, a), (236, 255, 255, 250)
+    skin, skin_d = (120, 226, 252, a), (70, 180, 226, a)
+    lips = (255, 160, 226, a)
+    cx, top = 24, 7 + sway
+    face = p.dir == "frente"
+    back = p.dir == "costas"
+    side = p.side
+
+    def wave(k, phase=0.0, amp=1.5):
+        return round(math.sin(k * 0.32 + t * 0.8 + phase) * amp)
+
+    # ── cabelo de cabos de rede, atrás de tudo (flutua como debaixo d'água) ──
+    strands = 14 if not side else 9
+    for k in range(strands):
+        if side:
+            ox, spread = cx - 1 - k % 3, -1 - k * 0.12
+        else:
+            ox = cx - 6 + (k * 12) // (strands - 1)
+            spread = (k - (strands - 1) / 2) / ((strands - 1) / 2)       # -1 (esquerda) .. 1 (direita)
+        length = 18 + (k * 5) % 13
+        col = deep if k % 3 == 0 else dark
+        x = float(ox)
+        for yy in range(top + 2, top + length):
+            d = yy - top
+            x = ox + spread * (d * 0.45) + wave(d, k * 0.9, 1.2 + d * 0.04)
+            c.px(round(x), yy, col)
+            if k % 2 == 0:
+                c.px(round(x) + (1 if spread >= 0 else -1), yy, col)
+        ex = round(x)
+        c.rect(ex, top + length, 2, 2, light)                            # conector RJ45
+        c.px(ex, top + length + 1, white)
+    # bolinhas de dados soltas em volta
+    for k, (bx, by) in enumerate(((cx - 17, top + 10), (cx + 16, top + 6), (cx - 14, top + 34),
+                                  (cx + 15, top + 30), (cx - 9, top + 50), (cx + 11, top + 48))):
+        if (k + t) % 3:
+            c.px(bx + wave(k, k), by - (t % 4), light)
+
+    # ── cauda de sereia feita de dados ──
+    tail_top = top + 29
+    for k in range(22):
+        yy = tail_top + k
+        half = 5 if k < 4 else max(1, 5 - (k - 4) // 4)
+        off = round(math.sin(k * 0.28 + t * 0.7) * (1 + k * 0.08)) + (k // 6 if side else 0)
+        x0 = cx - half + off
+        c.rect(x0, yy, half * 2, 1, mid)
+        c.px(x0, yy, dark)
+        c.px(x0 + half * 2 - 1, yy, dark)
+        if half >= 2 and (k + t) % 3 == 0:                               # escamas
+            for sx in range(x0 + 1, x0 + half * 2 - 1, 3):
+                c.px(sx, yy, light)
+                c.px(sx + 1, yy + 1, light)
+        last = (x0, half, yy)
+    fx, _, fy = last
+    fin_off = round(math.sin(t * 0.7) * 2)
+    for k in range(6):                                                   # nadadeira dupla
+        c.rect(fx - 1 - k + fin_off, fy + 1 + k // 2, 3, 1, mid if k < 4 else light)
+        c.rect(fx + 1 + k + fin_off, fy + 1 + k // 2, 3, 1, mid if k < 4 else light)
+    c.px(fx + fin_off, fy + 1, light)
+    for k in range(3):                                                   # rastro de bits
+        c.px(fx + fin_off - 2 + k * 2, fy + 6 + k, light if (k + t) % 2 else dark)
+
+    # ── corpete com trilhas de circuito ──
+    by = top + 15
+    widths = (10, 10, 10, 9, 8, 8, 8, 8, 9, 10, 10, 10, 10, 10)
+    for k, wdt in enumerate(widths):
+        if side:
+            wdt = max(6, wdt - 3)
+        x0 = cx - wdt // 2
+        c.rect(x0, by + k, wdt, 1, mid)
+        c.px(x0, by + k, dark)
+        c.px(x0 + wdt - 1, by + k, dark if not side else mid)
+    if face:
+        c.rect(cx - 4, by, 8, 1, light)                                  # decote
+        c.line(cx - 3, by + 3, cx - 3, by + 9, light, 1)                 # trilhas de circuito
+        c.line(cx - 3, by + 9, cx - 1, by + 11, light, 1)
+        c.line(cx + 2, by + 2, cx + 2, by + 7, light, 1)
+        c.line(cx + 2, by + 7, cx + 3, by + 8, light, 1)
+        c.px(cx - 3, by + 3, white)
+        c.px(cx + 2, by + 2, white)
+        c.rect(cx - 1, by + 4, 2, 2, white if (t % 2 or cast) else light)   # o "coração" (a lasca)
+        c.rect(cx - 5, by + 12, 10, 1, light)                            # cinto de LED
+    elif back:
+        c.line(cx, by + 1, cx, by + 12, dark, 1)
+    else:
+        c.line(cx + 1, by + 3, cx + 1, by + 10, light, 1)
+        c.px(cx + 2, by + 5, white)
+
+    # ── braços (finos, com as mangas de luz) ──
+    for sgn in (-1, 1):
+        if side and sgn == -1:
             continue
-        up = raise_ if side == 1 else 0
-        c.line(ax, top + 16, ax + side * (3 + up), top + 25 - up * 5, body, 2)
-        if up:
-            c.rect(ax + side * (3 + up) - 1, top + 14 - up * 3, 4, 3, body_l)   # mão erguida (prompt)
-    # cabeça
-    c.rect(cx - 5, top + 3, 10, 11, body)
-    c.rect(cx - 4, top + 2, 8, 1, body)
-    c.rect(cx - 2, top + 14, 4, 1, body_d)                                # pescoço
-    # cabelo de cabos de rede caindo pelos lados, com os conectores na ponta
-    hair_c = (14, 90, 130, 240)
-    for k, hx in enumerate((cx - 9, cx - 7, cx + 6, cx + 8)):
-        length = 20 + (k % 2) * 5
-        spread = -1 if hx < cx else 1
-        for yy in range(top + 1, top + length):
-            off = round(math.sin((yy + p.frame * 2 + k) * 0.35) * 1.5) + spread * ((yy - top) // 9)
-            c.rect(hx + off, yy, 2, 1, hair_c)
-        end = hx + spread * (length // 9) + round(math.sin((top + length + p.frame * 2 + k) * 0.35) * 1.5)
-        c.rect(end - 1, top + length, 3, 2, (230, 255, 255, 240))      # conector RJ45 na ponta
-    c.rect(cx - 6, top, 12, 3, hair_c)                                    # franja
-    c.rect(cx - 7, top + 1, 2, 4, hair_c)
-    c.rect(cx + 5, top + 1, 2, 4, hair_c)
-    if p.dir == "frente":
-        eye = (255, 255, 255) if raise_ else (20, 60, 80)
-        c.rect(cx - 3, top + 7, 2, 2, eye)
-        c.rect(cx + 1, top + 7, 2, 2, eye)
-        c.rect(cx - 1, top + 11, 2, 1, body_d)
-    elif p.side:
-        c.rect(cx + 2, top + 7, 2, 2, (20, 60, 80))
-    for yy in range(top, min(c.h, top + 48), 3):                          # linhas de varredura (só no corpo)
+        sx = cx + sgn * 5 if not side else cx + 1
+        up = cast if (sgn == 1 or side) else 0
+        if back:
+            c.line(sx, by + 1, sx + sgn * 2, by + 11, mid, 2)
+            continue
+        if up:                                                           # mão erguida com o prompt
+            hx, hy = sx + sgn * (3 + up), by - 4 - up * 3
+            c.line(sx, by + 1, hx, hy + 2, skin, 2)
+            c.px(hx, hy + 3, dark)
+            r = 2 + up
+            pygame.draw.circle(c.surf, (*IARA, 200), (hx + sgn, hy - 1), r)
+            pygame.draw.circle(c.surf, white, (hx + sgn, hy - 1), max(1, r - 2))
+        else:
+            ex, ey = sx + sgn * 3, by + 7
+            c.line(sx, by + 1, ex, ey, skin, 2)
+            c.line(ex, ey, ex - sgn, by + 12, skin, 2)
+            c.px(ex - sgn, by + 13, skin)                                # mão
+        c.px(sx, by + 1, light)
+
+    # ── pescoço e cabeça ──
+    c.rect(cx - 1, top + 12, 3, 3, skin_d)
+    c.rect(cx - 2, top + 14, 5, 1, light)                                # gargantilha
+    c.px(cx, top + 14, white)
+    rows = (6, 8, 10, 10, 10, 10, 10, 10, 9, 8, 6, 4)
+    hx0 = cx - 5 + (1 if side else 0)
+    for k, wdt in enumerate(rows):
+        x0 = cx - wdt // 2 + (1 if side else 0)
+        c.rect(x0, top + k, wdt, 1, skin if not back else dark)
+        if not back:
+            c.px(x0 + wdt - 1, top + k, skin_d)                          # sombra do lado
+    if side:
+        c.px(cx + 6, top + 6, skin)                                      # nariz de perfil
+        c.px(cx + 5, top + 9, lips)
+    # franja e topo do cabelo
+    c.rect(cx - 5, top - 1, 11, 2, dark)
+    c.rect(cx - 6, top, 2, 6, dark)
+    if not side:
+        c.rect(cx + 5, top, 2, 6, dark)
+    if face:
+        c.rect(cx - 4, top + 1, 4, 1, deep)                              # franja repartida
+        c.rect(cx + 1, top + 1, 3, 2, deep)
+        c.px(cx - 4, top + 2, deep)
+    elif back:
+        c.rect(cx - 5, top, 11, 12, dark)
+        for k in range(cx - 4, cx + 6, 2):
+            c.rect(k, top + 2, 1, 10, deep)
+    else:
+        c.rect(cx - 4, top, 6, 3, dark)
+        c.rect(cx - 5, top, 3, 9, dark)
+    # rosto
+    if face:
+        glow_eye = white if cast or p.kind == "parado" or p.kind == "andar" else light
+        for ex in (cx - 4, cx + 1):
+            c.rect(ex, top + 5, 3, 2, white)                             # branco do olho
+            c.px(ex + 1, top + 5, (10, 50, 80, 255))                     # íris
+            c.px(ex + 1, top + 6, glow_eye if not p.hurt else (10, 50, 80, 255))
+            c.rect(ex, top + 4, 3, 1, deep)                              # cílios
+        c.px(cx - 5, top + 4, deep)
+        c.px(cx + 4, top + 4, deep)
+        c.px(cx, top + 7, skin_d)                                        # nariz
+        if p.hurt:
+            c.rect(cx - 1, top + 9, 3, 1, skin_d)
+        else:
+            c.rect(cx - 1, top + 9, 3, 1, lips)                          # boca
+            c.px(cx - 2, top + 8, lips) if cast else None
+        c.px(cx - 4, top + 8, (180, 230, 255, a))                        # bochechas
+        c.px(cx + 3, top + 8, (180, 230, 255, a))
+    elif side:
+        c.rect(cx + 3, top + 5, 2, 2, white)
+        c.px(cx + 4, top + 5, (10, 50, 80, 255))
+        c.rect(cx + 3, top + 4, 2, 1, deep)
+
+    # ── linhas de varredura e falha do holograma ──
+    for yy in range(0, c.h, 3):
         for xx in range(c.w):
             col = c.surf.get_at((xx, yy))
             if col[3]:
-                c.surf.set_at((xx, yy), (*shade(col, 50), col[3]))
-    c.hand = (cx + 9, top + 14)
+                c.surf.set_at((xx, yy), (*shade(col, 28), col[3]))
+    if p.hurt or p.kind == "esquiva":                                    # glitch: faixas deslocadas
+        for yy in (top + 6, top + 20, top + 37):
+            band = c.surf.subsurface((0, yy, c.w, 2)).copy()
+            c.surf.fill((0, 0, 0, 0), (0, yy, c.w, 2))
+            c.surf.blit(band, (3, yy))
+    c.hand = (cx + 9, top + 12)
     return c
 
 
