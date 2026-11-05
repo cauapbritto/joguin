@@ -913,11 +913,52 @@ class _Style:
         if cache_key not in _WALLS:
             surf = pygame.Surface((w, h + self.below), pygame.SRCALPHA)
             self.paint(surf, w, h, random.Random(f"{self.key}:{seed}"))
+            _solidify(surf, w, h, random.Random(f"sólido:{self.key}:{seed}"))
             _WALLS[cache_key] = surf
         return _WALLS[cache_key]
 
     def paint(self, surf, w, h, rng):
         raise NotImplementedError
+
+
+def _solidify(s, w, h, rng):
+    """Acabamento de toda parede, no mesmo dobro de detalhe dos personagens: contorno fino de 1
+    pixel (mais escuro que a cor que está ali), luz na beirada de cima e da esquerda, sombra na
+    direita e no pé da parede, e um grão de 1 pixel para tirar o chapado."""
+    full = s.get_size()
+    solid = pygame.mask.from_surface(s, 250)            # a sombra no chão é translúcida e fica de fora
+    if not solid.count():
+        return
+    hole = solid.copy()
+    hole.invert()
+    edge = pygame.mask.Mask(full)
+    for off in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        edge.draw(hole, off)                            # vizinho vazio...
+    border = pygame.mask.Mask(full, fill=True)
+    border.erase(pygame.mask.Mask((full[0] - 2, full[1] - 2), fill=True), (1, 1))
+    edge.draw(border, (0, 0))                           # ...ou a borda da folha
+    edge = edge.overlap_mask(solid, (0, 0))
+    lit = pygame.Surface(full, pygame.SRCALPHA)         # luz de cima e da esquerda, sombra embaixo
+    lit.fill((255, 255, 255, 0))
+    lit.fill((255, 255, 255, 255), (0, 0, full[0], 1))
+    band = max(U * 3, min(h // 4, U * 6))
+    for i in range(band):                               # pé da parede escurece aos poucos
+        k = round(255 - 46 * (i + 1) / band)
+        lit.fill((k, k, k, 255), (0, h - band + i, w, 1))
+    lit.fill((222, 222, 222, 255), (w - U, 0, U, h))    # lado direito na sombra
+    s.blit(lit, (0, 0), special_flags=pygame.BLEND_RGB_MULT)
+    s.fill((26, 22, 14), (1, 1, w - 2, U), special_flags=pygame.BLEND_RGB_ADD)
+    s.fill((12, 10, 6), (1, 1, U, h - 2), special_flags=pygame.BLEND_RGB_ADD)
+    line = edge.to_surface(setcolor=(150, 146, 158, 255), unsetcolor=(255, 255, 255, 255))
+    s.blit(line, (0, 0), special_flags=pygame.BLEND_RGB_MULT)
+    get, put = s.get_at, s.set_at
+    for _ in range(w * h // 45):
+        x, y = rng.randrange(w), rng.randrange(h)
+        if not solid.get_at((x, y)):
+            continue
+        r, g, b, a = get((x, y))
+        k = 8 if rng.random() < 0.5 else -9
+        put((x, y), (max(0, min(255, r + k)), max(0, min(255, g + k)), max(0, min(255, b + k)), a))
 
 
 def _px(surf, x, y, color, n=1):
