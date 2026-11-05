@@ -48,7 +48,7 @@ KITS = {
 KIT_DETAIL = (240, 238, 230)   # estampa/raio que sumiria no uniforme vira branco
 
 
-OUTLINE, OUTLINE_LIT = 0.28, 0.42   # força do contorno (fração da cor vizinha): mais leve no topo, onde bate a luz
+OUTLINE, OUTLINE_LIT = 0.18, 0.36   # força do contorno (fração da cor vizinha): mais leve no topo, onde bate a luz
 MARGIN = 4      # sobra em volta da área do desenho: o que passa da borda (chapéu, escudo, braço) não é cortado
 
 
@@ -198,9 +198,12 @@ WARM = (0.10, 0.04, -0.14)     # por unidade de claridade somada: + vermelho, + 
 COOL = (0.22, 0.10, -0.12)     # por unidade de escuridão: tira mais vermelho que azul
 
 
+CONTRAST = 1.45
+
+
 def shade(color, amount):
     """Mais claro (amount > 0) ou mais escuro (< 0), puxando o matiz: brilho quente, sombra fria."""
-    k = abs(amount)
+    k = abs(amount) * CONTRAST
     tilt = WARM if amount > 0 else COOL
     sign_ = 1 if amount > 0 else -1
     return tuple(max(0, min(255, round(c + sign_ * k + sign_ * k * t))) for c, t in zip(color[:3], tilt))
@@ -1486,7 +1489,7 @@ def hair_volume(c, p, color, top_rows=3):
             right = xx - x - w // 2
             amount = 0
             if up < top_rows:
-                amount += (top_rows - up) * 6
+                amount += (top_rows - up) * 3
             if right > 1:
                 amount -= 6
             if right < -2:
