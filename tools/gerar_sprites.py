@@ -3519,6 +3519,132 @@ def iara(p):
     return c
 
 
+def iara_agua_viva(p):
+    """IARA, versão água-viva: um sino de holograma ciano flutuando, com um olho só lá dentro
+    (a lasca brilhando no lugar da pupila) e oito cabos de rede pendurados como tentáculos, cada
+    um com o conector na ponta. No ataque o sino pulsa e o olho acende branco."""
+    c = Canvas(48, 64)
+    t = p.frame
+    sway = WALK_FLOAT[t] if p.kind == "andar" else (-1, 0)[t] if p.kind == "parado" else 0
+    pulse = (0, 2, 1)[t] if p.kind == "ataque" else (t % 2 if p.kind == "parado" else 0)
+    a = 150 if p.hurt else 215
+    deep, dark, mid = (8, 60, 96, a), (18, 120, 168, a), (44, 196, 238, a)
+    light, white = (150, 240, 255, 235), (236, 255, 255, 250)
+    cx, top = 24, 6 + sway
+    bw, bh = 30 + pulse * 2, 20 - pulse
+    # sino (meia elipse) com a borda franjada
+    pygame.draw.ellipse(c.surf, mid, (cx - bw // 2, top, bw, bh * 2))
+    c.surf.fill((0, 0, 0, 0), (0, top + bh, c.w, bh + 2))
+    # tentáculos (saem da borda do sino)
+    for k in range(8):
+        x0 = cx - bw // 2 + 3 + k * (bw - 6) // 7
+        length = 22 + (k * 5) % 11
+        for d in range(length):
+            x = x0 + round(math.sin(d * 0.3 + t * 0.9 + k) * (1 + d * 0.06))
+            col = mid if d < 4 else (dark if k % 2 else deep)
+            c.rect(x, top + bh + d, 2 if k % 3 == 0 else 1, 1, col)
+        ex = x0 + round(math.sin(length * 0.3 + t * 0.9 + k) * (1 + length * 0.06))
+        c.rect(ex, top + bh + length, 2, 2, light)
+        c.px(ex, top + bh + length + 1, white)
+    pygame.draw.ellipse(c.surf, light, (cx - bw // 2 + 4, top + 2, bw - 8, 8), 1)
+    for x in range(cx - bw // 2, cx + bw // 2, 3):                      # franja da borda
+        c.rect(x, top + bh - 1, 2, 2 + (x + t) % 2, dark)
+    for k in range(4):                                                  # nervuras do sino
+        x = cx - bw // 2 + 5 + k * (bw - 10) // 3
+        c.line(cx, top + 2, x, top + bh - 2, dark, 1)
+    # o olho
+    if p.dir != "costas":
+        ox = cx + (4 if p.side else 0)
+        pygame.draw.ellipse(c.surf, white, (ox - 6, top + 7, 12, 8))
+        iris = (255, 255, 255) if pulse == 2 else (170, 90, 230)
+        pygame.draw.circle(c.surf, iris, (ox + (2 if p.side else 0), top + 11), 3)
+        c.rect(ox + (2 if p.side else 0) - 1, top + 10, 2, 2, (30, 10, 50) if not p.hurt else white)
+        c.px(ox + 1, top + 9, white)
+        if p.hurt:
+            c.rect(ox - 6, top + 11, 12, 1, dark)
+    for yy in range(top, c.h, 3):
+        for xx in range(c.w):
+            col = c.surf.get_at((xx, yy))
+            if col[3]:
+                c.surf.set_at((xx, yy), (*shade(col, 30), col[3]))
+    c.hand = (cx, top + bh)
+    return c
+
+
+def iara_cristal(p):
+    """IARA, versão núcleo: a lasca cresceu e virou um cristal flutuante, metade roxo do caco e
+    metade ciano da IA, com uma tela no meio onde aparece o "rosto" de assistente (dois olhinhos e
+    um sorriso de emoji). Três anéis de dados giram em volta e uma trilha de cubinhos cai embaixo."""
+    c = Canvas(48, 64)
+    t = p.frame
+    sway = WALK_FLOAT[t] if p.kind == "andar" else (-1, 0)[t] if p.kind == "parado" else 0
+    cast = (0, 2, 1)[t] if p.kind == "ataque" else 0
+    a = 160 if p.hurt else 240
+    cyan, cyan_d, cyan_l = (*IARA, a), (*IARA_D, a), (*IARA_L, a)
+    caco, caco_d, caco_l = (170, 90, 230, a), (100, 44, 150, a), (230, 190, 255, a)
+    white = (240, 255, 255, 255)
+    cx, cy = 24, 26 + sway
+    # trilha de cubinhos caindo (dados)
+    for k in range(7):
+        y = cy + 16 + k * 4 + (t % 4)
+        x = cx + round(math.sin(k * 0.9 + t * 0.6) * (2 + k))
+        s = max(1, 3 - k // 3)
+        c.rect(x - s // 2, y, s, s, cyan_l if k % 2 else cyan)
+    # anéis girando (atrás)
+    ang = t * 0.4
+    for k in range(3):
+        r = 18 + k * 2
+        for j in range(10):
+            th = ang * (1 if k % 2 == 0 else -1) + j * math.tau / 10 + k
+            x, y = cx + math.cos(th) * r, cy + math.sin(th) * r * (0.32 + k * 0.08)
+            if math.sin(th) < 0:
+                c.rect(round(x), round(y), 2, 1, cyan_d)
+    # o cristal: losango alongado, metade caco metade IA
+    top_y, bot_y, half = cy - 18 - cast, cy + 16, 11 + cast
+    for y in range(top_y, bot_y):
+        if y < cy:
+            w = round(half * (y - top_y) / (cy - top_y))
+        else:
+            w = round(half * (bot_y - y) / (bot_y - cy))
+        if w <= 0:
+            continue
+        c.rect(cx - w, y, w, 1, caco)
+        c.rect(cx, y, w, 1, cyan)
+        c.px(cx - w, y, caco_d)
+        c.px(cx + w - 1, y, cyan_d)
+    c.line(cx - 6, top_y + 8, cx - 2, top_y + 3, caco_l, 1)                 # brilho das facetas
+    c.line(cx + 3, top_y + 6, cx + 7, cy - 2, cyan_l, 1)
+    c.line(cx, top_y, cx, bot_y - 1, white, 1)
+    # tela com o rosto de assistente
+    if p.dir != "costas":
+        sx = cx - 7 + (3 if p.side else 0)
+        c.rect(sx, cy - 5, 14, 10, (10, 30, 44, 255))
+        c.rect(sx, cy - 5, 14, 1, cyan_l)
+        if p.hurt:
+            for k in range(0, 14, 2):
+                c.px(sx + k, cy - 1 + k % 3, cyan)
+        else:
+            eye = white if cast else cyan_l
+            c.rect(sx + 3, cy - 2, 2, 2 + (1 if cast else 0), eye)
+            c.rect(sx + 9, cy - 2, 2, 2 + (1 if cast else 0), eye)
+            c.rect(sx + 4, cy + 2, 6, 1, cyan_l)
+            c.px(sx + 3, cy + 1, cyan_l)
+            c.px(sx + 10, cy + 1, cyan_l)
+    # anéis (frente)
+    for k in range(3):
+        r = 18 + k * 2
+        for j in range(10):
+            th = ang * (1 if k % 2 == 0 else -1) + j * math.tau / 10 + k
+            x, y = cx + math.cos(th) * r, cy + math.sin(th) * r * (0.32 + k * 0.08)
+            if math.sin(th) >= 0:
+                c.rect(round(x), round(y), 2, 1, cyan_l if j % 3 else white)
+    if cast:                                                             # prompt saindo em cima
+        pygame.draw.circle(c.surf, (*IARA, 200), (cx, top_y - 5), 2 + cast)
+        pygame.draw.circle(c.surf, white, (cx, top_y - 5), cast)
+    c.hand = (cx, cy)
+    return c
+
+
 # ── catálogo ──────────────────────────────────
 # nome → (desenho, largo, cores que acendem de vermelho na alma corrompida)
 CHARACTERS = {
@@ -3564,6 +3690,8 @@ CHARACTERS = {
     # Mansão do Carimbo (capítulo 4)
     "cauanzera_ti": (cauanzera_ti, False, [EYE, LENS, LENS_L]),
     "iara": (iara, False, []),
+    "iara_agua_viva": (iara_agua_viva, False, []),
+    "iara_cristal": (iara_cristal, False, []),
     "processo": (processo, False, []),
     "apenso": (apenso, False, []),
     "carimbador": (carimbador, False, []),
