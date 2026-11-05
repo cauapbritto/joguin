@@ -10,6 +10,21 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.15.0": [
+        {"title": "TUDO EM DOBRO DE DETALHE", "scene": "modos", "lines": [
+            "Todos os personagens, criaturas e as 68 armas redesenhados com o dobro de detalhe.",
+            "Mais volume: sombra fria, brilho quente e contorno fino. Nenhum desenho cortado na borda.",
+            "Chão, paredes, explosões e itens também foram lapidados.",
+        ]},
+        {"title": "TELAS NOVAS", "scene": "novidades", "lines": [
+            "Logo em degradê com brilho, brasas subindo nos menus e o elenco num palco no início.",
+            "Na escolha de lutadores, cada um ganha um canhão de luz na cor do jogador.",
+            "No basquete a escolha mostra a quadra e o SUPER certo, também no celular.",
+        ]},
+        {"title": "TV ANTIGA", "scene": "loja", "lines": [
+            "Loja, pausa, menus de cada jogador e a escolha de armas abrem e fecham como TV de tubo.",
+        ]},
+    ],
     "1.14.0": [
         {"title": "CAPÍTULO 4: MANSÃO DO CARIMBO", "scene": "mansao", "lines": [
             "O último capítulo: Cuiabrasa, estado de Mato Grelhado, 47°C na sombra.",
