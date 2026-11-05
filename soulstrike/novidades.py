@@ -10,7 +10,7 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
-    "1.15.0": [
+    "1.16.0": [
         {"title": "LOJA E FERREIRO NO CELULAR", "scene": "loja", "lines": [
             "Cada linha da loja e do ferreiro no celular mostra a imagem da arma.",
             "No ferreiro, o celular mostra no que a arma vira: o nível, o dano e o pente de antes e depois.",
