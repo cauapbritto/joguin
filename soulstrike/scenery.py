@@ -45,8 +45,29 @@ def paint_floor(key, size, theme=None, void=()):
         painter(small, random.Random(f"chão:{key}"))
         for x, y, vw, vh in void:
             small.fill(VOID, (x // U, y // U, vw // U, vh // U))
-        _FLOORS[key] = pygame.transform.scale(small, size)
+        # dobra arredondando os degraus (Scale2x): trilha, poça e pedra ficam com borda curva, no
+        # mesmo dobro de detalhe dos personagens; depois um grão fino de 1 pixel tira o chapado
+        big = pygame.transform.scale2x(small) if U == 2 else pygame.transform.scale(small, size)
+        if big.get_size() != tuple(size):
+            big = big.subsurface((0, 0, min(big.get_width(), size[0]), min(big.get_height(), size[1]))).copy()
+            if big.get_size() != tuple(size):
+                big = pygame.transform.scale(big, size)
+        _grain(big, random.Random(f"grão:{key}"))
+        _FLOORS[key] = big
     return _FLOORS[key]          # só é lido (a miniatura faz a própria cópia)
+
+
+def _grain(surf, rng, density=60):
+    """Grão fino no chão: um pixel em cada ``density`` um tom acima ou abaixo do que está lá."""
+    w, h = surf.get_size()
+    get, put = surf.get_at, surf.set_at
+    for _ in range(w * h // density):
+        x, y = rng.randrange(w), rng.randrange(h)
+        r, g, b, _a = get((x, y))
+        if r + g + b < 40:                       # o escuro de fora das salas fica liso
+            continue
+        k = 7 if rng.random() < 0.5 else -8
+        put((x, y), (max(0, min(255, r + k)), max(0, min(255, g + k)), max(0, min(255, b + k))))
 
 
 def _blob(surf, rng, x, y, r, color):
