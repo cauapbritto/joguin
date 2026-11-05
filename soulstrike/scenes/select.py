@@ -905,10 +905,19 @@ class CharSelectScene(_MenuScene):
             return
         if self.soccer:
             ui.panel(screen, c, fill=theme.INK_2)
-            ui.text(screen, "ESTÁDIO", theme.S, theme.BONE, (c.centerx, c.y + 30))
-            thumb = self.game.thumbnail(MAPS_BY_KEY["campo_futebol"], (220, 124))
+            if self.basket:                              # basquete: a quadra escolhida e a regra dele
+                ui.text(screen, "QUADRA", theme.S, theme.BONE, (c.centerx, c.y + 30))
+                thumb = self.game.thumbnail(MAPS_BY_KEY[self.court_key], (220, 124))
+                mode = self.game.session.mode
+                rule = ("3 MINUTOS OU 21 PONTOS" if mode == "basket1"
+                        else "2 TEMPOS DE 2 MINUTOS" if mode == "basket2" else "TREINO LIVRE")
+            else:
+                ui.text(screen, "ESTÁDIO", theme.S, theme.BONE, (c.centerx, c.y + 30))
+                thumb = self.game.thumbnail(MAPS_BY_KEY["campo_futebol"], (220, 124))
+                training = self.game.session.mode.startswith("treino")
+                rule = "TREINO LIVRE" if training or not self._length_mode else self._length_label()
             screen.blit(thumb, thumb.get_rect(midtop=(c.centerx, c.y + 56)))
-            ui.text(screen, self._length_label(), theme.XS, theme.BRASS, (c.centerx, c.y + 188))
+            ui.text(screen, rule, theme.XS, theme.BRASS, (c.centerx, c.y + 188))
             ui.paragraph(screen, "Cada personagem tem um poder próprio no botão SUPER.", theme.XS,
                          theme.MUTED, (c.x + 16, c.y + 204), c.w - 32, spacing=14)
             screen.fill(theme.LINE, (c.x + 16, c.y + 258, c.w - 32, 1))
