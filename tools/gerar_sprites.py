@@ -3672,7 +3672,8 @@ VARIANTS = ("borba_exo", "albeguinio_adm", "cauanzera_ti")   # não são persona
 # (o jogo não amplia essas folhas). O desenho base é o mesmo de sempre, então as 39 poses e as
 # 4 direções continuam batendo; em cima dele entram as bordas arredondadas (scale2x), o volume de
 # cada parte (luz de cima e da esquerda), o contorno fino e os detalhes que só cabem no dobro.
-HD = {"cauanzera"}
+HD = {"cauanzera", "guerreiro", "atirador", "tanque", "ninja"}
+NEAR_TONE = 60            # diferença de cor (soma dos canais) até onde é o mesmo material
 HD_SKIP = 10              # partes menores que isso (olho, botão, relógio) não ganham volume
 
 
@@ -3719,6 +3720,13 @@ def volume(src, keep=()):
 
     def same(x, y, col):
         return 0 <= x < w and 0 <= y < h and a[y][x] == col
+
+    def near(x, y, col):
+        """Mesmo material: a cor vizinha é só um tom acima ou abaixo (dobra, costura)."""
+        if not (0 <= x < w and 0 <= y < h):
+            return False
+        other = a[y][x]
+        return other[3] > 0 and sum(abs(other[i] - col[i]) for i in range(3)) < NEAR_TONE
     region, sizes = {}, []
     for y in range(h):
         for x in range(w):
@@ -3740,19 +3748,21 @@ def volume(src, keep=()):
             if col[3] == 0 or sizes[region[x, y]] < HD_SKIP or col[:3] in keep:
                 continue
             amount = 0
-            if not same(x, y - 1, col):
+            if not near(x, y - 1, col):
                 amount += 14
-            elif not same(x, y - 2, col):
+            elif not near(x, y - 2, col):
                 amount += 6
-            if not same(x - 1, y, col):
+            if not near(x - 1, y, col):
                 amount += 8
-            if not same(x, y + 1, col):
+            if not near(x, y + 1, col):
                 amount -= 16
-            elif not same(x, y + 2, col):
+            elif not near(x, y + 2, col):
                 amount -= 7
-            if not same(x + 1, y, col):
+            if not near(x + 1, y, col):
                 amount -= 10
-            if amount:
+            if amount >= 22 and max(col[:3]) - min(col[:3]) < 36 and sum(col[:3]) > 420:
+                out.set_at((x, y), (250, 250, 244, col[3]))           # metal: brilho no canto da luz
+            elif amount:
                 out.set_at((x, y), (*shade(col, amount), col[3]))
     return out
 
