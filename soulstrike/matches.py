@@ -9,7 +9,7 @@ from fractions import Fraction
 import pygame
 
 from . import config, hud, rare_fx, theme
-from . import rumble
+from . import crt, rumble
 from .ai import BALL_DIFFICULTIES, FighterAI, SoccerAI
 from .arena import MAPS_BY_KEY, SOCCER_MAP, SOCCER_MAPS, Arena, Pitch
 from .camera import Camera
@@ -587,7 +587,8 @@ class BattleMatch(Match):
     def _draw_round_layer(self, screen, ui):
         """Por cima de tudo: a escolha das armas (entre um round e outro) ou a faixa do round."""
         if self.pick is not None:
-            self.pick.draw(screen, ui)
+            pick = self.pick
+            crt.panel(screen, "escolha_arma", lambda s: pick.draw(s, ui))
         else:
             hud.draw_round_banner(screen, ui, self)
 

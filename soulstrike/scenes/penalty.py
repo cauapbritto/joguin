@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 import pygame
 
-from .. import config, penalty as P, progress, theme
+from .. import config, crt, penalty as P, progress, theme
 from ..data import CHARACTERS
 from ..matches import Result
 from ..net.remote import hub
@@ -809,11 +809,15 @@ class PenaltyScene(Scene):
         if self.state == "fim":
             self._draw_stats(screen)
         if self.paused:
-            veil = pygame.Surface((W, H), pygame.SRCALPHA)
-            veil.fill((0, 0, 0, 170))
-            screen.blit(veil, (0, 0))
-            self.ui.text(screen, "PAUSADO", theme.L, theme.BONE, (W // 2, H // 2 - 20))
-            self.ui.text(screen, "ATACAR CONTINUA · ESC SAI", theme.XS, theme.MUTED, (W // 2, H // 2 + 20))
+            crt.panel(screen, "pausa", self._draw_pause)
+
+    def _draw_pause(self, screen):
+        W, H = config.SCREEN_W, config.SCREEN_H
+        veil = pygame.Surface((W, H), pygame.SRCALPHA)
+        veil.fill((0, 0, 0, 170))
+        screen.blit(veil, (0, 0))
+        self.ui.text(screen, "PAUSADO", theme.L, theme.BONE, (W // 2, H // 2 - 20))
+        self.ui.text(screen, "ATACAR CONTINUA · ESC SAI", theme.XS, theme.MUTED, (W // 2, H // 2 + 20))
 
     def _zoom_target(self):
         """Aproxima do gol durante o voo e no começo do resultado (não na isolada: aí a câmera sobe)."""
