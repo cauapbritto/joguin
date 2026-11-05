@@ -304,19 +304,20 @@ CATEGORIES = [
 CATEGORY_KEYS = [c[0] for c in CATEGORIES]
 # grupos de cada modalidade: (título do grupo, [modos])
 MODE_GROUPS = {
-    "campanha": [("HISTÓRIA", ["continue", "campaign", "campaign2", "campaign3", "campaign4"]),
+    "campanha": [("CAPÍTULOS", ["continue", "campaign", "campaign2", "campaign3", "campaign4"]),
                  ("EXTRAS", ["reuniao", "cinema"])],
     "duelos": [("LUTAR", ["cpu", "duel", "duel2"]), ("TREINAR", ["treino"])],
     "futebol": [("PARTIDA", ["soccer1", "soccer2"]), ("PÊNALTIS", ["penaltis", "desafio_goleiro"]),
                 ("TREINAR", ["treino_futebol", "treino_penaltis"])],
     "basquete": [("PARTIDA", ["basket1", "basket2"]), ("TREINAR", ["treino_basquete"])],
 }
-MODE_LABELS = {"continue": "CONTINUAR CAMPANHA", "campaign": "CAPÍTULO 1 · AS SOMBRAS",
-               "campaign2": "CAPÍTULO 2 · LAG LOBBY", "campaign3": "CAPÍTULO 3 · CLEPALOVERS",
-               "campaign4": "CAPÍTULO 4 · MANSÃO DO CARIMBO",
-               "reuniao": "REUNIÃO DOS CORROMPIDOS", "cinema": "CINEMA",
+# nomes na lista (cabem na largura dela; o painel ao lado mostra o nome inteiro)
+MODE_LABELS = {"continue": "CONTINUAR CAMPANHA", "campaign": "1 · AS SOMBRAS",
+               "campaign2": "2 · LAG LOBBY", "campaign3": "3 · CLEPALOVERS",
+               "campaign4": "4 · MANSÃO",
+               "reuniao": "REUNIÃO DOS CHEFES", "cinema": "CINEMA",
                "cpu": "CONTRA A CPU", "duel": "DUELO LOCAL 1 x 1",
-               "treino": "TREINO E ARSENAL"}
+               "treino": "TREINO E ARSENAL", "penaltis": "DISPUTA DE PÊNALTI"}
 # cena do cartão de cada modalidade: (chão, linhas, [(sprite, direção, dx)], extra)
 _CARD_ART = {
     "campanha": ((24, 34, 22), (30, 44, 28), [("guerreiro", "direita", -46), ("diabrete", "esquerda", 46)],
@@ -326,6 +327,125 @@ _CARD_ART = {
                 "bola"),
     "basquete": ((120, 78, 44), (134, 88, 50), [("ninja", "direita", -46), ("tita", "esquerda", 46)], "basquete"),
 }
+
+
+# ── capas dos modos: um pedaço do cenário de verdade, com luz ─────────────
+# (mapa, foco x, foco y, cor da luz, partículas)
+COVER_SCENES = {
+    "campanha": ("floresta", 0.5, 0.55, (170, 220, 120), "vagalume"),
+    "duelos": ("arena_classica", 0.5, 0.5, (255, 190, 110), "brasa"),
+    "futebol": ("campo_futebol", 0.5, 0.5, (255, 250, 220), None),
+    "basquete": ("quadra_ginasio", 0.5, 0.5, (255, 220, 160), None),
+    "chapter1": ("floresta", 0.45, 0.55, (170, 220, 120), "vagalume"),
+    "chapter2": ("lag_openspace", 0.5, 0.5, (150, 200, 255), "pixel"),
+    "chapter3": ("clinica_consultorios", 0.5, 0.5, (255, 170, 210), "brilho"),
+    "chapter4": ("mansao_fila", 0.5, 0.5, (255, 200, 120), "brasa"),
+    "reuniao": ("mansao_nucleo", 0.5, 0.5, (190, 120, 255), "alma"),
+    "cinema": ("mansao_reuniao", 0.5, 0.5, (255, 220, 170), "brilho"),
+    "cpu": ("arena_classica", 0.5, 0.5, (255, 190, 110), "brasa"),
+    "duel": ("coliseu", 0.5, 0.5, (255, 180, 110), "brasa"),
+    "duel2": ("coliseu", 0.5, 0.62, (255, 180, 110), "brasa"),
+    "treino": ("calabouco", 0.5, 0.5, (255, 170, 90), "brasa"),
+    "soccer1": ("campo_futebol", 0.5, 0.5, (255, 250, 220), None),
+    "soccer2": ("campo_cuiabrasa", 0.5, 0.5, (255, 230, 170), None),
+    "penaltis": ("campo_futebol", 0.93, 0.5, (255, 250, 220), None),
+    "desafio_goleiro": ("campo_futebol", 0.93, 0.5, (255, 250, 220), None),
+    "treino_futebol": ("campo_futebol", 0.3, 0.5, (255, 250, 220), None),
+    "treino_penaltis": ("campo_cuiabrasa", 0.93, 0.5, (255, 230, 170), None),
+    "basket1": ("quadra_rua", 0.5, 0.5, (255, 220, 160), None),
+    "basket2": ("quadra_soul", 0.5, 0.5, (200, 150, 255), "alma"),
+    "treino_basquete": ("quadra_cuiabrasa", 0.5, 0.5, (255, 210, 140), None),
+}
+_COVER_CACHE = {}
+_PARTICLE_COLORS = {"vagalume": (200, 255, 140), "brasa": (255, 170, 80), "pixel": (120, 200, 255),
+                    "brilho": (255, 230, 245), "alma": (200, 170, 255)}
+
+
+def _map_floor(assets, key):
+    """Chão inteiro do mapa (só a parte barata: arte do fundo, campo ou cenário pintado pequeno)."""
+    from .. import scenery
+    from ..arena import BASKET_MAPS, MAPS_BY_KEY, SOCCER_MAPS, _basket_court, _soccer_pitch
+    cfg = MAPS_BY_KEY[key]
+    bg = assets.backgrounds.get(key)
+    w, h = cfg.size
+    if bg is not None:
+        return pygame.transform.scale(bg, (w, h)) if bg.get_size() != (w, h) else bg
+    surf = pygame.Surface((w, h))
+    if key in SOCCER_MAPS:
+        _soccer_pitch(surf, cfg.floor)
+        return surf
+    if key in BASKET_MAPS:
+        _basket_court(surf, cfg.floor)
+        return surf
+    return None
+
+
+def cover_image(assets, key, size):
+    """Fundo da capa, pronto e guardado: o pedaço do mapa no foco, no dobro do tamanho (o mesmo
+    tamanho de pixel dos bonecos da capa), mais escuro em cima, com uma poça de luz no chão e
+    cantos escuros."""
+    from .. import scenery
+    from ..arena import MAPS_BY_KEY
+    ck = (key, size)
+    if ck in _COVER_CACHE:
+        return _COVER_CACHE[ck]
+    map_key, fx, fy, light, _ = COVER_SCENES[key]
+    w, h = size
+    half = (w // 2 + 1, h // 2 + 1)
+    full = _map_floor(assets, map_key)
+    if full is not None:
+        fw, fh = full.get_size()
+        cx = max(half[0] // 2, min(fw - half[0] // 2, round(fw * fx)))
+        cy = max(half[1] // 2, min(fh - half[1] // 2, round(fh * fy)))
+        piece = full.subsurface(pygame.Rect(cx - half[0] // 2, cy - half[1] // 2, *half)).copy()
+    else:
+        # cenário pintado: pinta só o pedaço (custa pouco) com a semente do próprio mapa
+        cfg = MAPS_BY_KEY[map_key]
+        piece = scenery.paint_floor(f"capa:{map_key}:{half}", half, cfg.scenery)
+    img = pygame.transform.scale(piece, (half[0] * 2, half[1] * 2)).subsurface((0, 0, w, h)).copy()
+    shade = pygame.Surface(size, pygame.SRCALPHA)
+    for y in range(h):                                  # o alto escurece (fundo), o chão fica aceso
+        k = 1 - y / h
+        shade.fill((6, 4, 12, round(150 * k ** 1.6)), (0, y, w, 1))
+    img.blit(shade, (0, 0))
+    pool = pygame.Surface(size)                         # poça de luz onde os bonecos pisam
+    for i in range(8, 0, -1):
+        k = i / 8
+        c = tuple(round(v * 0.11 * (1 - k) ** 0.8) for v in light)
+        pygame.draw.ellipse(pool, c, (w / 2 - w * 0.55 * k, h * 0.86 - h * 0.28 * k, w * 1.1 * k, h * 0.56 * k))
+    img.blit(pool, (0, 0), special_flags=pygame.BLEND_RGB_ADD)
+    edge = pygame.Surface(size, pygame.SRCALPHA)        # cantos escuros
+    steps = 10
+    for i in range(steps):
+        a = round(90 * (1 - i / steps) ** 2)
+        pygame.draw.rect(edge, (0, 0, 0, a), (i * 2, i * 2, w - i * 4, h - i * 4), 2)
+    img.blit(edge, (0, 0))
+    _COVER_CACHE[ck] = img
+    return img
+
+
+def draw_cover(screen, assets, key, area, ticks):
+    """Capa animada: o fundo pronto e as partículas do lugar (vaga-lumes, brasas, pixels...)."""
+    screen.blit(cover_image(assets, key, area.size), area)
+    kind = COVER_SCENES[key][4]
+    if kind is None:
+        return
+    color = _PARTICLE_COLORS[kind]
+    t = ticks * 0.02
+    for i in range(16):
+        fx, fy = (i * 0.618) % 1, (i * 0.414) % 1
+        if kind in ("brasa", "alma"):                   # sobem
+            y = area.bottom - ((fy * area.h + t * (10 + i % 5 * 4)) % area.h)
+            x = area.x + fx * area.w + math.sin(t + i) * 6
+        else:                                           # flutuam no lugar
+            x = area.x + fx * area.w + math.sin(t * 0.7 + i * 2) * 10
+            y = area.y + area.h * (0.25 + 0.6 * fy) + math.cos(t * 0.9 + i) * 8
+        k = 0.5 + 0.5 * math.sin(t * 3 + i * 1.7)
+        if k < 0.2:
+            continue
+        c = tuple(round(v * k) for v in color)
+        n = 2 if i % 3 == 0 else 1
+        screen.fill(c, (round(x), round(y), n, n), special_flags=pygame.BLEND_RGB_ADD)
 
 
 def category_of(mode):
@@ -533,15 +653,7 @@ class ModeScene(_MenuScene):
 
     def _card_art(self, screen, key, area):
         floor, line, cast, extra = _CARD_ART[key]
-        screen.fill(floor, area)
-        for x in range(area.x, area.right, 28):
-            screen.fill(line, (x, area.y, 1, area.h))
-        for y in range(area.y, area.bottom, 28):
-            screen.fill(line, (area.x, y, area.w, 1))
-        if extra in ("bola", "basquete"):
-            color = (210, 220, 200) if extra == "bola" else (230, 220, 200)
-            screen.fill(color, (area.centerx - 1, area.y, 2, area.h))
-            pygame.draw.circle(screen, color, area.center, 36, 2)
+        draw_cover(screen, self.assets, key, area, self.ticks)
         ground = area.bottom - 30
         step = self.ticks // 4
         if extra == "sombra":
@@ -601,9 +713,16 @@ class ModeScene(_MenuScene):
         title = ({"continue": "CONTINUAR CAMPANHA", "campaign2": "CAMPANHA: CAPÍTULO 2",
                   "campaign3": "CAMPANHA: CAPÍTULO 3", "campaign4": "CAMPANHA: CAPÍTULO 4",
                   "reuniao": "REUNIÃO DOS CORROMPIDOS", "cinema": "CINEMA"}.get(key) or MODES[key]["title"])
-        self.ui.text(screen, title, theme.S, theme.BRASS, (panel.x + 24, panel.y + 196), anchor="topleft")
-        self.ui.text(screen, players, theme.XS, theme.MUTED, (panel.right - 24, panel.y + 200), anchor="topright")
-        self.ui.paragraph(screen, desc, theme.XS, theme.BONE, (panel.x + 24, panel.y + 232), panel.w - 48, spacing=16)
+        tr = self.ui.text(screen, title, theme.S, theme.BRASS, (panel.x + 24, panel.y + 196), anchor="topleft")
+        pw = self.assets.text_width(players, theme.XS)
+        y = panel.y + 232
+        if tr is not None and tr.right + 16 + pw > panel.right - 24:
+            # título comprido: o número de jogadores desce para a linha de baixo
+            self.ui.text(screen, players, theme.XS, theme.MUTED, (panel.x + 24, panel.y + 222), anchor="topleft")
+            y += 10
+        else:
+            self.ui.text(screen, players, theme.XS, theme.MUTED, (panel.right - 24, panel.y + 200), anchor="topright")
+        self.ui.paragraph(screen, desc, theme.XS, theme.BONE, (panel.x + 24, y), panel.w - 48, spacing=16)
         self.footer(screen, [("↑↓", "ESCOLHER"), ("LB RB", "MODALIDADE"), ("A", "JOGAR"), ("B", "VOLTAR")])
 
     def _continue_text(self):
@@ -621,7 +740,8 @@ class ModeScene(_MenuScene):
         if key in ("campaign", "continue", "campaign2", "campaign3", "campaign4", "reuniao", "cinema"):
             chapter = (self.saved_run.chapter if key == "continue"
                        else {"campaign2": 2, "campaign3": 3, "campaign4": 4, "reuniao": 4}.get(key, 1))
-            self._campaign_illustration(screen, area, chapter=chapter)
+            self._campaign_illustration(screen, area, chapter=chapter,
+                                        cover=key if key in ("reuniao", "cinema") else None)
             if key in ("campaign", "cinema", "reuniao"):
                 from .. import progress
                 from .campaign import SEAL_ORDER, draw_seal
@@ -629,24 +749,13 @@ class ModeScene(_MenuScene):
                 for i, k in enumerate(SEAL_ORDER):
                     draw_seal(screen, self.ui, (area.x + 22 + i * 34, area.y + 22), k, k in earned, self.ticks, size=14)
             return
-        battle = key in ("cpu", "duel", "duel2", "treino")
-        floor = theme.INK if battle else (34, 92, 46)
-        screen.fill(floor, area)
-        if not battle:
-            for i, x in enumerate(range(area.x, area.right, 40)):
-                if i % 2:
-                    screen.fill((40, 104, 52), (x, area.y, 40, area.h))
-            screen.fill((210, 220, 200), (area.centerx - 1, area.y, 2, area.h))
-        else:
-            for x in range(area.x, area.right, 32):
-                screen.fill(theme.INK_2, (x, area.y, 1, area.h))
-            for y in range(area.y, area.bottom, 32):
-                screen.fill(theme.INK_2, (area.x, y, area.w, 1))
+        draw_cover(screen, self.assets, key, area, self.ticks)
         sprites = self.assets.sprites
         ground = area.bottom - 22
         if MODES[key].get("penalty"):
             # gol de frente atrás do goleiro
             goal = pygame.Rect(area.centerx + 4, area.y + 30, 112, area.h - 50)
+            screen.fill((10, 14, 12), goal.inflate(-4, -4))
             for x in range(goal.x + 8, goal.right, 10):
                 screen.fill((150, 156, 166), (x, goal.y + 3, 1, goal.h - 3))
             pygame.draw.rect(screen, (246, 246, 240), goal, 3)
@@ -694,19 +803,18 @@ class ModeScene(_MenuScene):
         screen.fill(theme.LINE, (area.x, area.bottom, area.w, 2))
 
 
-    def _campaign_illustration(self, screen, area, chapter=1):
-        floor, line = {2: ((150, 158, 170), (176, 184, 194)),
-                       3: ((236, 214, 226), (246, 228, 238)),
-                       4: ((150, 40, 44), (170, 56, 58))}.get(chapter, ((24, 34, 22), (30, 44, 28)))
-        screen.fill(floor, area)
-        for x in range(area.x, area.right, 32):
-            screen.fill(line, (x, area.y, 1, area.h))
-        for y in range(area.y, area.bottom, 32):
-            screen.fill(line, (area.x, y, area.w, 1))
+    def _campaign_illustration(self, screen, area, chapter=1, cover=None):
+        draw_cover(screen, self.assets, cover or f"chapter{chapter}", area, self.ticks)
         sprites = self.assets.sprites
         ground = area.bottom - 22
         step = self.ticks // 4
-        if chapter == 4:
+        if cover == "reuniao":                        # os quatro chefes, um do lado do outro
+            cast = [("aryel", "frente", -165, True), ("borba_exo", "frente", -55, True),
+                    ("albeguinio_adm", "frente", 55, True), ("cauanzera_ti", "frente", 165, True)]
+        elif cover == "cinema":                       # a turma na plateia
+            cast = [("aryel", "costas", -150, False), ("borba", "costas", -50, False),
+                    ("albeguinio", "costas", 50, False), ("cauanzera", "costas", 150, False)]
+        elif chapter == 4:
             cast = [("albeguinio", "direita", -170, False), ("aryel", "direita", -100, False),
                     ("processo", "esquerda", 30, False), ("carimbador", "esquerda", 100, False),
                     ("cauanzera_ti", "esquerda", 180, True)]
@@ -725,7 +833,7 @@ class ModeScene(_MenuScene):
         for name, direction, dx, shadow in cast:
             sset = self.assets.shadow_sprites(name) if shadow else sprites[name]
             img = sset.frame(direction, step)
-            factor = 3 if shadow else 2
+            factor = 3 if shadow and cover != "reuniao" else 2
             img = pygame.transform.scale(img, (img.get_width() * factor, img.get_height() * factor))
             x = area.centerx + dx
             pygame.draw.ellipse(screen, (0, 0, 0), (x - 30, ground - 8, 60, 14))
