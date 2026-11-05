@@ -10,6 +10,18 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.16.0": [
+        {"title": "LOJA E FERREIRO NO CELULAR", "scene": "loja", "lines": [
+            "Cada linha da loja e do ferreiro no celular mostra a imagem da arma.",
+            "No ferreiro, o celular mostra no que a arma vira: o nível, o dano e o pente de antes e depois.",
+            "Os três encantos viram botões, e a fusão mostra a forjada que sai (ou a silhueta, se for segredo).",
+        ]},
+        {"title": "VITRINE DA LOJA", "scene": "loja", "lines": [
+            "A loja mostra duas armas de outros heróis, uma de tiro e uma de perto, por 40 almas cada.",
+            "Ela vai direto para a mão; a que ela troca fica no chão, na frente da banca.",
+            "A ARMA SURPRESA (25) entra no lugar da arma sorteada. A energia aparece ao lado das almas.",
+        ]},
+    ],
     "1.15.0": [
         {"title": "TUDO EM DOBRO DE DETALHE", "scene": "modos", "lines": [
             "Todos os personagens, criaturas e as 68 armas redesenhados com o dobro de detalhe.",

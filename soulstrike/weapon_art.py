@@ -54,6 +54,21 @@ def load():
         }
 
 
+_files = None                 # nome → arquivo PNG em assets/weapons (o celular pede pela rota /arma/)
+
+
+def icon_file(name):
+    """Arquivo da imagem da arma (sem carregar o pygame), ou None se ela não tem arte."""
+    global _files
+    if _files is None:
+        try:
+            grips = json.loads((WEAPON_DIR / "grips.json").read_text(encoding="utf-8"))
+            _files = {n: info["file"] for n, info in grips.items()}
+        except (OSError, ValueError, KeyError, TypeError):
+            _files = {}
+    return _files.get(name)
+
+
 def icon(name):
     """Ícone da arma no tamanho da arte (pequeno, para listas)."""
     return _icons.get(name)

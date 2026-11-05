@@ -64,6 +64,14 @@ def font():
     return send_from_directory(config.FONT_PATH.parent, config.FONT_PATH.name, max_age=86400)
 
 
+@app.route("/arma/<name>")
+def weapon_icon(name):
+    """Imagem de uma arma (assets/weapons) para a loja e o ferreiro do celular."""
+    if not name.endswith(".png") or "/" in name or "\\" in name:
+        abort(404)
+    return send_from_directory(config.ASSETS_DIR / "weapons", name, max_age=86400)
+
+
 @app.route("/sprite/<int:index>.png")
 def sprite(index):
     data = _previews.get(index)
