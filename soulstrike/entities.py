@@ -724,7 +724,36 @@ def _icon(kind, scale=4):
     for dx, dy in ((0, 1), (2, 1), (1, 0), (1, 2)):
         out.blit(line, (dx, dy))
     out.blit(surf, (1, 1))
-    return pygame.transform.scale(out, (out.get_width() * scale, out.get_height() * scale))
+    if scale != 4:
+        return pygame.transform.scale(out, (out.get_width() * scale, out.get_height() * scale))
+    # mesmo dobro de detalhe dos personagens: Scale2x duas vezes arredonda os degraus, depois luz na
+    # beirada de cima/esquerda, sombra na de baixo/direita e contorno de 1 pixel
+    big = pygame.transform.scale2x(pygame.transform.scale2x(out))
+    solid = pygame.mask.from_surface(big, 1)
+    ink = pygame.mask.from_surface(big, 1)
+    ink.clear()
+    for y in range(big.get_height()):
+        for x in range(big.get_width()):
+            if solid.get_at((x, y)) and sum(big.get_at((x, y))[:3]) < 90:
+                ink.set_at((x, y))
+    color = solid.copy()
+    color.erase(ink, (0, 0))                      # só o miolo colorido (sem o contorno escuro)
+    w, h = big.get_size()
+    for dx, dy, amount in ((0, 2, 46), (2, 0, 22), (0, -2, -40), (-2, 0, -20)):
+        moved = pygame.mask.Mask((w, h))
+        moved.draw(color, (dx, dy))
+        edge = color.copy()
+        edge.erase(moved, (0, 0))                  # pixels do miolo sem miolo no vizinho daquele lado
+        for x, y in _bits(edge):
+            r, g, b, a = big.get_at((x, y))
+            big.set_at((x, y), (max(0, min(255, r + amount)), max(0, min(255, g + amount)),
+                                max(0, min(255, b + amount)), a))
+    return big
+
+
+def _bits(mask):
+    w, h = mask.get_size()
+    return [(x, y) for y in range(h) for x in range(w) if mask.get_at((x, y))]
 
 
 class Pickup(Entity):

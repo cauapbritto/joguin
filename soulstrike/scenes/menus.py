@@ -162,11 +162,14 @@ class TitleScene(_MenuScene):
         ground = H - 52
         cast = self.cast
         n = len(cast)
+        _stage(screen, ground)
         for i, stats in enumerate(cast):
             x = 96 + i * (W - 192) // (n - 1)
             bob = 1 if (self.ticks // 24 + i) % 2 else 0
             img = self.assets.sprites[stats.key].portrait
-            pygame.draw.ellipse(screen, (6, 4, 10), (x - 18, ground - 5, 36, 10))
+            screen.blit(_reflection(img), _reflection(img).get_rect(midtop=(x, ground + 2)))
+            pygame.draw.ellipse(screen, (4, 2, 8), (x - 18, ground - 5, 36, 10))
+            pygame.draw.ellipse(screen, (16, 12, 22), (x - 12, ground - 3, 24, 6))
             screen.blit(img, img.get_rect(midbottom=(x, ground + bob)))
 
         if server.start_error:
@@ -185,6 +188,42 @@ class TitleScene(_MenuScene):
             self.ui.text(screen, "CELULAR COMO CONTROLE:", theme.XS, theme.FAINT, (W - 16, H - 28), anchor="bottomright")
             self.ui.text(screen, self.game.base_url, theme.XS, theme.MUTED, (W - 16, H - 14), anchor="bottomright")
         self.ui.text(screen, "F11 TELA CHEIA", theme.XS, theme.FAINT, (16, H - 14), anchor="bottomleft")
+
+
+_STAGES = {}
+_REFLECTIONS = {}
+
+
+def _stage(screen, ground):
+    """Palco do elenco no título: piso escuro com a beirada acesa e a luz caindo para a frente."""
+    W, H = screen.get_size()
+    key = (W, H, ground)
+    if key not in _STAGES:
+        s = pygame.Surface((W, H - ground + 8), pygame.SRCALPHA)
+        for y in range(s.get_height()):
+            k = y / s.get_height()
+            s.fill((10, 8, 16, round(120 + 100 * k)), (0, y, W, 1))
+        for x in range(0, W, 2):                      # beirada acesa, mais forte no meio
+            mid = 1 - abs(x - W / 2) / (W / 2)
+            a = round(40 + 120 * mid ** 1.5)
+            s.fill((228, 170, 76, a), (x, 8, 2, 1))
+            s.fill((120, 70, 40, a // 2), (x, 9, 2, 1))
+        _STAGES[key] = s
+    screen.blit(_STAGES[key], (0, ground - 8))
+
+
+def _reflection(img):
+    """Reflexo apagado do retrato no piso do palco."""
+    key = id(img)
+    if key not in _REFLECTIONS:
+        r = pygame.transform.flip(img, False, True).copy()
+        h = r.get_height()
+        fade = pygame.Surface(r.get_size(), pygame.SRCALPHA)
+        for y in range(h):
+            fade.fill((255, 255, 255, max(0, round(54 * (1 - y / (h * 0.5))))), (0, y, r.get_width(), 1))
+        r.blit(fade, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        _REFLECTIONS[key] = (img, r)
+    return _REFLECTIONS[key][1]
 
 
 MODE_TEXT = {

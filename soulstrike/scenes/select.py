@@ -215,6 +215,39 @@ class LobbyScene(_MenuScene):
                      self.layout_button.center)
 
 
+_CARD_STAGES = {}
+
+
+def _card_stage(size, color):
+    """Fundo do boneco no card: canhão de luz na cor do jogador caindo do alto e um piso redondo
+    aceso embaixo dele, com o fundo escurecendo para as bordas."""
+    key = (size, tuple(color[:3]))
+    if key in _CARD_STAGES:
+        return _CARD_STAGES[key]
+    w, h = size
+    s = pygame.Surface(size)
+    base = mix(theme.INK_2, color, 0.05)
+    for y in range(h):                                 # escurece para baixo
+        s.fill(mix(base, (0, 0, 0), 0.25 * y / h), (0, y, w, 1))
+    cone = pygame.Surface(size)                        # luz em cone (soma na tela)
+    cx = w // 2
+    for y in range(h - 8):
+        half = round(14 + (w * 0.36) * y / h)
+        k = 0.10 * (1 - 0.4 * y / h)
+        cone.fill(tuple(round(c * k) for c in color[:3]), (cx - half, y, half * 2, 1))
+        cone.fill(tuple(round(c * k * 0.5) for c in color[:3]), (cx - half - 4, y, 4, 1))
+        cone.fill(tuple(round(c * k * 0.5) for c in color[:3]), (cx + half, y, 4, 1))
+    s.blit(cone, (0, 0), special_flags=pygame.BLEND_RGB_ADD)
+    floor_y = h - 10
+    for i, (rw, k) in enumerate(((96, 0.10), (76, 0.16), (54, 0.24))):   # piso redondo aceso
+        disc = pygame.Surface((rw, rw // 4))
+        pygame.draw.ellipse(disc, tuple(round(c * k) for c in color[:3]), disc.get_rect())
+        s.blit(disc, disc.get_rect(center=(cx, floor_y)), special_flags=pygame.BLEND_RGB_ADD)
+    pygame.draw.ellipse(s, mix(color, theme.BONE, 0.3), (cx - 48, floor_y - 12, 96, 24), 1)
+    _CARD_STAGES[key] = s
+    return s
+
+
 class _Card:
     def __init__(self, setup, choices):
         self.setup = setup
@@ -758,7 +791,7 @@ class CharSelectScene(_MenuScene):
 
         # sprite andando no lugar
         stage = pygame.Rect(rect.x + 2, head.bottom, rect.w - 4, 138)
-        screen.fill(mix(theme.INK_2, setup.color, 0.06), stage)
+        screen.blit(_card_stage(stage.size, setup.color), stage)
         sprites = self.assets.sprites[stats.key]
         if self.soccer:                                  # no futebol o card já mostra o uniforme do time
             sprites = self.assets.kit_sprites(stats.key, self.game.session.team_of(setup.slot))
