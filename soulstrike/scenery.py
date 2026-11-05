@@ -1,5 +1,5 @@
 """Cenário dos mapas que não têm arte própria (Floresta, Calabouço, Templo Gelado, a Lag Lobby e a
-Clínica Clepalovers).
+Clínica Clepalovers e a Mansão do Carimbo).
 
 - O chão é pintado uma vez só, em "pixels" de 2x2 (a mesma escala dos personagens), com
   grama, trilhas, pedras, rachaduras, poças, neve... e guardado pronto.
@@ -606,11 +606,273 @@ def _clinica_calcada(s, rng):
     _vignette(s, (30, 26, 34), 30)
 
 
+# ── Mansão do Carimbo (capítulo 4): o palácio exagerado do órgão, em Cuiabrasa, a 47°C ──
+IARA_C = (60, 230, 255)            # ciano da IARA (a corrupção deste capítulo)
+IARA_CD = (20, 130, 170)
+WINE = (150, 30, 44)               # tapete vermelho
+WINE_D = (104, 18, 30)
+REPART = (150, 168, 132)           # verde-repartição
+
+
+def _wires(s, rng, count, color=IARA_C):
+    """Cabos de rede ciano correndo pelo chão em ângulo reto (a IARA se espalhando pelo prédio)."""
+    w, h = s.get_size()
+    for _ in range(count):
+        x, y = rng.randrange(w), rng.randrange(h)
+        for _ in range(rng.randint(3, 6)):
+            if rng.random() < 0.5:
+                nx = max(0, min(w - 1, x + rng.randint(-60, 60)))
+                pygame.draw.line(s, color, (x, y), (nx, y))
+                x = nx
+            else:
+                ny = max(0, min(h - 1, y + rng.randint(-60, 60)))
+                pygame.draw.line(s, color, (x, y), (x, ny))
+                y = ny
+        s.fill(_shade(color, 60), (x - 1, y - 1, 3, 3))               # conector na ponta
+
+
+def _red_carpet(s, x, y, cw, ch):
+    """Tapete vermelho com borda dourada."""
+    s.fill(WINE, (x, y, cw, ch))
+    pygame.draw.rect(s, GOLD, (x, y, cw, ch), 1)
+    pygame.draw.rect(s, WINE_D, (x + 2, y + 2, cw - 4, ch - 4), 1)
+
+
+def _sheet(s, rng, x, y):
+    """Folha de papel caída, às vezes com o carimbo de INDEFERIDO."""
+    s.fill((70, 66, 70), (x + 1, y + 1, 8, 10))
+    s.fill((240, 238, 228), (x, y, 8, 10))
+    for k in range(2, 9, 2):
+        s.fill((178, 178, 186), (x + 1, y + k, rng.randint(3, 6), 1))
+    if rng.random() < 0.35:
+        pygame.draw.rect(s, (210, 50, 56), (x + 1, y + 3, 6, 4), 1)
+
+
+def _mansao(s, rng):
+    """Hall da Mansão do Carimbo: mármore em xadrez creme e verde-repartição, tapete vermelho de
+    borda dourada até os guichês, papéis no chão e os cabos ciano da IARA."""
+    w, h = s.get_size()
+    tile = 24
+    for gy in range(0, h, tile):
+        for gx in range(0, w, tile):
+            base = (232, 224, 204) if (gx // tile + gy // tile) % 2 == 0 else _shade(REPART, 10)
+            c = _shade(base, rng.randint(-4, 4))
+            s.fill(c, (gx, gy, tile, tile))
+            s.fill(_shade(c, -22), (gx, gy, tile, 1))
+            s.fill(_shade(c, -22), (gx, gy, 1, tile))
+            if rng.random() < 0.3:                                    # veio do mármore
+                x, y = gx + rng.randrange(tile), gy + rng.randrange(tile)
+                for _ in range(rng.randint(3, 6)):
+                    nx, ny = x + rng.randint(-1, 3), y + rng.randint(-2, 2)
+                    pygame.draw.line(s, _shade(c, -16), (x, y), (nx, ny))
+                    x, y = nx, ny
+    cw = max(40, w // 8)                                              # passadeira vermelha no meio
+    _red_carpet(s, w // 2 - cw // 2, 10, cw, h - 20)
+    for _ in range(max(1, w * h // 120000)):                          # capachos dourados
+        x, y = rng.randrange(10, max(11, w - 40)), rng.randrange(10, max(11, h - 20))
+        s.fill((176, 140, 70), (x, y, 30, 14))
+        pygame.draw.rect(s, (120, 90, 40), (x, y, 30, 14), 1)
+    for _ in range(w * h // 14000):
+        _sheet(s, rng, rng.randrange(w - 10), rng.randrange(h - 12))
+    for _ in range(max(2, w * h // 60000)):                           # senhas de papel no chão
+        x, y = rng.randrange(w - 6), rng.randrange(h - 4)
+        s.fill((250, 240, 170), (x, y, 5, 3))
+    _wires(s, rng, 5)
+    _vignette(s, (60, 50, 30), 28)
+
+
+def _mansao_arquivo(s, rng):
+    """Arquivo geral: taco de madeira velho em espinha de peixe, caixas de processo, poeira e
+    papel por todo lado."""
+    w, h = s.get_size()
+    s.fill((120, 82, 50))
+    bw, bh = 12, 4
+    for gy in range(0, h + bh, bh * 2):
+        for gx in range(-bw, w + bw, bw):
+            off = (gy // (bh * 2)) % 2 * (bw // 2)
+            c = _shade((134, 92, 56), rng.randint(-14, 10))
+            s.fill(c, (gx + off, gy, bw - 1, bh - 1))
+            c2 = _shade((122, 84, 50), rng.randint(-14, 10))
+            s.fill(c2, (gx + off + bw // 2, gy + bh, bw - 1, bh - 1))
+    for _ in range(w * h // 9000):
+        _sheet(s, rng, rng.randrange(w - 10), rng.randrange(h - 12))
+    for _ in range(max(3, w * h // 50000)):                           # caixas-arquivo no chão
+        x, y = rng.randrange(w - 16), rng.randrange(h - 12)
+        s.fill((60, 40, 26), (x + 1, y + 1, 14, 10))
+        s.fill((196, 160, 104), (x, y, 14, 10))
+        s.fill((226, 196, 140), (x, y, 14, 2))
+        s.fill((240, 238, 228), (x + 4, y + 4, 6, 3))
+    for _ in range(w * h // 300):                                     # poeira
+        s.set_at((rng.randrange(w), rng.randrange(h)), (150, 118, 86))
+    _wires(s, rng, 4)
+    _vignette(s, (40, 26, 16), 34)
+
+
+def _mansao_patio(s, rng):
+    """Pátio a 47°C: asfalto rachado que tremula de calor, vagas pintadas, grama seca amarela
+    nos canteiros e um tuiuiú pintado na vaga do diretor."""
+    w, h = s.get_size()
+    s.fill((92, 88, 86))
+    for _ in range(w * h // 3):
+        s.set_at((rng.randrange(w), rng.randrange(h)), _shade((92, 88, 86), rng.randint(-12, 12)))
+    for gy in range(40, h - 40, 160):                                 # fileiras de vagas
+        for gx in range(20, w - 20, 50):
+            s.fill((236, 230, 210), (gx, gy, 2, 50))
+        s.fill((236, 230, 210), (20, gy + 50, w - 40, 2))
+    for _ in range(max(3, w * h // 40000)):                           # rachaduras do sol
+        x, y = rng.randrange(w), rng.randrange(h)
+        for _ in range(rng.randint(5, 12)):
+            nx, ny = x + rng.randint(-5, 5), y + rng.randint(-5, 5)
+            pygame.draw.line(s, (60, 58, 58), (x, y), (nx, ny))
+            x, y = nx, ny
+    for _ in range(max(2, w * h // 70000)):                           # canteiros de grama seca
+        x, y = rng.randrange(10, w - 70), rng.randrange(10, h - 40)
+        cw, ch = rng.randint(40, 70), rng.randint(18, 30)
+        s.fill((170, 160, 150), (x - 2, y - 2, cw + 4, ch + 4))
+        s.fill((176, 156, 70), (x, y, cw, ch))
+        for _ in range(cw * ch // 6):
+            s.set_at((x + rng.randrange(cw), y + rng.randrange(ch)),
+                     rng.choice(((200, 180, 90), (150, 130, 60), (120, 140, 60))))
+    for _ in range(max(2, w * h // 90000)):                           # manchas de óleo
+        _blob(s, rng, rng.randrange(w), rng.randrange(h), 6, (66, 62, 64))
+    for y in range(0, h, 12):                                         # ondas de calor (claras)
+        for x in range(0, w, 4):
+            if math.sin(x * 0.06 + y * 0.9) > 0.94:
+                s.fill((122, 116, 112), (x, y, 3, 1))
+    _wires(s, rng, 3)
+    _vignette(s, (120, 70, 20), 34)
+
+
+def _mansao_cpd(s, rng):
+    """CPD na antiga adega do porão: piso elevado de CPD em placas por cima do tijolo da adega.
+    Faltam placas aqui e ali (aparece o tijolo e o ninho de cabos), e tem mancha de vinho velho."""
+    w, h = s.get_size()
+    tile = 24
+    for gy in range(0, h, tile):
+        for gx in range(0, w, tile):
+            if rng.random() < 0.07:                                   # placa levantada: tijolo e cabos
+                for by in range(gy, gy + tile, 6):
+                    off = (by // 6) % 2 * 6
+                    for bx in range(gx - 12, gx + tile, 12):
+                        r = pygame.Rect(bx + off, by, 11, 5).clip((gx, gy, tile, tile))
+                        if r.w > 0:
+                            s.fill(_shade((96, 54, 40), rng.randint(-12, 8)), r)
+                for _ in range(3):
+                    y = gy + rng.randrange(3, tile - 3)
+                    s.fill(rng.choice((IARA_C, IARA_CD, (230, 200, 60))), (gx, y, tile, 1))
+                continue
+            c = _shade((148, 152, 160), rng.randint(-6, 6))
+            s.fill((40, 40, 48), (gx, gy, tile, tile))
+            s.fill(c, (gx + 1, gy + 1, tile - 2, tile - 2))
+            s.fill(_shade(c, 18), (gx + 1, gy + 1, tile - 2, 1))
+            s.fill(_shade(c, -20), (gx + 1, gy + tile - 2, tile - 2, 1))
+            if rng.random() < 0.2:                                    # placa perfurada (ventilação)
+                for py in range(gy + 5, gy + tile - 4, 3):
+                    for px in range(gx + 5, gx + tile - 4, 3):
+                        s.set_at((px, py), (96, 100, 110))
+    for _ in range(max(2, w * h // 60000)):                           # mancha de vinho
+        _blob(s, rng, rng.randrange(w), rng.randrange(h), 7, (110, 50, 64))
+    _wires(s, rng, 12)
+    _vignette(s, (6, 10, 16), 46)
+
+
+def _mansao_reuniao(s, rng):
+    """Sala de reunião do comitê: carpete vinho com losangos dourados, copinhos de café e as
+    folhas da pauta que ninguém leu."""
+    w, h = s.get_size()
+    s.fill((96, 36, 44))
+    for _ in range(w * h // 3):
+        s.set_at((rng.randrange(w), rng.randrange(h)), _shade((96, 36, 44), rng.randint(-8, 8)))
+    step = 28
+    for gy in range(0, h, step):
+        for gx in range((gy // step) % 2 * step // 2, w, step):
+            pts = [(gx, gy - 4), (gx + 4, gy), (gx, gy + 4), (gx - 4, gy)]
+            pygame.draw.polygon(s, (150, 112, 60), pts, 1)
+    for _ in range(w * h // 16000):
+        _sheet(s, rng, rng.randrange(w - 10), rng.randrange(h - 12))
+    for _ in range(14):                                               # copinhos de café
+        x, y = rng.randrange(w - 4), rng.randrange(h - 4)
+        s.fill((244, 244, 240), (x, y, 3, 3))
+        s.set_at((x + 1, y + 1), (110, 70, 40))
+    _wires(s, rng, 6)
+    _vignette(s, (30, 8, 12), 38)
+
+
+def _mansao_nucleo(s, rng):
+    """Núcleo da IARA (o último andar): o mármore preto do gabinete tomado por trilhas de
+    circuito ciano que correm como um rio até o trono do carimbo."""
+    w, h = s.get_size()
+    tile = 40
+    for gy in range(0, h, tile):
+        for gx in range(0, w, tile):
+            c = _shade((26, 28, 38), rng.randint(-3, 3))
+            s.fill(c, (gx, gy, tile, tile))
+            s.fill(GOLD if (gx // tile + gy // tile) % 5 == 0 else _shade(c, -10), (gx, gy, tile, 1))
+            s.fill(_shade(c, -10), (gx, gy, 1, tile))
+    for _ in range(w * h // 1400):                                    # veios do mármore
+        x, y = rng.randrange(w), rng.randrange(h)
+        for _ in range(rng.randint(3, 7)):
+            nx, ny = x + rng.randint(-1, 4), y + rng.randint(-2, 2)
+            pygame.draw.line(s, (50, 54, 70), (x, y), (nx, ny))
+            x, y = nx, ny
+    for k in range(7):                                                # o "rio" de dados de cima a baixo
+        x = w // 2 + int(math.sin(k * 1.7) * w * 0.35)
+        y = 0
+        while y < h:
+            ny = y + rng.randint(10, 30)
+            nx = max(4, min(w - 4, x + rng.choice((-12, 0, 0, 12))))
+            pygame.draw.line(s, IARA_CD, (x, y), (x, ny))
+            pygame.draw.line(s, IARA_CD, (x, ny), (nx, ny))
+            if rng.random() < 0.3:
+                s.fill(IARA_C, (x - 1, ny - 1, 3, 3))
+            x, y = nx, ny
+    cx, cy = w // 2, h // 2                                           # selo do carimbo no meio
+    pygame.draw.circle(s, GOLD, (cx, cy), 40, 2)
+    pygame.draw.circle(s, IARA_CD, (cx, cy), 34, 1)
+    s.fill(GOLD, (cx - 10, cy - 6, 20, 4))
+    s.fill(GOLD, (cx - 3, cy - 16, 6, 10))
+    s.fill(GOLD, (cx - 6, cy - 22, 12, 6))
+    _vignette(s, (2, 10, 16), 46)
+
+
+def _mansao_jardim(s, rng):
+    """Jardim da fachada: grama torrada de sol, caminho de pedra até a porta, a estátua do
+    carimbo dourado no meio e um ipê amarelo soltando flor."""
+    w, h = s.get_size()
+    for y in range(0, h, 2):
+        for x in range(0, w, 2):
+            s.fill(_shade((150, 150, 70), rng.randint(-14, 10)), (x, y, 2, 2))
+    for _ in range(w * h // 80):                                      # tufos secos
+        s.set_at((rng.randrange(w), rng.randrange(h)), rng.choice(((190, 170, 80), (110, 120, 50))))
+    pw = 46                                                           # caminho de pedra
+    for y in range(0, h, 10):
+        for x in range(w // 2 - pw, w // 2 + pw, 14):
+            c = _shade((190, 182, 168), rng.randint(-14, 10))
+            s.fill(c, (x + (y // 10) % 2 * 7, y, 12, 8))
+    cx, cy = w // 2, h // 2                                           # estátua do carimbo dourado
+    pygame.draw.circle(s, (170, 166, 156), (cx, cy), 26)
+    pygame.draw.circle(s, (120, 116, 110), (cx, cy), 26, 1)
+    s.fill(GOLD, (cx - 12, cy + 2, 24, 6))
+    s.fill(_shade(GOLD, -40), (cx - 12, cy + 7, 24, 2))
+    s.fill(GOLD, (cx - 4, cy - 10, 8, 12))
+    s.fill(GOLD, (cx - 7, cy - 18, 14, 8))
+    s.fill((252, 228, 150), (cx - 6, cy - 18, 4, 2))
+    for _ in range(max(2, w * h // 60000)):                           # ipês com flor amarela caída
+        x, y = rng.randrange(20, w - 20), rng.randrange(20, h - 20)
+        for _ in range(40):
+            s.fill(rng.choice(((250, 210, 40), (236, 180, 30))), (x + rng.randint(-14, 14), y + rng.randint(-8, 8), 2, 2))
+    _wires(s, rng, 2)
+    _vignette(s, (120, 80, 20), 30)
+
+
 _PAINTERS = {"floresta": _floresta, "calabouco": _calabouco, "templo_gelado": _templo,
              "lag_escritorio": _lag_escritorio, "lag_datacenter": _lag_datacenter, "lag_garagem": _lag_garagem,
              "lag_cobertura": _lag_cobertura,
              "clinica": _clinica, "clinica_spa": _clinica_spa, "clinica_vip": _clinica_vip,
-             "clinica_adm": _clinica_adm, "clinica_calcada": _clinica_calcada}
+             "clinica_adm": _clinica_adm, "clinica_calcada": _clinica_calcada,
+             "mansao": _mansao, "mansao_arquivo": _mansao_arquivo, "mansao_patio": _mansao_patio,
+             "mansao_cpd": _mansao_cpd, "mansao_reuniao": _mansao_reuniao, "mansao_nucleo": _mansao_nucleo,
+             "mansao_jardim": _mansao_jardim}
 THEMED_MAPS = tuple(_PAINTERS)
 
 
@@ -894,10 +1156,243 @@ class FileCabinet(_Style):
         pygame.draw.rect(s, (80, 84, 96), (0, 0, w, h), 1)
 
 
+class MansionWall(_Style):
+    """Mansão do Carimbo: parede creme com lambri de madeira embaixo, frisos dourados, quadros
+    do Pantanal (tuiuiú, jacaré, pôr do sol) e o retrato de um carimbo."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((30, 20, 10, 130), (0, 6, w, h))
+        if 300 <= w <= 360 and 40 <= h <= 50:                            # guichê de atendimento
+            s.fill((120, 76, 44), (0, 0, w, h))
+            s.fill((150, 100, 60), (0, 0, w, 6))
+            s.fill(GOLD, (0, 6, w, 2))
+            for k, x in enumerate(range(16, w - 60, 110)):
+                s.fill((180, 210, 220), (x, 10, 70, h - 18))             # vidro do guichê
+                s.fill((220, 236, 244), (x + 4, 12, 10, 2))
+                s.fill((30, 30, 36), (x + 25, h - 10, 20, 6))           # a fresta do papel
+                s.fill((250, 250, 240), (x + 26, 1, 18, 4))              # plaquinha "GUICHÊ"
+                s.fill((200, 40, 40) if rng.random() < 0.6 else (40, 160, 90), (x + 47, 1, 4, 4))
+            pygame.draw.rect(s, (70, 44, 24), (0, 0, w, h), 1)
+            return
+        s.fill((236, 226, 200), (0, 0, w, h))
+        s.fill((250, 244, 226), (0, 0, w, 3))
+        if w >= h:
+            wain = max(6, h // 2)
+            s.fill((120, 76, 44), (0, h - wain, w, wain))                # lambri
+            s.fill(GOLD, (0, h - wain, w, 2))
+            for x in range(10, w - 6, 24):
+                s.fill((96, 60, 34), (x, h - wain + 4, 1, wain - 6))
+            if w > 110 and h >= 30 and rng.random() < 0.7:               # quadro do Pantanal
+                qx = rng.randrange(10, w - 40)
+                qh = min(14, h - wain - 6)
+                if qh >= 8:
+                    s.fill(GOLD, (qx, 4, 30, qh))
+                    s.fill((250, 170, 80), (qx + 2, 6, 26, qh - 4))        # pôr do sol
+                    s.fill((60, 120, 70), (qx + 2, 6 + (qh - 4) // 2, 26, (qh - 4) // 2 + 1))
+                    s.fill((30, 30, 36), (qx + 14, 7, 2, qh - 6))         # tuiuiú
+                    s.fill((210, 50, 50), (qx + 14, 9, 2, 1))
+        else:
+            s.fill((120, 76, 44), (0, 0, max(4, w // 3), h))
+            s.fill(GOLD, (max(4, w // 3), 0, 2, h))
+            for y in range(30, h - 10, 60):
+                s.fill((214, 202, 172), (0, y, w, 1))
+        pygame.draw.rect(s, (150, 120, 70), (0, 0, w, h), 1)
+
+
+class ShelfWall(_Style):
+    """Arquivo geral: estante de aço lotada de pastas de processo coloridas, caixas-arquivo e
+    etiquetas com os números."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((10, 8, 6, 150), (0, 6, w, h))
+        s.fill((120, 126, 136), (0, 0, w, h))
+        s.fill((170, 176, 186), (0, 0, w, 2))
+        colors = ((226, 192, 120), (120, 170, 214), (226, 120, 110), (240, 210, 100), (150, 200, 140))
+        if w >= h:
+            shelf = 10
+            for y in range(3, h - 3, shelf):
+                x = 2
+                while x < w - 4:
+                    if rng.random() < 0.12:                              # caixa-arquivo deitada
+                        bw = 12
+                        s.fill((196, 160, 104), (x, y, bw, shelf - 2))
+                        s.fill((240, 238, 228), (x + 3, y + 2, 5, 3))
+                    else:
+                        bw = rng.randint(2, 4)
+                        s.fill(rng.choice(colors), (x, y + rng.randint(0, 2), bw, shelf - 2))
+                    x += bw + 1
+                s.fill((80, 84, 94), (0, y + shelf - 2, w, 2))           # prateleira
+        else:
+            for y in range(2, h - 4, 5):
+                s.fill(rng.choice(colors), (2, y, w - 4, 4))
+                s.fill((80, 84, 94), (2, y + 4, w - 4, 1))
+        pygame.draw.rect(s, (60, 64, 72), (0, 0, w, h), 1)
+
+
+CAR_COLORS = ((236, 236, 232), (180, 30, 40), (40, 60, 120), (60, 60, 66), (200, 200, 206))
+
+
+class PatioWall(_Style):
+    """Pátio: mureta de concreto quente com jardineira de cacto. Os blocos de 120x60 (ou 60x120)
+    são carros estacionados (o oficial é branco com a faixa do órgão)."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((20, 14, 10, 170), (0, 6, w, h))
+        if (w, h) in ((120, 60), (60, 120)):
+            body = rng.choice(CAR_COLORS)
+            pygame.draw.rect(s, body, (0, 0, w, h), border_radius=10)
+            pygame.draw.rect(s, _shade(body, -60), (0, 0, w, h), 2, border_radius=10)
+            glass = (120, 160, 190)
+            if w > h:
+                s.fill(glass, (28, 6, 18, h - 12))
+                s.fill(glass, (w - 34, 8, 12, h - 16))
+                s.fill(_shade(body, 30), (50, 8, w - 90, h - 16))         # teto
+                s.fill((250, 230, 120), (w - 4, 6, 3, 8))                 # faróis
+                s.fill((250, 230, 120), (w - 4, h - 14, 3, 8))
+                if body == CAR_COLORS[0]:
+                    s.fill((60, 120, 90), (4, h // 2 - 2, w - 8, 4))      # faixa do órgão
+            else:
+                s.fill(glass, (6, 28, w - 12, 18))
+                s.fill(glass, (8, h - 34, w - 16, 12))
+                s.fill(_shade(body, 30), (8, 50, w - 16, h - 90))
+                s.fill((250, 230, 120), (6, h - 4, 8, 3))
+                s.fill((250, 230, 120), (w - 14, h - 4, 8, 3))
+            return
+        top, front = (196, 188, 176), (160, 152, 140)
+        front_h = max(8, min(h // 2, 16))
+        s.fill(top, (0, 0, w, h - front_h))
+        s.fill(front, (0, h - front_h, w, front_h))
+        s.fill((226, 220, 208), (0, 0, w, 2))
+        if w >= h and h - front_h > 8:                                   # jardineira com cacto e terra
+            s.fill((120, 80, 50), (3, 3, w - 6, h - front_h - 6))
+            for x in range(8, w - 8, rng.randint(18, 30)):
+                s.fill((80, 140, 70), (x, 2, 3, h - front_h - 6))
+                s.fill((80, 140, 70), (x - 2, 5, 2, 3))
+        pygame.draw.rect(s, (110, 104, 96), (0, 0, w, h), 1)
+
+
+class CellarRack(_Style):
+    """CPD na adega: racks de servidor velhos encaixados nas prateleiras de vinho. Os LEDs
+    piscam (ambiente) e os barris de carvalho ainda estão no fundo."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((6, 8, 12, 220), (0, 6, w, h))
+        s.fill((60, 36, 24), (0, 0, w, h))                               # madeira da adega
+        s.fill((96, 60, 40), (0, 0, w, 3))
+        pygame.draw.rect(s, (30, 18, 12), (0, 0, w, h), 2)
+        if w >= h:
+            unit = 12
+            for y in range(5, h - 4, unit):
+                for x in range(4, w - 4, 26):
+                    if rng.random() < 0.25:                              # barril (fundo redondo)
+                        pygame.draw.circle(s, (120, 74, 40), (x + 10, y + 5), 5)
+                        pygame.draw.circle(s, (70, 70, 76), (x + 10, y + 5), 5, 1)
+                    else:                                                # servidor
+                        s.fill((32, 34, 42), (x, y, 22, unit - 2))
+                        s.fill((60, 64, 76), (x, y, 22, 1))
+                        for lx in range(x + 3, x + 20, 5):
+                            s.fill(rng.choice((IARA_C, (40, 200, 120), (60, 70, 80))), (lx, y + 4, 2, 2))
+        else:
+            for y in range(6, h - 6, 10):
+                s.fill((32, 34, 42), (4, y, w - 8, 8))
+                s.fill(IARA_C if rng.random() < 0.5 else (40, 200, 120), (6, y + 3, 2, 2))
+        for _ in range(max(1, w // 60)):                                 # cabo ciano descendo
+            x = rng.randrange(2, max(3, w - 2))
+            s.fill(IARA_CD, (x, 0, 1, h))
+
+
+class BoardroomWall(_Style):
+    """Sala de reunião: lambri de madeira nobre com a tela do projetor. O bloco do meio da sala é
+    a mesa de reunião comprida, com as cadeiras de couro em volta e as garrafinhas d'água."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((10, 4, 4, 160), (0, 6, w, h))
+        if w >= 300 and h >= 60:                                         # a mesa do comitê
+            pygame.draw.rect(s, (30, 20, 16), (-6, -6, w + 12, h + 12), border_radius=14)
+            pygame.draw.rect(s, (110, 64, 36), (0, 0, w, h), border_radius=12)
+            pygame.draw.rect(s, (140, 88, 52), (4, 4, w - 8, h - 8), 2, border_radius=10)
+            for x in range(30, w - 20, 50):                              # garrafinhas e pastas da pauta
+                s.fill((200, 230, 250), (x, 10, 3, 6))
+                s.fill((240, 238, 228), (x + 8, h - 18, 10, 8))
+            s.fill((30, 32, 40), (w // 2 - 14, h // 2 - 6, 28, 12))       # o viva-voz
+            s.fill(IARA_C, (w // 2 - 2, h // 2 - 2, 4, 4))
+            return
+        s.fill((96, 56, 32), (0, 0, w, h))
+        s.fill((140, 90, 56), (0, 0, w, 3))
+        if w >= h:
+            for x in range(0, w, 30):
+                s.fill((80, 46, 26), (x, 3, 1, h - 3))
+                s.fill((110, 66, 40), (x + 4, 6, 22, h - 12))
+            if 300 <= w <= 500 and h >= 24:                              # tela de projeção
+                sx = w // 2 - 50
+                s.fill((236, 236, 240), (sx, 4, 100, h - 8))
+                pygame.draw.circle(s, (220, 60, 70), (sx + 30, 4 + (h - 8) // 2), min(8, (h - 8) // 2))
+                s.fill((60, 160, 220), (sx + 55, 8, 8, h - 16))
+                s.fill((240, 200, 80), (sx + 66, 12, 8, h - 20))
+        else:
+            for y in range(0, h, 30):
+                s.fill((80, 46, 26), (3, y, w - 3, 1))
+        pygame.draw.rect(s, (50, 28, 16), (0, 0, w, h), 1)
+
+
+class CoreWall(_Style):
+    """Núcleo da IARA: colunas de mármore preto com frisos dourados, enroladas nos cabos ciano.
+    O bloco largo de cima é o trono do carimbo, onde mora o servidor da IARA."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((0, 10, 16, 180), (0, 6, w, h))
+        if w >= 240 and h >= 40:                                         # trono com o carimbo gigante
+            s.fill((40, 30, 20), (0, 0, w, h))
+            s.fill(GOLD, (0, 0, w, h - 10))
+            s.fill((252, 228, 150), (0, 0, w, 3))
+            s.fill((30, 32, 42), (20, 6, w - 40, h - 20))
+            for x in range(26, w - 26, 8):
+                s.fill(rng.choice((IARA_C, IARA_CD, (40, 200, 120))), (x, 10, 3, 3))
+            s.fill(WINE, (w // 2 - 22, h - 10, 44, 10))                  # o assento
+            s.fill((150, 96, 54), (w // 2 - 4, -2, 8, 8))                # cabo do carimbo por cima
+            return
+        s.fill((34, 36, 48), (0, 0, w, h))
+        s.fill((70, 74, 92), (0, 0, w, 3))
+        s.fill(GOLD, (0, 3, w, 2))
+        s.fill(GOLD, (0, h - 5, w, 2))
+        if w >= h:
+            for x in range(0, w, 14):
+                s.fill((50, 54, 70), (x, 6, 1, h - 12))
+        else:
+            for y in range(0, h, 14):
+                s.fill((50, 54, 70), (2, y, w - 4, 1))
+        for k in range(max(1, (w + h) // 40)):                           # cabos enrolados
+            x = rng.randrange(0, max(1, w))
+            for y in range(0, h, 2):
+                xx = (x + y // 2) % max(1, w)
+                s.set_at((xx, y), IARA_C if (y // 2) % 3 else IARA_CD)
+        pygame.draw.rect(s, (14, 16, 22), (0, 0, w, h), 1)
+
+
+class GardenWall(_Style):
+    """Jardim da fachada: muro da mansão em reboco creme com grade de ferro preta e lanças
+    douradas em cima, e uma touceira de capim ressecado no pé."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((20, 14, 6, 140), (0, 6, w, h))
+        s.fill((226, 212, 180), (0, 0, w, h))
+        s.fill((240, 230, 206), (0, 0, w, 3))
+        if w >= h:
+            for x in range(2, w - 2, 6):
+                s.fill((30, 30, 34), (x, 2, 2, max(2, h // 2)))
+                s.fill(GOLD, (x, 0, 2, 2))
+        else:
+            for y in range(2, h - 2, 6):
+                s.fill((30, 30, 34), (2, y, max(2, w // 2), 2))
+        pygame.draw.rect(s, (160, 140, 100), (0, 0, w, h), 1)
+
+
 _STYLES = {"floresta": Hedge, "calabouco": DungeonStone, "templo_gelado": IceBlock,
            "lag_escritorio": GlassWall, "lag_datacenter": ServerRack, "lag_garagem": Barrier, "lag_cobertura": Barrier,
            "clinica": ClinicWall, "clinica_spa": SpaWall, "clinica_vip": MirrorWall, "clinica_adm": FileCabinet,
-           "clinica_calcada": ClinicWall}
+           "clinica_calcada": ClinicWall,
+           "mansao": MansionWall, "mansao_arquivo": ShelfWall, "mansao_patio": PatioWall, "mansao_cpd": CellarRack,
+           "mansao_reuniao": BoardroomWall, "mansao_nucleo": CoreWall, "mansao_jardim": GardenWall}
 
 
 def wall_style(key):
@@ -1122,6 +1617,33 @@ class Steam(Ambience):
             view.blit(self._puff(r), (round(x) - r, round(y) - r))
 
 
+class HeatHaze(Ambience):
+    """Pátio a 47°C: o ar tremulando de calor (faixas claras que sobem e ondulam devagar)."""
+
+    def __init__(self):
+        rng = random.Random("calor")
+        self.bands = [(rng.uniform(0, 1), rng.uniform(0.2, 0.5), rng.uniform(0, math.tau)) for _ in range(9)]
+        self.cache = {}
+
+    def _band(self, w):
+        if w not in self.cache:
+            s = pygame.Surface((w, 6), pygame.SRCALPHA)
+            for y, a in ((0, 10), (1, 18), (2, 24), (3, 18), (4, 10)):
+                s.fill((255, 236, 200, a), (0, y, w, 1))
+            self.cache[w] = s
+        return self.cache[w]
+
+    def draw(self, view, cam, frame, layer):
+        if layer != "air":
+            return
+        vw, vh = view.get_size()
+        band = self._band(vw)
+        for fy, speed, phase in self.bands:
+            y = (fy * (vh + 40) - frame * speed) % (vh + 40) - 20
+            x = round(math.sin(frame * 0.03 + phase) * 6)
+            view.blit(band, (x, round(y)))
+
+
 def create_ambience(key, size, walls):
     if key == "floresta":
         return Fireflies(size)
@@ -1139,4 +1661,12 @@ def create_ambience(key, size, walls):
         return Steam()
     if key == "clinica_adm":
         return Papers()
+    if key in ("mansao", "mansao_arquivo", "mansao_reuniao"):
+        return Papers()
+    if key == "mansao_cpd":
+        return ServerLights(walls, emergency=False)
+    if key == "mansao_nucleo":
+        return Sparkles(colors=((60, 230, 255), (200, 250, 255), (252, 228, 150)))
+    if key in ("mansao_patio", "mansao_jardim"):
+        return HeatHaze()
     return Ambience()
