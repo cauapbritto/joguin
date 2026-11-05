@@ -143,6 +143,7 @@ class Canvas:
         self.big = pygame.Surface((w + 2 * MARGIN, h + 2 * MARGIN), pygame.SRCALPHA)
         self.surf = _Area(self.big, w, h)
         self.hand = None                          # centro da mão da arma (pixels da arte)
+        self.hd_details = []                      # desenhos que só entram no dobro de detalhe (recebem a imagem)
 
     def rect(self, x, y, w, h, color):
         if w > 0 and h > 0:
@@ -1498,6 +1499,51 @@ def hair_volume(c, p, color, top_rows=3):
                 c.px(xx, yy, shade(col, amount))
 
 
+def _hd(x, y):
+    """Ponto da arte base (pixels de 24 x 34) no quadro em dobro de detalhe."""
+    return (x + MARGIN) * 2, (y + MARGIN) * 2
+
+
+CURL = ("..hh", ".h.l", "h..l", ".ll.")      # um cacho em anel: luz em cima à esquerda, sombra embaixo
+
+
+def _hd_curls(img, p, color, below):
+    """Cachos em anel por cima do cabelo (só nos pixels escuros do cabelo, acima de ``below``)."""
+    x, y, w, h = p.head
+    x0, y0 = _hd(x - 2, y - 6)
+    x1, _ = _hd(x + w + 2, y)
+    hi, lo = shade(color, 70), shade(color, -14)
+    for yy in range(y0, below):
+        for xx in range(x0, x1):
+            col = img.get_at((xx, yy))
+            if not col[3] or max(col[:3]) > 120:
+                continue
+            row = (yy - y0) // 4
+            ch = CURL[(yy - y0) % 4][(xx - x0 + row * 2) % 4]
+            if ch == "h":
+                img.set_at((xx, yy), (*shade(col, 20), 255))
+            elif ch == "l":
+                img.set_at((xx, yy), (*lo, 255))
+    del hi
+
+
+def _cauanzera_hd(img, p, hair_c, jacket_l):
+    x, y, w, h = p.head
+    tx, ty, tw, th = p.torso
+    _hd_curls(img, p, hair_c, _hd(0, y + 3)[1] + (2 if p.dir == "costas" else 0))
+    if p.dir == "frente":
+        for lx in (x + 1, x + w - 4):                          # brilho na lente, na diagonal
+            gx, gy = _hd(lx, y + 5)
+            img.set_at((gx + 1, gy), (255, 255, 255, 255))
+            img.set_at((gx + 2, gy + 1), (236, 246, 255, 255))
+        zx, zy = _hd(tx + 2, ty + 1)                           # dentes do zíper
+        for k in range(0, (th - 2) * 2, 2):
+            img.set_at((zx + 1, zy + k), (*shade(jacket_l, 16), 255))
+    elif p.side:
+        gx, gy = _hd(x + 6, y + 5)
+        img.set_at((gx + 1, gy), (255, 255, 255, 255))
+
+
 def cauanzera(p):
     """Cauanzera: o mais alto da turma — cabelo cacheado, óculos, jaqueta preta aberta sobre a
     camiseta cinza, calça preta e tênis branco de listras pretas."""
@@ -1569,6 +1615,7 @@ def cauanzera(p):
         c.rect(hx + 5, hy + 4, 4, 1, shade(skin, -20))
     cacheado_degrade(c, p, hair_c)                             # cachos em cima, degradê nos lados
     hair_volume(c, p, hair_c)
+    c.hd_details.append(lambda img: _cauanzera_hd(img, p, hair_c, jacket_l))
     glasses(c, p, frame=(150, 152, 164))
     if p.dir != "costas":
         mouth(c, p, skin)
@@ -3620,6 +3667,128 @@ KIT_DIR = OUT / "uniformes"
 VARIANTS = ("borba_exo", "albeguinio_adm", "cauanzera_ti")   # não são personagens, mas também ganham uniforme (futebol)
 
 
+# ── dobro de detalhe ─────────────────────────
+# Personagens desenhados com o dobro de pixels (48 x 68 em vez de 24 x 34), do mesmo tamanho na tela
+# (o jogo não amplia essas folhas). O desenho base é o mesmo de sempre, então as 39 poses e as
+# 4 direções continuam batendo; em cima dele entram as bordas arredondadas (scale2x), o volume de
+# cada parte (luz de cima e da esquerda), o contorno fino e os detalhes que só cabem no dobro.
+HD = {"cauanzera"}
+HD_SKIP = 10              # partes menores que isso (olho, botão, relógio) não ganham volume
+
+
+def _grid(surf):
+    w, h = surf.get_size()
+    return [[tuple(surf.get_at((x, y))) for x in range(w)] for y in range(h)], w, h
+
+
+def scale2x(src):
+    """Dobra a imagem arredondando os degraus das diagonais (algoritmo Scale2x / EPX)."""
+    a, w, h = _grid(src)
+    out = pygame.Surface((w * 2, h * 2), pygame.SRCALPHA)
+    clear = (0, 0, 0, 0)
+
+    def at(x, y):
+        return a[y][x] if 0 <= x < w and 0 <= y < h else clear
+    for y in range(h):
+        for x in range(w):
+            e, b, d, f, hh = at(x, y), at(x, y - 1), at(x - 1, y), at(x + 1, y), at(x, y + 1)
+            e0 = e1 = e2 = e3 = e
+            if b != hh and d != f:
+                if d == b:
+                    e0 = d
+                if b == f:
+                    e1 = f
+                if d == hh:
+                    e2 = d
+                if hh == f:
+                    e3 = f
+            out.set_at((2 * x, 2 * y), e0)
+            out.set_at((2 * x + 1, 2 * y), e1)
+            out.set_at((2 * x, 2 * y + 1), e2)
+            out.set_at((2 * x + 1, 2 * y + 1), e3)
+    return out
+
+
+def volume(src, keep=()):
+    """Cada parte (pixels vizinhos da mesma cor) ganha borda clara em cima e à esquerda e escura
+    embaixo e à direita, em dois degraus: a roupa e a pele deixam de ser chapadas.
+    ``keep``: cores que não mudam (os olhos que acendem na alma corrompida)."""
+    a, w, h = _grid(src)
+    out = src.copy()
+    keep = {tuple(k[:3]) for k in keep}
+
+    def same(x, y, col):
+        return 0 <= x < w and 0 <= y < h and a[y][x] == col
+    region, sizes = {}, []
+    for y in range(h):
+        for x in range(w):
+            if a[y][x][3] == 0 or (x, y) in region:
+                continue
+            col, todo, n = a[y][x], [(x, y)], 0
+            region[x, y] = len(sizes)
+            while todo:
+                px_, py_ = todo.pop()
+                n += 1
+                for nx, ny in ((px_ + 1, py_), (px_ - 1, py_), (px_, py_ + 1), (px_, py_ - 1)):
+                    if same(nx, ny, col) and (nx, ny) not in region:
+                        region[nx, ny] = len(sizes)
+                        todo.append((nx, ny))
+            sizes.append(n)
+    for y in range(h):
+        for x in range(w):
+            col = a[y][x]
+            if col[3] == 0 or sizes[region[x, y]] < HD_SKIP or col[:3] in keep:
+                continue
+            amount = 0
+            if not same(x, y - 1, col):
+                amount += 14
+            elif not same(x, y - 2, col):
+                amount += 6
+            if not same(x - 1, y, col):
+                amount += 8
+            if not same(x, y + 1, col):
+                amount -= 16
+            elif not same(x, y + 2, col):
+                amount -= 7
+            if not same(x + 1, y, col):
+                amount -= 10
+            if amount:
+                out.set_at((x, y), (*shade(col, amount), col[3]))
+    return out
+
+
+def fine_outline(src):
+    """Contorno de 1 pixel do dobro (metade da grossura do contorno de sempre, na tela)."""
+    w, h = src.get_size()
+    out = src.copy()
+    get = src.get_at
+    for y in range(h):
+        for x in range(w):
+            if get((x, y))[3]:
+                continue
+            best, lit = None, True
+            for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                if 0 <= nx < w and 0 <= ny < h:
+                    col = get((nx, ny))
+                    if col[3]:
+                        if ny != y + 1:
+                            lit = False
+                        if best is None or sum(col[:3]) < sum(best[:3]):
+                            best = col
+            if best is not None:
+                k = 0.34 if lit else 0.2
+                out.set_at((x, y), (int(best[0] * k) + 10, int(best[1] * k) + 7, int(best[2] * k) + 14, 255))
+    return out
+
+
+def hd_frame(canvas, glow=()):
+    """O quadro em dobro de detalhe: desenho base dobrado, com volume, detalhes e contorno fino."""
+    img = volume(scale2x(canvas.big), glow)
+    for detail in canvas.hd_details:
+        detail(img)
+    return fine_outline(img)
+
+
 def build_sheet(name, kit=None):
     """Folha do personagem (linhas = direções, colunas = quadros das poses) e os dados dela.
     Com ``kit`` (um item de KITS), a roupa sai na cor do uniforme do time.
@@ -3629,6 +3798,7 @@ def build_sheet(name, kit=None):
     por igual, nunca para baixo. Assim os pés continuam na base e a mão no mesmo ponto em relação ao
     centro e aos pés, e o jogo (que desenha pelo meio da base) não precisa saber da folga."""
     draw_char, wide, glow = CHARACTERS[name]
+    detail = 2 if name in HD else 1
     probe = draw_char(Pose("frente", "parado", 0, wide, kit))
     w, h = probe.w, probe.h
     poses = SHEET_POSES + (SPORT_POSES if name in HEROES or name in VARIANTS else ())
@@ -3639,10 +3809,11 @@ def build_sheet(name, kit=None):
             continue
         for col, (kind, i) in enumerate(columns):
             canvas = draw_char(Pose(direction, kind, i, wide, kit))
-            drawn[direction, col] = (canvas.finish(), canvas.hand)
-    side, top = _overflow([img for img, _ in drawn.values()], w, h)
-    cw, ch = w + 2 * side, h + top
-    crop = pygame.Rect(MARGIN - side, MARGIN - top, cw, ch)
+            img = hd_frame(canvas, glow) if detail > 1 else canvas.finish()
+            drawn[direction, col] = (img, canvas.hand)
+    side, top = _overflow([img for img, _ in drawn.values()], w * detail, h * detail, MARGIN * detail)
+    cw, ch = w * detail + 2 * side, h * detail + top
+    crop = pygame.Rect(MARGIN * detail - side, MARGIN * detail - top, cw, ch)
     sheet = pygame.Surface((cw * len(columns), ch * len(SHEET_DIRECTIONS)), pygame.SRCALPHA)
     hands = {}
     for row, direction in enumerate(SHEET_DIRECTIONS):
@@ -3653,7 +3824,7 @@ def build_sheet(name, kit=None):
             img, hand = drawn[direction, col]
             sheet.blit(img, (col * cw, row * ch), crop)
             hx, hy = hand or (w / 2, h / 2)
-            hands[direction].append([round(hx + side, 1), round(hy + top, 1)])
+            hands[direction].append([round(hx * detail + side, 1), round(hy * detail + top, 1)])
     # esquerda = direita espelhada
     right, left = SHEET_DIRECTIONS.index("direita"), SHEET_DIRECTIONS.index("esquerda")
     for col in range(len(columns)):
@@ -3661,19 +3832,21 @@ def build_sheet(name, kit=None):
         sheet.blit(pygame.transform.flip(cell, True, False), (col * cw, left * ch))
     info = {"cell": [cw, ch], "poses": [list(p) for p in poses], "hand": hands,
             "eyes": [list(g) for g in glow]}
+    if detail > 1:
+        info["detail"] = detail
     return sheet, info
 
 
-def _overflow(images, w, h):
+def _overflow(images, w, h, margin=MARGIN):
     """Quanto o desenho (com contorno) passa da área w x h: (para cada lado, para cima), em pixels."""
     left = right = up = 0
     for img in images:
         box = img.get_bounding_rect()
         if not box.w:
             continue
-        left = max(left, MARGIN - box.left)
-        right = max(right, box.right - (MARGIN + w))
-        up = max(up, MARGIN - box.top)
+        left = max(left, margin - box.left)
+        right = max(right, box.right - (margin + w))
+        up = max(up, margin - box.top)
     return max(left, right, 0), max(up, 0)
 
 

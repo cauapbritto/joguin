@@ -372,7 +372,7 @@ def load_sheet(name, image=None):
     poses = [(kind, n) for kind, n in info["poses"]]
     if sheet.get_width() < cw * sum(n for _, n in poses) or sheet.get_height() < ch * len(SHEET_DIRECTIONS):
         return None
-    f = SHEET_FACTOR
+    f = SHEET_FACTOR // info.get("detail", 1)    # folha em dobro de detalhe já vem no tamanho da tela
     frames, hands = {}, {}
     for row, direction in enumerate(SHEET_DIRECTIONS):
         frames[direction], col = {}, 0
