@@ -74,8 +74,16 @@ class UI:
         surf.fill(border, (x + w - 2, y + 2, 2, h - 4))
         for cx, cy in ((x + 1, y + 1), (x + w - 2, y + 1), (x + 1, y + h - 2), (x + w - 2, y + h - 2)):
             surf.fill(border, (cx, cy, 1, 1))
-        # brilho interno no topo
-        surf.fill(_mix(fill, (255, 255, 255), 0.06), (x + 2, y + 2, w - 4, 1))
+        # volume: o painel escurece aos poucos para baixo, luz por dentro em cima e à esquerda,
+        # sombra por dentro embaixo e à direita
+        if h > 12:
+            band = (h - 4) // 3
+            for i, k in enumerate((0.04, 0.08, 0.12)):
+                surf.fill(_mix(fill, (0, 0, 0), k), (x + 2, y + h - 2 - band + i * band // 3, w - 4, band - i * band // 3))
+        surf.fill(_mix(fill, (255, 255, 255), 0.10), (x + 2, y + 2, w - 4, 1))
+        surf.fill(_mix(fill, (255, 255, 255), 0.05), (x + 2, y + 3, 1, h - 5))
+        surf.fill(_mix(fill, (0, 0, 0), 0.25), (x + 2, y + h - 3, w - 4, 1))
+        surf.fill(_mix(fill, (0, 0, 0), 0.18), (x + w - 3, y + 3, 1, h - 6))
         if accent:
             surf.fill(accent, (x + 2, y + 2, w - 4, 3))
         return rect
@@ -85,13 +93,20 @@ class UI:
         surf.fill(theme.SHADOW, rect)
         inner = rect.inflate(-2, -2)
         surf.fill(back, inner)
+        surf.fill(_mix(back, (0, 0, 0), 0.4), (inner.x, inner.y, inner.w, 1))     # fundo afundado
         ratio = max(0.0, min(1.0, ratio))
         fw = round(inner.w * ratio)
         if fw > 0:
             fill = pygame.Rect(inner.right - fw if flip else inner.x, inner.y, fw, inner.h)
             surf.fill(color, fill)
             surf.fill(_mix(color, (255, 255, 255), 0.35), (fill.x, fill.y, fill.w, max(1, inner.h // 4)))
+            if inner.h >= 5:                          # barra cilíndrica: brilho fino em cima, sombra embaixo
+                surf.fill(_mix(color, (255, 255, 255), 0.6), (fill.x + 1, fill.y, max(1, fill.w - 2), 1))
+                surf.fill(_mix(color, (0, 0, 0), 0.16), (fill.x, fill.bottom - 2, fill.w, 1))
             surf.fill(_mix(color, (0, 0, 0), 0.3), (fill.x, fill.bottom - 1, fill.w, 1))
+            if fw < inner.w and fw > 1:               # ponta da barra acesa
+                tip = fill.x if flip else fill.right - 1
+                surf.fill(_mix(color, (255, 255, 255), 0.45), (tip, fill.y, 1, fill.h - 1))
         if ticks:
             for i in range(1, ticks):
                 tx = inner.x + inner.w * i // ticks
