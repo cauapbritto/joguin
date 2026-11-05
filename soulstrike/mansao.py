@@ -1162,3 +1162,56 @@ class Meeting:
 
 
 HAZARDS = {"fila": QueueLanes, "pilha": FallingPiles, "calor": Heat, "energia": Blackout, "reuniao": Meeting}
+
+
+# ── recompensa: a IARA mascote ───────────────
+MASCOT_LINES = ("PROTOCOLO RECEBIDO!", "AGORA SÓ ASSISTENTE", "CAFÉ PASSADO?", "SEM COOKIES, PROMETO",
+                "DESPACHO: DEFERIDO", "47°C LÁ FORA...", "NADA DE OTIMIZAR NINGUÉM")
+MASCOT_SCALE = 0.42
+MASCOT_TALK = 540            # uma fala a cada 9 s
+
+
+class IaraMascot:
+    """A IARA pequenininha (e do bem) flutuando atrás do P1 nos acampamentos, depois do capítulo 4.
+    Só enfeite: não bate, não apanha, não segura passagem."""
+
+    alive = True
+
+    def __init__(self, target, sprites=None):
+        self.target = target
+        self.x, self.y = target.x - 46, target.y - 40
+        self.age = 0
+        self.lines = list(MASCOT_LINES)
+        random.shuffle(self.lines)
+        self.frames = []
+        if sprites is not None:
+            for i in range(4):
+                img = sprites.frame("frente", i)
+                size = (max(1, round(img.get_width() * MASCOT_SCALE)), max(1, round(img.get_height() * MASCOT_SCALE)))
+                self.frames.append(pygame.transform.smoothscale(img, size))
+
+    def update(self, match):
+        self.age += 1
+        t = self.target
+        side = -1 if t.facing[0] >= 0 else 1                 # fica do lado de trás de quem ela segue
+        gx, gy = t.x + side * 46, t.y - 40
+        self.x += (gx - self.x) * 0.08
+        self.y += (gy - self.y) * 0.08
+        if self.age % MASCOT_TALK == 120:
+            line = self.lines[(self.age // MASCOT_TALK) % len(self.lines)]
+            match.popup(self.x, self.y - 70, line, IARA)
+        if self.age % 30 == 0:
+            match.particles.append(Particle(self.x + random.uniform(-6, 6), self.y - 10, 0, -0.4, IARA, 18, 2))
+
+    def draw(self, surf, cam):
+        pass                                                   # desenhada por cima de todo mundo
+
+    def draw_over(self, surf, cam):
+        sx = round(self.x - cam.x)
+        sy = round(self.y - cam.y + math.sin(self.age * 0.07) * 5)
+        if self.frames:
+            img = self.frames[(self.age // 10) % len(self.frames)]
+            surf.blit(img, img.get_rect(midbottom=(sx, sy)))
+        else:
+            pygame.draw.circle(surf, IARA, (sx, sy - 14), 10)
+            pygame.draw.circle(surf, (150, 80, 220), (sx, sy - 14), 4)

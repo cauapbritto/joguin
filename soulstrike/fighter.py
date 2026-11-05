@@ -92,6 +92,29 @@ def _moto_image():
     return _MOTO["img"]
 
 
+BADGE_BLUE = (40, 92, 168)      # crachá da Mansão do Carimbo (recompensa do capítulo 4)
+
+
+def draw_uniform(surf, rect, direction):
+    """O uniforme do órgão: cordão azul no pescoço e o crachá no peito (de costas, só o cordão)."""
+    cx = rect.centerx
+    neck = rect.y + round(rect.h * 0.41)
+    chest = rect.y + round(rect.h * 0.55)
+    w = max(6, rect.w // 7)
+    if direction == "costas":
+        pygame.draw.line(surf, BADGE_BLUE, (cx - w, neck), (cx + w, neck), 2)
+        return
+    off = {"direita": 3, "esquerda": -3}.get(direction, 0)
+    bx = cx + off
+    pygame.draw.line(surf, BADGE_BLUE, (cx - w, neck), (bx, chest - 2), 2)
+    pygame.draw.line(surf, BADGE_BLUE, (cx + w, neck), (bx, chest - 2), 2)
+    card = pygame.Rect(0, 0, max(8, w + 3), max(10, w + 6))
+    card.midtop = (bx, chest - 2)
+    surf.fill((246, 244, 236), card)
+    surf.fill(BADGE_BLUE, (card.x, card.y, card.w, max(2, card.h // 3)))
+    surf.fill((150, 110, 70), (card.x + 2, card.bottom - 4, card.w - 4, 2))   # o carimbo
+
+
 def draw_moto(surf, cx, ground, right, wheelie):
     """Desenha a moto com as rodas no chão, empinando ``wheelie`` graus (a roda da frente sobe)."""
     img = _moto_image()
@@ -245,6 +268,7 @@ class Fighter(Entity):
         self.overlay = "full"           # o que mostrar acima da cabeça: full, hp ou none
         self.knock_resist = 0.0         # 1 = não é empurrado por golpes (golem, chefão)
         self.aura = None                # brilho em volta (almas corrompidas)
+        self.uniform = False            # crachá da Mansão do Carimbo (UNIFORME, depois do capítulo 4)
         self.windup = 0                 # preparando um golpe (inimigos brilham antes de atacar)
         self.windup_total = 1
         self.windup_color = (255, 255, 255)
@@ -1319,6 +1343,8 @@ class Fighter(Entity):
             img = img.copy()
             img.set_alpha(round(255 * max(0.08, 1 - self.cloak)))
         surf.blit(img, rect)
+        if self.uniform and self.cloak < 0.5 and not self.spin:
+            draw_uniform(surf, rect, direction)
         if riding:                                     # a moto na frente das pernas (ele vai sentado)
             if dodging_moto:
                 t = 1 - self.dash_timer / max(1, self.dash_len)

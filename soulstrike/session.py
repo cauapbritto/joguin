@@ -61,6 +61,7 @@ class Session:
     weapon_pick: bool = False      # duelo: escolher as armas antes de cada round
     soccer_length: str = "3"       # futebol: "3", "5" ou "7" gols, ou "tempo" (config.SOCCER_LENGTHS)
     chapter: int = 1               # campanha: capítulo onde começa (2 só depois de zerar o 1)
+    rush: bool = False             # Reunião dos Corrompidos: só as salas dos chefes, um atrás do outro
 
     @property
     def soccer(self):

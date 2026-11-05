@@ -397,3 +397,110 @@ class CreditosTest(unittest.TestCase):
             del g.change                  # volta o método de verdade (o jogo é o mesmo nos testes)
         self.assertTrue(done)
         scene.draw(g.screen)
+
+
+class RecompensasTest(ProgressoTest):
+    """Etapa 4: o que zerar o capítulo 4 libera."""
+
+    def test_cauanzera_corrompido_jogavel(self):
+        from soulstrike.data import SHADOW_CHARACTERS, UNLOCKABLES
+        self.assertEqual(UNLOCKABLES["cauanzera_corrompido"], 4)
+        self.assertIn("cauanzera_corrompido", SHADOW_CHARACTERS)
+        self.assertIn("cauanzera_corrompido", KEYS)
+
+    def test_mapas_de_cuiabrasa_so_depois_de_zerar(self):
+        from soulstrike.arena import CUIABRASA_MAPS, MAPS_BY_KEY, basket_maps, battle_maps, soccer_maps
+        for key in CUIABRASA_MAPS:
+            self.assertIn(key, MAPS_BY_KEY)
+        antes = {m.key for m in battle_maps()} | set(basket_maps()) | set(soccer_maps())
+        self.assertFalse(antes & set(CUIABRASA_MAPS))
+        progress.record_campaign(900, "normal", 1)
+        depois = {m.key for m in battle_maps()} | set(basket_maps()) | set(soccer_maps())
+        self.assertEqual(depois & set(CUIABRASA_MAPS), set(CUIABRASA_MAPS))
+
+    def test_futebol_joga_no_campo_de_cuiabrasa(self):
+        from soulstrike.matches import SoccerMatch
+        g = game()
+        g.session = Session("soccer1", [SlotSetup(1, char=0), SlotSetup(2, char=1, cpu=True)])
+        g.session.map_key = "campo_cuiabrasa"
+        match = SoccerMatch(g, g.session)
+        self.assertEqual(match.arena.cfg.key, "campo_cuiabrasa")
+        passo(match, 30)
+
+    def test_selos_por_dificuldade(self):
+        self.assertEqual(progress.seals(), set())
+        progress.record_campaign(900, "dificil", 2)
+        self.assertEqual(progress.seals(), {"dificil"})
+        self.assertTrue(progress.record_rush("ibrahim"))
+        self.assertFalse(progress.record_rush("ibrahim"))
+        self.assertEqual(progress.rush_seals(), {"ibrahim"})
+
+    def test_reuniao_dos_corrompidos_passa_pelos_4_chefes(self):
+        from soulstrike.campaign import RUSH_PHASES
+        self.assertEqual(len(RUSH_PHASES), 4)
+        run = CampaignRun(Session("campaign", [SlotSetup(1, char=0)], rush=True))
+        run.start_rush()
+        seen = [run.phase_index]
+        while not run.rush_last:
+            run.next_rush()
+            seen.append(run.phase_index)
+        self.assertEqual(seen, list(RUSH_PHASES))
+        self.assertEqual(PHASES[seen[-1]].dungeons[-1].boss, "cauanzera")
+        self.assertEqual(run.start_chapter, 0)          # não conta recorde
+
+    def test_menu_extras_depois_de_zerar(self):
+        from soulstrike.scenes.menus import ModeScene
+        g = game()
+        progress.record_campaign(900, "normal", 1)
+        todos = [m for _, ms in ModeScene(g).modes_of("campanha") for m in ms]
+        self.assertIn("reuniao", todos)
+        self.assertIn("cinema", todos)
+
+    def test_cinema_abre(self):
+        from soulstrike.scenes.campaign import CINEMA, CinemaScene
+        self.assertTrue(all(key in STORY or key == "creditos" for _, keys in CINEMA for key in keys))
+        g = game()
+        g.session = Session("campaign", [SlotSetup(1, char=0)])
+        scene = CinemaScene(g)
+        scene.update()
+        scene.draw(g.screen)
+
+    def test_uniforme_nas_regras_e_no_desenho(self):
+        from soulstrike import settings
+        from soulstrike.fighter import draw_uniform
+        self.assertFalse(progress.uniform_on())
+        settings.change("uniforme", True)
+        try:
+            self.assertFalse(progress.uniform_on())     # só depois do capítulo 4
+            progress.record_campaign(900, "normal", 1)
+            self.assertTrue(progress.uniform_on())
+            m = masmorra()
+            self.assertTrue(all(f.uniform for f in m.players))
+            self.assertFalse(any(e.uniform for e in m.alive_enemies))
+            m.draw(game().screen, game().ui)
+            import pygame
+            surf = pygame.Surface((80, 120), pygame.SRCALPHA)
+            for d in ("frente", "costas", "direita", "esquerda"):
+                draw_uniform(surf, pygame.Rect(10, 10, 60, 100), d)
+        finally:
+            settings.change("uniforme", False)
+
+    def test_iara_mascote_nos_acampamentos(self):
+        from soulstrike.campaign import LobbyMatch
+        from soulstrike.mansao import IaraMascot
+        g = game()
+        g.session = Session("campaign", [SlotSetup(1, char=0)])
+        run = CampaignRun(g.session)
+        run.begin_phase()
+        match = LobbyMatch(g, run)
+        self.assertFalse(any(isinstance(e, IaraMascot) for e in match.effects))
+        progress.record_campaign(900, "normal", 1)
+        match = LobbyMatch(g, run)
+        mascot = [e for e in match.effects if isinstance(e, IaraMascot)]
+        self.assertEqual(len(mascot), 1)
+        self.assertTrue(mascot[0].frames)
+        for _ in range(700):
+            match.update()
+        self.assertIn(mascot[0], match.effects)
+        self.assertLess(abs(mascot[0].x - match.players[0].x), 120)
+        match.draw(g.screen, g.ui)

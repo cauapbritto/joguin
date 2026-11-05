@@ -290,6 +290,11 @@ def clinic_effects():
                                               noise(0.08, 0.9, rng=r, curve=5, lowpass=0.5),
                                               tone(1319, 0.12, "sine", 0.5, curve=3),
                                               tone(1760, 0.22, "sine", 0.5, curve=3), at=[0, 0, 0.35, 0.46]),
+        # comemoração do Cauanzera Corrompido: a IARA deferindo (bip de sistema e choque)
+        "comemora_cauanzera_corrompido": mix(tone(1568, 0.1, "square", 0.3, curve=3),
+                                             tone(2093, 0.16, "square", 0.3, curve=3),
+                                             sweep_noise(0.35, 0.2, 0.9, 0.5, rng=r, attack=0.01, curve=3),
+                                             tone(110, 0.4, "saw", 0.5, slide=55, curve=2), at=[0, 0.1, 0.22, 0.22]),
     }
     for name, samples in sons.items():
         save_wav(name, samples)

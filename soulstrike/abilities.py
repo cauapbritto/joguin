@@ -341,6 +341,27 @@ class FechamentoDoMes(Ability):
         return 60 < dist < 480
 
 
+class OtimizacaoTotal(Ability):
+    """Cauanzera Corrompido: oito tentáculos de cabo saem dele em volta (os da IARA). A linha
+    ciano aparece no chão antes; depois o choque corre por ela."""
+    sound = "eletrico"
+    DAMAGE = 20
+    DELAY = 26
+    cooldown_mult = 1.2
+
+    def activate(self, user, match, target):
+        from .mansao import TentacleBeam
+        dx, dy = _aim(user, target)
+        base = math.atan2(dy, dx)
+        for k in range(8):
+            a = base + k * math.tau / 8
+            match.add_effect(TentacleBeam(user, user.x, user.y, math.cos(a), math.sin(a), 520, self.DELAY,
+                                          _dmg(user, self.DAMAGE)))
+
+    def worth_using(self, user, target, dist):
+        return dist < 420
+
+
 def _nearest_foe(user, match, target):
     if target is not None and getattr(target, "alive_in_match", False):
         return target
@@ -459,6 +480,7 @@ ABILITIES = {
     "borba": Exoesqueleto,
     "borba_corrompido": Sobrecarga,
     "albeguinio_corrompido": FechamentoDoMes,
+    "cauanzera_corrompido": OtimizacaoTotal,
 }
 
 

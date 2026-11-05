@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import pygame
 
 from . import config, energia, hud, theme
+from .progress import chapter_cleared
 from .ai import FighterAI
 from .entities import Particle, Pickup
 from .enemies import BIG_KINDS, CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_enemy
@@ -247,6 +248,8 @@ PHASES = (
     ), chapter=4),
 )
 CHAPTER_START = {ch: next(i for i, p in enumerate(PHASES) if p.chapter == ch) for ch in (1, 2, 3, 4)}
+RUSH_PHASES = tuple(i for i, p in enumerate(PHASES) if p.dungeons[-1].boss_spot)   # salas dos 4 chefes
+RUSH_UPGRADES = 4             # Reunião dos Corrompidos: melhorias sorteadas antes do primeiro chefe
 CHAPTER2_SOULS = 120          # começando do capítulo 2: almas para a loja da primeira fase
 CHAPTER2_UPGRADES = 2         # ... e melhorias sorteadas (mais a escolhida antes de entrar)
 
@@ -302,6 +305,7 @@ class CampaignRun:
         self.curse = None                                 # desafio da fase (maldição do altar): market.CURSES
         self.start_chapter = 1                            # 2: começou direto no capítulo 2 (sem recorde de tempo)
         self.rack = []                                    # armário do acampamento: armas guardadas (armario.token_of)
+        self.rush = bool(getattr(session, "rush", False))   # Reunião dos Corrompidos (só os chefes)
         self._snapshot = None
 
     @property
@@ -344,6 +348,26 @@ class CampaignRun:
     def chapter_end(self):
         """Última fase de um capítulo que não é o último (depois dela vem a história do capítulo novo)."""
         return not self.last_phase and PHASES[self.phase_index + 1].chapter != self.chapter
+
+    @property
+    def rush_last(self):
+        return self.rush and self.phase_index == RUSH_PHASES[-1]
+
+    def start_rush(self):
+        """Reunião dos Corrompidos: os 4 chefes em sequência, com melhorias sorteadas para aguentar."""
+        from .upgrades import choices
+        self.rush = True
+        self.start_chapter = 0                  # não vale recorde da campanha
+        self.phase_index = RUSH_PHASES[0]
+        for s in self.slots:
+            for _ in range(RUSH_UPGRADES):
+                self.upgrades[s].append(random.choice(choices(self.upgrades[s])))
+
+    def next_rush(self):
+        """Vai para a sala do próximo chefe (cura um pouco no caminho)."""
+        later = [i for i in RUSH_PHASES if i > self.phase_index]
+        self.phase_index = later[0]
+        self.hp_ratio = {s: min(1.0, r + 0.5) for s, r in self.hp_ratio.items()}
 
     def start_at_chapter(self, chapter):
         """Começa direto num capítulo já liberado: almas e melhorias sorteadas para compensar."""
@@ -1823,6 +1847,9 @@ class LobbyMatch(CoopMatch):
                 self.stalls.append(stall)
                 self.arena.walls.append(stall.wall)
                 self.props.append(stall)
+        if chapter_cleared(4) and self.players:    # recompensa do capítulo 4: a IARA mascote
+            from .mansao import IaraMascot
+            self.add_effect(IaraMascot(self.players[0], self.assets.sprites.get("iara_nucleo")))
         hub_vote(self, 0)
         for p in self.players:              # chegando (teletransporte ou saindo da masmorra)
             self.burst(p.x, p.y - 20, (200, 180, 255), 14, speed=3)
@@ -2075,6 +2102,13 @@ STORY = {
                          "guardou no bolso."),
         ("cauanzera_ti", "CAUANZERA", "Isso aqui ainda tá brilhando. Se eu ligar no servidor da Mansão do Carimbo, "
                                       "é GPU de graça. Ninguém vai notar."),
+    )),
+    # ── extra liberado ao zerar: Reunião dos Corrompidos (os 4 chefes em sequência) ──
+    "reuniao_corrompidos": ("REUNIÃO DOS CORROMPIDOS", "mansao_reuniao", (
+        ("iara", "IARA", "Bem-vindos à reunião extraordinária dos corrompidos. Pauta única: revanche."),
+        ("sombra:aryel", "ARYEL CORROMPIDO", "Eu abro a reunião. Alguém trouxe as almas?"),
+        ("sombra:cauanzera_ti", "CAUANZERA CORROMPIDO", "E eu fecho. Quatro chefes, um atrás do outro, sem "
+                                                        "acampamento no meio. Boa sorte."),
     )),
     # ── capítulo 4: Mansão do Carimbo ──
     "mansao_sede": ("CAPÍTULO 4 · FASE 10 · SEDE DA MANSÃO", "mansao_fila", (

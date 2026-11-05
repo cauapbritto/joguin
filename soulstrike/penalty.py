@@ -83,6 +83,8 @@ KICK_STYLES = {
                                   speed=1.18, run=1.4, trick="exo"),
     "albeguinio_corrompido": KickStyle("Boleto Vencido", "trava o pulo do goleiro por 0,3 s, uma vez na disputa",
                                        trick="hack"),
+    "cauanzera_corrompido": KickStyle("Calcanhar Otimizado", "de costas e com a IARA mentindo o lado na corrida",
+                                      speed=0.84, tell=-1.0, trick="calcanhar"),
 }
 
 
@@ -129,6 +131,8 @@ SAVE_STYLES = {
     "borba_corrompido": SaveStyle("Blindagem", "segura chute forte e alcança mais embaixo", hold="segura", dive=0.8,
                                   low=1.2),
     "albeguinio_corrompido": SaveStyle("Carimbo de PAGO", "anula a troca de canto do batedor, uma vez", trick="hack"),
+    "cauanzera_corrompido": SaveStyle("Voadora de Cabo", "o pulo mais longo, e os cabos seguram o rebote",
+                                      radius=1.15, rebound=0.6),
     "paredao": SaveStyle("Antecipação", "o melhor alcance e a melhor leitura", radius=1.2, read=1.5, late=1.2),
 }
 

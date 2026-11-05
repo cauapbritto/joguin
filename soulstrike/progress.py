@@ -91,9 +91,30 @@ def record_campaign(seconds, difficulty, players, full=True):
     if record:
         times[difficulty] = int(seconds)
     data["vezes_zerada"] = int(data.get("vezes_zerada", 0)) + 1
+    seals = data.setdefault("selos", {})              # selo de zerado de cada dificuldade
+    seals[difficulty] = True
     data["jogadores_ultima"] = players
     save(data)
     return record, unlocked_now
+
+
+def seals():
+    """Dificuldades em que a campanha já foi zerada (os selos do menu)."""
+    return {k for k, v in load().get("selos", {}).items() if v}
+
+
+def rush_seals():
+    return {k for k, v in load().get("selos_reuniao", {}).items() if v}
+
+
+def record_rush(difficulty):
+    """Reunião dos Corrompidos vencida nessa dificuldade. Devolve True se o selo é novo."""
+    data = load()
+    seals_ = data.setdefault("selos_reuniao", {})
+    new = not seals_.get(difficulty)
+    seals_[difficulty] = True
+    save(data)
+    return new
 
 
 # ── campanha salva (no começo de cada fase) ──
@@ -112,3 +133,9 @@ def clear_campaign():
     data = load()
     if data.pop("campanha_salva", None) is not None:
         save(data)
+
+
+def uniform_on():
+    """UNIFORME ligado nas regras, e só para quem já zerou o capítulo 4."""
+    from . import settings
+    return bool(settings.get("uniforme")) and chapter_cleared(4)

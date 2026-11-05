@@ -109,7 +109,9 @@ class Court:
         return [(500, up), (cls.W - 500, up), (500, down), (cls.W - 500, down)]
 
 
-BASKET_MAPS = ("quadra_ginasio", "quadra_rua", "quadra_soul")
+BASKET_MAPS = ("quadra_ginasio", "quadra_rua", "quadra_soul", "quadra_cuiabrasa")
+SOCCER_MAPS = ("campo_futebol", "campo_cuiabrasa")
+CUIABRASA_MAPS = {"cuiabrasa_praca", "quadra_cuiabrasa", "campo_cuiabrasa"}   # liberados ao zerar a campanha
 
 
 @dataclass
@@ -186,6 +188,14 @@ MAPS = [
         floor=((44, 122, 58), (50, 134, 64)), wall_colors=((112, 102, 90), (150, 138, 122), (60, 52, 44)),
         battle=False,
     ),
+    # recompensa do capítulo 4: o campo de Cuiabrasa, com a grama torrada pelo sol
+    MapConfig(
+        "campo_cuiabrasa", "Estádio de Cuiabrasa", (Pitch.W, Pitch.H),
+        walls=Pitch.walls(),
+        spawns=Pitch.spawns(),
+        floor=((150, 140, 62), (162, 150, 70)), wall_colors=((150, 70, 50), (200, 110, 70), (80, 36, 26)),
+        battle=False,
+    ),
 ]
 # Quadras de basquete: mesmas medidas, só a arte muda (assets/tiles/quadra_*)
 MAPS += [
@@ -193,7 +203,8 @@ MAPS += [
               floor=floor, battle=False)
     for key, name, floor in (("quadra_ginasio", "Ginásio", ((196, 142, 84), (34, 86, 168))),
                              ("quadra_rua", "Quadra de Rua", ((52, 56, 64), (164, 60, 50))),
-                             ("quadra_soul", "Arena Soul Strike", ((30, 24, 44), (74, 32, 118))))
+                             ("quadra_soul", "Arena Soul Strike", ((30, 24, 44), (74, 32, 118))),
+                             ("quadra_cuiabrasa", "Quadra de Cuiabrasa", ((110, 80, 56), (200, 80, 40))))
 ]
 # Variações das arenas (a 2ª masmorra de cada fase da campanha; também valem no duelo)
 MAPS += [
@@ -404,6 +415,41 @@ MAPS += [
 ]
 
 
+# recompensa do capítulo 4: a praça de Cuiabrasa para o duelo (o pátio da mansão, carros e toldos)
+MAPS += [
+    MapConfig(
+        "cuiabrasa_praca", "Praça de Cuiabrasa", (1600, 1200),
+        walls=[(0, 0, 1600, 30), (0, 0, 30, 1200), (1570, 0, 30, 1200), (0, 1170, 1600, 30),
+               (300, 220, 120, 60), (1180, 220, 120, 60), (300, 920, 120, 60), (1180, 920, 120, 60),
+               (740, 160, 60, 120), (800, 920, 60, 120), (520, 560, 160, 40), (920, 600, 160, 40)],
+        spawns=[(200, 600), (1400, 600), (800, 380), (800, 820)],
+        theme="mansao_patio",
+    ),
+]
+
+
+def battle_maps(cleared=None):
+    """Mapas do duelo que dá para escolher (os de Cuiabrasa só depois de zerar a campanha)."""
+    if cleared is None:
+        from . import progress
+        cleared = progress.chapter_cleared(4)
+    return [m for m in BATTLE_MAPS if cleared or m.key not in CUIABRASA_MAPS]
+
+
+def basket_maps(cleared=None):
+    if cleared is None:
+        from . import progress
+        cleared = progress.chapter_cleared(4)
+    return tuple(k for k in BASKET_MAPS if cleared or k not in CUIABRASA_MAPS)
+
+
+def soccer_maps(cleared=None):
+    if cleared is None:
+        from . import progress
+        cleared = progress.chapter_cleared(4)
+    return tuple(k for k in SOCCER_MAPS if cleared or k not in CUIABRASA_MAPS)
+
+
 def _lobby(theme):
     """Acampamento da campanha (lobby) no tema da fase, desenhado como texto em lobbies.py."""
     name, rows = lobbies.LOBBIES[theme]
@@ -515,7 +561,7 @@ class Arena:
         if background is not None:
             surf.blit(pygame.transform.scale(background, (self.width, self.height)), (0, 0))
             return surf
-        if self.cfg.key == SOCCER_MAP:
+        if self.cfg.key in SOCCER_MAPS:
             _soccer_pitch(surf, self.cfg.floor)
             return surf
         if self.cfg.key in BASKET_MAPS:
