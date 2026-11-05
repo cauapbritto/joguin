@@ -256,7 +256,10 @@ MODE_TEXT = {
     "treino_basquete": ("Treino de basquete com bonecos parados: a barrinha do arremesso, a finta, o toco e a "
                         "cesta, uma lição por vez.",
                         "1 JOGADOR"),
-    "penaltis": ("Disputa de pênaltis com o gol de frente, sem partida antes: escolha os times, arrume a ordem "
+    "penaltis1": ("Você contra um amigo: cada um escolhe um herói, bate uma e defende a outra, 5 para cada "
+                  "lado e depois morte súbita. Sem o P2, a CPU vai para o gol.",
+                  "1 OU 2 JOGADORES"),
+    "penaltis": ("Disputa de pênaltis em dupla com o gol de frente, sem partida antes: escolha os times, arrume a ordem "
                  "dos batedores e bata 5 para cada lado, depois morte súbita. Cada herói bate e defende do seu jeito.",
                  "1 A 4 JOGADORES"),
     "treino_penaltis": ("Treino sem fim contra a CPU: você bate uma e defende outra. O canto é a direção do "
@@ -307,7 +310,7 @@ MODE_GROUPS = {
     "campanha": [("CAPÍTULOS", ["continue", "campaign", "campaign2", "campaign3", "campaign4"]),
                  ("EXTRAS", ["reuniao", "cinema"])],
     "duelos": [("LUTAR", ["cpu", "duel", "duel2"]), ("TREINAR", ["treino"])],
-    "futebol": [("PARTIDA", ["soccer1", "soccer2"]), ("PÊNALTIS", ["penaltis", "desafio_goleiro"]),
+    "futebol": [("PARTIDA", ["soccer1", "soccer2"]), ("PÊNALTIS", ["penaltis1", "penaltis", "desafio_goleiro"]),
                 ("TREINAR", ["treino_futebol", "treino_penaltis"])],
     "basquete": [("PARTIDA", ["basket1", "basket2"]), ("TREINAR", ["treino_basquete"])],
 }
@@ -773,6 +776,7 @@ class ModeScene(_MenuScene):
             "basket1": [("trovao", "direita", -100), ("cauanzera", "esquerda", 100)],
             "basket2": [("ninja", "direita", -150), ("velocista", "direita", -70),
                         ("pirata", "esquerda", 70), ("tita", "esquerda", 150)],
+            "penaltis1": [("aryel", "costas", -60), ("ninja", "frente", 60)],
             "penaltis": [("matador", "costas", -60), ("paredao", "frente", 60)],
             "treino_penaltis": [("ginga", "costas", -60), ("tanque", "frente", 60)],
             "desafio_goleiro": [("trovao", "costas", -60), ("paredao", "frente", 60)],

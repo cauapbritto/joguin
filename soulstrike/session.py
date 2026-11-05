@@ -17,7 +17,9 @@ MODES = {
     "treino_futebol": {"title": "TREINO DE FUTEBOL", "soccer": True, "slots": 2},
     "treino_basquete": {"title": "TREINO DE BASQUETE", "soccer": True, "basket": True, "slots": 4, "teams": True},
     # pênaltis com visão de frente (scenes/penalty.py): sem partida antes
-    "penaltis": {"title": "DISPUTA DE PÊNALTIS", "soccer": True, "slots": 4, "teams": True, "penalty": True},
+    "penaltis": {"title": "PÊNALTIS 2 x 2", "soccer": True, "slots": 4, "teams": True, "penalty": True},
+    # um contra um: cada jogador bate e defende com o mesmo herói; sem o P2, a CPU entra
+    "penaltis1": {"title": "PÊNALTIS 1 x 1", "soccer": True, "slots": 2, "fill": True, "penalty": True},
     "treino_penaltis": {"title": "TREINO DE PÊNALTIS", "soccer": True, "slots": 2, "penalty": True},
     "desafio_goleiro": {"title": "DESAFIO DO GOLEIRO", "soccer": True, "slots": 2, "penalty": True},
 }

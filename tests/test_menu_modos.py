@@ -49,7 +49,7 @@ class ModosTest(unittest.TestCase):
         scene.handle(tecla(pygame.K_RETURN))
         self.assertEqual(scene.category, "futebol")
         values = [v for _, v in scene.menu.options]
-        self.assertEqual(values, ["soccer1", "soccer2", "penaltis", "desafio_goleiro", "treino_futebol",
+        self.assertEqual(values, ["soccer1", "soccer2", "penaltis1", "penaltis", "desafio_goleiro", "treino_futebol",
                                   "treino_penaltis"])
         scene.draw(g.screen)
         # LB/RB (PageUp/PageDown) trocam de modalidade sem voltar
