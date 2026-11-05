@@ -343,7 +343,7 @@ class CharSelectScene(_MenuScene):
     @property
     def _cpu_level_mode(self):
         """Modos em que 1, 2 e 3 escolhem a dificuldade da CPU."""
-        return self.game.session.mode in ("cpu", "duel2", "soccer1", "soccer2", "basket1", "basket2")
+        return self.game.session.mode in ("cpu", "duel2", "soccer1", "soccer2", "basket1", "basket2", "penaltis1")
 
     @property
     def _length_mode(self):

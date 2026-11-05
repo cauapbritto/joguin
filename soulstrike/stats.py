@@ -13,7 +13,7 @@ CATEGORIES = ("duelos", "futebol", "basquete")
 def category(mode):
     if mode.startswith("basket"):
         return "basquete"
-    if mode.startswith("soccer") or mode in ("penaltis", "desafio_goleiro"):
+    if mode.startswith("soccer") or mode in ("penaltis", "penaltis1", "desafio_goleiro"):
         return "futebol"
     return "duelos"
 

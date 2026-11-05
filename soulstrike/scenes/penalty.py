@@ -33,7 +33,7 @@ CATIMBA_FRAMES = 80
 TEAM = theme.TEAM_COLORS
 STATS_KEY = "penaltis"
 
-STANDALONE_MODES = ("penaltis", "treino_penaltis", "desafio_goleiro")
+STANDALONE_MODES = ("penaltis", "penaltis1", "treino_penaltis", "desafio_goleiro")
 
 # comemoração de cada herói: (frase, efeito, cor)
 CELEBRATIONS = {
@@ -1577,4 +1577,6 @@ def start_penalties(game):
         rng = random.Random()
         kickers = [Taker(k, 1) for k in rng.sample([c.key for c in CHARACTERS], 5)]
         teams = [[keeper], kickers]
-    return PenaltyScene(game, teams, mode=session.mode, difficulty=session.difficulty)
+    # o 1 x 1 é a mesma disputa, só que com um herói de cada lado
+    mode = "penaltis" if session.mode == "penaltis1" else session.mode
+    return PenaltyScene(game, teams, mode=mode, difficulty=session.difficulty)
