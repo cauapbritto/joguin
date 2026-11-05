@@ -2,12 +2,13 @@
 
 Cada inimigo derrotado solta almas. Cada jogador tem a sua carteira: quem deu o golpe final leva
 a maior parte e os outros vivos ganham um pouco, para ninguém ficar sem nada. Na volta
-da Masmorra 1, o acampamento tem duas bancas perto da fogueira: a LOJA (poção, arma sorteada,
-trocar as melhorias do fim da fase e continue) e o FERREIRO, que sobe a arma de +1 até +3
+da Masmorra 1, o acampamento tem duas bancas perto da fogueira: a LOJA (poção, a vitrine com duas
+armas de outros heróis, arma surpresa, trocar as melhorias do fim da fase e continue) e o FERREIRO, que sobe a arma de +1 até +3
 (+15% de dano e pente maior a cada nível) e, no +3, põe um encanto: fogo, gelo ou raio.
 Perto da banca, ATACAR abre o menu; para cima e para baixo escolhe, ATACAR compra, ESQUIVA fecha.
 Com a banca aberta, o celular do jogador mostra a mesma lista (snapshot) e pede a compra pelo id
-fixo de cada linha (Entry.key), em CoopMatch.phone_shop.
+fixo de cada linha (Entry.key), em CoopMatch.phone_shop. Cada linha leva também o que o celular
+desenha (Entry.info): a imagem da arma e, no ferreiro, a arma de agora e no que ela vira.
 """
 import math
 import random
@@ -15,11 +16,14 @@ import random
 import pygame
 
 from . import config, theme
-from .data import duel_arsenal, rarity_color
+from .data import CHARACTERS, duel_arsenal, rarity, rarity_color
 from .entities import Entity, Particle, Wall
 
 SOULS = {"comum": 3, "elite": 12, "chefe": 60}      # almas por inimigo derrotado (quem deu o golpe final)
 SHARE = {"comum": 1, "elite": 4, "chefe": 60}       # ... e para cada um dos outros vivos
+VITRINE = 2                                         # armas de outros heróis à mostra na loja
+VITRINE_COST = 40
+SURPRISE_COST = 25                                  # ARMA SURPRESA: uma arma qualquer cai no chão
 GIFT = 20                                           # DOAR: almas passadas a um companheiro
 FORGE_COST = (40, 80, 140)                          # +1, +2, +3
 FORGE_DAMAGE = 0.15                                 # dano a mais por nível
@@ -61,6 +65,40 @@ def weapon_label(fighter, weapon):
     if enchant:
         name += f" {ENCHANTS[enchant][0]}"
     return name
+
+
+def hexcolor(color):
+    return "#%02x%02x%02x" % tuple(color[:3])
+
+
+def owner_of(weapon):
+    """Nome do herói dono desta arma comum ("" se não é de ninguém)."""
+    hero = next((c for c in CHARACTERS if weapon in c.weapons), None)
+    return hero.name.upper() if hero is not None else ""
+
+
+def mag_at(fighter, weapon, level):
+    """Pente cheio desta arma no nível ``level`` do ferreiro (0 = sem pente)."""
+    from . import energia
+    if weapon.is_melee or weapon.mag <= 0 or energia.uses_energy(fighter, weapon):
+        return 0
+    return max(1, round(weapon.mag * getattr(fighter, "ammo_mult", 1.0) * (1 + FORGE_MAG * level)))
+
+
+def weapon_card(fighter, weapon, level=None, enchant=None):
+    """Uma arma como o celular desenha: imagem, raridade, tipo, dano, pente e energia por tiro."""
+    from . import energia
+    from .weapon_art import icon_file
+    if level is None:
+        level, enchant = forge_of(fighter, weapon)
+    return {
+        "name": weapon.name.upper(), "icon": icon_file(weapon.name), "rarity": rarity(weapon).upper(),
+        "color": hexcolor(rarity_color(weapon)), "melee": weapon.is_melee, "level": level,
+        "enchant": ENCHANTS[enchant][0] if enchant else None,
+        "damage": round(weapon.damage * (1 + FORGE_DAMAGE * level)),
+        "mag": mag_at(fighter, weapon, level),
+        "energy": energia.cost(fighter, weapon) if energia.enabled(fighter) else None,
+    }
 
 
 def soul_tier(kind):
@@ -123,6 +161,8 @@ class Stall(Entity):
         self.kind = kind
         self.style = style              # "lag": máquina de venda, bancada de solda e servidor com o fragmento
         self.age = 0
+        self.stock = None               # loja: as armas da vitrine (sorteadas na primeira vez que abre)
+        self.sold = set()               # ... e as que alguém já levou
         self.wall = Wall(round(x) - 34, round(y) - 10, 68, 22, visible=False)
 
     @property
@@ -246,9 +286,10 @@ class Stall(Entity):
 class Entry:
     """Uma linha do menu. ``key`` é o id fixo que o celular usa para pedir a compra."""
 
-    def __init__(self, label, cost, desc, ok, action, color=theme.BONE, key=None):
+    def __init__(self, label, cost, desc, ok, action, color=theme.BONE, key=None, info=None):
         self.label, self.cost, self.desc, self.ok, self.action, self.color = label, cost, desc, ok, action, color
         self.key = key or label
+        self.info = info                # o que o celular mostra a mais (imagem, antes e depois)
 
 
 class MarketMenu:
@@ -293,16 +334,59 @@ class MarketMenu:
 
     def _shop(self):
         f, run = self.fighter, self.run
+        full = f.hp >= f.max_hp
+        used = run.rerolls[f.slot]
         return [
-            Entry("POÇÃO DE VIDA", 20, "cura metade da vida", f.hp < f.max_hp, self._potion, key="pocao"),
-            Entry("ARMA SORTEADA", 30, "uma arma de outro herói cai no chão", True, self._weapon, key="arma"),
+            Entry("POÇÃO DE VIDA", 20, "cura metade da vida", not full, self._potion, key="pocao",
+                  info={"sub": "VIDA CHEIA" if full else "CURA METADE"}),
+        ] + self._vitrine() + [
+            Entry("ARMA SURPRESA", SURPRISE_COST, "uma arma de outro herói cai no chão", True, self._weapon,
+                  key="arma", info={"sub": "CAI NO CHÃO"}),
             Entry("TROCAR MELHORIAS", 25, "no fim da fase, TROCAR ARMA sorteia de novo",
-                  run.rerolls[f.slot] < MAX_REROLLS, self._reroll, key="trocar"),
+                  used < MAX_REROLLS, self._reroll, key="trocar",
+                  info={"sub": f"{used} DE {MAX_REROLLS} USADAS"}),
             Entry("CONTINUE", 120, "uma vida a mais para o grupo", run.continues < 3, self._continue,
-                  key="continue"),
+                  key="continue", info={"sub": "O GRUPO JÁ TEM 3" if run.continues >= 3 else "VIDA PRO GRUPO"}),
         ] + [Entry(f"DOAR {GIFT} > {m.label}", GIFT, f"passa {GIFT} almas para {m.label}", True,
                    lambda m=m: self._gift(m), m.color, f"doar:{m.slot}")
              for m in self.match.players if m is not f]
+
+    def stock(self):
+        """As armas da vitrine: uma de tiro e uma de perto de outros heróis, que ninguém do grupo
+        tem. Sorteadas na primeira vez que alguém abre a loja e iguais para todo mundo."""
+        stall = self.stall
+        if stall.stock is None:
+            held = {w.name for p in self.match.players for w in p.weapons}
+            out = []
+            for pool in duel_arsenal():
+                free = [w for w in pool if w.name not in held] or list(pool)
+                out.append(random.choice(free))
+            stall.stock = out[:VITRINE]
+        return stall.stock
+
+    def _vitrine(self):
+        f = self.fighter
+        out = []
+        for w in self.stock():
+            owner = owner_of(w)
+            sold = w.name in self.stall.sold
+            mine = any(x.name == w.name for x in f.weapons)
+            swap = next((x for x in f.base_weapons if x.is_melee == w.is_melee), None)
+            sub = "VENDIDA" if sold else "VOCÊ JÁ TEM" if mine else f"DONO: {owner}"
+            desc = (f"vem para a mão no lugar da {swap.name.lower()}" if swap is not None
+                    else "seu herói não usa esse tipo de arma")
+            info = {"type": "arma", "sub": sub, "owner": owner, "weapon": weapon_card(f, w),
+                    "out": weapon_card(f, swap) if swap is not None else None}
+            out.append(Entry(w.name.upper(), VITRINE_COST, desc, not sold and not mine and swap is not None,
+                             lambda w=w: self._buy_weapon(w), rarity_color(w), f"vitrine:{w.name}", info))
+        return out
+
+    def _buy_weapon(self, weapon):
+        """Arma da vitrine: vai direto para a mão; a que ela troca fica no chão, na frente da banca."""
+        s = self.stall
+        s.sold.add(weapon.name)
+        self.match.give_common(self.fighter, weapon, drop_at=(s.x, s.y + 56))
+        return weapon.name.upper()
 
     def _forge(self):
         f = self.fighter
@@ -310,16 +394,24 @@ class MarketMenu:
         for w in f.weapons:
             level, enchant = forge_of(f, w)
             color = rarity_color(w)
+            now = weapon_card(f, w, level, enchant)
             if level >= MAX_LEVEL:
-                out.append(Entry(weapon_label(f, w), 0, "no máximo", False, None, color, f"max:{w.name}"))
+                out.append(Entry(weapon_label(f, w), 0, "no máximo", False, None, color, f"max:{w.name}",
+                                 {"type": "forja", "group": w.name, "weapon": now, "next": None}))
             elif level == MAX_LEVEL - 1:
                 for key, (name, desc, ecolor) in ENCHANTS.items():
+                    info = {"type": "encanto", "group": w.name, "weapon": now,
+                            "next": weapon_card(f, w, level + 1, key),
+                            "enchant": {"key": key, "name": name, "desc": desc.upper(), "color": hexcolor(ecolor)}}
                     out.append(Entry(f"{w.name.upper()} +3 {name}", FORGE_COST[level], desc, True,
-                                     lambda w=w, key=key: self._upgrade(w, key), ecolor, f"encanto:{w.name}:{key}"))
+                                     lambda w=w, key=key: self._upgrade(w, key), ecolor, f"encanto:{w.name}:{key}",
+                                     info))
             else:
                 out.append(Entry(f"{weapon_label(f, w)} > +{level + 1}", FORGE_COST[level],
                                  "+15% de dano e pente maior", True, lambda w=w: self._upgrade(w), color,
-                                 f"forja:{w.name}:{level + 1}"))
+                                 f"forja:{w.name}:{level + 1}",
+                                 {"type": "forja", "group": w.name, "weapon": now,
+                                  "next": weapon_card(f, w, level + 1, enchant)}))
         fusion = self._fusion_entry()
         if fusion is not None:
             out.append(fusion)
@@ -331,12 +423,22 @@ class MarketMenu:
         f, run = self.fighter, self.run
         if f.relic is None or f.relic.forjada:
             return None
-        key, level, _ = recipe(f.weapons)
-        name, _ = preview_text(key, discovered())
+        from .forged import FAMILY_NAMES, RECIPES
+        key, level, enchant = recipe(f.weapons)
+        known = key in discovered()
+        name, note = preview_text(key, discovered())
         done = run.fused_phase == run.phase_index
         desc = "só uma fusão por mercado" if done else f"sai: {name}" + (f" +{level}" if level else "")
+        weapon = FORGED[key]
+        card = weapon_card(f, weapon, level, enchant)
+        if not known:
+            card["name"] = "???"
+        fam = next((k for k, v in RECIPES.items() if v == key), None)
+        info = {"type": "fusao", "sub": "JÁ FUNDIU AQUI" if done else "VIRA 1 FORJADA",
+                "inputs": [weapon_card(f, w) for w in f.weapons], "next": card, "known": known,
+                "note": note.upper(), "family": FAMILY_NAMES.get(fam, "")}
         return Entry("FUNDIR AS 3 ARMAS", FUSION_COST, desc, not done, self._fuse, rarity_color(FORGED[key]),
-                     "fundir")
+                     "fundir", info)
 
     def _fuse(self):
         from .forged import FORGED, discover, recipe
@@ -436,7 +538,7 @@ class MarketMenu:
                       for m in self.match.players if m is not self.fighter],
             "items": [{"id": e.key, "label": e.label, "cost": e.cost, "desc": e.desc,
                        "ok": bool(e.ok and e.action is not None), "afford": wallet >= e.cost,
-                       "color": "#%02x%02x%02x" % tuple(e.color[:3])} for e in entries],
+                       "color": hexcolor(e.color), "info": e.info} for e in entries],
         }
 
     def handle(self, inp):

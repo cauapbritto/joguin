@@ -669,25 +669,43 @@
 
   // ── campanha: loja no celular ──────────────
   // Só abre depois do ATACAR perto da banca. Um toque marca o item (aparece marcado na TV
-  // também), COMPRAR compra. As doações viram uma linha só, que abre a escolha de quem recebe.
+  // também), COMPRAR compra. As doações viram uma linha só, que abre a escolha de quem recebe,
+  // e os três encantos de uma arma viram uma linha só, com os encantos em botões no detalhe.
+  // Cada linha mostra a imagem da arma; no ferreiro, o detalhe mostra a arma de agora e no que ela vira.
   var shopOpen = null;       // tipo da banca aberta (loja, ferreiro, altar)
-  var shopPick = null;       // item marcado aqui no celular
-  var shopServerPick = null; // último marcado que o jogo mandou
+  var shopPick = null;       // linha marcada aqui no celular
+  var shopServerPick = null; // último item marcado que o jogo mandou
   var shopKey = "";
   var giftTo = null;
   var shopData = null;
+  var shopEnergy = [0, 0];   // energia e barra cheia de quem está na banca
+  var encPick = {};          // arma → id do encanto marcado
 
-  function shopRow(id) { return id && id.indexOf("doar:") === 0 ? "doar" : id; }
+  function shopRow(id) {
+    if (!id) return id;
+    if (id.indexOf("doar:") === 0) return "doar";
+    if (id.indexOf("encanto:") === 0) return id.slice(0, id.lastIndexOf(":"));
+    return id;
+  }
 
   function shopRows(shop) {
-    var rows = [], gift = null;
+    var rows = [], seen = {};
     shop.items.forEach(function (it) {
-      if (shopRow(it.id) === "doar") {
-        if (!gift) {
-          gift = { id: "doar", label: "DOAR " + it.cost + " ALMAS", cost: it.cost, ok: true,
-                   afford: it.afford, color: "#c8aaff", desc: "passa almas para um companheiro" };
-          rows.push(gift);
+      var row = shopRow(it.id);
+      if (row === "doar") {
+        if (!seen.doar) {
+          seen.doar = { id: "doar", label: "DOAR ALMAS", cost: it.cost, ok: true, afford: it.afford,
+                        color: "#c8aaff", desc: "passa almas para um companheiro", items: [it],
+                        info: { sub: "PARA UM AMIGO" } };
+          rows.push(seen.doar);
         }
+      } else if (row !== it.id) {          // encantos da mesma arma
+        if (!seen[row]) {
+          seen[row] = { id: row, label: it.info.weapon.name, cost: it.cost, ok: it.ok, afford: it.afford,
+                        color: it.info.weapon.color, desc: it.desc, items: [], info: it.info };
+          rows.push(seen[row]);
+        }
+        seen[row].items.push(it);
       } else {
         rows.push(it);
       }
@@ -695,65 +713,299 @@
     return rows;
   }
 
+  // o id que vai para o jogo quando a linha está marcada
+  function rowItem(r) {
+    if (!r) return null;
+    if (r.id === "doar") return r.items[0].id;
+    if (r.items) {
+      var pick = encPick[r.id];
+      return r.items.some(function (it) { return it.id === pick; }) ? pick : r.items[0].id;
+    }
+    return r.id;
+  }
+
+  function rowEntry(r) {
+    if (!r || !r.items || r.id === "doar") return r;
+    var id = rowItem(r);
+    return r.items.filter(function (it) { return it.id === id; })[0];
+  }
+
   function order(item, buy) {
     post("/api/shop", { slot: slot, token: token, item: item, buy: !!buy }).catch(function () {});
     setTimeout(refresh, 90);
   }
 
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+
+  // imagem da arma num quadrinho (silhueta quando a receita da fusão ainda é segredo)
+  function weaponPic(card, cls, secret) {
+    var box = el("span", cls + (secret ? " sil" : ""));
+    if (card && card.icon) {
+      var img = el("img", "ic");
+      img.src = "/arma/" + card.icon;
+      img.alt = "";
+      img.draggable = false;
+      box.appendChild(img);
+    }
+    return box;
+  }
+
+  function levelPips(level) {
+    var pips = el("span", "lvls");
+    for (var k = 0; k < 3; k++) pips.appendChild(el("i", k < level ? "f" : ""));
+    return pips;
+  }
+
+  function rowThumb(r) {
+    var info = r.info || {};
+    if (info.type === "arma") return weaponPic(info.weapon, "thumb");
+    if (info.type === "forja" || info.type === "encanto") return weaponPic(info.weapon, "thumb");
+    if (info.type === "fusao") return weaponPic(info.next, "thumb", !info.known);
+    var box = el("span", "thumb");
+    if (r.id === "pocao") box.appendChild(el("i", "potion"));
+    else if (r.id === "arma") box.appendChild(el("b", "qmark", "?"));
+    else if (r.id === "trocar") box.appendChild(el("b", "qmark", "↻"));
+    else if (r.id === "doar") box.appendChild(el("b", "gem gift-gem"));
+    else if (r.id === "continue") box.appendChild(el("b", "gem"));
+    else box.appendChild(el("b", "dot"));
+    return box;
+  }
+
+  function rowLabel(r) {
+    var info = r.info || {};
+    if (info.type === "forja" || info.type === "encanto") {
+      var w = info.weapon;
+      return w.name + (w.level ? " +" + w.level : "") + (w.enchant ? " " + w.enchant : "");
+    }
+    return r.label;
+  }
+
+  function rowSub(r) {
+    var info = r.info || {};
+    if (info.type === "forja" || info.type === "encanto") return levelPips(info.weapon.level);
+    return info.sub ? el("small", "", info.sub) : null;
+  }
+
+  function statLine(grid, name, before, after) {
+    grid.appendChild(el("span", "k", name));
+    if (after === undefined || after === null || after === before) {
+      var v = el("span", "v", before);
+      v.style.gridColumn = "span 3";
+      grid.appendChild(v);
+      return;
+    }
+    grid.appendChild(el("span", "a", before));
+    grid.appendChild(el("em", "seta", ">"));
+    grid.appendChild(el("span", "up", after));
+  }
+
+  function energyText(card) {
+    if (!card || card.energy === null || card.energy === undefined) return null;
+    if (!card.energy) return "DE GRAÇA";
+    return card.energy + " POR " + (card.melee ? "GOLPE" : "TIRO");
+  }
+
+  function titleLine(name, tag, color) {
+    var line = el("div", "dline");
+    var b = el("b", "", name);
+    b.style.color = color;
+    line.appendChild(b);
+    if (tag) {
+      var t = el("span", "tagr", tag);
+      t.style.color = color;
+      line.appendChild(t);
+    }
+    return line;
+  }
+
+  function renderDetail(r, cur) {
+    var box = $("shop-detail");
+    box.innerHTML = "";
+    box.style.removeProperty("--r");
+    if (!r) return;
+    var info = r.info || {};
+    var grid;
+    if (info.type === "arma") {
+      var w = info.weapon;
+      box.style.setProperty("--r", w.color);
+      var top = el("div", "trans");
+      top.appendChild(weaponPic(w, "big"));
+      var txt = el("div", "dtxt");
+      var b = el("b", "", w.name);
+      b.style.color = w.color;
+      txt.appendChild(b);
+      var tag = el("span", "tagr", w.rarity + " · " + (w.melee ? "PERTO" : "TIRO"));
+      tag.style.color = w.color;
+      txt.appendChild(tag);
+      if (info.owner) txt.appendChild(el("small", "", "DONO: " + info.owner));
+      top.appendChild(txt);
+      box.appendChild(top);
+      grid = el("div", "cmp");
+      statLine(grid, "DANO", w.damage);
+      if (w.mag) statLine(grid, "PENTE", w.mag);
+      if (energyText(w)) statLine(grid, "ENERGIA", energyText(w));
+      box.appendChild(grid);
+      if (info.out) {
+        var hand = el("div", "hand");
+        hand.appendChild(el("span", "", "TROCA POR"));
+        hand.appendChild(weaponPic(info.out, "slotpic out"));
+        hand.appendChild(el("em", "seta", ">"));
+        hand.appendChild(weaponPic(w, "slotpic in"));
+        box.appendChild(hand);
+      }
+      box.appendChild(el("p", "dnote", (cur.desc || "").toUpperCase()));
+    } else if (info.type === "forja" || info.type === "encanto") {
+      var it = info.type === "encanto" ? (cur.info || info) : info;
+      var now = it.weapon, next = it.next;
+      var color = now.color;
+      box.style.setProperty("--r", color);
+      var t2 = el("div", "trans");
+      t2.appendChild(weaponPic(now, "big sm"));
+      if (next) {
+        t2.appendChild(el("em", "seta", ">"));
+        var pic = weaponPic(next, "big glow" + (next.enchant ? " fx-" + it.enchant.key : ""));
+        pic.appendChild(el("span", "badge", "+" + next.level));
+        t2.appendChild(pic);
+      }
+      box.appendChild(t2);
+      var label = now.name + (now.level ? " +" + now.level : "");
+      box.appendChild(titleLine(next ? label + " > +" + next.level + (next.enchant ? " " + next.enchant : "")
+                                     : label + " · NO MÁXIMO", now.rarity, color));
+      if (info.type === "encanto") {
+        var chips = el("div", "chips");
+        r.items.forEach(function (opt) {
+          var en = opt.info.enchant;
+          var c = el("button", "chip" + (opt.id === cur.id ? " on" : ""));
+          c.style.setProperty("--c", en.color);
+          c.appendChild(el("span", "", en.name));
+          c.appendChild(el("small", "", en.desc));
+          c.addEventListener("pointerdown", function (e) {
+            e.preventDefault();
+            buzz();
+            encPick[r.id] = opt.id;
+            $("shop-note").textContent = "";
+            order(opt.id, false);
+            renderShop(shopData);
+          });
+          chips.appendChild(c);
+        });
+        box.appendChild(chips);
+      }
+      grid = el("div", "cmp");
+      statLine(grid, "DANO", now.damage, next ? next.damage : null);
+      if (now.mag) statLine(grid, "PENTE", now.mag, next ? next.mag : null);
+      if (energyText(now)) statLine(grid, "ENERGIA", energyText(now));
+      box.appendChild(grid);
+    } else if (info.type === "fusao") {
+      var out = info.next;
+      box.style.setProperty("--r", out.color);
+      var t3 = el("div", "trans");
+      var mini = el("span", "mini");
+      info.inputs.forEach(function (c) { mini.appendChild(weaponPic(c, "slotpic")); });
+      t3.appendChild(mini);
+      t3.appendChild(el("em", "seta", ">"));
+      var big = weaponPic(out, "big tall" + (info.known ? " glow" : ""), !info.known);
+      if (info.known && out.level) big.appendChild(el("span", "badge", "+" + out.level));
+      t3.appendChild(big);
+      box.appendChild(t3);
+      var name = info.known ? out.name + (out.level ? " +" + out.level : "")
+                            : "???" + (info.family ? " (TIPO " + info.family + ")" : "");
+      box.appendChild(titleLine(name, "FORJADA", out.color));
+      box.appendChild(el("p", "dnote", info.note));
+      if (info.known) {
+        grid = el("div", "cmp");
+        statLine(grid, "DANO", out.damage);
+        if (energyText(out)) statLine(grid, "ENERGIA", energyText(out));
+        box.appendChild(grid);
+      }
+      box.appendChild(el("p", "dnote", "AS 3 ARMAS SOMEM E AS SUAS VOLTAM AO +0."));
+    } else {
+      var nb = el("b", "", r.label);
+      nb.style.color = r.color;
+      box.appendChild(nb);
+      box.appendChild(el("p", "dnote", (r.desc || "").toUpperCase()));
+    }
+    var foot = el("div", "foot");
+    foot.appendChild(el("strong", "", cur.cost ? cur.cost + " ALMAS" : "GRÁTIS"));
+    if (cur.cost && cur.afford) foot.appendChild(el("span", "", "SOBRAM " + (shopData.souls - cur.cost)));
+    box.appendChild(foot);
+  }
+
   function renderShop(shop) {
     shopData = shop;
     var rows = shopRows(shop);
+    var view = $("view-shop");
     if (shopOpen !== shop.kind) {          // acabou de abrir
       shopOpen = shop.kind;
       shopPick = shopRow(shop.picked);
       shopServerPick = shop.picked;
+      encPick = {};
+      if (shopPick !== shop.picked && shopPick !== "doar") encPick[shopPick] = shop.picked;
       giftTo = null;
-      $("view-shop").classList.remove("gifting");
+      view.classList.remove("gifting");
       $("shop-note").textContent = "";
     } else if (shop.picked !== shopServerPick) {
       shopServerPick = shop.picked;        // mexeram pelo analógico na TV
-      if (shopRow(shop.picked) !== shopPick && !$("view-shop").classList.contains("gifting")) {
-        shopPick = shopRow(shop.picked);
+      var row = shopRow(shop.picked);
+      if (rowItem(rows.filter(function (r) { return r.id === shopPick; })[0]) !== shop.picked &&
+          !view.classList.contains("gifting")) {
+        shopPick = row;
+        if (row !== shop.picked && row !== "doar") encPick[row] = shop.picked;
       }
     }
     if (!rows.some(function (r) { return r.id === shopPick; })) shopPick = rows.length ? rows[0].id : null;
+    view.dataset.kind = shop.kind;
     $("shop-title").textContent = shop.title;
     $("shop-souls").textContent = shop.souls;
-    var key = JSON.stringify(rows) + "|" + shopPick;
+    var energy = $("shop-energy");
+    energy.hidden = !(shopEnergy[1] > 0) || shop.kind === "altar";
+    $("shop-energy-n").textContent = shopEnergy[0] + "/" + shopEnergy[1];
+    var cur = rowEntry(rows.filter(function (r) { return r.id === shopPick; })[0]);
+    var key = JSON.stringify(rows) + "|" + shopPick + "|" + (cur ? cur.id : "") + "|" + shop.souls;
     if (key !== shopKey) {
       shopKey = key;
       var list = $("shop-list");
       list.innerHTML = "";
       rows.forEach(function (r) {
-        var b = document.createElement("button");
-        b.className = "shop-item" + (r.id === shopPick ? " on" : "") + (r.ok && r.afford ? "" : " off");
+        var b = el("button", "shop-item" + (r.id === shopPick ? " on" : "") + (r.ok && r.afford ? "" : " off"));
         b.style.setProperty("--c", r.color);
-        b.innerHTML = "<span></span><i></i>";
-        b.firstChild.textContent = r.label;
-        b.lastChild.textContent = r.cost ? r.cost : "";
+        b.style.setProperty("--r", (r.info && r.info.weapon) ? r.info.weapon.color : r.color);
+        var lbl = el("span", "lbl");
+        lbl.appendChild(rowThumb(r));
+        var txt = el("span", "txt");
+        txt.appendChild(el("span", "name", rowLabel(r)));
+        var sub = rowSub(r);
+        if (sub) txt.appendChild(sub);
+        lbl.appendChild(txt);
+        b.appendChild(lbl);
+        b.appendChild(el("i", "", r.cost ? r.cost : ""));
         b.addEventListener("pointerdown", function (e) {
           e.preventDefault();
           buzz();
           shopPick = r.id;
           $("shop-note").textContent = "";
-          order(r.id === "doar" ? shopData.items.filter(function (it) { return shopRow(it.id) === "doar"; })[0].id : r.id, false);
+          order(rowItem(r), false);
           renderShop(shopData);
         });
         list.appendChild(b);
       });
+      renderDetail(rows.filter(function (r) { return r.id === shopPick; })[0], cur);
+      var on = list.querySelector(".on");
+      if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest" });
     }
-    var cur = rows.filter(function (r) { return r.id === shopPick; })[0];
-    var name = $("shop-name");
-    name.textContent = cur ? cur.label : "";
-    name.style.setProperty("--c", cur ? cur.color : "");
-    $("shop-desc").textContent = cur ? cur.desc.toUpperCase() : "";
-    $("shop-cost").textContent = cur && cur.cost ? cur.cost + " ALMAS" : cur ? "GRÁTIS" : "";
-    $("shop-left").textContent = cur && cur.cost && cur.afford ? "SOBRAM " + (shop.souls - cur.cost) : "";
     var buy = $("shop-buy");
     buy.disabled = !cur || !cur.ok || !cur.afford;
-    buy.textContent = shop.kind === "altar" ? "ESCOLHER" : cur && cur.id === "doar" ? "DOAR…" : "COMPRAR";
-    if (cur && !cur.ok) $("shop-note").textContent = "INDISPONÍVEL";
-    else if (cur && !cur.afford) $("shop-note").textContent = "FALTAM " + (cur.cost - shop.souls) + " ALMAS";
+    buy.textContent = shop.kind === "altar" ? "ESCOLHER" : shopPick === "doar" ? "DOAR…" :
+      cur && cur.id === "fundir" ? "FUNDIR" : shop.kind === "ferreiro" ? "FORJAR" : "COMPRAR";
+    var note = $("shop-note");
+    if (cur && !cur.ok) note.textContent = (cur.info && cur.info.sub) || "INDISPONÍVEL";
+    else if (cur && !cur.afford) note.textContent = "FALTAM " + (cur.cost - shop.souls) + " ALMAS";
+    else if (note.textContent !== "PEDIDO ENVIADO" && note.textContent.indexOf("DOOU") !== 0) note.textContent = "";
     renderGift(shop);
   }
 
@@ -808,7 +1060,7 @@
       renderGift(shopData);
       return;
     }
-    order(shopPick, true);
+    order(rowItem(shopRows(shopData).filter(function (r) { return r.id === shopPick; })[0]) || shopPick, true);
     $("shop-note").textContent = "PEDIDO ENVIADO";
     if (navigator.vibrate) navigator.vibrate([10, 40, 20]);
   });
@@ -851,6 +1103,7 @@
     if (phase === "playing" && me.playing && me.shop) {
       if (!$("view-shop").classList.contains("on")) releaseAll();   // nada fica segurado com a loja aberta
       show("shop");
+      shopEnergy = [me.energy || 0, me.emax || 0];
       renderShop(me.shop);
       return;
     }

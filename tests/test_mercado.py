@@ -41,6 +41,17 @@ def abrir(match, inp, kind):
     return p, match.menus[p]
 
 
+def abrir_outro(match, inp):
+    q = match.players[1]
+    stall = next(s for s in match.stalls if s.kind == "loja")
+    q.x, q.y = stall.x + 30, stall.y + 40
+    inp.tap("attack")
+    match.update()
+    inp.end_frame()
+    match.update()
+    return q, match.menus[q]
+
+
 def apertar(match, inp, action=None, stick=None):
     if action:
         inp.tap(action)
@@ -122,7 +133,7 @@ class MercadoTest(unittest.TestCase):
         match, inputs = acampamento(souls=1000)
         match.run.continues = 1
         p, menu = abrir(match, inputs[1], "loja")
-        apertar(match, inputs[1], stick=(0.0, 1.0))       # arma sorteada
+        menu.pick("arma")                                  # arma surpresa (depois da vitrine)
         apertar(match, inputs[1], "attack")
         self.assertEqual(len(match.ground), 1)
         apertar(match, inputs[1], stick=(0.0, 1.0))       # trocar melhorias
@@ -131,6 +142,33 @@ class MercadoTest(unittest.TestCase):
         apertar(match, inputs[1], stick=(0.0, 1.0))       # continue
         apertar(match, inputs[1], "attack")
         self.assertEqual(match.run.continues, 2)
+
+    def test_vitrine_tem_uma_de_tiro_e_uma_de_perto_de_outros_herois(self):
+        match, inputs = acampamento(souls=1000)
+        p, menu = abrir(match, inputs[1], "loja")
+        stock = menu.stock()
+        self.assertEqual([w.is_melee for w in stock], [False, True])
+        held = {w.name for q in match.players for w in q.weapons}
+        self.assertFalse(held & {w.name for w in stock})
+        ids = [e.key for e in menu.entries()]
+        self.assertEqual(ids[:4], ["pocao"] + [f"vitrine:{w.name}" for w in stock] + ["arma"])
+        q, other = abrir_outro(match, inputs[2])
+        self.assertEqual(other.stock(), stock)            # a vitrine é a mesma para o grupo
+
+    def test_arma_da_vitrine_vai_para_a_mao(self):
+        match, inputs = acampamento(souls=1000)
+        p, menu = abrir(match, inputs[1], "loja")
+        perto = menu.stock()[1]
+        espada = p.base_weapons[1]
+        menu.pick(f"vitrine:{perto.name}")
+        apertar(match, inputs[1], "attack")
+        self.assertIs(p.weapon, perto)
+        self.assertNotIn(espada, p.weapons)
+        self.assertEqual([g.weapon for g in match.ground], [espada])      # a que ela trocou fica no chão
+        self.assertEqual(match.run.souls[1], 1000 - M.VITRINE_COST)
+        e = next(e for e in menu.entries() if e.key == f"vitrine:{perto.name}")
+        self.assertFalse(e.ok)                            # vendida: ninguém compra de novo
+        self.assertEqual(e.info["sub"], "VENDIDA")
 
     def test_ferreiro_sobe_ate_o_encanto(self):
         match, inputs = acampamento(souls=1000)
@@ -240,7 +278,12 @@ class LojaNoCelularTest(unittest.TestCase):
         self.assertEqual(shop["kind"], "loja")
         self.assertEqual(shop["souls"], 50)
         ids = [i["id"] for i in shop["items"]]
-        self.assertEqual(ids[:4], ["pocao", "arma", "trocar", "continue"])
+        self.assertEqual(ids[0], "pocao")
+        self.assertEqual(ids[3:6], ["arma", "trocar", "continue"])
+        vitrine = shop["items"][1]["info"]
+        self.assertTrue(vitrine["weapon"]["icon"].endswith(".png"))      # a imagem da arma
+        self.assertEqual(vitrine["out"]["name"], "ARCO")                 # o guerreiro troca o arco
+        self.assertEqual(vitrine["weapon"]["energy"], 1)                 # arma de tiro de outro: 1 por tiro
         self.assertIn("doar:2", ids)
         self.assertIsNone(self.hub.status(2)["me"]["shop"])      # o outro não abriu nada
 
@@ -274,6 +317,47 @@ class LojaNoCelularTest(unittest.TestCase):
         self.hub.order(1, f"forja:{w.name}:1", True)               # pedido repetido não sobe de novo
         self.esperar(match, 1)
         self.assertEqual(M.forge_of(p, w)[0], 1)
+
+    def test_ferreiro_mostra_no_que_a_arma_vira(self):
+        match, inputs = acampamento(souls=500)
+        p, menu = abrir(match, inputs[1], "ferreiro")
+        p.forge["Espada"] = [2, None]
+        self.esperar(match)
+        items = {i["id"]: i for i in self.hub.status(1)["me"]["shop"]["items"]}
+        arco = items["forja:Arco:1"]["info"]
+        self.assertEqual(arco["weapon"]["icon"], "arco.png")
+        self.assertEqual((arco["weapon"]["level"], arco["next"]["level"]), (0, 1))
+        self.assertEqual((arco["weapon"]["damage"], arco["next"]["damage"]), (10, 12))
+        self.assertGreater(arco["next"]["mag"], arco["weapon"]["mag"])
+        fogo = items["encanto:Espada:fogo"]["info"]
+        self.assertEqual((fogo["group"], fogo["next"]["level"], fogo["next"]["enchant"]), ("Espada", 3, "FOGO"))
+        self.assertEqual(fogo["next"]["damage"], round(22 * 1.45))
+
+    def test_fusao_mostra_a_forjada_ou_a_silhueta(self):
+        from soulstrike.data import RARE_WEAPONS
+        from unittest import mock
+        match, inputs = acampamento(souls=500)
+        p, menu = abrir(match, inputs[1], "ferreiro")
+        match.give_relic(p, RARE_WEAPONS["besta"])
+        with mock.patch("soulstrike.forged.discovered", return_value=set()):
+            info = next(e for e in menu.entries() if e.key == "fundir").info
+        self.assertEqual([c["name"] for c in info["inputs"]], ["ARCO", "ESPADA", "BESTA"])
+        self.assertFalse(info["known"])
+        self.assertEqual(info["next"]["name"], "???")
+        self.assertEqual(info["next"]["icon"], "arco_das_mil_almas.png")  # o celular mostra a silhueta
+        self.assertEqual(info["family"], "FLECHA")
+        with mock.patch("soulstrike.forged.discovered", return_value={"arco_mil_almas"}):
+            info = next(e for e in menu.entries() if e.key == "fundir").info
+        self.assertEqual(info["next"]["name"], "ARCO DAS MIL ALMAS")
+
+    def test_rota_da_imagem_da_arma(self):
+        from soulstrike.net import server
+        client = server.app.test_client()
+        r = client.get("/arma/katana.png")
+        self.assertEqual((r.status_code, r.mimetype), (200, "image/png"))
+        r.close()
+        self.assertEqual(client.get("/arma/grips.json").status_code, 404)
+        self.assertEqual(client.get("/arma/..%2Fconfig.py").status_code, 404)
 
     def test_fechar_pelo_celular(self):
         match, inputs = acampamento(souls=50)

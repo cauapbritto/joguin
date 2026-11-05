@@ -113,17 +113,15 @@
   <div class="shop-head">
     <div class="tag" data-bind="tag">P1</div>
     <span class="muted" id="shop-title">LOJA</span>
-    <span class="shop-souls"><b class="gem"></b> <span id="shop-souls">0</span> ALMAS</span>
+    <span class="shop-wallet">
+      <span class="shop-energy" id="shop-energy" hidden><i class="bolt"></i> <span id="shop-energy-n">0/0</span></span>
+      <span class="shop-souls"><b class="gem"></b> <span id="shop-souls">0</span> ALMAS</span>
+    </span>
   </div>
   <div class="shop-body" id="shop-main">
     <div class="shop-list" id="shop-list"></div>
     <div class="shop-side">
-      <div class="shop-detail">
-        <b id="shop-name"></b>
-        <p id="shop-desc"></p>
-        <strong id="shop-cost"></strong>
-        <span id="shop-left"></span>
-      </div>
+      <div class="shop-detail" id="shop-detail"></div>
       <div class="row">
         <button class="btn" id="shop-close">FECHAR</button>
         <button class="btn btn-buy" id="shop-buy">COMPRAR</button>
