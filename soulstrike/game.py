@@ -2,7 +2,7 @@
 import pygame
 
 from . import config, settings, theme
-from . import rumble
+from . import crt, rumble
 from .assets import Assets
 from .controls import PlayerInput
 from .gamepads import Gamepads
@@ -76,6 +76,7 @@ class Game:
             self._fade_from = self.screen.copy()
             self._fade = self.FADE_FRAMES
         self.scene = scene
+        crt.reset()
         scene.enter()
 
     def toggle_fullscreen(self):
@@ -146,6 +147,7 @@ class Game:
 
     def draw(self):
         self.scene.draw(self.screen)
+        crt.end_frame(self.screen)                 # painéis que fecharam: desligam como TV antiga
         if self._fade > 0:
             self._fade_from.set_alpha(round(255 * self._fade / self.FADE_FRAMES))
             self.screen.blit(self._fade_from, (0, 0))
