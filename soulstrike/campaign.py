@@ -766,7 +766,9 @@ class CoopMatch(Match):
     def give_common(self, fighter, weapon, drop_at=None):
         """Arma de outro herói: entra no lugar da de mesmo tipo e já vem na mão."""
         base = list(fighter.base_weapons)
-        i = next(k for k, w in enumerate(base) if w.is_melee == weapon.is_melee)
+        i = next((k for k, w in enumerate(base) if w.is_melee == weapon.is_melee), None)
+        if i is None:                                # herói sem arma desse tipo (só joga bola): não pega
+            return
         old = base[i]
         base[i] = weapon
         fighter.loadout = None if tuple(base) == fighter.stats.weapons else tuple(base)

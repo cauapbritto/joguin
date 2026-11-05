@@ -132,7 +132,7 @@ class FighterAI:
         if not me.weapon.is_melee and ranged_out and dist < 130:
             if me.switch_weapon():
                 match.assets.play("click", 0.3)
-        elif (me.weapon.is_melee and not me.weapons[self.preferred].is_melee and not ranged_out
+        elif (me.weapon.is_melee and not me.weapons[self.preferred % len(me.weapons)].is_melee and not ranged_out
               and dist > 110):
             if me.switch_weapon():
                 match.assets.play("click", 0.3)
