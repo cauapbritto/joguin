@@ -48,10 +48,99 @@ KITS = {
 KIT_DETAIL = (240, 238, 230)   # estampa/raio que sumiria no uniforme vira branco
 
 
+MARGIN = 4      # sobra em volta da área do desenho: o que passa da borda (chapéu, escudo, braço) não é cortado
+
+
+class _Area:
+    """A superfície do desenho vista nas coordenadas da arte: (0, 0) é o canto da área de w x h,
+    mas os pixels que passam dela caem na sobra (MARGIN) em vez de sumir. Faz o papel de
+    pygame.Surface para os desenhos que mexem direto em ``c.surf``."""
+
+    def __init__(self, big, w, h):
+        self.big, self.w, self.h = big, w, h
+
+    @staticmethod
+    def _rect(r):
+        r = pygame.Rect(r)
+        return r.move(MARGIN, MARGIN)
+
+    def fill(self, color, rect=None):
+        if rect is None:
+            rect = (-MARGIN, -MARGIN, self.big.get_width(), self.big.get_height())
+        return self.big.fill(color, self._rect(rect))
+
+    def get_at(self, pos):
+        return self.big.get_at((pos[0] + MARGIN, pos[1] + MARGIN))
+
+    def set_at(self, pos, color):
+        return self.big.set_at((pos[0] + MARGIN, pos[1] + MARGIN), color)
+
+    def blit(self, src, dest):
+        if isinstance(src, _Area):                 # outro desenho (com a mesma sobra)
+            return self.big.blit(src.big, dest)
+        return self.big.blit(src, (dest[0] + MARGIN, dest[1] + MARGIN))
+
+    def set_alpha(self, value):
+        return self.big.set_alpha(value)
+
+    def get_size(self):
+        return self.w, self.h
+
+    def get_width(self):
+        return self.w
+
+    def get_height(self):
+        return self.h
+
+
+def _shift(points):
+    return [(x + MARGIN, y + MARGIN) for x, y in points]
+
+
+class _Draw:
+    """pygame.draw que entende a área do desenho (_Area): soma a sobra nas coordenadas."""
+
+    @staticmethod
+    def _target(surf):
+        return (surf.big, True) if isinstance(surf, _Area) else (surf, False)
+
+    def polygon(self, surf, color, points, width=0):
+        s, a = self._target(surf)
+        return pygame.draw.polygon(s, color, _shift(points) if a else points, width)
+
+    def line(self, surf, color, start, end, width=1):
+        s, a = self._target(surf)
+        if a:
+            start, end = _shift((start, end))
+        return pygame.draw.line(s, color, start, end, width)
+
+    def lines(self, surf, color, closed, points, width=1):
+        s, a = self._target(surf)
+        return pygame.draw.lines(s, color, closed, _shift(points) if a else points, width)
+
+    def circle(self, surf, color, center, radius, width=0):
+        s, a = self._target(surf)
+        if a:
+            center = (center[0] + MARGIN, center[1] + MARGIN)
+        return pygame.draw.circle(s, color, center, radius, width)
+
+    def ellipse(self, surf, color, rect, width=0):
+        s, a = self._target(surf)
+        return pygame.draw.ellipse(s, color, pygame.Rect(rect).move(MARGIN, MARGIN) if a else rect, width)
+
+    def rect(self, surf, color, rect, width=0):
+        s, a = self._target(surf)
+        return pygame.draw.rect(s, color, pygame.Rect(rect).move(MARGIN, MARGIN) if a else rect, width)
+
+
+draw = _Draw()
+
+
 class Canvas:
     def __init__(self, w=W, h=H):
         self.w, self.h = w, h
-        self.surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        self.big = pygame.Surface((w + 2 * MARGIN, h + 2 * MARGIN), pygame.SRCALPHA)
+        self.surf = _Area(self.big, w, h)
         self.hand = None                          # centro da mão da arma (pixels da arte)
 
     def rect(self, x, y, w, h, color):
@@ -59,7 +148,7 @@ class Canvas:
             self.surf.fill(color, (x, y, w, h))
 
     def px(self, x, y, color):
-        if 0 <= x < self.w and 0 <= y < self.h:
+        if -MARGIN <= x < self.w + MARGIN and -MARGIN <= y < self.h + MARGIN:
             self.surf.set_at((x, y), color)
 
     def erase(self, x, y, w=1, h=1):
@@ -75,17 +164,19 @@ class Canvas:
 
     def finish(self):
         """Contorno de 1 px em volta do desenho, na cor escura do que está do lado
-        (contorno "seletivo": a camisa rosa ganha borda vinho, o aço ganha borda chumbo)."""
-        src = self.surf
+        (contorno "seletivo": a camisa rosa ganha borda vinho, o aço ganha borda chumbo).
+        Devolve a superfície inteira, com a sobra (MARGIN) em volta."""
+        src = self.big
         out = src.copy()
         get = src.get_at
-        for y in range(self.h):
-            for x in range(self.w):
+        bw, bh = src.get_size()
+        for y in range(bh):
+            for x in range(bw):
                 if get((x, y))[3]:
                     continue
                 best = None
                 for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-                    if 0 <= nx < self.w and 0 <= ny < self.h:
+                    if 0 <= nx < bw and 0 <= ny < bh:
                         col = get((nx, ny))
                         if col[3] and (best is None or sum(col[:3]) < sum(best[:3])):
                             best = col
@@ -1770,8 +1861,8 @@ def diabrete(p):
     def wing_poly(cx, side, front):
         tip_y = by - 2 - flap * 2
         pts = [(cx, by + 1), (cx + side * 7, tip_y), (cx + side * 8, tip_y + 3), (cx + side * 4, by + 5)]
-        pygame.draw.polygon(c.surf, wing if front else wing_d, pts)
-        pygame.draw.line(c.surf, wing_d if front else (50, 16, 30), (cx, by + 1), (cx + side * 7, tip_y))
+        draw.polygon(c.surf, wing if front else wing_d, pts)
+        draw.line(c.surf, wing_d if front else (50, 16, 30), (cx, by + 1), (cx + side * 7, tip_y))
         c.px(cx + side * 3, by + 3, shade(wing if front else wing_d, -20))
 
     def tail(x0, side):
@@ -2291,8 +2382,8 @@ def mascara_argila(p):
         c.px(x + w // 2 + 2, y + h + 1, clay_d)
 
     def cucumber(cx, cy):
-        pygame.draw.circle(c.surf, (66, 120, 50), (cx, cy), 3)
-        pygame.draw.circle(c.surf, (196, 230, 150), (cx, cy), 2)
+        draw.circle(c.surf, (66, 120, 50), (cx, cy), 3)
+        draw.circle(c.surf, (196, 230, 150), (cx, cy), 2)
         if p.hurt:
             c.rect(cx - 2, cy, 5, 1, (40, 70, 30))
         else:
@@ -2383,9 +2474,9 @@ def rolinho_jade(p):
     y = 9 - bump + (1 if p.hurt else 0)
     if p.side:
         cx, cy = 11, y + 4
-        pygame.draw.circle(c.surf, jade_d, (cx, cy), 6)
-        pygame.draw.circle(c.surf, jade, (cx, cy), 5)
-        pygame.draw.circle(c.surf, jade_l, (cx - 1, cy - 1), 2)
+        draw.circle(c.surf, jade_d, (cx, cy), 6)
+        draw.circle(c.surf, jade, (cx, cy), 5)
+        draw.circle(c.surf, jade_l, (cx - 1, cy - 1), 2)
         a = roll * math.pi / 2
         c.px(cx + round(math.cos(a) * 4), cy + round(math.sin(a) * 4), (230, 250, 236))
         c.rect(cx - 1, cy - 1, 2, 2, metal)                        # eixo
@@ -2596,16 +2687,16 @@ def espelho_vivo(p):
     # moldura e vidro
     w = 18 if not p.side else 10
     rect = pygame.Rect(cx - w // 2, 2, w, 25)
-    pygame.draw.ellipse(c.surf, GOLD_D, rect.inflate(2, 2))
-    pygame.draw.ellipse(c.surf, GOLD, rect)
+    draw.ellipse(c.surf, GOLD_D, rect.inflate(2, 2))
+    draw.ellipse(c.surf, GOLD, rect)
     inner = rect.inflate(-4, -4)
     if p.dir == "costas":
-        pygame.draw.ellipse(c.surf, (120, 90, 60), inner)            # costas de madeira
+        draw.ellipse(c.surf, (120, 90, 60), inner)            # costas de madeira
         c.rect(inner.centerx - 1, inner.y + 3, 2, inner.h - 6, (90, 66, 44))
     else:
         glass = (200, 214, 230) if not glow else (255, 170, 220) if glow == 1 else (255, 220, 240)
-        pygame.draw.ellipse(c.surf, glass, inner)
-        pygame.draw.ellipse(c.surf, (150, 166, 190) if not glow else CLEPA, inner.inflate(-4, -6))
+        draw.ellipse(c.surf, glass, inner)
+        draw.ellipse(c.surf, (150, 166, 190) if not glow else CLEPA, inner.inflate(-4, -6))
         c.line(inner.x + 3, inner.y + 5, inner.x + 6, inner.y + 2, (250, 252, 255), 1)    # reflexo
         c.line(inner.x + 3, inner.y + 9, inner.x + 8, inner.y + 4, (236, 242, 250), 1)
         if p.dir == "frente" or p.side:                              # o olhar dentro do espelho
@@ -2785,7 +2876,7 @@ def daiwone(p):
             c.rect(tx + 7, ty - 8, 3, 5, phone)
             c.rect(tx + 8, ty - 7, 1, 3, screen if p.dir == "costas" else phone)
             # ring light atrás do celular
-            pygame.draw.circle(c.surf, (255, 250, 236), (tx + 9, ty - 6), 4, 1)
+            draw.circle(c.surf, (255, 250, 236), (tx + 9, ty - 6), 4, 1)
             c.hand = (tx + 8, ty - 6)
         else:
             c.rect(tx + 7, ty + 1, 2, 4, suit)
@@ -3222,8 +3313,8 @@ def projetor(p):
         c.hand = (x + 22, 10)
         return c
     if p.dir == "frente":
-        pygame.draw.circle(c.surf, (30, 32, 40), (x + 9, 10), 4)
-        pygame.draw.circle(c.surf, lens, (x + 9, 10), 2)
+        draw.circle(c.surf, (30, 32, 40), (x + 9, 10), 4)
+        draw.circle(c.surf, lens, (x + 9, 10), 2)
         _iara_eyes(c, x + 1, 9, p, gap=13)
         c.rect(x + 2, 13, 3, 1, (180, 180, 190))                          # botões
     else:
@@ -3342,7 +3433,7 @@ def iara(p):
     cx, top = 24, 6 + sway
     bw, bh = 30 + pulse * 2, 20 - pulse
     # sino (meia elipse) com a borda franjada
-    pygame.draw.ellipse(c.surf, mid, (cx - bw // 2, top, bw, bh * 2))
+    draw.ellipse(c.surf, mid, (cx - bw // 2, top, bw, bh * 2))
     c.surf.fill((0, 0, 0, 0), (0, top + bh, c.w, bh + 2))
     # tentáculos (saem da borda do sino)
     for k in range(8):
@@ -3355,7 +3446,7 @@ def iara(p):
         ex = x0 + round(math.sin(length * 0.3 + t * 0.9 + k) * (1 + length * 0.06))
         c.rect(ex, top + bh + length, 2, 2, light)
         c.px(ex, top + bh + length + 1, white)
-    pygame.draw.ellipse(c.surf, light, (cx - bw // 2 + 4, top + 2, bw - 8, 8), 1)
+    draw.ellipse(c.surf, light, (cx - bw // 2 + 4, top + 2, bw - 8, 8), 1)
     for x in range(cx - bw // 2, cx + bw // 2, 3):                      # franja da borda
         c.rect(x, top + bh - 1, 2, 2 + (x + t) % 2, dark)
     for k in range(4):                                                  # nervuras do sino
@@ -3364,9 +3455,9 @@ def iara(p):
     # o olho
     if p.dir != "costas":
         ox = cx + (4 if p.side else 0)
-        pygame.draw.ellipse(c.surf, white, (ox - 6, top + 7, 12, 8))
+        draw.ellipse(c.surf, white, (ox - 6, top + 7, 12, 8))
         iris = (255, 255, 255) if pulse == 2 else (170, 90, 230)
-        pygame.draw.circle(c.surf, iris, (ox + (2 if p.side else 0), top + 11), 3)
+        draw.circle(c.surf, iris, (ox + (2 if p.side else 0), top + 11), 3)
         c.rect(ox + (2 if p.side else 0) - 1, top + 10, 2, 2, (30, 10, 50) if not p.hurt else white)
         c.px(ox + 1, top + 9, white)
         if p.hurt:
@@ -3444,23 +3535,38 @@ VARIANTS = ("borba_exo", "albeguinio_adm", "cauanzera_ti")   # não são persona
 
 def build_sheet(name, kit=None):
     """Folha do personagem (linhas = direções, colunas = quadros das poses) e os dados dela.
-    Com ``kit`` (um item de KITS), a roupa sai na cor do uniforme do time."""
-    draw, wide, glow = CHARACTERS[name]
-    probe = draw(Pose("frente", "parado", 0, wide, kit))
-    cw, ch = probe.w, probe.h
+    Com ``kit`` (um item de KITS), a roupa sai na cor do uniforme do time.
+
+    O quadro tem o tamanho da arte (ex.: 24 x 34) mais a folga que o desenho pedir: se alguma pose
+    passa da borda (chapéu, escudo, braço levantado), o quadro cresce para cima e para os dois lados
+    por igual, nunca para baixo. Assim os pés continuam na base e a mão no mesmo ponto em relação ao
+    centro e aos pés, e o jogo (que desenha pelo meio da base) não precisa saber da folga."""
+    draw_char, wide, glow = CHARACTERS[name]
+    probe = draw_char(Pose("frente", "parado", 0, wide, kit))
+    w, h = probe.w, probe.h
     poses = SHEET_POSES + (SPORT_POSES if name in HEROES or name in VARIANTS else ())
     columns = [(kind, i) for kind, n in poses for i in range(n)]
+    drawn = {}
+    for direction in SHEET_DIRECTIONS:
+        if direction == "esquerda":
+            continue
+        for col, (kind, i) in enumerate(columns):
+            canvas = draw_char(Pose(direction, kind, i, wide, kit))
+            drawn[direction, col] = (canvas.finish(), canvas.hand)
+    side, top = _overflow([img for img, _ in drawn.values()], w, h)
+    cw, ch = w + 2 * side, h + top
+    crop = pygame.Rect(MARGIN - side, MARGIN - top, cw, ch)
     sheet = pygame.Surface((cw * len(columns), ch * len(SHEET_DIRECTIONS)), pygame.SRCALPHA)
     hands = {}
     for row, direction in enumerate(SHEET_DIRECTIONS):
         if direction == "esquerda":
             continue
         hands[direction] = []
-        for col, (kind, i) in enumerate(columns):
-            canvas = draw(Pose(direction, kind, i, wide, kit))
-            sheet.blit(canvas.finish(), (col * cw, row * ch))
-            hx, hy = canvas.hand or (cw / 2, ch / 2)
-            hands[direction].append([round(hx, 1), round(hy, 1)])
+        for col in range(len(columns)):
+            img, hand = drawn[direction, col]
+            sheet.blit(img, (col * cw, row * ch), crop)
+            hx, hy = hand or (w / 2, h / 2)
+            hands[direction].append([round(hx + side, 1), round(hy + top, 1)])
     # esquerda = direita espelhada
     right, left = SHEET_DIRECTIONS.index("direita"), SHEET_DIRECTIONS.index("esquerda")
     for col in range(len(columns)):
@@ -3469,6 +3575,19 @@ def build_sheet(name, kit=None):
     info = {"cell": [cw, ch], "poses": [list(p) for p in poses], "hand": hands,
             "eyes": [list(g) for g in glow]}
     return sheet, info
+
+
+def _overflow(images, w, h):
+    """Quanto o desenho (com contorno) passa da área w x h: (para cada lado, para cima), em pixels."""
+    left = right = up = 0
+    for img in images:
+        box = img.get_bounding_rect()
+        if not box.w:
+            continue
+        left = max(left, MARGIN - box.left)
+        right = max(right, box.right - (MARGIN + w))
+        up = max(up, MARGIN - box.top)
+    return max(left, right, 0), max(up, 0)
 
 
 def main():
