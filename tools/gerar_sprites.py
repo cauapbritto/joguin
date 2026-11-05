@@ -3672,7 +3672,7 @@ VARIANTS = ("borba_exo", "albeguinio_adm", "cauanzera_ti")   # não são persona
 # (o jogo não amplia essas folhas). O desenho base é o mesmo de sempre, então as 39 poses e as
 # 4 direções continuam batendo; em cima dele entram as bordas arredondadas (scale2x), o volume de
 # cada parte (luz de cima e da esquerda), o contorno fino e os detalhes que só cabem no dobro.
-HD = {"cauanzera", "guerreiro", "atirador", "tanque", "ninja"}
+HD = set(CHARACTERS)      # quem sai em dobro de detalhe: hoje, todos os personagens e criaturas
 NEAR_TONE = 60            # diferença de cor (soma dos canais) até onde é o mesmo material
 HD_SKIP = 10              # partes menores que isso (olho, botão, relógio) não ganham volume
 
@@ -3682,31 +3682,37 @@ def _grid(surf):
     return [[tuple(surf.get_at((x, y))) for x in range(w)] for y in range(h)], w, h
 
 
-def scale2x(src):
-    """Dobra a imagem arredondando os degraus das diagonais (algoritmo Scale2x / EPX)."""
+def scale2x(src, guide=None):
+    """Dobra a imagem arredondando os degraus das diagonais (algoritmo Scale2x / EPX).
+    ``guide``: imagem que decide os arredondamentos (o uniforme usa o desenho normal, para a
+    silhueta sair igualzinha e só a cor da roupa mudar)."""
     a, w, h = _grid(src)
+    g = _grid(guide)[0] if guide is not None else a
     out = pygame.Surface((w * 2, h * 2), pygame.SRCALPHA)
     clear = (0, 0, 0, 0)
 
     def at(x, y):
+        return g[y][x] if 0 <= x < w and 0 <= y < h else clear
+
+    def src_at(x, y):
         return a[y][x] if 0 <= x < w and 0 <= y < h else clear
     for y in range(h):
         for x in range(w):
             e, b, d, f, hh = at(x, y), at(x, y - 1), at(x - 1, y), at(x + 1, y), at(x, y + 1)
-            e0 = e1 = e2 = e3 = e
+            e0 = e1 = e2 = e3 = (x, y)
             if b != hh and d != f:
                 if d == b:
-                    e0 = d
+                    e0 = (x - 1, y)
                 if b == f:
-                    e1 = f
+                    e1 = (x + 1, y)
                 if d == hh:
-                    e2 = d
+                    e2 = (x - 1, y)
                 if hh == f:
-                    e3 = f
-            out.set_at((2 * x, 2 * y), e0)
-            out.set_at((2 * x + 1, 2 * y), e1)
-            out.set_at((2 * x, 2 * y + 1), e2)
-            out.set_at((2 * x + 1, 2 * y + 1), e3)
+                    e3 = (x + 1, y)
+            out.set_at((2 * x, 2 * y), src_at(*e0))
+            out.set_at((2 * x + 1, 2 * y), src_at(*e1))
+            out.set_at((2 * x, 2 * y + 1), src_at(*e2))
+            out.set_at((2 * x + 1, 2 * y + 1), src_at(*e3))
     return out
 
 
@@ -3791,9 +3797,9 @@ def fine_outline(src):
     return out
 
 
-def hd_frame(canvas, glow=()):
+def hd_frame(canvas, glow=(), guide=None):
     """O quadro em dobro de detalhe: desenho base dobrado, com volume, detalhes e contorno fino."""
-    img = volume(scale2x(canvas.big), glow)
+    img = volume(scale2x(canvas.big, guide.big if guide is not None else None), glow)
     for detail in canvas.hd_details:
         detail(img)
     return fine_outline(img)
@@ -3819,7 +3825,11 @@ def build_sheet(name, kit=None):
             continue
         for col, (kind, i) in enumerate(columns):
             canvas = draw_char(Pose(direction, kind, i, wide, kit))
-            img = hd_frame(canvas, glow) if detail > 1 else canvas.finish()
+            if detail > 1:
+                guide = draw_char(Pose(direction, kind, i, wide)) if kit else None
+                img = hd_frame(canvas, glow, guide)
+            else:
+                img = canvas.finish()
             drawn[direction, col] = (img, canvas.hand)
     side, top = _overflow([img for img, _ in drawn.values()], w * detail, h * detail, MARGIN * detail)
     cw, ch = w * detail + 2 * side, h * detail + top

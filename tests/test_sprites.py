@@ -67,12 +67,13 @@ class FolhaTest(unittest.TestCase):
         self.assertGreater(hit[0], rest[0] + 3)
 
     def test_folha_igual_ao_gerador(self):
-        """Toda folha salva é a que o gerador faz hoje (ninguém esqueceu de gerar de novo)."""
+        """A folha salva é a que o gerador faz hoje (ninguém esqueceu de gerar de novo). Uma amostra:
+        o dobro de detalhe deixa o gerador lento demais para conferir os 50 a cada teste."""
         game()                                   # convert_alpha precisa da janela (escondida)
         spec = importlib.util.spec_from_file_location("gerar_sprites", config.ROOT / "tools" / "gerar_sprites.py")
         gen = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(gen)
-        for name in gen.CHARACTERS:
+        for name in ("aryel", "cauanzera", "golem", "cadeira"):
             with self.subTest(name):
                 sheet, info = gen.build_sheet(name)
                 saved = pygame.image.load(str(config.CHAR_DIR / f"{name}.png"))
