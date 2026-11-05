@@ -99,7 +99,7 @@ def creature_stats():
             (_w("Feixe", "melee", 6, cooldown=50, reach=24),), "projetor",
             radius=15, drop_chance=0.16),
         "iara_nucleo": EnemyStats(
-            "iara_nucleo", "IARA", 900, 0.0, IARA, "", "",
+            "iara_nucleo", "IARA", 720, 0.0, IARA, "", "",
             (_w("Tentáculo", "melee", 0, cooldown=60, reach=10),), "iara",
             radius=30, elite=True, knock_resist=1.0, drop_chance=0.0),
         "arquivo_aco": EnemyStats(

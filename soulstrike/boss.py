@@ -677,7 +677,7 @@ CAUANZERA_STATS = EnemyStats(
     radius=26, elite=True, armed=True, knock_resist=1.0, drop_chance=0.0)
 IARA_CABLES = ((325, 380), (1275, 380), (325, 800), (1275, 800))
 IARA_SPOT = (800, 520)
-TURN_AT = 0.15               # com essa vida, na fusão, os aliados chegam
+TURN_AT = 0.25               # com essa vida, na fusão, os aliados chegam
 ALLIES = (("aryel", "ARYEL", "Cauanzera, volta pra gente! Isso aí não é você!"),
           ("borba", "BORBA JR", "Já desliguei uma fábrica inteira. Um servidor é moleza."),
           ("albeguinio", "ALBEGUINIO", "Deixa comigo: vou travar a rede dela. Hoje o wi-fi cai do lado certo!"))
@@ -877,7 +877,7 @@ class CauanzeraBossAI(BossAI):
         self.stage = 3
         self.enraged = True
         me.aura = IARA_C
-        me.speed_mult *= 1.25
+        me.speed_mult *= 1.15
         self.PATTERNS = ("pacotes", "carimbo", "jump", "dash", "tentaculos")
         self._roar(me, match)
         me.phase_label = ""
@@ -982,6 +982,10 @@ class CauanzeraBossAI(BossAI):
         return True
 
     # ── golpes ───────────────────────────────
+    def _next(self, me, match, pause=0):
+        # etapa 2: ele gasta a força segurando a IARA (descansa o dobro entre um golpe e outro)
+        super()._next(me, match, pause=pause * 2 if self.stage == 2 else pause)
+
     def _basic_attack(self, me, match, target, d):
         if d < 90:
             me.weapon_index = 1
