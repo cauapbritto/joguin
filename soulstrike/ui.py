@@ -217,7 +217,10 @@ class MenuList:
                 surf.fill(_mix(theme.BRASS, (255, 255, 255), 0.4), (rect.x, rect.y, 1, rect.h))
                 nudge = 1 if (ticks // 20) % 2 else 0
                 ui.arrow(surf, (rect.x + 16 + nudge, rect.centery), "right", 6, theme.BRASS)
-            ui.text(surf, label, self.size, color, (rect.x + 32, rect.centery + 1), anchor="midleft")
+            size = self.size
+            if ui.assets.text_width(label, size) > rect.w - 40 and size != theme.XS:
+                size = theme.XS                              # nome comprido: letra menor em vez de cortar
+            ui.text(surf, label, size, color, (rect.x + 32, rect.centery + 1), anchor="midleft")
 
 
 def _mix(a, b, t):
