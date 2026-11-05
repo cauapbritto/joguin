@@ -10,6 +10,22 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.13.0": [
+        {"title": "CINCO DIFICULDADES", "scene": "perigos", "lines": [
+            "A campanha agora tem FÁCIL, NORMAL, DIFÍCIL, IBRAHIM e BORBA.",
+            "IBRAHIM: toma cuidado jovi, esse é difícil. Inimigos com poderes extras e só 1 continue.",
+            "BORBA: fenomenal. Sem cura entre as fases e cada um só é levantado uma vez por masmorra.",
+        ]},
+        {"title": "ENERGIA", "scene": "almas", "lines": [
+            "Armas raras, roubadas e forjadas gastam energia (barra azul de 200) em vez de pente.",
+            "A energia não volta sozinha: pegue os orbes azuis que os inimigos soltam.",
+            "Sem energia, a arma de tiro vira arma de bater. A arma do seu herói é sempre de graça.",
+        ]},
+        {"title": "LARGAR A ARMA", "scene": "loja", "lines": [
+            "LARGAR ARMA agora é um botão: LB, touchpad do PlayStation, R no teclado ou LARGAR no celular.",
+            "No acampamento, o ARMÁRIO guarda até 4 armas do grupo para quem quiser pegar depois.",
+        ]},
+    ],
     "1.12.0": [
         {"title": "CAPÍTULO 3: CLEPALOVERS", "scene": "clinica", "lines": [
             "A campanha ganhou o capítulo 3: a Clínica Clepalovers, tomada pelo caco do fragmento.",

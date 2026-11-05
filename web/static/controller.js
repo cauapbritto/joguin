@@ -226,7 +226,7 @@
     var vh = window.innerHeight;
     var big = clamp(vh * 0.31, 84, 128);
     document.querySelectorAll(".pad-set").forEach(function (set) {
-      var hasOuter = !!set.querySelector('[data-pos="ww"], [data-pos="nn"]');
+      var hasOuter = !!set.querySelector('.pb:not(.hidden)[data-pos="ww"], .pb:not(.hidden)[data-pos="nn"]');
       var mid = hasOuter ? clamp(vh * 0.21, 60, 88) : clamp(vh * 0.24, 66, 98);
       var small = clamp(vh * 0.175, 52, 72);
       var gap = clamp(vh * 0.032, 10, 16);
@@ -276,7 +276,7 @@
   var holdCount = {};     // ação → quantos dedos estão nela
 
   function padButtons() {
-    return Array.prototype.slice.call(document.querySelectorAll(".pad-set.on .pb"));
+    return Array.prototype.slice.call(document.querySelectorAll(".pad-set.on .pb:not(.hidden)"));
   }
 
   function edgeDistance(b, x, y) {
@@ -863,6 +863,7 @@
       document.body.classList.toggle("soccer", soccerMode);
       document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer"); });
       document.querySelectorAll(".soccer-only").forEach(function (e) { e.classList.toggle("on", mode === "soccer"); });
+      document.querySelectorAll(".campaign-only").forEach(function (e) { e.classList.toggle("hidden", mode !== "campaign"); });
       useHud(status.hud || (soccerMode ? "soccer" : "battle"));
       $("pad-hint").textContent = soccerMode ? "empurre até a borda para correr" : "mova o analógico";
       document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer"); });
@@ -980,6 +981,21 @@
     var badge = $("ammo-badge");
     if (!btn || !badge) return;
     var mag = me.mag || 0;
+    var emax = me.emax || 0, cost = me.ecost || 0;
+    btn.classList.toggle("has-energy", emax > 0 && mag <= 0 && cost > 0);
+    if (mode === "campaign" && emax > 0 && mag <= 0 && cost > 0) {
+      // arma forte da campanha: o contador mostra a energia (cada tiro gasta "cost")
+      var en = me.energy || 0;
+      btn.classList.add("has-ammo");
+      btn.classList.remove("reloading", "extra");
+      btn.style.setProperty("--a", Math.min(1, en / emax).toFixed(3));
+      badge.classList.add("on");
+      badge.classList.remove("reloading");
+      badge.classList.toggle("empty", en < cost);
+      var etext = en < cost ? "SEM ENERGIA" : "ENERGIA " + en;
+      if (badge.textContent !== etext) badge.textContent = etext;
+      return;
+    }
     var on = mode !== "soccer" && mag > 0;
     btn.classList.toggle("has-ammo", on);
     badge.classList.toggle("on", on);

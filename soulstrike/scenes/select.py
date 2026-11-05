@@ -4,7 +4,7 @@ import random
 import pygame
 
 from .. import config, settings, theme
-from ..ai import DIFFICULTIES, DIFFICULTY_ORDER
+from ..ai import CAMPAIGN_ORDER, DIFFICULTIES, DIFFICULTY_ORDER
 from ..controls import key_label
 from ..arena import BASKET_MAPS, BATTLE_MAPS, MAPS_BY_KEY
 from ..data import CHARACTERS, MAX_DAMAGE, MAX_HP, MAX_SPEED, roster_indices
@@ -399,8 +399,9 @@ class CharSelectScene(_MenuScene):
 
     def _cycle_difficulty(self, step):
         s = self.game.session
-        i = DIFFICULTY_ORDER.index(s.difficulty)
-        s.difficulty = DIFFICULTY_ORDER[(i + step) % len(DIFFICULTY_ORDER)]
+        order = CAMPAIGN_ORDER if self.campaign else DIFFICULTY_ORDER     # Ibrahim e Borba só na campanha
+        i = order.index(s.difficulty) if s.difficulty in order else 1
+        s.difficulty = order[(i + step) % len(order)]
         self.sfx("click", 0.4)
 
     def _cycle_assist(self, step):
@@ -903,8 +904,12 @@ class CharSelectScene(_MenuScene):
                      theme.MUTED, (c.x + 16, tr.bottom + 32), c.w - 32, spacing=14)
         screen.fill(theme.LINE, (c.x + 16, c.y + 226, c.w - 32, 1))
         ui.text(screen, "DIFICULDADE", theme.XS, theme.MUTED, (c.centerx, c.y + 244))
-        label = DIFFICULTIES[self.game.session.difficulty]["label"]
-        ui.text(screen, label, theme.S, theme.BRASS, (c.centerx, c.y + 268))
+        level = DIFFICULTIES[self.game.session.difficulty]
+        hard = self.game.session.difficulty in ("ibrahim", "borba")
+        ui.text(screen, level["label"], theme.S, theme.BLOOD if hard else theme.BRASS, (c.centerx, c.y + 268))
+        if level.get("tagline"):
+            for k, line in enumerate(ui.wrap(level["tagline"], theme.XS, c.w - 32)):
+                ui.text(screen, line, theme.XS, theme.BONE, (c.centerx, c.y + 290 + 12 * k))
         mouse = pygame.mouse.get_pos()
         for direction, r in zip(("left", "right"), self.diff_arrows):
             ui.arrow(screen, r.center, direction, 7, theme.BRASS if r.collidepoint(mouse) else theme.MUTED)

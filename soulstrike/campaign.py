@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import pygame
 
-from . import config, hud, theme
+from . import config, energia, hud, theme
 from .ai import FighterAI
 from .entities import Particle, Pickup
 from .enemies import BIG_KINDS, CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_enemy
@@ -20,6 +20,7 @@ from .matches import Match, Result, _separate
 from .net.remote import hub
 from .ui import darken
 from .data import PHASE_RELICS, RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
+from .armario import RACK_SIZE, Armario, token_of, weapon_of
 from .dungeon import Campfire, Chest, ExitDoor, Gate, GroundWeapon, RelicDrop
 from .hazards import make_hazard
 from .lobbies import cells_rect
@@ -48,8 +49,45 @@ WEAPON_DROP = 0.04             # chance de um inimigo comum derrubar a arma de o
 ELITE_WEAPON_DROP = 0.4       # ... e de um elite (golem, sombra)
 MAX_GROUND = 6                # armas no chão ao mesmo tempo (a mais velha some)
 
-# dificuldade da campanha: (vida dos inimigos, dano dos inimigos)
-DIFFICULTY = {"facil": (0.75, 0.7), "normal": (1.0, 1.0), "dificil": (1.3, 1.25)}
+@dataclass(frozen=True)
+class Level:
+    """Uma dificuldade da campanha."""
+    hp: float                 # vida dos inimigos
+    dmg: float                # dano dos inimigos
+    crowd: float = 0.5        # inimigos comuns a mais por jogador a mais (0.5 = +50%)
+    elites: int = 0           # elites a mais em cada onda que já tem elite
+    orbs: float = 1.0         # orbes de energia que caem
+    regen: float = 0.0        # energia que volta sozinha por segundo (só no Fácil)
+    affix: float = 0.0        # chance de um inimigo vir com poder extra (blindado, veloz, explosivo)
+    revive: float = 1.0       # quanto mais demora levantar quem caiu
+    revive_once: bool = False  # cada um só é levantado uma vez por masmorra
+    continues: int = 3
+    phase_heal: float = 0.35  # vida que volta entre uma fase e outra
+    price: float = 1.0        # preço da loja e do ferreiro
+    enrage: float = 0.2       # vida em que o chefão fica furioso
+
+
+# dificuldades da campanha (Ibrahim e Borba: piadas internas, cada uma mais difícil)
+LEVELS = {
+    "facil": Level(0.75, 0.7, orbs=1.5, regen=2.0),
+    "normal": Level(1.0, 1.0),
+    "dificil": Level(1.4, 1.35, crowd=0.65, elites=1, orbs=0.75),
+    "ibrahim": Level(1.9, 1.6, crowd=0.75, elites=1, orbs=0.55, affix=0.25, revive=2.0, continues=1,
+                     price=1.25, enrage=0.3),
+    "borba": Level(2.5, 2.0, crowd=0.85, elites=2, orbs=0.4, affix=0.5, revive=2.0, revive_once=True,
+                   continues=1, phase_heal=0.0, price=1.25, enrage=0.5),
+}
+# (vida dos inimigos, dano dos inimigos)
+DIFFICULTY = {k: (v.hp, v.dmg) for k, v in LEVELS.items()}
+ORB_CHANCE = 0.35             # inimigo comum: chance de soltar um orbe de energia
+ELITE_ORBS = (3, 5)
+BOSS_ORBS = 18
+AFFIXES = {                   # poder extra (Ibrahim e Borba): brilho em volta de quem tem
+    "blindado": ("BLINDADO", (150, 212, 240)),
+    "veloz": ("VELOZ", (236, 198, 64)),
+    "explosivo": ("EXPLOSIVO", (240, 96, 40)),
+}
+AFFIX_EXPLOSION = 22          # dano da explosão do explosivo ao morrer (antes do dano da dificuldade)
 
 
 @dataclass(frozen=True)
@@ -185,7 +223,7 @@ CHAPTER2_UPGRADES = 2         # ... e melhorias sorteadas (mais a escolhida ante
 # etapas de uma fase (CampaignRun.stage)
 LOBBY_START, DUNGEON_1, LOBBY_BACK, DUNGEON_2 = range(4)
 STAGE_REVIVE = 0.3
-DROP_HOLD = 30                # segurar TROCAR ARMA por meio segundo larga a arma da mão            # quem estava caído ao fim de uma masmorra volta com essa vida
+            # quem estava caído ao fim de uma masmorra volta com essa vida
 
 
 def is_elite(kind):
@@ -195,11 +233,12 @@ def is_elite(kind):
     return creature is not None and creature.elite
 
 
-def scaled_count(kind, base, players):
-    """Mais jogadores, mais inimigos: +50% dos comuns por jogador a mais (os fortes ganham vida)."""
+def scaled_count(kind, base, players, crowd=0.5):
+    """Mais jogadores, mais inimigos: +50% dos comuns por jogador a mais (os fortes ganham vida).
+    ``crowd`` sobe nas dificuldades altas (4 jogadores no Borba = muito mais gente)."""
     if is_elite(kind):
         return base
-    return max(1, round(base * (1 + 0.5 * (players - 1))))
+    return max(1, round(base * (1 + crowd * (players - 1))))
 
 
 def elite_hp_scale(kind, players):
@@ -215,7 +254,7 @@ class CampaignRun:
         self.session = session
         self.slots = [s.slot for s in session.slots]
         self.phase_index = 0
-        self.continues = CONTINUES
+        self.continues = self.level.continues
         self.upgrades = {s: [] for s in self.slots}
         self.hp_ratio = {s: 1.0 for s in self.slots}
         self.kills = {s: 0 for s in self.slots}
@@ -232,11 +271,20 @@ class CampaignRun:
         self.fused_phase = -1                             # fase em que o grupo já usou a fusão do ferreiro
         self.curse = None                                 # desafio da fase (maldição do altar): market.CURSES
         self.start_chapter = 1                            # 2: começou direto no capítulo 2 (sem recorde de tempo)
+        self.rack = []                                    # armário do acampamento: armas guardadas (armario.token_of)
         self._snapshot = None
 
     @property
     def phase(self):
         return PHASES[self.phase_index]
+
+    @property
+    def level(self):
+        return LEVELS.get(self.session.difficulty, LEVELS["normal"])
+
+    @property
+    def price_mult(self):
+        return self.level.price
 
     @property
     def in_lobby(self):
@@ -283,7 +331,7 @@ class CampaignRun:
         return {k: copy.deepcopy(getattr(self, k))
                 for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames",
                           "stage", "chest_open", "relics", "held", "loadouts", "souls", "forge", "rerolls",
-                          "fused_phase", "curse", "start_chapter")}
+                          "fused_phase", "curse", "start_chapter", "rack")}
 
     # ── almas ────────────────────────────────
     def wallet(self, slot):
@@ -310,7 +358,7 @@ class CampaignRun:
         if self._snapshot is not None:
             for k, v in copy.deepcopy(self._snapshot).items():
                 setattr(self, k, v)
-        self.continues = max(self.continues, 1)
+        self.continues = max(self.continues, min(1, self.level.continues))     # no Borba, nada de continue
         self.hp_ratio = {s: max(r, 0.6) for s, r in self.hp_ratio.items()}
 
     def prepare(self, fighter):
@@ -325,6 +373,9 @@ class CampaignRun:
             fighter.give_relic(relic)
         fighter.weapon_index = min(self.held.get(fighter.slot, 0), len(fighter.weapons) - 1)
         fighter.hp = max(1, round(fighter.max_hp * self.hp_ratio.get(fighter.slot, 1.0)))
+        # energia: a barra começa cheia em cada etapa (enche no acampamento, antes de cada masmorra)
+        fighter.energy_max = energia.ENERGY_MAX + fighter.energy_bonus
+        fighter.energy = fighter.energy_max
 
     def carry(self, match):
         """Fim de uma etapa: vida, arma na mão, arma rara e as contas passam para a próxima."""
@@ -345,7 +396,7 @@ class CampaignRun:
         self.carry(match)
         for f in match.players:
             ratio = f.hp / f.max_hp if f.hp > 0 else 0.0
-            self.hp_ratio[f.slot] = min(1.0, ratio + PHASE_HEAL)
+            self.hp_ratio[f.slot] = min(1.0, ratio + self.level.phase_heal)
 
     # ── salvar entre fases ───────────────────
     SAVE_VERSION = 2              # 2: almas por jogador (no 1 eram do grupo)
@@ -392,7 +443,7 @@ class CampaignRun:
             run.phase_index = int(state["phase_index"])
             if not 0 <= run.phase_index < len(PHASES):
                 return None
-            run.continues = max(1, int(state["continues"]))
+            run.continues = max(min(1, run.level.continues), int(state["continues"]))
             run.frames = int(state["frames"])
             run.kills = {s: int(v) for s, v in run.kills.items()}
             run.damage = {s: int(v) for s, v in run.damage.items()}
@@ -431,6 +482,10 @@ class CampaignRun:
                         return None
                     forge[str(name)] = [level, enchant]
                 run.forge[s] = forge
+            rack = [str(t) for t in state.get("rack", [])][:RACK_SIZE]       # saves antigos não têm
+            if any(weapon_of(t) is None for t in rack):
+                return None
+            run.rack = rack
             for s, n in {int(k): v for k, v in state.get("rerolls", {}).items()}.items():
                 if s not in run.slots:
                     return None
@@ -493,7 +548,6 @@ class CoopMatch(Match):
         self.ground = []                # armas no chão (largadas ou derrubadas por inimigos)
         self.menus = {}                 # menu do mercado aberto, por jogador
         self.revive_progress = {f: 0.0 for f in self.players}
-        self.switch_hold = {}           # quadros segurando TROCAR ARMA (segurar larga a arma)
         self.strain = {f: 0 for f in self.players}     # quadros forçando o limite do grupo
         self.was_down = set()
         self.wave = -1
@@ -608,6 +662,7 @@ class CoopMatch(Match):
             prop.update(self)
         self.props = [p for p in self.props if p.alive]
         self._update_pickups()
+        self._regen_energy()
         self.publish_ammo()
         self.publish_souls()
         self.phone_shop()
@@ -727,25 +782,28 @@ class CoopMatch(Match):
             self.assets.play("dash", 0.3)
 
     def _switch_or_drop(self, f, inp):
-        """TROCAR ARMA: toque rápido troca; segurar (meio segundo) larga a arma da mão no chão."""
-        held = inp.held("switch")
-        hold = self.switch_hold.get(f, 0)
-        if held:
-            if hold >= 0:
-                hold += 1
-                if hold >= DROP_HOLD:
-                    self.drop_held(f)
-                    hold = -1                       # já largou: só volta a contar depois de soltar
-            self.switch_hold[f] = hold
-            return
-        if inp.pressed("switch") or 0 < hold < DROP_HOLD:
-            if f.switch_weapon():
-                self.assets.play("click", 0.4)
-        self.switch_hold[f] = 0
+        """TROCAR ARMA troca; LARGAR ARMA (LB, touchpad do PlayStation, R no teclado, botão do
+        celular) larga a arma da mão no chão, ou guarda no armário se estiver perto dele."""
+        if inp.pressed("switch") and f.switch_weapon():
+            self.assets.play("click", 0.4)
+        if inp.pressed("drop"):
+            rack = self.rack_near(f)
+            if rack is not None:
+                self.store_in_rack(f)
+            else:
+                self.drop_held(f)
 
-    def drop_held(self, f):
-        """Larga a arma da mão: a rara do baú sai da 3ª vaga; a de outro herói volta a ser a arma
-        dele do mesmo tipo. A arma do próprio herói não sai (ele precisa de uma de cada tipo)."""
+    def rack_near(self, f):
+        """O armário do acampamento, se este jogador está perto dele (a masmorra não tem)."""
+        return None
+
+    def droppable(self, f):
+        """A arma da mão pode sair? (a rara do baú ou a de outro herói; a dele, não)."""
+        weapon = f.weapon
+        return (f.relic is not None and weapon is f.relic) or weapon not in f.stats.weapons
+
+    def _take_out(self, f):
+        """Tira a arma da mão (sem jogar no chão) e devolve ela, ou None se for a do herói."""
         weapon = f.weapon
         if f.relic is not None and weapon is f.relic:
             f.relic = None
@@ -762,13 +820,73 @@ class CoopMatch(Match):
             f.weapon_index = i
             self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
         else:
+            return None
+        f.bow_draw = 0
+        return weapon
+
+    def drop_held(self, f):
+        """Larga a arma da mão: a rara do baú sai da 3ª vaga; a de outro herói volta a ser a arma
+        dele do mesmo tipo. A arma do próprio herói não sai (ele precisa de uma de cada tipo)."""
+        weapon = self._take_out(f)
+        if weapon is None:
             self.popup(f.x, f.y - 80, "ESSA É A SUA ARMA", theme.MUTED)
             return False
-        f.bow_draw = 0
         self.drop_weapon(f, weapon)
         self.popup(f.x, f.y - 80, "LARGOU " + weapon.name.upper(), theme.BONE)
         self.assets.play("click", 0.5)
         return True
+
+    # ── armário do acampamento ───────────────
+    def store_in_rack(self, f):
+        """Pendura a arma da mão no armário (cabem RACK_SIZE)."""
+        if not self.droppable(f):
+            self.popup(f.x, f.y - 80, "ESSA É A SUA ARMA", theme.MUTED)
+            return False
+        if len(self.run.rack) >= RACK_SIZE:
+            self.popup(f.x, f.y - 80, "ARMÁRIO CHEIO", theme.MUTED)
+            return False
+        weapon = self._take_out(f)
+        self.run.rack.append(token_of(weapon))
+        self.popup(f.x, f.y - 80, "GUARDOU " + weapon.name.upper(), rarity_color(weapon))
+        self.assets.play("click", 0.5)
+        return True
+
+    def take_from_rack(self, f):
+        """Pega a primeira arma do armário. A que ele tinha no lugar (rara, ou comum de outro herói)
+        vai para o fim da fila do armário; a dele mesmo só volta para a mochila."""
+        if not self.run.rack:
+            return False
+        weapon = weapon_of(self.run.rack.pop(0))
+        if weapon is None:
+            return False
+        if weapon.rare:
+            old = f.give_relic(weapon)
+            self.run.relics[f.slot] = relic_key(weapon)
+        else:
+            base = list(f.base_weapons)
+            i = next(k for k, w in enumerate(base) if w.is_melee == weapon.is_melee)
+            old = base[i]
+            base[i] = weapon
+            f.loadout = None if tuple(base) == f.stats.weapons else tuple(base)
+            f.clips.pop(old, None)
+            f.weapon_index = i
+            f.bow_draw = 0
+            self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
+            if old in f.stats.weapons:
+                old = None
+        if old is not None and old is not weapon:
+            self.run.rack.append(token_of(old))
+        self._got_weapon(f, weapon)
+        return True
+
+    def rack_prompt(self, f):
+        """O que ATACAR faz no armário para este jogador."""
+        if self.droppable(f) and len(self.run.rack) < RACK_SIZE:
+            return "ATACAR: GUARDAR " + f.weapon.name.upper()
+        if self.run.rack:
+            w = weapon_of(self.run.rack[0])
+            return "ATACAR: PEGAR " + w.name.upper() if w is not None else ""
+        return "SEGURE UMA ARMA PARA GUARDAR"
 
     def _separate_bodies(self):
         bodies = [f for f in self.fighters if f.alive_in_match and f.lift <= 0]
@@ -777,6 +895,27 @@ class CoopMatch(Match):
                 _separate(a, b)
         for f in bodies:
             self.arena.resolve(f)
+
+    def _regen_energy(self):
+        """No Fácil a energia volta sozinha, devagar."""
+        regen = self.run.level.regen
+        if regen <= 0 or self.lobby:
+            return
+        every = max(1, round(config.FPS / regen))
+        if self.frame % every == 0:
+            for f in self.alive_players:
+                energia.gain(f, 1)
+
+    def publish_ammo(self):
+        """Munição e energia de cada jogador para o celular dele."""
+        if self.frame % 6:
+            return
+        for f in self.players:
+            if f.is_cpu or not f.slot:
+                continue
+            mag = f.mag if not f.weapon.is_melee else 0
+            hub.publish_slot(f.slot, ammo=f.ammo, mag=mag, reload=f.reload_ratio if f.reloading else 0.0,
+                             energy=f.energy or 0, emax=f.energy_max, ecost=energia.cost(f, f.weapon))
 
     def publish_souls(self):
         """Manda o saldo de almas de cada jogador para o celular dele."""
@@ -999,6 +1138,7 @@ class CampaignMatch(CoopMatch):
             self.enemy_dmg *= SOLO_DAMAGE         # sozinho não tem quem levante: inimigos batem menos
         self.corpses = {}
         self.breath_used = False        # último fôlego (campanha solo): uma vez por masmorra
+        self.revived_once = set()       # Borba: quem já foi levantado nesta masmorra
         self.state = "intro"
         self.state_timer = INTRO_FRAMES
         self.slain_boss = False
@@ -1073,8 +1213,11 @@ class CampaignMatch(CoopMatch):
         if index == 0 and self.dungeon.daiwone:
             self.daiwone_at = self.frame + random.randint(5, 11) * config.FPS
         delay = 0
+        level = self.run.level
         for kind, count in self.waves[index]:
-            for _ in range(scaled_count(kind, count, len(self.players))):
+            if level.elites and kind in CREATURES and CREATURES[kind].elite:
+                count += level.elites                      # Difícil para cima: elites a mais
+            for _ in range(scaled_count(kind, count, len(self.players), level.crowd)):
                 x, y = self._spawn_spot(kind)
                 self.portals.append(Portal(x, y, kind, delay))
                 delay += 14
@@ -1102,7 +1245,8 @@ class CampaignMatch(CoopMatch):
         players = len(self.players)
         expanded = []
         for kind in kinds:
-            expanded += [kind] * (scaled_count(kind, 1, players) if kind in ("diabrete", "drone") else 1)
+            expanded += [kind] * (scaled_count(kind, 1, players, self.run.level.crowd)
+                                  if kind in ("diabrete", "drone") else 1)
         for i, kind in enumerate(expanded):
             a = i * math.tau / len(expanded) + random.uniform(-0.3, 0.3)
             r = random.uniform(150, 240)
@@ -1181,6 +1325,8 @@ class CampaignMatch(CoopMatch):
             enemy.max_hp = enemy.hp = round(enemy.max_hp * CURSE_HP)
         elif self.run.curse == "rapidos":
             enemy.speed *= CURSE_SPEED
+        if kind != "chefe" and enemy.aura is None and random.random() < self.run.level.affix:
+            self._give_affix(enemy, random.choice(tuple(AFFIXES)))
         target = self.nearest_player(enemy)
         if target is not None:
             enemy.face(target)
@@ -1192,6 +1338,27 @@ class CampaignMatch(CoopMatch):
             self.popup(x, y - 80, enemy.stats.name.upper(), SHADOW_AURA)
             self.camera.shake(5)
         return enemy
+
+    def _give_affix(self, enemy, affix):
+        """Ibrahim e Borba: o inimigo vem com um poder extra (e um brilho da cor dele)."""
+        enemy.affix = affix
+        enemy.aura = AFFIXES[affix][1]
+        if affix == "blindado":
+            enemy.shield += round(enemy.max_hp * 0.6)
+        elif affix == "veloz":
+            enemy.speed *= 1.35
+
+    def _drop_orbs(self, e):
+        kind = getattr(e, "kind", "")
+        mult = self.run.level.orbs
+        if e is self.boss or kind == "chefe":
+            n = round(BOSS_ORBS * mult)
+        elif is_elite(kind):
+            n = round(random.randint(*ELITE_ORBS) * mult)
+        else:
+            n = 1 if random.random() < ORB_CHANCE * mult else 0
+        for _ in range(n):
+            self.pickups.append(energia.EnergyOrb(e.x, e.y - 10))
 
     def _update_corpses(self):
         for e in self.enemies:
@@ -1229,6 +1396,12 @@ class CampaignMatch(CoopMatch):
         for slot, souls in gains.items():
             self.run.earn(slot, souls)
         best = gains.get(killer.slot) if killer else max(gains.values(), default=0)
+        self._drop_orbs(e)
+        if getattr(e, "affix", None) == "explosivo":
+            from .entities import Explosion
+            self.add_effect(Explosion(e, e.x, e.y, round(AFFIX_EXPLOSION * self.enemy_dmg), radius=78))
+            self.camera.shake(5)
+            self.assets.play("explosion", 0.4)
         if best and best >= 10:
             self.popup(e.x, e.y - 60, f"+{best} ALMAS", killer.color if killer else SOUL_COLOR)
             self.assets.play("alma", 0.4)
@@ -1284,9 +1457,11 @@ class CampaignMatch(CoopMatch):
             if self.state not in ("fight", "between", "intro"):
                 continue
             helpers = [q for q in self.alive_players if q.distance_to(p) < REVIVE_RADIUS]
+            if self.run.level.revive_once and p in self.revived_once:
+                helpers = []                               # Borba: só levanta uma vez por masmorra
             prog = self.revive_progress[p]
             if helpers:
-                prog += (1 + 0.5 * (len(helpers) - 1)) / REVIVE_FRAMES
+                prog += (1 + 0.5 * (len(helpers) - 1)) / (REVIVE_FRAMES * self.run.level.revive)
                 if self.frame % 6 == 0:
                     self.burst(p.x, p.y, p.color, 1, speed=2)
             else:
@@ -1294,6 +1469,7 @@ class CampaignMatch(CoopMatch):
             self.revive_progress[p] = prog
             if prog >= 1:
                 self._revive(p, REVIVE_HP)
+                self.revived_once.add(p)
                 self.popup(p.x, p.y - 70, "DE PÉ!", theme.MOSS)
 
     def _use_continue(self):
@@ -1596,6 +1772,11 @@ class LobbyMatch(CoopMatch):
             self.stalls.append(altar)
             self.arena.walls.append(altar.wall)
             self.props.append(altar)
+        # armário de armas: nos dois acampamentos, do outro lado da fogueira
+        x, y = self.arena.free_spot(fx - 230, fy - 120, 48)
+        self.armario = Armario(x, y, run, self.style)
+        self.arena.walls.append(self.armario.wall)
+        self.props.append(self.armario)
         if self.back:                       # na volta da Masmorra 1: o mercado, perto da fogueira
             for kind, dx in (("loja", -260), ("ferreiro", 260)):
                 x, y = self.arena.free_spot(fx + dx, fy + 170, 40)
@@ -1642,11 +1823,18 @@ class LobbyMatch(CoopMatch):
             if inside and self.group_near(ex, ey - 20, 170):
                 self.leave()
 
+    def rack_near(self, f):
+        return self.armario if self.armario.can_use(f) else None
+
     def interact(self, f):
         if self.chest is not None and self.chest.can_open(f):
             self.chest.open(self)
             self.run.chest_open = True
             return True
+        if self.armario.can_use(f):
+            if self.droppable(f) and len(self.run.rack) < RACK_SIZE:
+                return self.store_in_rack(f)
+            return self.take_from_rack(f) or True
         stall = next((s for s in self.stalls if s.can_use(f)), None)
         if stall is not None:
             self.menus[f] = MarketMenu(self, f, stall)
@@ -1683,6 +1871,8 @@ class LobbyMatch(CoopMatch):
             near = any(self.chest.can_open(p) for p in self.alive_players)
             self.chest.draw_prompt(screen, cam, ui, self.frame, near)
         self.draw_ground(screen, cam, ui)
+        near = [p for p in self.alive_players if self.armario.can_use(p) and p not in self.menus]
+        self.armario.draw_prompt(screen, cam, ui, self.frame, self.rack_prompt(near[0]) if near else "")
         for stall in self.stalls:
             near = any(stall.can_use(p) and p not in self.menus for p in self.alive_players)
             stall.draw_prompt(screen, cam, ui, self.frame, near)

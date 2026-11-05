@@ -316,23 +316,25 @@ class ChefeTest(unittest.TestCase):
 
 
 class LargarArmaTest(unittest.TestCase):
-    def _segurar(self, match, p, frames):
+    """LARGAR ARMA é um comando próprio (LB, touchpad do PlayStation, R, botão do celular)."""
+
+    def _apertar(self, match, p, action, frames=1):
         inp = match.controllers[p]
-        inp.hold("switch")
+        inp.hold(action)
         for _ in range(frames):
             match.update()
             inp._pressed.clear()
-        inp.release("switch")
+        inp.release(action)
         match.update()
 
-    def test_segurar_larga_a_arma_rara(self):
+    def test_largar_tira_a_arma_rara(self):
         from soulstrike.data import RARE_WEAPONS
         match = masmorra()
         p = match.players[0]
         match.give_relic(p, RARE_WEAPONS["besta"])
         self.assertIs(p.weapon, p.relic)
         n = len(match.ground)
-        self._segurar(match, p, 40)
+        self._apertar(match, p, "drop")
         self.assertIsNone(p.relic)
         self.assertIsNone(match.run.relics[p.slot])
         self.assertEqual(len(match.ground), n + 1)
@@ -343,18 +345,20 @@ class LargarArmaTest(unittest.TestCase):
         rifle = next(c for c in CHARACTERS if c.key == "atirador").weapons[0]
         match.give_common(p, rifle)
         self.assertIs(p.weapon, rifle)
-        self._segurar(match, p, 40)
+        self._apertar(match, p, "drop")
         self.assertNotIn(rifle, p.weapons)
         self.assertEqual(p.base_weapons, p.stats.weapons)
         self.assertIsNone(match.run.loadouts[p.slot])
 
-    def test_toque_rapido_so_troca(self):
+    def test_segurar_trocar_so_troca(self):
+        from soulstrike.data import RARE_WEAPONS
         match = masmorra()
         p = match.players[0]
+        match.give_relic(p, RARE_WEAPONS["besta"])
         before = p.weapon_index
-        self._segurar(match, p, 3)
+        self._apertar(match, p, "switch", 40)      # segurar TROCAR ARMA não larga mais
         self.assertNotEqual(p.weapon_index, before)
-        self.assertEqual(p.base_weapons, p.stats.weapons)
+        self.assertIsNotNone(p.relic)
 
     def test_arma_propria_nao_sai(self):
         match = masmorra()

@@ -321,6 +321,7 @@ body.locked .opt { opacity: .55; }
 .pb-mark { border-color: var(--blood); color: #f0a49e; }
 .pb-mark.down { background: #4a2422; }
 .pb-small { border-width: 2px; }
+.pb.hidden { display: none; }
 /* SUPER: o anel em volta enche conforme recarrega */
 .pb-super { border-color: var(--ink-3); color: var(--brass); }
 .pb-super::before {
@@ -344,6 +345,9 @@ body.locked .opt { opacity: .55; }
 }
 .pb-main.has-ammo.extra::before {
   background: conic-gradient(var(--brass) calc(var(--a, 1) * 1turn), var(--line) 0);
+}
+.pb-main.has-ammo.has-energy::before {
+  background: conic-gradient(#5aaaff calc(var(--a, 1) * 1turn), var(--line) 0);
 }
 #ammo-badge {
   position: absolute; display: none;

@@ -707,6 +707,10 @@ class Pickup(Entity):
             fighter.refill_ammo(config.AMMO_PICKUP_EXTRA)
         else:
             fighter.ability_cd = 0
+            if getattr(fighter, "energy", None) is not None:        # campanha: também enche a energia
+                from .energia import ITEM_ENERGY, gain
+                gain(fighter, ITEM_ENERGY)
+                label = "ENERGIA!"
         match.popup(fighter.x, fighter.y - 74, label, color)
         match.burst(self.x, self.y - 10, color, 16, speed=4)
         match.assets.play("select", 0.5)

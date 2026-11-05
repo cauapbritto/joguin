@@ -13,7 +13,13 @@ DIFFICULTIES = {
     "dificil": {"label": "DIFÍCIL", "reaction": 3, "scatter": 0.06, "fire": 0.85,
                 "dash": 0.05, "ability": 0.2, "dodge": 0.6, "range": 200},
 }
+# dificuldades a mais, só na campanha (piadas internas do grupo); a CPU delas luta como a do difícil
+DIFFICULTIES["ibrahim"] = dict(DIFFICULTIES["dificil"], label="IBRAHIM", reaction=2, dodge=0.7,
+                               tagline='"TOMA CUIDADO JOVI, ESSE É DIFÍCIL"')
+DIFFICULTIES["borba"] = dict(DIFFICULTIES["dificil"], label="BORBA", reaction=1, scatter=0.04, fire=0.95,
+                             dodge=0.8, ability=0.3, tagline='"FENOMENAL"')
 DIFFICULTY_ORDER = ("facil", "normal", "dificil")
+CAMPAIGN_ORDER = ("facil", "normal", "dificil", "ibrahim", "borba")
 
 # CPU do futebol e do basquete: speed = velocidade, press = vontade de roubar/dar toco,
 # power = vontade de usar o SUPER, aim = erro da mira no gol (px), shoot = de onde chuta,

@@ -401,7 +401,7 @@ def draw_basket_banner(screen, ui, title, sub, team, age):
 # ─────────────────────────────────────────────
 #  CAMPANHA
 # ─────────────────────────────────────────────
-BLOCK_W, BLOCK_H = 214, 48
+BLOCK_W, BLOCK_H = 214, 56
 
 
 def campaign_block_rect(i, n):
@@ -442,7 +442,9 @@ def draw_campaign(screen, ui, match):
         tired = getattr(boss, "vulnerability", 1.0) > 1.0
         color = (240, 200, 90) if tired and (match.frame // 6) % 2 else (150, 60, 200)
         frame = ui.bar(screen, bar.inflate(4, 4), ratio, color, back=(30, 16, 40), ticks=10)
-        for mark in BOSS_MARKS:
+        brain = match.controllers.get(boss)
+        marks = (0.5, getattr(brain, "enrage_at", BOSS_MARKS[1]))
+        for mark in marks:
             # onde ele muda de comportamento: o risco some quando a vida já passou dali
             if ratio > mark:
                 mx = frame.x + 1 + round((frame.w - 2) * mark)
@@ -519,7 +521,29 @@ def _campaign_block(screen, ui, f, rect, match):
     _sport_icon(screen, f, lr, False)
     if f.fury_timer > 0:
         ui.text(screen, "FÚRIA", theme.XS, theme.EMBER, (rect.right - 10, ab.centery), anchor="midright", shadow=False)
-    _ammo_strip(screen, f, pygame.Rect(x, rect.bottom - 5, rect.w - 22, 3))
+    _ammo_strip(screen, f, pygame.Rect(x, rect.y + 44, rect.w - 22, 3))
+    _energy_bar(screen, ui, f, pygame.Rect(x, rect.bottom - 8, rect.w - 56, 5), match)
+
+
+def _energy_bar(screen, ui, f, area, match):
+    """Energia (campanha): barra azul embaixo do quadro, com o número e o custo da arma da mão."""
+    from .energia import ENERGY_COLOR, ENERGY_LIGHT, cost
+    if getattr(f, "energy", None) is None or not f.energy_max:
+        return
+    price = cost(f, f.weapon)
+    ratio = f.energy / f.energy_max
+    screen.fill((16, 22, 40), area)
+    screen.fill(ENERGY_COLOR, (area.x, area.y, round(area.w * ratio), area.h))
+    screen.fill(ENERGY_LIGHT, (area.x, area.y, round(area.w * ratio), 1))
+    if price and f.energy >= price:
+        # quanto o próximo tiro gasta: o pedaço da ponta pisca
+        w = max(2, round(area.w * price / f.energy_max))
+        if (match.frame // 12) % 2:
+            screen.fill((24, 40, 80), (area.x + round(area.w * ratio) - w, area.y, w, area.h))
+    short = price and f.energy < price
+    color = theme.BLOOD if short and (match.frame // 10) % 2 else ENERGY_COLOR
+    ui.text(screen, str(f.energy), theme.XS, color, (area.right + 26, area.centery), anchor="midright",
+            shadow=False)
 
 
 SOUL_TAG = (200, 170, 255)

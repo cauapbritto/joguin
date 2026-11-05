@@ -85,8 +85,16 @@ class Municao(Upgrade):
         fighter.clips.clear()                 # pentes novos, já no tamanho maior
 
 
+class Energia(Upgrade):
+    key, name, description, color = ("energia", "ENERGIA", "+50 de energia para as armas fortes.",
+                                     (90, 170, 255))
+
+    def apply(self, fighter):
+        fighter.energy_bonus += 50
+
+
 UPGRADES = {cls.key: cls() for cls in (Vida, Dano, Recarga, Velocidade, Perfurar, Esquiva, Vampirismo, Escudo,
-                                       Municao)}
+                                       Municao, Energia)}
 
 # desenho 7x7 de cada ícone ("#" = cor da melhoria, "+" = claro)
 ICONS = {
@@ -99,6 +107,7 @@ ICONS = {
     "vampirismo": [".#...#.", "##...##", "#######", "##+#+##", ".#####.", "..#.#..", "..#.#.."],
     "escudo": ["#######", "#+++++#", "#+###+#", "#+###+#", ".#+#+#.", "..#+#..", "...#..."],
     "municao": ["..#.#..", ".##.##.", ".##.##.", ".+#.+#.", ".##.##.", ".##.##.", "###.###"],
+    "energia": ["....##.", "...##..", "..##...", ".######", "...+#..", "..##...", ".##...."],
 }
 
 

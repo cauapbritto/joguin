@@ -15,7 +15,7 @@ import time
 SLOTS = (1, 2, 3, 4)
 ACTIONS = (
     "up", "down", "left", "right",
-    "attack", "special", "dodge", "switch", "super", "dribble", "sprint", "mark",
+    "attack", "special", "dodge", "switch", "drop", "super", "dribble", "sprint", "mark",
     "char_left", "char_right", "weapon", "confirm", "cancel", "pause",
     "opt1", "opt2", "opt3",          # escolher uma das 3 melhorias (campanha)
 )
@@ -66,6 +66,9 @@ class SlotInfo:
         self.options = []     # melhorias para escolher (campanha): [{name, desc, color}]
         self.choice = 0       # qual está marcada
         self.souls = None     # saldo de almas na campanha (None = fora da campanha)
+        self.energy = 0       # energia da campanha (energia.py), a barra cheia e o custo da arma da mão
+        self.emax = 0
+        self.ecost = 0
         self.shop = None      # menu da banca aberto (MarketMenu.snapshot) ou None
         self.penalty = None   # pênaltis: {"role": "bate" / "defende" / "espera", "hero": nome} ou None
 
@@ -259,7 +262,8 @@ class RemoteHub:
             info = self._slots[slot]
             for name, value in fields.items():
                 if name not in ("char", "weapon", "ready", "team", "cooldown", "stamina", "tired",
-                                "options", "choice", "ammo", "mag", "reload", "vote", "souls", "shop", "penalty"):
+                                "options", "choice", "ammo", "mag", "reload", "vote", "souls", "shop", "penalty",
+                                "energy", "emax", "ecost"):
                     raise ValueError(name)
                 setattr(info, name, value)
 
@@ -294,6 +298,9 @@ class RemoteHub:
                     "ammo": mine.ammo,
                     "mag": mine.mag,
                     "reload": round(mine.reload, 3),
+                    "energy": mine.energy if self._mode == "campaign" else 0,
+                    "emax": mine.emax if self._mode == "campaign" else 0,
+                    "ecost": mine.ecost if self._mode == "campaign" else 0,
                     "vote": mine.vote,
                     "options": mine.options,
                     "choice": mine.choice,

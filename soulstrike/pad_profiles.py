@@ -14,7 +14,7 @@ CONTEXT_LABELS = {"luta": "LUTA E CAMPANHA", "bola": "FUTEBOL E BASQUETE"}
 # ações de cada contexto, na ordem da lista de escolha (o nome é o mesmo que o celular manda)
 ACTIONS = {
     "luta": [("attack", "ATACAR"), ("special", "HABILIDADE"), ("switch", "TROCAR ARMA"), ("dodge", "ESQUIVA"),
-             ("none", "NADA")],
+             ("drop", "LARGAR ARMA"), ("none", "NADA")],
     "bola": [("attack", "CHUTAR"), ("special", "PASSE"), ("super", "SUPER"), ("dodge", "CORTE"),
              ("sprint", "CORRER"), ("mark", "MARCAR"), ("dribble", "CONDUZIR COLADO"), ("none", "NADA")],
 }
@@ -22,21 +22,21 @@ ACTION_LABELS = {ctx: dict(items) for ctx, items in ACTIONS.items()}
 
 PRESETS = {
     "padrao": {
-        "luta": {"a": "attack", "b": "dodge", "x": "special", "y": "switch", "lb": "none", "rb": "none",
+        "luta": {"a": "attack", "b": "dodge", "x": "special", "y": "switch", "lb": "drop", "rb": "none",
                  "lt": "dodge", "rt": "none"},
         "bola": {"a": "attack", "b": "dodge", "x": "special", "y": "super", "lb": "mark", "rb": "dribble",
                  "lt": "dodge", "rt": "sprint"},
     },
     # atacar/chutar no gatilho direito, como nos jogos de tiro; o A vira habilidade/passe
     "gatilho": {
-        "luta": {"a": "special", "b": "dodge", "x": "switch", "y": "switch", "lb": "none", "rb": "special",
+        "luta": {"a": "special", "b": "dodge", "x": "switch", "y": "switch", "lb": "drop", "rb": "special",
                  "lt": "dodge", "rt": "attack"},
         "bola": {"a": "special", "b": "dodge", "x": "super", "y": "super", "lb": "mark", "rb": "dribble",
                  "lt": "sprint", "rt": "attack"},
     },
     # ombros e gatilhos trocados de lado
     "canhoto": {
-        "luta": {"a": "attack", "b": "dodge", "x": "special", "y": "switch", "lb": "none", "rb": "none",
+        "luta": {"a": "attack", "b": "dodge", "x": "special", "y": "switch", "lb": "none", "rb": "drop",
                  "lt": "none", "rt": "dodge"},
         "bola": {"a": "attack", "b": "dodge", "x": "special", "y": "super", "lb": "dribble", "rb": "mark",
                  "lt": "sprint", "rt": "dodge"},

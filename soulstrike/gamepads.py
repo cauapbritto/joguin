@@ -44,7 +44,7 @@ BUTTON_ACTIONS = {
     "start": ("pause",),
 }
 # o que não muda com o perfil: confirmar, voltar e pausar
-FIXED_ACTIONS = {"a": ("confirm",), "b": ("cancel",), "start": ("pause",)}
+FIXED_ACTIONS = {"a": ("confirm",), "b": ("cancel",), "start": ("pause",), "touch": ("drop",)}
 DIRECTION_ACTIONS = {
     "up": ("up", "weapon"), "down": ("down", "weapon"),
     "left": ("left", "char_left"), "right": ("right", "char_right"),
@@ -67,7 +67,8 @@ class _ControllerReader:
                "rb": "CONTROLLER_BUTTON_RIGHTSHOULDER", "back": "CONTROLLER_BUTTON_BACK",
                "start": "CONTROLLER_BUTTON_START", "up": "CONTROLLER_BUTTON_DPAD_UP",
                "down": "CONTROLLER_BUTTON_DPAD_DOWN", "left": "CONTROLLER_BUTTON_DPAD_LEFT",
-               "right": "CONTROLLER_BUTTON_DPAD_RIGHT"}
+               "right": "CONTROLLER_BUTTON_DPAD_RIGHT",
+               "touch": 20}             # clique do touchpad (PlayStation): SDL_CONTROLLER_BUTTON_TOUCHPAD
     AXES = {"lx": "CONTROLLER_AXIS_LEFTX", "ly": "CONTROLLER_AXIS_LEFTY",
             "lt": "CONTROLLER_AXIS_TRIGGERLEFT", "rt": "CONTROLLER_AXIS_TRIGGERRIGHT"}
 
@@ -77,8 +78,15 @@ class _ControllerReader:
         self.name = controller.name
 
     def button(self, name):
-        code = getattr(pygame, self.BUTTONS[name], None)
-        return code is not None and bool(self.dev.get_button(code))
+        code = self.BUTTONS[name]
+        if isinstance(code, str):
+            code = getattr(pygame, code, None)
+        if code is None:
+            return False
+        try:
+            return bool(self.dev.get_button(code))
+        except (pygame.error, ValueError, IndexError, OverflowError):
+            return False                 # SDL antigo ou controle sem touchpad
 
     def axis(self, name):
         code = getattr(pygame, self.AXES[name], None)
@@ -98,7 +106,9 @@ class _JoystickReader:
                 return False
             hx, hy = self.dev.get_hat(0)
             return {"up": hy > 0, "down": hy < 0, "left": hx < 0, "right": hx > 0}[name]
-        i = _RAW_BUTTONS[name]
+        i = _RAW_BUTTONS.get(name)
+        if i is None:
+            return False
         return i < self.dev.get_numbuttons() and bool(self.dev.get_button(i))
 
     def axis(self, name):
@@ -142,7 +152,7 @@ class Pad:
         elif mag > 1:
             x, y = x / mag, y / mag
         self.stick = (x, y)
-        held = {b for b in ("a", "b", "x", "y", "lb", "rb", "back", "start") if r.button(b)}
+        held = {b for b in ("a", "b", "x", "y", "lb", "rb", "back", "start", "touch") if r.button(b)}
         for trigger in ("lt", "rt"):
             if r.axis(trigger) > TRIGGER_THRESHOLD:
                 held.add(trigger)
