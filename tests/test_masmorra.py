@@ -295,7 +295,7 @@ class ArmasRarasTest(unittest.TestCase):
             match._update_bullets()
         self.assertLess(a.hp, ha)
         self.assertLess(b.hp, hb)
-        self.assertLess(p1.ammo, p1.mag)
+        self.assertLess(p1.energy, p1.energy_max)          # na campanha a rara gasta energia
 
     def test_bumerangue_volta_para_a_mao(self):
         match, p1 = self._campo("bumerangue")
@@ -324,15 +324,17 @@ class ArmasRarasTest(unittest.TestCase):
         self.assertTrue(any(isinstance(eff, Explosion) for eff in match.effects) or e.hp < hp)
         self.assertLess(e.hp, hp)
 
-    def test_cada_arma_rara_tem_pente_proprio(self):
+    def test_rara_gasta_energia_e_a_do_heroi_tem_pente(self):
         match, p1 = self._campo("besta")
         p1.x, p1.y = 400, 600
         p1.attack_cd = 0
         target = self._inimigo(match, "golem", 800, 600)
         p1.attack(match, target)
-        self.assertEqual(p1.ammo, p1.mag - 1)               # pente da besta
+        self.assertEqual(p1.mag, 0)                         # a besta não tem pente na campanha...
+        self.assertEqual(p1.energy, p1.energy_max - 4)      # ...gasta 4 de energia por virote
         p1.weapon_index = 0
-        self.assertEqual(p1.ammo, p1.mag)                   # o arco continua cheio
+        self.assertEqual(p1.ammo, p1.mag)                   # o arco do herói continua com o pente cheio
+        self.assertGreater(p1.mag, 0)
 
 
 class CampanhaInteiraTest(unittest.TestCase):

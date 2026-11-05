@@ -299,7 +299,7 @@ class EnemyAI:
 
     @property
     def aggression(self):
-        return {"facil": 0.6, "normal": 1.0, "dificil": 1.4}.get(self.difficulty, 1.0)
+        return {"facil": 0.6, "normal": 1.0, "dificil": 1.4, "ibrahim": 1.7, "borba": 2.0}.get(self.difficulty, 1.0)
 
     def update(self, me, match):
         if me.stunned or not me.alive_in_match:
@@ -746,7 +746,7 @@ class ShadowAI(FighterAI):
         return None
 
 
-SHADOW_LEVEL = {"facil": "facil", "normal": "facil", "dificil": "normal"}
+SHADOW_LEVEL = {"facil": "facil", "normal": "facil", "dificil": "normal", "ibrahim": "dificil", "borba": "borba"}
 BRAINS = {"diabrete": DiabreteAI, "esqueleto": EsqueletoAI, "golem": GolemAI,
           "drone": DroneAI, "miliciano": MilicianoAI, "torreta": TorretaAI, "miliciano_exo": ExoAI}
 

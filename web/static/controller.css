@@ -346,6 +346,9 @@ body.locked .opt { opacity: .55; }
 .pb-main.has-ammo.extra::before {
   background: conic-gradient(var(--brass) calc(var(--a, 1) * 1turn), var(--line) 0);
 }
+.pb-main.has-ammo.has-energy::before {
+  background: conic-gradient(#5aaaff calc(var(--a, 1) * 1turn), var(--line) 0);
+}
 #ammo-badge {
   position: absolute; display: none;
   transform: translate(-50%, 0);

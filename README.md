@@ -184,8 +184,15 @@ CPU. Um controle ou celular novo que aperta START numa vaga de CPU **entra no me
   **Armas que caem dos inimigos:** de vez em quando um inimigo (quase sempre os elites) deixa cair a
   arma de outro herói, uma que ninguém do grupo está usando. Perto dela, ATACAR pega: ela entra no
   lugar da arma do herói do mesmo tipo (de tiro ou de perto) e a antiga fica no chão. A troca vale
-  até o fim da campanha e fica salva. Para largar a arma da mão, segure **TROCAR ARMA** por meio
-  segundo: a rara do baú sai da 3ª vaga e a de outro herói volta a ser a arma do seu herói. A cor do nome mostra a raridade: **comum branca**, **rara
+  até o fim da campanha e fica salva. Para largar a arma da mão, use **LARGAR ARMA** (LB no controle,
+  clique do touchpad no PlayStation, **R** / **L** no teclado, LARGAR no celular): a rara do baú sai da 3ª
+  vaga e a de outro herói volta a ser a arma do seu herói. Perto do **armário** do acampamento ela fica
+  guardada (até 4 armas do grupo, salvas com a campanha) e ATACAR pega a primeira de volta.
+  **Energia:** cada herói tem 200 de energia (barra azul). As armas do herói são de graça; a comum de
+  outro herói gasta 1 por tiro e as raras, roubadas e forjadas gastam de 1 a 14 (o Arco das Mil Almas,
+  10 por disparo) e não têm pente. A energia enche no acampamento e só volta na masmorra com os orbes
+  azuis dos inimigos e o item de energia (no Fácil volta devagar sozinha). Sem energia, a arma de tiro
+  vira arma de bater. A cor do nome mostra a raridade: **comum branca**, **rara
   azul** e **roubada dourada** (no chão e no HUD).
   **Almas, loja e ferreiro:** cada inimigo derrotado dá almas para o grupo todo (3 o comum, 12 o
   elite, 60 o chefão). Na volta da Masmorra 1, o acampamento tem o **mercado** perto da fogueira.
@@ -254,9 +261,12 @@ CPU. Um controle ou celular novo que aperta START numa vaga de CPU **entra no me
   mundo cair, gasta um dos **3 continues** (TENTAR DE NOVO volta para o acampamento da fase).
   No fim de cada fase todos recuperam um pouco da vida
   e cada jogador escolhe **1 de 3 melhorias** (vida, dano, recarga, velocidade, tiros que
-  atravessam, esquiva, vampirismo, escudo ou munição), que se acumulam. Mais jogadores, mais inimigos.
+  atravessam, esquiva, vampirismo, escudo, munição ou energia), que se acumulam. Mais jogadores, mais inimigos.
   O jogador 1 sempre joga; o 2 entra pelo teclado (tecla `;`) ou celular; o 3 e o 4, pelo celular.
-  Escolha a dificuldade na seleção de personagem (TAB). Zerar o capítulo 1 libera o **Aryel
+  Escolha a dificuldade na seleção de personagem (TAB): **Fácil**, **Normal**, **Difícil**, **Ibrahim**
+  (inimigos com poderes extras, só 1 continue, loja mais cara) ou **Borba** (ainda mais forte, sem cura
+  entre as fases e cada um só levanta uma vez por masmorra). `tools/simular_campanha.py` compara as
+  dificuldades com robôs. Zerar o capítulo 1 libera o **Aryel
   Corrompido**, zerar o capítulo 2 libera o **Borba Jr Corrompido** e zerar o 3 libera o
   **Albeguinio Corrompido** para jogar em todos os modos;
   a campanha inteira guarda o melhor tempo (em

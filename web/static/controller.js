@@ -981,6 +981,21 @@
     var badge = $("ammo-badge");
     if (!btn || !badge) return;
     var mag = me.mag || 0;
+    var emax = me.emax || 0, cost = me.ecost || 0;
+    btn.classList.toggle("has-energy", emax > 0 && mag <= 0 && cost > 0);
+    if (mode === "campaign" && emax > 0 && mag <= 0 && cost > 0) {
+      // arma forte da campanha: o contador mostra a energia (cada tiro gasta "cost")
+      var en = me.energy || 0;
+      btn.classList.add("has-ammo");
+      btn.classList.remove("reloading", "extra");
+      btn.style.setProperty("--a", Math.min(1, en / emax).toFixed(3));
+      badge.classList.add("on");
+      badge.classList.remove("reloading");
+      badge.classList.toggle("empty", en < cost);
+      var etext = en < cost ? "SEM ENERGIA" : "ENERGIA " + en;
+      if (badge.textContent !== etext) badge.textContent = etext;
+      return;
+    }
     var on = mode !== "soccer" && mag > 0;
     btn.classList.toggle("has-ammo", on);
     badge.classList.toggle("on", on);

@@ -9,7 +9,7 @@ from . import rumble
 from .abilities import create_ability
 from .data import shot_sound
 from .entities import Entity, Particle, hostile
-from . import forged, gadgets, rare_fx
+from . import energia, forged, gadgets, rare_fx
 from .market import BURN_TICK, FORGE_DAMAGE, FORGE_MAG, enchant_hit
 from . import weapon_art
 
@@ -289,6 +289,10 @@ class Fighter(Entity):
         self.guard_frames = 0           # segurando o Escudo de Choque
         self.storm_hold = self.storm_last = 0   # Cetro da Tempestade: há quanto tempo segura
         self.reaper = 0.0               # Foice do Ceifador: dano a mais até o fim da masmorra
+        self.energy = None              # energia da campanha (energia.py); None = fora da campanha
+        self.energy_max = 0
+        self.energy_bonus = 0           # melhoria ENERGIA
+        self.bash_timer = 0             # coronhada (arma de tiro sem energia vira de bater)
         self.ammo_mult = 1.0            # melhoria da campanha: pente maior
         self.reload_mult = 1.0          # e recarga mais rápida
         self.clips = {}                 # arma → Clip
@@ -348,7 +352,7 @@ class Fighter(Entity):
 
     def mag_of(self, weapon):
         """Tiros num pente cheio desta arma (0 = sem limite)."""
-        if weapon is None or weapon.is_melee or weapon.mag <= 0:
+        if weapon is None or weapon.is_melee or weapon.mag <= 0 or energia.uses_energy(self, weapon):
             return 0
         level = self.forge.get(weapon.name, (0,))[0]
         return max(1, round(weapon.mag * getattr(self, "ammo_mult", 1.0) * (1 + FORGE_MAG * level)))
@@ -719,6 +723,9 @@ class Fighter(Entity):
         if self.attack_cd > 0 or target is None or self.busy:
             return False
         weapon = self.weapon
+        price = energia.cost(self, weapon)
+        if price and self.energy < price and weapon.special != "escudo":
+            return self._bash(match, target, weapon)
         if not weapon.is_melee and self.mag:
             if self.ammo <= 0:
                 # pente vazio: clique seco e recarrega (dá para trocar para a arma de perto enquanto isso)
@@ -767,6 +774,7 @@ class Fighter(Entity):
             if weapon.forjada:
                 forged.on_swing(self, weapon, match, hits, damage)
             gadgets.on_melee(self, weapon, match, damage)
+            energia.spend(self, weapon)
             return True
         base = proximity_damage(dist, weapon.damage) if weapon.close_bonus else weapon.damage
         damage = round(base * self.damage_mult * self.weapon_mult(weapon))
@@ -780,9 +788,36 @@ class Fighter(Entity):
         match.assets.play(shot_sound(weapon, match.frame), 0.3)
         return True
 
+    def _bash(self, match, target, weapon):
+        """Sem energia: bate com a arma (a de tiro vira de perto; a rara de perto bate sem o efeito)."""
+        self.face(target)
+        if self.dry_click <= 0:
+            self.dry_click = 50
+            match.popup(self.x, self.y - 74, "SEM ENERGIA", energia.ENERGY_COLOR)
+        bash = energia.BASH
+        self.aim_timer = max(AIM_HOLD, bash.cooldown + 8)
+        self.melee_flash = 12
+        self.bash_timer = 12
+        self.attack_cd = bash.cooldown
+        self.bow_draw = 0
+        match.assets.play("golpe", 0.4)
+        fx, fy = self.facing
+        reach = bash.reach * self.ability.reach_mult
+        damage = round(bash.damage * self.damage_mult)
+        for other in match.opponents_of(self):
+            if not other.alive_in_match:
+                continue
+            dx, dy = other.x - self.x, other.y - self.y
+            d = math.hypot(dx, dy)
+            in_front = other is target or d < other.radius + 6 or (dx * fx + dy * fy) > -0.2 * d
+            if d <= reach + other.radius and in_front:
+                other.take_damage(damage, self.x, self.y, attacker=self, match=match)
+        return True
+
     def _spend_ammo(self):
         self.idle_shot = 0
         weapon = self.weapon
+        energia.spend(self, weapon)
         if self.mag_of(weapon):
             clip = self.clip(weapon)
             clip.ammo -= 1
@@ -925,7 +960,7 @@ class Fighter(Entity):
                      "type_timer", "rush_timer", "thrown_timer", "root_timer", "botox_timer", "fear_timer", "frozen_timer",
                      "slow_timer", "windup", "aim_timer", "haste_timer", "dry_click",
                      "hit_flash", "melee_flash", "shoot_flash", "teleport_flash", "perfect_flash",
-                     "celebrate", "release_t", "swat_t"):
+                     "celebrate", "release_t", "swat_t", "bash_timer"):
             value = getattr(self, name)
             if value > 0:
                 setattr(self, name, value - 1)
@@ -1254,7 +1289,7 @@ class Fighter(Entity):
                 hand = (sx + (hand[0] - sx) * scale, feet + (hand[1] - feet) * scale - self.lift)
         else:
             hand = (base[0] + spot[0] * scale, base[1] + spot[1] * scale)
-        swinging = self.melee_flash > 0 and self.weapon.is_melee
+        swinging = self.melee_flash > 0 and (self.weapon.is_melee or self.bash_timer > 0)
         swing = 1 - self.melee_flash / 12 if swinging else None
         recoil = 3 if self.shoot_flash > 2 else 0
         if self.reloading and not self.weapon.is_melee and (self.reload_timer // 8) % 2:

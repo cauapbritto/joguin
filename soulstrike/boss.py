@@ -79,6 +79,9 @@ class BossAI(EnemyAI):
     def __init__(self, difficulty="normal", players=1):
         super().__init__(difficulty)
         self.players = players
+        # Ibrahim e Borba: fica furioso mais cedo (no Borba, com metade da vida: é quase uma fase a mais)
+        from .campaign import LEVELS
+        self.enrage_at = LEVELS[difficulty].enrage if difficulty in LEVELS else 0.2
         self.state = "walk"
         self.timer = 110
         self.combo = []
@@ -124,7 +127,7 @@ class BossAI(EnemyAI):
             self.summoned = True
             self._roar(me, match)
             self._on_half(me, match)
-        elif not self.enraged and ratio <= 0.2 and self.state not in ("jump", "air"):
+        elif not self.enraged and ratio <= self.enrage_at and self.state not in ("jump", "air"):
             self.enraged = True
             me.aura = ENRAGED_AURA
             me.speed_mult *= 1.25
