@@ -1561,7 +1561,7 @@ def _scene_armas_lag(screen, ui, rect, t):
         pygame.draw.rect(screen, (120, 220, 240) if on else theme.LINE, cell, 1)
         img = weapon_art.icon(name)
         if img is not None:
-            img = _big(img, 2) if img.get_width() < 40 else img
+            img = weapon_art.icon2x(name) if img.get_width() < 40 else img
             bob = round(math.sin(t * 0.1) * 3) if on else 0
             screen.blit(img, img.get_rect(center=(cell.centerx, cell.centery - 8 + bob)))
     ui.text(screen, names[pick].upper(), theme.XS, theme.BRASS, (rect.centerx, rect.bottom - 22))

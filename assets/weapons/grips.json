@@ -2,477 +2,545 @@
  "Espada": {
   "file": "espada.png",
   "grip": [
-   3,
-   4
-  ]
+   7,
+   9
+  ],
+  "detail": 2
  },
  "Faca": {
   "file": "faca.png",
   "grip": [
-   3,
-   3
-  ]
+   7,
+   7
+  ],
+  "detail": 2
  },
  "Katana": {
   "file": "katana.png",
   "grip": [
-   4,
-   3
-  ]
+   9,
+   7
+  ],
+  "detail": 2
  },
  "Espadão": {
   "file": "espadao.png",
   "grip": [
-   4,
-   5
-  ]
+   9,
+   11
+  ],
+  "detail": 2
  },
  "Maça": {
   "file": "maca.png",
   "grip": [
-   4,
-   5
-  ]
+   9,
+   11
+  ],
+  "detail": 2
  },
  "Martelo": {
   "file": "martelo.png",
   "grip": [
-   4,
-   6
-  ]
+   9,
+   13
+  ],
+  "detail": 2
  },
  "Foice": {
   "file": "foice.png",
   "grip": [
-   5,
-   11
-  ]
+   11,
+   23
+  ],
+  "detail": 2
  },
  "Lança": {
   "file": "lanca.png",
   "grip": [
-   8,
-   4
-  ]
+   17,
+   9
+  ],
+  "detail": 2
  },
  "Arco": {
   "file": "arco.png",
   "grip": [
-   12,
-   12
-  ]
+   25,
+   25
+  ],
+  "detail": 2
  },
  "Rifle": {
   "file": "rifle.png",
   "grip": [
-   8,
-   5
-  ]
+   17,
+   11
+  ],
+  "detail": 2
  },
  "Corrente": {
   "file": "corrente.png",
   "grip": [
-   3,
-   4
-  ]
+   7,
+   9
+  ],
+  "detail": 2
  },
  "Shuriken": {
   "file": "shuriken.png",
   "grip": [
-   2,
-   6
-  ]
+   5,
+   13
+  ],
+  "detail": 2
  },
  "Estrela": {
   "file": "estrela.png",
   "grip": [
-   2,
-   6
-  ]
+   5,
+   13
+  ],
+  "detail": 2
  },
  "Granada": {
   "file": "granada.png",
   "grip": [
-   2,
-   7
-  ]
+   5,
+   15
+  ],
+  "detail": 2
  },
  "Orbe": {
   "file": "orbe.png",
   "grip": [
-   1,
-   6
-  ]
+   3,
+   13
+  ],
+  "detail": 2
  },
  "Garras": {
   "file": "garras.png",
   "grip": [
-   2,
-   6
-  ]
+   5,
+   13
+  ],
+  "detail": 2
  },
  "Pistola": {
   "file": "pistola.png",
   "grip": [
-   2,
-   6
-  ]
+   5,
+   13
+  ],
+  "detail": 2
  },
  "Sabre": {
   "file": "sabre.png",
   "grip": [
-   3,
-   7
-  ]
+   7,
+   15
+  ],
+  "detail": 2
  },
  "Cristal": {
   "file": "cristal.png",
   "grip": [
-   1,
-   4
-  ]
+   3,
+   9
+  ],
+  "detail": 2
  },
  "Cajado": {
   "file": "cajado.png",
   "grip": [
-   8,
-   7
-  ]
+   17,
+   15
+  ],
+  "detail": 2
  },
  "Arco Vazio": {
   "file": "arco_vazio.png",
   "grip": [
-   12,
-   12
-  ]
+   25,
+   25
+  ],
+  "detail": 2
  },
  "Arco Puxado": {
   "file": "arco_puxado.png",
   "grip": [
-   12,
-   12
-  ]
+   25,
+   25
+  ],
+  "detail": 2
  },
  "Arco Tenso": {
   "file": "arco_tenso.png",
   "grip": [
-   12,
-   12
-  ]
+   25,
+   25
+  ],
+  "detail": 2
  },
  "Flecha": {
   "file": "flecha.png",
   "grip": [
-   8,
-   2
-  ]
+   17,
+   5
+  ],
+  "detail": 2
  },
  "Besta": {
   "file": "besta.png",
   "grip": [
-   5,
-   9
-  ]
+   11,
+   19
+  ],
+  "detail": 2
  },
  "Lança-chamas": {
   "file": "lanca-chamas.png",
   "grip": [
-   9,
-   7
-  ]
+   19,
+   15
+  ],
+  "detail": 2
  },
  "Bumerangue": {
   "file": "bumerangue.png",
   "grip": [
-   2,
-   3
-  ]
+   5,
+   7
+  ],
+  "detail": 2
  },
  "Cajado do Raio": {
   "file": "cajado_do_raio.png",
   "grip": [
-   8,
-   6
-  ]
+   17,
+   13
+  ],
+  "detail": 2
  },
  "Canhão de Mão": {
   "file": "canhao_de_mao.png",
   "grip": [
-   3,
-   8
-  ]
+   7,
+   17
+  ],
+  "detail": 2
  },
  "Virote": {
   "file": "virote.png",
   "grip": [
-   7,
-   2
-  ]
+   15,
+   5
+  ],
+  "detail": 2
  },
  "Colmeia": {
   "file": "colmeia.png",
   "grip": [
-   5,
-   1
-  ]
+   11,
+   3
+  ],
+  "detail": 2
  },
  "Arco de Espinhos": {
   "file": "arco_de_espinhos.png",
   "grip": [
-   5,
-   12
-  ]
+   11,
+   25
+  ],
+  "detail": 2
  },
  "Espinho": {
   "file": "espinho.png",
   "grip": [
-   5,
-   2
-  ]
+   11,
+   5
+  ],
+  "detail": 2
  },
  "Machado do Lenhador": {
   "file": "machado_do_lenhador.png",
   "grip": [
-   4,
-   7
-  ]
+   9,
+   15
+  ],
+  "detail": 2
  },
  "Lanterna das Almas": {
   "file": "lanterna_das_almas.png",
   "grip": [
-   6,
-   1
-  ]
+   13,
+   3
+  ],
+  "detail": 2
  },
  "Crânio Uivante": {
   "file": "cranio_uivante.png",
   "grip": [
-   6,
-   10
-  ]
+   13,
+   21
+  ],
+  "detail": 2
  },
  "Foice Espectral": {
   "file": "foice_espectral.png",
   "grip": [
-   4,
-   11
-  ]
+   9,
+   23
+  ],
+  "detail": 2
  },
  "Estalactites": {
   "file": "estalactites.png",
   "grip": [
-   5,
-   4
-  ]
+   11,
+   9
+  ],
+  "detail": 2
  },
  "Espelho de Cristal": {
   "file": "espelho_de_cristal.png",
   "grip": [
-   3,
-   7
-  ]
+   7,
+   15
+  ],
+  "detail": 2
  },
  "Bola de Neve": {
   "file": "bola_de_neve.png",
   "grip": [
-   3,
-   7
-  ]
+   7,
+   15
+  ],
+  "detail": 2
  },
  "Cajado do Raio Supremo": {
   "file": "cajado_do_raio_supremo.png",
   "grip": [
-   8,
-   7
-  ]
+   17,
+   15
+  ],
+  "detail": 2
  },
  "Capacete": {
   "file": "capacete.png",
   "grip": [
-   2,
-   6
-  ]
+   5,
+   13
+  ],
+  "detail": 2
  },
  "Disquete": {
   "file": "disquete.png",
   "grip": [
-   2,
-   6
-  ]
+   5,
+   13
+  ],
+  "detail": 2
  },
  "Cabo de Rede": {
   "file": "cabo_de_rede.png",
   "grip": [
-   3,
-   4
-  ]
+   7,
+   9
+  ],
+  "detail": 2
  },
  "Pendrive": {
   "file": "pendrive.png",
   "grip": [
-   3,
-   3
-  ]
+   7,
+   7
+  ],
+  "detail": 2
  },
  "Notebook": {
   "file": "notebook.png",
   "grip": [
-   2,
-   7
-  ]
+   5,
+   15
+  ],
+  "detail": 2
  },
  "Canhão de Pulso": {
   "file": "canhao_de_pulso.png",
   "grip": [
-   3,
-   5
-  ]
+   7,
+   11
+  ],
+  "detail": 2
  },
  "Punho Mecânico": {
   "file": "punho_mecanico.png",
   "grip": [
-   3,
-   6
-  ]
+   7,
+   13
+  ],
+  "detail": 2
  },
  "Taser de Rede": {
   "file": "taser_de_rede.png",
   "grip": [
-   3,
-   7
-  ]
+   7,
+   15
+  ],
+  "detail": 2
  },
  "Rede": {
   "file": "rede.png",
   "grip": [
-   6,
-   6
-  ]
+   13,
+   13
+  ],
+  "detail": 2
  },
  "Rifle de Plasma": {
   "file": "rifle_de_plasma.png",
   "grip": [
-   8,
-   6
-  ]
+   17,
+   13
+  ],
+  "detail": 2
  },
  "Drone de Bolso": {
   "file": "drone_de_bolso.png",
   "grip": [
-   3,
-   8
-  ]
+   7,
+   17
+  ],
+  "detail": 2
  },
  "Teclado Mecânico": {
   "file": "teclado_mecanico.png",
   "grip": [
-   3,
-   4
-  ]
+   7,
+   9
+  ],
+  "detail": 2
  },
  "Escudo de Choque": {
   "file": "escudo_de_choque.png",
   "grip": [
-   3,
-   9
-  ]
+   7,
+   19
+  ],
+  "detail": 2
  },
  "Manopla do Exo": {
   "file": "manopla_do_exo.png",
   "grip": [
-   3,
-   7
-  ]
+   7,
+   15
+  ],
+  "detail": 2
  },
  "Punho Corrompido": {
   "file": "punho_corrompido.png",
   "grip": [
-   3,
-   6
-  ]
+   7,
+   13
+  ],
+  "detail": 2
  },
  "Fuzil": {
   "file": "fuzil.png",
   "grip": [
-   7,
-   5
-  ]
+   15,
+   11
+  ],
+  "detail": 2
  },
  "Boleto": {
   "file": "boleto.png",
   "grip": [
-   3,
-   7
-  ]
+   7,
+   15
+  ],
+  "detail": 2
  },
  "Carimbo": {
   "file": "carimbo.png",
   "grip": [
-   3,
-   5
-  ]
+   7,
+   11
+  ],
+  "detail": 2
  },
  "Pacote de Dados": {
   "file": "pacote_de_dados.png",
   "grip": [
-   3,
-   7
-  ]
+   7,
+   15
+  ],
+  "detail": 2
  },
  "Lâmina Solar": {
   "file": "lamina_solar.png",
   "grip": [
-   2,
-   6
-  ]
+   5,
+   13
+  ],
+  "detail": 2
  },
  "Martelo do Trovão Eterno": {
   "file": "martelo_do_trovao_eterno.png",
   "grip": [
-   3,
-   6
-  ]
+   7,
+   13
+  ],
+  "detail": 2
  },
  "Arco das Mil Almas": {
   "file": "arco_das_mil_almas.png",
   "grip": [
-   7,
-   13
-  ]
+   15,
+   27
+  ],
+  "detail": 2
  },
  "Canhão do Vazio": {
   "file": "canhao_do_vazio.png",
   "grip": [
-   3,
-   5
-  ]
+   7,
+   11
+  ],
+  "detail": 2
  },
  "Coração do Inverno": {
   "file": "coracao_do_inverno.png",
   "grip": [
-   3,
-   6
-  ]
+   7,
+   13
+  ],
+  "detail": 2
  },
  "Lança do Dragão": {
   "file": "lanca_do_dragao.png",
   "grip": [
-   5,
-   4
-  ]
+   11,
+   9
+  ],
+  "detail": 2
  },
  "Cetro da Tempestade": {
   "file": "cetro_da_tempestade.png",
   "grip": [
-   4,
-   7
-  ]
+   9,
+   15
+  ],
+  "detail": 2
  },
  "Foice do Ceifador": {
   "file": "foice_do_ceifador.png",
   "grip": [
-   3,
-   10
-  ]
+   7,
+   21
+  ],
+  "detail": 2
  }
 }

@@ -12,6 +12,7 @@ SCALE = 2                     # mesma ampliação dos personagens
 _icons = {}                   # nome → imagem 1x (para a interface)
 _variants = {}                # nome → {direção: (imagem, (grip_x, grip_y))}
 _base = {}                    # nome → (imagem apontando para a direita, grip)
+_hd = {}                      # nome → imagem em dobro de detalhe (já do tamanho da tela)
 
 DIRECTION_VECTORS = {"direita": (1, 0), "esquerda": (-1, 0), "frente": (0, 1), "costas": (0, -1)}
 
@@ -30,11 +31,17 @@ def load():
             small = pygame.image.load(str(WEAPON_DIR / info["file"])).convert_alpha()
         except (pygame.error, FileNotFoundError):
             continue
-        sources.append((name, small, info["grip"]))
-    for name, small, grip in sources:
+        sources.append((name, small, info["grip"], info.get("detail", 1)))
+    for name, small, grip, detail in sources:
+        if detail > 1:              # já vem com o dobro de pixels: é a arma do tamanho da tela
+            img = small
+            _hd[name] = img
+            small = pygame.transform.scale(img, (img.get_width() // detail, img.get_height() // detail))
+            gx, gy = grip
+        else:
+            img = pygame.transform.scale(small, (small.get_width() * SCALE, small.get_height() * SCALE))
+            gx, gy = grip[0] * SCALE + SCALE // 2, grip[1] * SCALE + SCALE // 2
         _icons[name] = small
-        img = pygame.transform.scale(small, (small.get_width() * SCALE, small.get_height() * SCALE))
-        gx, gy = grip[0] * SCALE + SCALE // 2, grip[1] * SCALE + SCALE // 2
         w, h = img.get_size()
         _base[name] = (img, (gx, gy))
         _variants[name] = {
@@ -48,7 +55,17 @@ def load():
 
 
 def icon(name):
+    """Ícone da arma no tamanho da arte (pequeno, para listas)."""
     return _icons.get(name)
+
+
+def icon2x(name):
+    """Ícone no dobro do tamanho (cartões e vitrines): a arte em dobro de detalhe quando houver."""
+    img = _hd.get(name)
+    if img is not None:
+        return img
+    small = _icons.get(name)
+    return None if small is None else pygame.transform.scale(small, (small.get_width() * 2, small.get_height() * 2))
 
 
 _rotated = {}
@@ -64,8 +81,15 @@ def rotated(name, angle_deg, scale=SCALE):
     key = (name, step, scale)
     img = _rotated.get(key)
     if img is None:
-        img = pygame.transform.rotate(small, -step * ANGLE_STEP)      # gira o 1x (vizinho mais próximo)
-        img = pygame.transform.scale(img, (img.get_width() * scale, img.get_height() * scale))
+        hd = _hd.get(name)
+        if hd is not None and scale % 2 == 0:                       # gira a arte em dobro de detalhe
+            img = pygame.transform.rotate(hd, -step * ANGLE_STEP)
+            k = scale // 2
+        else:
+            img = pygame.transform.rotate(small, -step * ANGLE_STEP)  # gira o 1x (vizinho mais próximo)
+            k = scale
+        if k != 1:
+            img = pygame.transform.scale(img, (img.get_width() * k, img.get_height() * k))
         _rotated[key] = img
     return img
 

@@ -7,10 +7,16 @@ igual aos personagens). O ponto onde a mão segura vai em assets/weapons/grips.j
 """
 import json
 import os
+import sys
 from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 import pygame  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pixel_hd import fine_outline, scale2x, volume  # noqa: E402
+
+DETAIL = 2      # as armas saem com o dobro de pixels, do mesmo tamanho na tela (o jogo não amplia)
 
 OUT = Path(__file__).resolve().parent.parent / "assets" / "weapons"
 OUTLINE = (24, 17, 28, 255)
@@ -44,14 +50,20 @@ class Sprite:
                     self.surf.set_at((x + i, y + j), palette[c])
 
     def finish(self):
-        """Adiciona o contorno escuro de 1 px (fica com 1 px de margem em volta)."""
+        """Arma pronta em dobro de detalhe: bordas arredondadas, volume, brilho no metal e
+        contorno fino, com 2 pixels de margem (o mesmo tamanho na tela do contorno antigo)."""
         w, h = self.surf.get_size()
-        out = pygame.Surface((w + 2, h + 2), pygame.SRCALPHA)
-        line = pygame.mask.from_surface(self.surf).to_surface(setcolor=OUTLINE, unsetcolor=(0, 0, 0, 0))
-        for dx, dy in ((0, 1), (2, 1), (1, 0), (1, 2)):
-            out.blit(line, (dx, dy))
-        out.blit(self.surf, (1, 1))
-        return out
+        out = pygame.Surface((w * DETAIL + 4, h * DETAIL + 4), pygame.SRCALPHA)
+        out.blit(volume(scale2x(self.surf), shade), (2, 2))
+        return fine_outline(out)
+
+
+def shade(color, amount):
+    """Mais claro ou mais escuro puxando o matiz: brilho quente, sombra fria."""
+    k = abs(amount) * 1.3
+    tilt = (0.10, 0.04, -0.14) if amount > 0 else (0.22, 0.10, -0.12)
+    sign_ = 1 if amount > 0 else -1
+    return tuple(max(0, min(255, round(c + sign_ * k + sign_ * k * t))) for c, t in zip(color[:3], tilt))
 
 
 def espada():
@@ -1233,7 +1245,7 @@ def build_all():
     result = {}
     for name, draw in WEAPONS.items():
         surf, (gx, gy) = draw()
-        result[name] = (surf, (gx + 1, gy + 1))      # +1 por causa da margem do contorno
+        result[name] = (surf, (gx * DETAIL + 3, gy * DETAIL + 3))   # centro do pixel da pegada, com a margem
     return result
 
 
@@ -1243,7 +1255,7 @@ def main():
     for name, (surf, grip) in build_all().items():
         fname = file_name(name)
         pygame.image.save(surf, str(OUT / fname))
-        grips[name] = {"file": fname, "grip": list(grip)}
+        grips[name] = {"file": fname, "grip": list(grip), "detail": DETAIL}
     (OUT / "grips.json").write_text(json.dumps(grips, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"{len(grips)} armas em {OUT}")
 
