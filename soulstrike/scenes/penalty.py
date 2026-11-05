@@ -46,6 +46,7 @@ CELEBRATIONS = {
     "aryel_corrompido": ("HA HA HA...", "sombra", (150, 80, 200)),
     "borba_corrompido": ("VAPOR ROXO DO EXO...", "sombra", (150, 90, 220)),
     "albeguinio_corrompido": ("CAIXA FECHADO!", "sombra", (255, 110, 190)),
+    "cauanzera_corrompido": ("SOLICITAÇÃO DEFERIDA!", "telao", (60, 230, 255)),
     "fantasma": ("ACENA DE DENTRO DO GOL", "sombra", (200, 220, 255)),
     "tita": ("O ESTÁDIO TREMEU!", "tremor", (230, 200, 150)),
     "pirata": ("FINCOU A BANDEIRA!", "bandeira", (30, 30, 36)),

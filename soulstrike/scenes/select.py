@@ -6,12 +6,13 @@ import pygame
 from .. import config, settings, theme
 from ..ai import CAMPAIGN_ORDER, DIFFICULTIES, DIFFICULTY_ORDER
 from ..controls import key_label
-from ..arena import BASKET_MAPS, BATTLE_MAPS, MAPS_BY_KEY
+from ..arena import MAPS_BY_KEY, basket_maps, battle_maps, soccer_maps
 from ..data import CHARACTERS, MAX_DAMAGE, MAX_HP, MAX_SPEED, roster_indices
 from ..soccer_assist import ASSIST_LEVELS, ASSIST_ORDER
 from ..basket_powers import BASKET_POWERS
 from ..soccer_powers import SOCCER_POWERS
 from .. import weapon_art
+from ..progress import chapter_cleared
 from ..net import server
 from ..net.remote import hub
 from ..ui import mix
@@ -253,11 +254,16 @@ class CharSelectScene(_MenuScene):
         self.roster = [CHARACTERS[i] for i in self.choices]
         self.cards = [_Card(s, self.choices) for s in slots]
         self.countdown = 0
-        keys = [m.key for m in BATTLE_MAPS]
+        self.battle_maps = battle_maps()
+        self.basket_maps = basket_maps()
+        self.soccer_maps = soccer_maps()
+        self.uniform_ok = chapter_cleared(4)      # UNIFORME nas regras (recompensa do capítulo 4)
+        self.pitch_index = self.soccer_maps.index(session.map_key) if session.map_key in self.soccer_maps else 0
+        keys = [m.key for m in self.battle_maps]
         self.map_index = keys.index(session.map_key) if session.map_key in keys else 0
         # basquete: a quadra é escolhida aqui (fica a última escolhida)
         self.basket = session.basket
-        self.court_index = BASKET_MAPS.index(session.map_key) if session.map_key in BASKET_MAPS else 0
+        self.court_index = self.basket_maps.index(session.map_key) if session.map_key in self.basket_maps else 0
         n = len(self.cards)
         count = len(self.roster)
         # muitos personagens (futebol): os quadradinhos encolhem para caber na tela
@@ -334,7 +340,7 @@ class CharSelectScene(_MenuScene):
 
     @property
     def map_key(self):
-        return BATTLE_MAPS[self.map_index].key
+        return self.battle_maps[self.map_index].key
 
     def _humans(self):
         return [c for c in self.cards if not c.setup.cpu]
@@ -387,14 +393,22 @@ class CharSelectScene(_MenuScene):
 
     @property
     def court_key(self):
-        return BASKET_MAPS[self.court_index]
+        return self.basket_maps[self.court_index]
 
     def _cycle_court(self, step):
-        self.court_index = (self.court_index + step) % len(BASKET_MAPS)
+        self.court_index = (self.court_index + step) % len(self.basket_maps)
+        self.sfx("click", 0.4)
+
+    @property
+    def pitch_key(self):
+        return self.soccer_maps[self.pitch_index]
+
+    def _cycle_pitch(self, step):
+        self.pitch_index = (self.pitch_index + step) % len(self.soccer_maps)
         self.sfx("click", 0.4)
 
     def _cycle_map(self, step):
-        self.map_index = (self.map_index + step) % len(BATTLE_MAPS)
+        self.map_index = (self.map_index + step) % len(self.battle_maps)
         self.sfx("click", 0.4)
 
     def _cycle_difficulty(self, step):
@@ -427,20 +441,29 @@ class CharSelectScene(_MenuScene):
         if self.basket:
             rows.append(("QUADRA", MAPS_BY_KEY[self.court_key].name.upper(), self._cycle_court))
         elif not self.soccer and not self.campaign:
-            rows.append(("MAPA", BATTLE_MAPS[self.map_index].name.upper(), self._cycle_map))
+            rows.append(("MAPA", self.battle_maps[self.map_index].name.upper(), self._cycle_map))
         if self.campaign or s.mode == "cpu":
             rows.append(("DIFICULDADE", DIFFICULTIES[s.difficulty]["label"], self._cycle_difficulty))
         elif self._cpu_level_mode:
             rows.append(("CPU", DIFFICULTIES[s.difficulty]["label"], self._cycle_difficulty))
         if self.soccer and not self.basket:
             rows.append(("ASSISTÊNCIA", ASSIST_LEVELS[s.assist].label, self._cycle_assist))
+            if len(self.soccer_maps) > 1 and s.mode in ("soccer1", "soccer2"):
+                rows.append(("ESTÁDIO", MAPS_BY_KEY[self.pitch_key].name.upper(), self._cycle_pitch))
         if self._length_mode:
             length = settings.get("futebol_partida")
             label = {"tempo": "3 MIN", "penaltis": "3 MIN + PÊNALTIS"}.get(length, f"{length} GOLS")
             rows.append(("PARTIDA", label, self._cycle_length))
         if self._weapon_pick_mode:
             rows.append(("ARMAS", "A CADA ROUND" if settings.get("armas_por_round") else "FIXAS", self._toggle_weapons))
+        if self.uniform_ok:                 # recompensa do capítulo 4: o crachá da Mansão do Carimbo
+            rows.append(("UNIFORME", "CRACHÁ DA MANSÃO" if settings.get("uniforme") else "NORMAL",
+                         self._toggle_uniform))
         return rows
+
+    def _toggle_uniform(self, step=1):
+        settings.change("uniforme", not settings.get("uniforme"))
+        self.sfx("click", 0.4)
 
     def _set_rules(self, value):
         if value and (self.countdown or not self.rule_rows()):
@@ -594,7 +617,8 @@ class CharSelectScene(_MenuScene):
                     self.game.change(start_campaign(self.game))
                     return
                 session = self.game.session
-                session.map_key = self.court_key if session.basket else self.map_key
+                session.map_key = (self.court_key if session.basket else
+                                   self.pitch_key if self.soccer else self.map_key)
                 session.weapon_pick = self._weapon_pick_mode and settings.get("armas_por_round")
                 if settings.get("futebol_partida") in config.SOCCER_LENGTHS:
                     session.soccer_length = settings.get("futebol_partida")
@@ -637,7 +661,7 @@ class CharSelectScene(_MenuScene):
             elif not self.soccer:
                 label = "MAPA"
                 if len(self.cards) == 4:            # sem o painel do meio: o nome do mapa vai no rodapé
-                    label += ": " + BATTLE_MAPS[self.map_index].name.upper()
+                    label += ": " + self.battle_maps[self.map_index].name.upper()
                 items.insert(0, ("TAB", label))
             else:
                 items.insert(0, ("TAB", "ASSISTÊNCIA: " + ASSIST_LEVELS[self.game.session.assist].label))
@@ -864,7 +888,7 @@ class CharSelectScene(_MenuScene):
             return
         ui.panel(screen, c, fill=theme.INK_2)
         ui.text(screen, "ARENA", theme.XS, theme.MUTED, (c.centerx, c.y + 20))
-        cfg = BATTLE_MAPS[self.map_index]
+        cfg = self.battle_maps[self.map_index]
         ui.text(screen, cfg.name.upper(), theme.XS, theme.BONE, (c.centerx, c.y + 40))
         thumb = self.game.thumbnail(cfg, (180, 124))
         tr = thumb.get_rect(midtop=(c.centerx, c.y + 56))
@@ -874,7 +898,7 @@ class CharSelectScene(_MenuScene):
         for direction, r in zip(("left", "right"), self.map_arrows):
             ui.arrow(screen, r.center, direction, 7, theme.BRASS if r.collidepoint(mouse) else theme.MUTED)
         dots_y = tr.bottom + 14
-        n = len(BATTLE_MAPS)
+        n = len(self.battle_maps)
         for i in range(n):
             x = c.centerx - (n - 1) * 6 + i * 12
             screen.fill(theme.BRASS if i == self.map_index else theme.LINE, (x - 2, dots_y - 2, 5, 5))

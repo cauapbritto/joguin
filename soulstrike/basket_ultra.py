@@ -461,7 +461,7 @@ ULTRAS = {
     "ninja": Clones,
     "borba": ExoMaximo,
     "borba_corrompido": ExoMaximo,
-    "albeguinio_corrompido": TelaAzul,
+    "albeguinio_corrompido": TelaAzul,    "cauanzera_corrompido": EnterradaDoMeio,
 }
 
 

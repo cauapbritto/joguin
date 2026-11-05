@@ -2881,6 +2881,505 @@ def albeguinio_adm(p):
     return c
 
 
+# ── Mansão do Carimbo (capítulo 4): os objetos do órgão que a IARA ligou ──
+IARA, IARA_D, IARA_L = (60, 230, 255), (20, 130, 170), (200, 250, 255)   # ciano elétrico da IA
+MANILA, MANILA_D, MANILA_L = (226, 192, 120), (170, 134, 70), (246, 222, 166)   # pasta de processo
+STEEL, STEEL_D, STEEL_L = (150, 158, 170), (96, 102, 116), (200, 206, 216)
+PAPER, PAPER_D = (244, 242, 234), (196, 194, 186)
+INK_RED = (210, 44, 50)
+
+
+def _iara_eyes(c, x, y, p, gap=4, color=None):
+    """Dois olhinhos de LED ciano (a marca de quem a IARA controla); levando dano viram traço."""
+    color = color or (IARA_L if p.kind == "ataque" else IARA)
+    for ex in (x, x + gap):
+        if p.hurt:
+            c.rect(ex, y + 1, 2, 1, IARA_D)
+        else:
+            c.rect(ex, y, 2, 2, color)
+
+
+def _processo(p, small=False):
+    """Processo Ambulante: pasta de processo parda com perninhas, folhas saindo, elástico vermelho
+    e a etiqueta com o número. No ataque a capa abre e morde (as folhas viram dentes)."""
+    s = 1 if not small else 0
+    c = Canvas(20 if not small else 14, 20 if not small else 15)
+    fw, fh = (14, 11) if not small else (10, 8)
+    hop = WALK_LIFT[p.frame] if p.kind == "andar" else 0
+    bite = (0, 3, 1)[p.frame] if p.kind == "ataque" else 0
+    shake = 1 if p.hurt else 0
+    x = (c.w - fw) // 2 + shake
+    y = c.h - fh - 4 - hop
+    # perninhas (pauzinhos pretos com sapatinho)
+    step = WALK_STRIDE[p.frame] if p.kind == "andar" else 0
+    for k, lx in enumerate((x + 3, x + fw - 4)):
+        dx = step // 2 if k == 0 else -step // 2
+        c.rect(lx + dx, y + fh, 1, 3 + hop, (40, 36, 44))
+        c.rect(lx + dx - (1 if p.side else 0), y + fh + 3 + hop, 2, 1, (40, 36, 44))
+    if p.side:
+        # de lado: lombada fina e a capa abrindo para a frente
+        c.rect(x + 3, y + 1, 6, fh - 1, MANILA)
+        c.rect(x + 3, y + 1, 6, 1, MANILA_L)
+        c.rect(x + 9, y + 2, 1, fh - 3, PAPER)
+        c.line(x + 9, y + fh - 1, x + 9 + bite * 2, y + fh - 3 - bite, MANILA_D, 1)
+        if bite:
+            for k in range(3):
+                c.px(x + 10 + k, y + fh - 3 - k, PAPER)
+        c.rect(x + 3, y + fh // 2, 6, 1, INK_RED)                       # elástico
+        _iara_eyes(c, x + 6, y + 3, p, gap=0) if not small else c.px(x + 7, y + 3, IARA)
+        c.hand = (x + 10, y + fh // 2)
+        return c
+    # de frente: a capa da pasta com a aba de cima e as folhas aparecendo
+    c.rect(x + 1, y - 1 - bite, fw - 2, 2, PAPER)                         # folhas saindo
+    c.rect(x + 3, y - 2 - bite, 4, 1, PAPER_D)
+    c.rect(x, y, fw, fh, MANILA)
+    c.rect(x, y, fw, 1, MANILA_L)
+    c.rect(x, y + fh - 1, fw, 1, MANILA_D)
+    c.rect(x + fw - 1, y, 1, fh, MANILA_D)
+    if bite:                                                              # boca: a capa abre e mostra as folhas
+        c.rect(x + 1, y + fh - 3 - bite, fw - 2, bite + 1, (60, 40, 30))
+        for k in range(x + 2, x + fw - 2, 2):
+            c.px(k, y + fh - 3 - bite, PAPER)
+            c.px(k + 1, y + fh - 2, PAPER)
+    c.rect(x, y + fh // 2 + s, fw, 1, INK_RED)                            # elástico vermelho
+    if p.dir == "frente":
+        lw = 6 if not small else 4
+        c.rect(x + (fw - lw) // 2, y + 2, lw, 3 + s, PAPER)               # etiqueta com o número
+        c.rect(x + (fw - lw) // 2 + 1, y + 4 + s, lw - 2, 1, (60, 60, 80))
+        _iara_eyes(c, x + (fw - lw) // 2, y + 2, p, gap=lw - 2)
+    else:
+        c.rect(x + 2, y + 3, fw - 4, 1, MANILA_D)
+    c.hand = (x + fw // 2, y + fh // 2)
+    return c
+
+
+def processo(p):
+    return _processo(p)
+
+
+def apenso(p):
+    """Apenso: o processinho que sai de dentro do Processo Ambulante quando ele cai."""
+    return _processo(p, small=True)
+
+
+def carimbador(p):
+    """Carimbo Indeferidor: carimbo de mesa gigante com cabo de madeira, corpo preto e a borracha
+    vermelha de INDEFERIDO. No ataque ele pula alto e desce de borracha no chão."""
+    c = Canvas(22, 32)
+    wood, wood_d, wood_l = (150, 96, 54), (100, 60, 30), (196, 140, 86)
+    body, body_d = (46, 44, 54), (28, 26, 34)
+    lift = (0, 6, 0)[p.frame] if p.kind == "ataque" else WALK_LIFT[p.frame] * 2 if p.kind == "andar" else 0
+    squash = 2 if (p.kind == "ataque" and p.frame == 2) or (p.kind == "andar" and p.frame in (0, 4)) else 0
+    shake = 1 if p.hurt else 0
+    cx = 11 + shake
+    base = 29 - lift
+    # borracha vermelha embaixo
+    c.rect(cx - 8 - squash // 2, base - 3, 16 + squash, 3, INK_RED)
+    c.rect(cx - 8 - squash // 2, base - 1, 16 + squash, 1, shade(INK_RED, -50))
+    # corpo
+    top = base - 12 + squash
+    c.rect(cx - 7, top, 14, base - 3 - top, body)
+    c.rect(cx - 7, top, 14, 1, (90, 88, 100))
+    c.rect(cx + 6, top, 1, base - 3 - top, body_d)
+    # cabo de madeira com a bola em cima
+    c.rect(cx - 2, top - 6, 4, 6, wood)
+    c.rect(cx - 2, top - 6, 1, 6, wood_l)
+    c.rect(cx - 4, top - 11, 8, 6, wood)
+    c.rect(cx - 3, top - 12, 6, 1, wood_l)
+    c.rect(cx - 4, top - 6, 8, 1, wood_d)
+    c.px(cx - 2, top - 10, wood_l)
+    if p.dir != "costas":
+        if p.side:
+            _iara_eyes(c, cx + 2, top + 3, p, gap=0)
+            c.rect(cx + 1, top + 7, 4, 1, INK_RED)
+        else:
+            _iara_eyes(c, cx - 4, top + 3, p, gap=6)
+            c.rect(cx - 2, top + 7, 4, 1, INK_RED)                         # boquinha vermelha de tinta
+    else:
+        c.rect(cx - 5, top + 3, 10, 1, body_d)
+    if lift and p.kind == "ataque":                                       # sombra do pulo no chão
+        c.rect(cx - 6, 30, 12, 1, (20, 18, 24))
+    c.hand = (cx, base - 2)
+    return c
+
+
+def impressora(p):
+    """Impressora Possuída: impressora laser bege do órgão, com o visorzinho virando cara.
+    Atira folhas pela boca; levando dano a luz vermelha de ATOLOU PAPEL acende."""
+    c = Canvas(28, 24)
+    beige, beige_d, beige_l = (214, 206, 186), (160, 152, 134), (236, 230, 214)
+    jitter = 1 if p.kind == "andar" and p.frame % 4 == 1 else 0
+    shake = 1 if p.hurt else 0
+    x, y = 3 + shake, 6 - jitter
+    w, h = 22, 14
+    out = (0, 4, 2)[p.frame] if p.kind == "ataque" else 0
+    c.rect(x + 1, y + h, w - 2, 2, (60, 56, 52))                          # pezinhos
+    c.rect(x, y, w, h, beige)
+    c.rect(x, y, w, 2, beige_l)
+    c.rect(x, y + h - 1, w, 1, beige_d)
+    c.rect(x + w - 1, y, 1, h, beige_d)
+    if p.side:
+        c.rect(x + w - 6, y + 3, 5, 3, (70, 70, 80))                      # bandeja de saída
+        if out:
+            c.rect(x + w - 2, y + 2, out + 2, 4, PAPER)
+        c.rect(x + 2, y + 4, 4, 2, (40, 44, 54))
+        _iara_eyes(c, x + 3, y + 4, p, gap=0)
+        c.hand = (x + w + out, y + 4)
+        return c
+    # bandeja de papel em cima e o rasgo da saída na frente
+    c.rect(x + 3, y - 3, w - 6, 3, PAPER)
+    c.rect(x + 3, y - 3, w - 6, 1, PAPER_D)
+    if p.dir == "frente":
+        c.rect(x + 4, y + 8, w - 8, 2, (50, 46, 52))                      # boca (saída do papel)
+        if out:
+            c.rect(x + 5, y + 9, w - 10, out, PAPER)
+            for k in range(x + 6, x + w - 6, 3):
+                c.px(k, y + 9 + out - 1, PAPER_D)
+        c.rect(x + 6, y + 3, 10, 4, (36, 40, 50))                         # visor
+        _iara_eyes(c, x + 8, y + 4, p, gap=4)
+        warn = INK_RED if p.hurt else (90, 200, 120)
+        c.px(x + w - 3, y + 3, warn)
+        c.px(x + w - 3, y + 5, (230, 180, 60))
+    else:
+        for k in range(x + 3, x + w - 3, 3):                              # grade de ventilação
+            c.rect(k, y + 4, 1, 6, beige_d)
+    c.hand = (x + w // 2, y + 10 + out)
+    return c
+
+
+def garrafa_termica(p):
+    """Garrafa Térmica da Copa: a garrafa de café florida com bomba em cima. Ela anda pulando e,
+    no ataque, aperta a própria bomba e cospe café quente."""
+    c = Canvas(18, 30)
+    red, red_d, red_l = (196, 52, 52), (130, 30, 34), (232, 104, 96)
+    hop = WALK_LIFT[p.frame] if p.kind == "andar" else 0
+    press = (0, 2, 1)[p.frame] if p.kind == "ataque" else 0
+    shake = 1 if p.hurt else 0
+    cx = 9 + shake
+    bottom = 28 - hop
+    c.rect(cx - 5, bottom - 2, 10, 2, (60, 56, 60))                       # base
+    c.rect(cx - 5, bottom - 17, 10, 15, red)
+    c.rect(cx - 5, bottom - 17, 2, 15, red_l)
+    c.rect(cx + 4, bottom - 17, 1, 15, red_d)
+    for fx, fy in ((cx - 2, bottom - 13), (cx + 1, bottom - 8), (cx - 3, bottom - 6)):   # florzinhas
+        c.px(fx, fy, (250, 236, 230))
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            c.px(fx + dx, fy + dy, (244, 190, 200))
+    c.rect(cx - 4, bottom - 20, 8, 3, (230, 228, 222))                    # tampa
+    c.rect(cx - 2, bottom - 23 + press, 4, 3 - press, (230, 228, 222))    # bomba (afunda no ataque)
+    c.rect(cx - 3, bottom - 24 + press, 6, 1, (200, 198, 192))
+    if p.side:
+        c.rect(cx + 4, bottom - 19, 3, 2, (230, 228, 222))                # bico
+        if press:
+            c.rect(cx + 7, bottom - 19, 2 + press, 2, (110, 70, 40))      # jato de café
+        c.rect(cx - 7, bottom - 15, 2, 9, red_d)                          # alça
+        _iara_eyes(c, cx + 1, bottom - 15, p, gap=0)
+        c.hand = (cx + 8, bottom - 18)
+    elif p.dir == "frente":
+        c.rect(cx - 2, bottom - 19, 4, 2, (230, 228, 222))
+        _iara_eyes(c, cx - 3, bottom - 15, p, gap=4)
+        c.hand = (cx, bottom - 18)
+    else:
+        c.rect(cx - 2, bottom - 15, 4, 9, red_d)                          # alça atrás
+        c.hand = (cx, bottom - 18)
+    if press:                                                             # vapor saindo
+        for k in range(press + 1):
+            c.px(cx - 1 + k, bottom - 26 - k, (236, 236, 240))
+    return c
+
+
+def tuiuiu_drone(p):
+    """Tuiuiú-Drone: o tuiuiú do Pantanal virou drone da IARA. Corpo branco, pescoço preto, o
+    colar vermelho, bico comprido e hélices nas asas. No ataque ele estica o bico (mergulho)."""
+    c = Canvas(30, 28)
+    white, white_d = (240, 240, 236), (190, 192, 196)
+    black, red = (30, 30, 36), (210, 50, 50)
+    bob = (-1, -2, -2, -1, 0, 1, 1, 0)[p.frame] if p.kind == "andar" else (0, -1)[p.frame] if p.kind == "parado" else 0
+    dive = (0, 3, 2)[p.frame] if p.kind == "ataque" else 0
+    shake = 1 if p.hurt else 0
+    cx, cy = 15 + shake, 15 + bob
+    spin = p.frame % 2
+    # hélices nas pontas das asas
+    for hx in (cx - 12, cx + 9):
+        c.rect(hx, cy - 7, 1, 2, STEEL_D)
+        c.rect(hx - 2 + spin, cy - 8, 5 - spin * 2, 1, STEEL_L)
+    # asas (com o metal do drone)
+    c.rect(cx - 11, cy - 5, 8, 3, white_d)
+    c.rect(cx + 3, cy - 5, 8, 3, white_d)
+    c.rect(cx - 11, cy - 3, 8, 1, black)
+    c.rect(cx + 3, cy - 3, 8, 1, black)
+    # corpo
+    c.rect(cx - 5, cy - 4, 10, 8, white)
+    c.rect(cx - 5, cy + 3, 10, 1, white_d)
+    # perninhas penduradas (finas, pretas)
+    c.rect(cx - 2, cy + 4, 1, 5, black)
+    c.rect(cx + 1, cy + 4, 1, 5, black)
+    if p.side:
+        c.rect(cx + 3, cy - 10, 3, 7, black)                              # pescoço
+        c.rect(cx + 3, cy - 4, 3, 2, red)                                 # colar vermelho
+        c.rect(cx + 4, cy - 12, 4, 3, black)                              # cabeça
+        c.line(cx + 8, cy - 11, cx + 14 + dive, cy - 9 + dive, (60, 56, 60), 1)   # bico comprido
+        c.line(cx + 8, cy - 10, cx + 13 + dive, cy - 8 + dive, (40, 38, 44), 1)
+        _iara_eyes(c, cx + 6, cy - 12, p, gap=0)
+        c.hand = (cx + 14 + dive, cy - 8 + dive)
+        return c
+    c.rect(cx - 2, cy - 11, 4, 8, black)
+    c.rect(cx - 2, cy - 4, 4, 2, red)
+    c.rect(cx - 3, cy - 14, 6, 4, black)
+    if p.dir == "frente":
+        c.rect(cx - 1, cy - 10, 2, 4 + dive, (60, 56, 60))                # bico vindo para a câmera
+        _iara_eyes(c, cx - 3, cy - 13, p, gap=4)
+    c.hand = (cx, cy - 6 + dive)
+    return c
+
+
+def ponto_eletronico(p):
+    """Ponto Eletrônico: o relógio de ponto biométrico num pedestal, com o leitor de digital e o
+    visor do horário. No ataque o visor fica vermelho e mostra FALTA."""
+    c = Canvas(18, 32)
+    shake = 1 if p.hurt else 0
+    glow = _pulse(p)
+    x = 3 + shake
+    c.rect(x + 4, 22, 4, 8, STEEL_D)                                      # pedestal
+    c.rect(x + 1, 29, 10, 2, (60, 62, 72))
+    c.rect(x, 4, 12, 18, (54, 58, 70))
+    c.rect(x, 4, 12, 1, (110, 114, 128))
+    c.rect(x + 11, 4, 1, 18, (34, 36, 44))
+    if p.dir == "costas":
+        c.rect(x + 2, 8, 8, 1, (34, 36, 44))
+        c.hand = (x + 6, 10)
+        return c
+    if p.side:
+        c.rect(x + 9, 7, 3, 6, (24, 28, 36))
+        c.px(x + 10, 8, INK_RED if glow else IARA)
+        c.hand = (x + 12, 10)
+        return c
+    screen = (120, 30, 40) if glow else (20, 50, 60)
+    c.rect(x + 2, 6, 8, 5, screen)                                        # visor
+    if glow:
+        for k in range(4):                                                # "FALTA" (risquinhos)
+            c.rect(x + 3 + k * 2, 8, 1, 2, (255, 120, 120))
+    else:
+        c.rect(x + 3, 8, 2, 1, IARA)                                      # 07:58
+        c.rect(x + 6, 8, 3, 1, IARA)
+        c.px(x + 5, 7, IARA)
+    _iara_eyes(c, x + 3, 12, p, gap=4, color=INK_RED if glow else None)
+    c.rect(x + 3, 16, 6, 4, (90, 96, 110))                                # leitor de digital
+    c.rect(x + 4, 17, 4, 2, (60, 180, 120) if not glow else (230, 60, 60))
+    c.hand = (x + 6, 9)
+    return c
+
+
+def popup_iara(p):
+    """Pop-up da IARA: janelinha de holograma ciano flutuando, com a barra de título, o X e um
+    sorrisinho de assistente. Pisca quando teleporta."""
+    c = Canvas(22, 22)
+    float_y = (0, -1, -1, -1, 0, 1, 1, 1)[p.frame] if p.kind == "andar" else (0, -1)[p.frame] if p.kind == "parado" else 0
+    flick = p.kind == "esquiva" or (p.kind == "dano")
+    a = 150 if flick else 210
+    x, y = 2, 4 + float_y
+    w, h = 18, 13
+    c.rect(x, y, w, h, (*IARA_D, a))
+    c.rect(x + 1, y + 3, w - 2, h - 4, (10, 40, 56, a))
+    c.rect(x, y, w, 3, (*IARA, a))                                        # barra de título
+    c.rect(x + w - 4, y, 3, 3, (220, 70, 80, 230))                        # o X
+    c.px(x + w - 3, y + 1, (255, 255, 255))
+    if p.dir != "costas":
+        _iara_eyes(c, x + 5, y + 5, p, gap=6, color=IARA_L)
+        smile = (0, 1, 1)[p.frame] if p.kind == "ataque" else 0
+        c.rect(x + 6, y + 9 + smile, 6, 1, IARA_L)
+        c.px(x + 5, y + 8 + smile, IARA_L)
+        c.px(x + 12, y + 8 + smile, IARA_L)
+    for k in range(y + 4, y + h - 1, 2):                                  # linhas de varredura
+        c.rect(x + 1, k, w - 2, 1, (60, 230, 255, 40))
+    c.rect(x + 6, y + h, 6, 1, (*IARA, 120))                              # feixe embaixo
+    c.rect(x + 8, y + h + 1, 2, 3, (*IARA, 80))
+    c.hand = (x + w // 2, y + h // 2)
+    return c
+
+
+def projetor(p):
+    """Projetor de Slides: o projetor velho da sala de reunião num carrinho. A lente acende antes
+    de projetar o gráfico de pizza no chão."""
+    c = Canvas(26, 26)
+    glow = _pulse(p)
+    roll = p.frame % 2 if p.kind == "andar" else 0
+    shake = 1 if p.hurt else 0
+    x = 4 + shake
+    for wx in (x, x + 14):                                                # carrinho com rodinhas
+        c.rect(wx + roll, 23, 3, 3, (50, 50, 60))
+    c.rect(x + 1, 21, 16, 2, STEEL_D)
+    c.rect(x + 7, 14, 3, 7, STEEL)
+    c.rect(x - 1, 6, 20, 9, (64, 66, 76))                                 # corpo do projetor
+    c.rect(x - 1, 6, 20, 1, (110, 112, 124))
+    c.rect(x + 18, 6, 1, 9, (40, 42, 50))
+    lens = IARA_L if glow == 2 else IARA if glow else (90, 120, 140)
+    if p.side:
+        c.rect(x + 17, 8, 4, 5, (30, 32, 40))
+        c.rect(x + 19, 9, 2, 3, lens)
+        if glow:
+            c.rect(x + 21, 9, 3, 3, (*IARA_L, 110))
+        c.hand = (x + 22, 10)
+        return c
+    if p.dir == "frente":
+        pygame.draw.circle(c.surf, (30, 32, 40), (x + 9, 10), 4)
+        pygame.draw.circle(c.surf, lens, (x + 9, 10), 2)
+        _iara_eyes(c, x + 1, 9, p, gap=13)
+        c.rect(x + 2, 13, 3, 1, (180, 180, 190))                          # botões
+    else:
+        for k in range(x + 1, x + 17, 3):
+            c.rect(k, 9, 1, 4, (40, 42, 50))
+    c.hand = (x + 9, 10)
+    return c
+
+
+def arquivo_aco(p):
+    """Arquivo de Aço (elite): arquivo de 4 gavetas cinza com etiqueta virando cara. Dá investida
+    e, no ataque, as gavetas abrem atirando pastas (e ficam abertas: é a hora de bater)."""
+    c = Canvas(26, 38)
+    shake = 1 if p.hurt else 0
+    hop = WALK_LIFT[p.frame] if p.kind == "andar" else 0
+    open_ = (0, 3, 3)[p.frame] if p.kind == "ataque" else 0
+    x, y = 5 + shake, 4 - hop
+    w, h = 16, 32
+    c.rect(x, y, w, h, STEEL)
+    c.rect(x, y, w, 2, STEEL_L)
+    c.rect(x + w - 1, y, 1, h, STEEL_D)
+    c.rect(x, y + h - 1, w, 1, STEEL_D)
+    c.rect(x + 1, y + h, 3, 2 + hop, (60, 62, 72))                        # pezinhos
+    c.rect(x + w - 4, y + h, 3, 2 + hop, (60, 62, 72))
+    if p.side:
+        for k in range(4):
+            dy = y + 3 + k * 7
+            c.rect(x + w - 1, dy, 1 + (open_ if k in (1, 2) else 0), 6, STEEL_D)
+            if open_ and k in (1, 2):
+                c.rect(x + w, dy - 1, open_, 2, MANILA)
+        _iara_eyes(c, x + w - 5, y + 4, p, gap=0)
+        c.hand = (x + w + open_, y + 14)
+        return c
+    for k in range(4):                                                    # gavetas
+        dy = y + 3 + k * 7
+        opened = open_ and k in (1, 2) and p.dir == "frente"
+        c.rect(x + 2, dy, w - 4, 6, STEEL_D if opened else (136, 144, 156))
+        c.rect(x + 2, dy, w - 4, 1, STEEL_L)
+        if opened:                                                        # gaveta aberta com as pastas
+            c.rect(x + 1, dy + 1, w - 2, 5, (70, 74, 86))
+            for fx in range(x + 2, x + w - 2, 3):
+                c.rect(fx, dy - 1, 2, 3, rng_color(fx))
+        elif p.dir == "frente":
+            c.rect(x + w // 2 - 2, dy + 4, 4, 1, (60, 62, 72))           # puxador
+    if p.dir == "frente":
+        c.rect(x + 4, y + 4, 8, 3, PAPER)                                 # etiqueta = cara
+        _iara_eyes(c, x + 5, y + 4, p, gap=4)
+    c.hand = (x + w // 2, y + 14)
+    return c
+
+
+def rng_color(k):
+    return (MANILA, (120, 180, 220), (240, 200, 90), (220, 120, 120))[k % 4]
+
+
+def cauanzera_ti(p):
+    """Cauanzera do Setor de TI da Mansão do Carimbo (o chefe do capítulo 4 e o Cauanzera
+    Corrompido do duelo): camisa social azul-clara de manga dobrada, crachá do órgão, calça
+    preta, o tênis de sempre e dois cabos de rede ciano saindo da nuca, ligados na IARA."""
+    c = Canvas()
+    skin, hair_c = (196, 142, 104), (30, 26, 30)
+    shirt, shirt_d, shirt_l = uni(p, (168, 200, 232)), uni(p, (118, 150, 190), "dark"), uni(p, (210, 228, 246), "light")
+    pants, shoes = (34, 34, 42), (240, 240, 236)
+    x, y, w, h = p.torso
+    hx, hy, hw, hh = p.head
+    # cabos atrás da cabeça (aparecem dos lados e de costas)
+    if p.dir == "costas":
+        c.line(hx + 3, hy + 8, hx - 3, hy + 20, IARA_D, 1)
+        c.line(hx + 6, hy + 8, hx + 12, hy + 20, IARA_D, 1)
+    elif p.side:
+        c.line(hx + 1, hy + 7, hx - 5, hy + 16, IARA_D, 1)
+        c.line(hx + 1, hy + 8, hx - 4, hy + 19, IARA, 1)
+    legs(c, p, pants, shoes)
+    for fx, fy, fw in feet(p):
+        if p.side:
+            c.px(fx + 1, fy + 1, (40, 40, 48))
+            c.px(fx + 2, fy, (40, 40, 48))
+        else:
+            c.px(fx + 1, fy, (40, 40, 48))
+    far_arm(c, p, shirt, skin)
+    torso(c, p, shirt, belt=(30, 30, 36), buckle=(150, 152, 164))
+    if p.dir == "frente":
+        c.rect(x + w // 2 - 1, y, 2, 1, shirt_l)                         # colarinho
+        c.rect(x + w // 2, y + 1, 1, h - 2, shirt_d)                     # botões
+        c.rect(x + 1, y + 2, 2, 3, (250, 250, 250))                      # crachá do órgão
+        c.px(x + 1, y + 2, GOLD)
+        c.px(x + 2, y + 4, (40, 40, 48))
+        c.rect(x + 1, y, 1, 2, IARA_D)                                   # cordão do crachá
+        c.px(x + w - 2, y + 2, IARA_L)                                   # a lasca brilhando no bolso
+        c.px(x + w - 3, y + 3, IARA)
+    elif p.side:
+        c.rect(x + w - 2, y + 1, 1, h - 3, shirt_d)
+        c.px(x + w - 2, y + 2, (250, 250, 250))
+    else:
+        c.rect(x + 1, y, w - 2, 1, shirt_d)
+    arms(c, p, shirt, skin, cuff=shirt_l)
+    head(c, p, skin)
+    cacheado_degrade(c, p, hair_c)
+    glasses(c, p, frame=(150, 152, 164))
+    if p.dir != "costas":
+        mouth(c, p, skin)
+    return c
+
+
+def iara(p):
+    """IARA: uma água-viva de holograma, um sino de holograma ciano flutuando, com um olho só lá dentro
+    (a lasca brilhando no lugar da pupila) e oito cabos de rede pendurados como tentáculos, cada
+    um com o conector na ponta. No ataque o sino pulsa e o olho acende branco."""
+    c = Canvas(48, 64)
+    t = p.frame
+    sway = WALK_FLOAT[t] if p.kind == "andar" else (-1, 0)[t] if p.kind == "parado" else 0
+    pulse = (0, 2, 1)[t] if p.kind == "ataque" else (t % 2 if p.kind == "parado" else 0)
+    a = 150 if p.hurt else 215
+    deep, dark, mid = (8, 60, 96, a), (18, 120, 168, a), (44, 196, 238, a)
+    light, white = (150, 240, 255, 235), (236, 255, 255, 250)
+    cx, top = 24, 6 + sway
+    bw, bh = 30 + pulse * 2, 20 - pulse
+    # sino (meia elipse) com a borda franjada
+    pygame.draw.ellipse(c.surf, mid, (cx - bw // 2, top, bw, bh * 2))
+    c.surf.fill((0, 0, 0, 0), (0, top + bh, c.w, bh + 2))
+    # tentáculos (saem da borda do sino)
+    for k in range(8):
+        x0 = cx - bw // 2 + 3 + k * (bw - 6) // 7
+        length = 22 + (k * 5) % 11
+        for d in range(length):
+            x = x0 + round(math.sin(d * 0.3 + t * 0.9 + k) * (1 + d * 0.06))
+            col = mid if d < 4 else (dark if k % 2 else deep)
+            c.rect(x, top + bh + d, 2 if k % 3 == 0 else 1, 1, col)
+        ex = x0 + round(math.sin(length * 0.3 + t * 0.9 + k) * (1 + length * 0.06))
+        c.rect(ex, top + bh + length, 2, 2, light)
+        c.px(ex, top + bh + length + 1, white)
+    pygame.draw.ellipse(c.surf, light, (cx - bw // 2 + 4, top + 2, bw - 8, 8), 1)
+    for x in range(cx - bw // 2, cx + bw // 2, 3):                      # franja da borda
+        c.rect(x, top + bh - 1, 2, 2 + (x + t) % 2, dark)
+    for k in range(4):                                                  # nervuras do sino
+        x = cx - bw // 2 + 5 + k * (bw - 10) // 3
+        c.line(cx, top + 2, x, top + bh - 2, dark, 1)
+    # o olho
+    if p.dir != "costas":
+        ox = cx + (4 if p.side else 0)
+        pygame.draw.ellipse(c.surf, white, (ox - 6, top + 7, 12, 8))
+        iris = (255, 255, 255) if pulse == 2 else (170, 90, 230)
+        pygame.draw.circle(c.surf, iris, (ox + (2 if p.side else 0), top + 11), 3)
+        c.rect(ox + (2 if p.side else 0) - 1, top + 10, 2, 2, (30, 10, 50) if not p.hurt else white)
+        c.px(ox + 1, top + 9, white)
+        if p.hurt:
+            c.rect(ox - 6, top + 11, 12, 1, dark)
+    for yy in range(top, c.h, 3):
+        for xx in range(c.w):
+            col = c.surf.get_at((xx, yy))
+            if col[3]:
+                c.surf.set_at((xx, yy), (*shade(col, 30), col[3]))
+    c.hand = (cx, top + bh)
+    return c
+
+
 # ── catálogo ──────────────────────────────────
 # nome → (desenho, largo, cores que acendem de vermelho na alma corrompida)
 CHARACTERS = {
@@ -2923,11 +3422,24 @@ CHARACTERS = {
     "maquina": (maquina, False, []),
     "cabo": (cabo, False, []),
     "daiwone": (daiwone, False, []),
+    # Mansão do Carimbo (capítulo 4)
+    "cauanzera_ti": (cauanzera_ti, False, [EYE, LENS, LENS_L]),
+    "iara": (iara, False, []),
+    "processo": (processo, False, []),
+    "apenso": (apenso, False, []),
+    "carimbador": (carimbador, False, []),
+    "impressora": (impressora, False, []),
+    "garrafa_termica": (garrafa_termica, False, []),
+    "tuiuiu_drone": (tuiuiu_drone, False, []),
+    "ponto_eletronico": (ponto_eletronico, False, []),
+    "popup_iara": (popup_iara, False, []),
+    "projetor": (projetor, False, []),
+    "arquivo_aco": (arquivo_aco, False, []),
 }
 HEROES = ("guerreiro", "atirador", "tanque", "ninja", "velocista", "aryel", "fantasma", "tita", "pirata", "geada",
           "faisca", "trovao", "ginga", "matador", "cauanzera", "albeguinio", "borba", "paredao")
 KIT_DIR = OUT / "uniformes"
-VARIANTS = ("borba_exo", "albeguinio_adm")   # não são personagens, mas também ganham uniforme (futebol)
+VARIANTS = ("borba_exo", "albeguinio_adm", "cauanzera_ti")   # não são personagens, mas também ganham uniforme (futebol)
 
 
 def build_sheet(name, kit=None):

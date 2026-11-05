@@ -11,12 +11,13 @@ import pygame
 from . import config, hud, rare_fx, theme
 from . import rumble
 from .ai import BALL_DIFFICULTIES, FighterAI, SoccerAI
-from .arena import MAPS_BY_KEY, SOCCER_MAP, Arena, Pitch
+from .arena import MAPS_BY_KEY, SOCCER_MAP, SOCCER_MAPS, Arena, Pitch
 from .camera import Camera
 from .data import CHARACTERS, SHADOW_CHARACTERS
 from .entities import Barrier, Bullet, Entity, Explosion, FloatingText, Particle, Pickup, hostile
 from .fighter import Fighter
 from .market import enchant_hit
+from .progress import uniform_on
 from .net.remote import hub
 from .projectiles import projectile_class
 from .soccer_assist import (ASSIST_LEVELS, closest_approach, pick_receiver, segment_contact, shot_assist,
@@ -64,6 +65,7 @@ class Match(ABC):
                           setup.label, color or setup.color, team=team,
                           weapon_index=setup.weapon, is_cpu=setup.cpu)
         fighter.facing = (1.0, 0.0) if x < self.arena.width / 2 else (-1.0, 0.0)
+        fighter.uniform = uniform_on()
         if self.session.soccer:                 # futebol e basquete: o lento não fica para trás
             fighter.speed = config.ball_mode_speed(stats.speed)
         if stats.key in SHADOW_CHARACTERS:
@@ -1004,7 +1006,7 @@ class SoccerMatch(Match):
     CROSS_HALF = Pitch.AREA_HALF - 40
 
     def __init__(self, game, session):
-        super().__init__(game, session, SOCCER_MAP)
+        super().__init__(game, session, session.map_key if session.map_key in SOCCER_MAPS else SOCCER_MAP)
         spawns = self.arena.cfg.spawns
         self.spawn_of = {}
         for setup in session.slots:

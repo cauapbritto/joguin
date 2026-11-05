@@ -478,6 +478,32 @@ def quadra_soul():
 
 
 # ══════════════════════════════════════════════════════════════════════
+# QUADRA DE CUIABRASA (recompensa do capítulo 4): a quadra de rua no sol de 47 graus
+# ══════════════════════════════════════════════════════════════════════
+def quadra_cuiabrasa():
+    img = quadra_rua()
+    a = np.array(img).astype(np.float32)
+    a[..., 0] = a[..., 0] * 1.18 + 18                   # asfalto torrando: puxa para o laranja
+    a[..., 1] = a[..., 1] * 1.02 + 6
+    a[..., 2] = a[..., 2] * 0.78
+    img = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+    d = ImageDraw.Draw(img)
+    rnd = random.Random(47)
+    # ondas de calor (riscos claros tremidos)
+    for _ in range(40):
+        x, y = rnd.randint(L + 10, R - 40), rnd.randint(T + 10, B - 10)
+        for k in range(18):
+            d.point((x + k, y + round(math.sin(k * 0.8) * 1.5)), fill=(236, 196, 140))
+    # placas no muro
+    pixel_text(d, 34, 2, "CUIABRASA SOL DE RACHAR", (255, 220, 120), scale=1, outline=(60, 30, 20))
+    pixel_text(d, W - 160, H - 8, "MANSAO DO CARIMBO", (255, 120, 90), scale=1, outline=(60, 30, 20))
+    # luz do sol forte no meio
+    lmap = light_map([(CX, CY, 460, 0.2)], 0.0, steps=4)
+    arr = apply_light(np.array(img), lmap, (255, 200, 120))
+    return Image.fromarray(arr)
+
+
+# ══════════════════════════════════════════════════════════════════════
 # CESTAS (100x120, ampliadas para 200x240)
 # ══════════════════════════════════════════════════════════════════════
 THEME_HOOP = {
@@ -487,6 +513,9 @@ THEME_HOOP = {
     "quadra_ginasio": dict(pole=(40, 46, 60), pole_hi=(80, 90, 110), pad=(30, 80, 170), board=(200, 230, 245),
                            board_edge=(245, 245, 250), square=(245, 245, 250), rim=(240, 104, 30),
                            rim_dark=(160, 60, 14), net=(250, 250, 250), net_dark=(200, 200, 206), glass=True),
+    "quadra_cuiabrasa": dict(pole=(150, 60, 40), pole_hi=(200, 100, 60), pad=None, board=(236, 226, 206),
+                             board_edge=(150, 60, 40), square=(255, 160, 60), rim=(240, 104, 30),
+                             rim_dark=(160, 60, 14), net=(250, 240, 220), net_dark=(200, 180, 150), glass=False),
     "quadra_soul": dict(pole=(40, 32, 54), pole_hi=(80, 64, 104), pad=None, board=(36, 28, 50),
                         board_edge=(120, 80, 200), square=(190, 140, 255), rim=(90, 80, 100),
                         rim_dark=(40, 34, 48), net=(130, 90, 210), net_dark=(80, 50, 140), glass=False),
@@ -613,8 +642,12 @@ def fire_frames():
 
 # ══════════════════════════════════════════════════════════════════════
 def main():
-    builders = {"quadra_rua": quadra_rua, "quadra_ginasio": quadra_ginasio, "quadra_soul": quadra_soul}
+    builders = {"quadra_rua": quadra_rua, "quadra_ginasio": quadra_ginasio, "quadra_soul": quadra_soul,
+                "quadra_cuiabrasa": quadra_cuiabrasa}
+    only = sys.argv[2:]                      # python gerar_quadras.py <pasta> quadra_x: só essa
     for key, fn in builders.items():
+        if only and key not in only:
+            continue
         folder = OUT / key
         bg = fn()
         finish(bg, f"fundo{key}.png", folder)

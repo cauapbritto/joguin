@@ -599,7 +599,7 @@ BASKET_POWERS = {
     "ninja": Sombra,
     "borba": Exo,
     "borba_corrompido": Exo,
-    "albeguinio_corrompido": Hack,
+    "albeguinio_corrompido": Hack,    "cauanzera_corrompido": EnterradaVoadora,
 }
 
 

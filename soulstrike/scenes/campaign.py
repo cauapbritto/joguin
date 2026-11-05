@@ -9,8 +9,8 @@ from ..ai import DIFFICULTIES
 from ..arena import MAPS_BY_KEY
 from ..enemies import SHADOW_RIM
 from ..fighter import draw_aura
-from ..campaign import (BROKEN, CRYSTAL, FRAGMENT, PHASE_HEAL, PHASES, STORY, CampaignMatch, CampaignRun,
-                        LobbyMatch)
+from ..campaign import (BROKEN, CRYSTAL, DUNGEON_2, FRAGMENT, PHASE_HEAL, PHASES, STORY, CampaignMatch,
+                        CampaignRun, LobbyMatch)
 from ..net.remote import hub
 from ..ui import MenuList, darken, mix
 from ..upgrades import ICONS, UPGRADES, choices
@@ -20,6 +20,9 @@ from .menus import TitleScene, _MenuScene
 # ── fluxo ────────────────────────────────────
 def start_campaign(game):
     run = CampaignRun(game.session)
+    if run.rush:
+        run.start_rush()
+        return StoryScene(game, "reuniao_corrompidos", lambda: start_phase(game, run))
     chapter = getattr(game.session, "chapter", 1)
     if chapter > 1:
         # direto no capítulo 2 ou 3: almas, melhorias sorteadas e mais uma escolhida antes de entrar
@@ -30,6 +33,12 @@ def start_campaign(game):
 
 def start_phase(game, run, story=True):
     """Começa a fase no acampamento (depois da história dela)."""
+    if run.rush:
+        # Reunião dos Corrompidos: direto na sala do chefe (sem acampamento, história nem save)
+        run.begin_phase()
+        run.stage = DUNGEON_2
+        run._snapshot = run._state()
+        return stage_scene(game, run)
     run.begin_phase()
     progress.save_campaign(run.to_save())      # dá para continuar daqui depois de fechar o jogo
 
@@ -51,8 +60,16 @@ def next_stage(game, run, stage):
 
 
 def after_phase(game, run):
+    if run.rush:
+        if run.rush_last:
+            return CampaignEndScene(game, run)
+
+        def next_boss():
+            run.next_rush()
+            return start_phase(game, run)
+        return UpgradeScene(game, run, next_boss)
     if run.last_phase:
-        return StoryScene(game, "final", lambda: CampaignEndScene(game, run))
+        return StoryScene(game, "final", lambda: CreditsScene(game, lambda: CampaignEndScene(game, run)))
 
     def next_phase():
         run.advance()
@@ -355,14 +372,17 @@ class UpgradeScene(_MenuScene):
                          (W - 64, 72), anchor="midright")
         if self.intro:
             from ..campaign import CHAPTER2_SOULS, CHAPTER2_UPGRADES
-            self.ui.text(screen, f"CAPÍTULO 2 · CADA UM COMEÇA COM {CHAPTER2_SOULS} ALMAS E "
-                                 f"{CHAPTER2_UPGRADES} MELHORIAS SORTEADAS",
+            ch = self.run.chapter
+            self.ui.text(screen, f"CAPÍTULO {ch} · CADA UM COMEÇA COM {CHAPTER2_SOULS * (ch - 1)} ALMAS E "
+                                 f"{CHAPTER2_UPGRADES * (ch - 1)} MELHORIAS SORTEADAS",
                          theme.XS, theme.MOSS, (64, 72), anchor="midleft")
             nxt = PHASES[self.run.phase_index]
         else:
             self.ui.text(screen, f"FASE {done} CONCLUÍDA · TODO MUNDO RECUPERA {round(PHASE_HEAL * 100)}% DA VIDA",
                          theme.XS, theme.MOSS, (64, 72), anchor="midleft")
-            nxt = PHASES[done]
+            from ..campaign import RUSH_PHASES
+            later = [i for i in RUSH_PHASES if i > self.run.phase_index]
+            nxt = PHASES[later[0]] if self.run.rush and later else PHASES[min(done, len(PHASES) - 1)]
         self.ui.text(screen, f"PRÓXIMA: {nxt.name}", theme.XS, theme.MUTED, (W - 64, 40), anchor="midright")
         for s in self.run.slots:
             self._draw_row(screen, s)
@@ -485,6 +505,9 @@ class GameOverScene(_RunMenuScene):
             self.run.retry_phase()
             self.game.change(start_phase(self.game, self.run, story=False))
         elif choice == "restart":
+            if self.run.rush:
+                self.game.change(start_campaign(self.game))
+                return
             run = CampaignRun(self.game.session)
             self.game.change(start_phase(self.game, run))
         else:
@@ -520,12 +543,197 @@ def draw_unlock(scene, screen, box, sprite, name, now):
     scene.ui.text(screen, name, theme.S, (200, 150, 250), (box.centerx, box.y + 178))
 
 
+SEAL_ORDER = ("facil", "normal", "dificil", "ibrahim", "borba")
+SEAL_COLORS = {"facil": (110, 200, 120), "normal": (90, 170, 255), "dificil": (255, 170, 60),
+               "ibrahim": (230, 70, 70), "borba": (170, 90, 230)}
+
+
+def draw_seal(screen, ui, center, key, earned, ticks=0, size=26):
+    """Selo de zerado de uma dificuldade: o carimbo redondo (cinza se ainda não tem)."""
+    cx, cy = center
+    color = SEAL_COLORS.get(key, theme.BRASS) if earned else (70, 70, 80)
+    pygame.draw.circle(screen, (20, 18, 26), (cx, cy), size + 3)
+    pygame.draw.circle(screen, color, (cx, cy), size)
+    pygame.draw.circle(screen, (20, 18, 26), (cx, cy), size - 5, 2)
+    for k in range(12):
+        a = k * math.tau / 12 + (ticks * 0.01 if earned else 0)
+        screen.fill((20, 18, 26), (round(cx + math.cos(a) * (size - 2)) - 1, round(cy + math.sin(a) * (size - 2)) - 1, 2, 2))
+    label = DIFFICULTIES[key]["label"].upper()[:3] if key in DIFFICULTIES else key[:3].upper()
+    ui.text(screen, label, theme.XS, (20, 18, 26) if earned else (120, 120, 130), (cx, cy), shadow=False)
+
+
+def draw_seals(scene, screen, box, earned, title, new=None):
+    scene.ui.panel(screen, box)
+    scene.ui.text(screen, title, theme.XS, theme.MUTED, (box.centerx, box.y + 22))
+    step = (box.w - 40) // len(SEAL_ORDER)
+    for i, key in enumerate(SEAL_ORDER):
+        cx = box.x + 20 + step // 2 + i * step
+        pulse = key == new and (scene.ticks // 10) % 2 == 0
+        draw_seal(screen, scene.ui, (cx, box.y + 90), key, key in earned or pulse, scene.ticks, size=24)
+    if new:
+        scene.ui.text(screen, "SELO NOVO: " + DIFFICULTIES[new]["label"].upper(), theme.S, theme.BRASS,
+                      (box.centerx, box.y + 150))
+
+
+# cinema: (rótulo, histórias em sequência)
+CINEMA = (("CAPÍTULO 1 · AS SOMBRAS", ("prologo", "floresta", "calabouco", "templo", "fim_capitulo1")),
+          ("CAPÍTULO 2 · LAG LOBBY", ("recepcao", "datacenter", "cobertura", "fim_capitulo2")),
+          ("CAPÍTULO 3 · CLEPALOVERS", ("clinica_recepcao", "procedimentos", "suite_vip", "fim_capitulo3")),
+          ("CAPÍTULO 4 · MANSÃO DO CARIMBO", ("mansao_sede", "mansao_patio", "mansao_gabinete", "final")),
+          ("REUNIÃO DOS CORROMPIDOS", ("reuniao_corrompidos",)),
+          ("CRÉDITOS", ("creditos",)))
+
+
+def _play_stories(game, keys, then):
+    """Uma história atrás da outra (ESC pula só a que está passando)."""
+    if not keys:
+        return then()
+    if keys[0] == "creditos":
+        return CreditsScene(game, lambda: _play_stories(game, keys[1:], then))
+    return StoryScene(game, keys[0], lambda: _play_stories(game, keys[1:], then))
+
+
+class CinemaScene(_RunMenuScene):
+    """Cinema (liberado ao zerar a campanha): escolhe uma história e assiste de novo."""
+
+    phase = "story"
+    music = "menu"
+
+    def __init__(self, game, index=0):
+        super().__init__(game)
+        self.menu = MenuList([(label, str(i)) for i, (label, _) in enumerate(CINEMA)] + [("VOLTAR", "back")],
+                             topleft=(64, 96), width=380)
+        self.menu.index = min(index, len(CINEMA))
+
+    def _choose(self, choice):
+        self.sfx("confirm")
+        index = self.menu.index
+        if choice == "back":
+            from .menus import ModeScene
+            self.game.change(ModeScene(self.game, "campanha"))
+        else:
+            keys = CINEMA[int(choice)][1]
+            self.game.change(_play_stories(self.game, keys, lambda: CinemaScene(self.game, index)))
+
+    def draw(self, screen):
+        W = config.SCREEN_W
+        self.draw_background(screen)
+        self.title(screen, "CINEMA", y=48)
+        self.menu.draw(screen, self.ui, self.ticks)
+        box = pygame.Rect(W - 420, 96, 356, 160)
+        draw_seals(self, screen, box, progress.seals(), "SELOS DE ZERADO")
+        self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "ASSISTIR")])
+
+
+# créditos do fim da campanha: (sprite, nome de verdade, personagem)
+CAST = (("cauanzera", "Cauã Pedrozo Brito", "CAUANZERA"),
+        ("aryel", "Adryel Assunção Rocha", "ARYEL"),
+        ("borba", "João Francisco da Silva Malaquias", "BORBA JR"),
+        ("albeguinio", "Alber Alberguini Cabral", "ALBEGUINIO"))
+CREDITS_SPEED = 0.9
+
+
+class CreditsScene(_MenuScene):
+    """Créditos depois do fim da campanha: o elenco de verdade (com o sprite de cada um) subindo
+    pela tela. ATACAR, ENTER ou ESC pulam."""
+
+    phase = "story"
+    music = "menu"
+
+    def __init__(self, game, then):
+        super().__init__(game)
+        self.then = then
+        self.offset = 0.0
+        self.done = False
+        bg = game.thumbnail(MAPS_BY_KEY["mansao_nucleo"], (config.SCREEN_W, config.SCREEN_H)).copy()
+        darken(bg, 190)
+        self.background = bg
+        self.lines = self._build()
+
+    def _build(self):
+        rows = [("title", "SOUL STRIKE"), ("sub", "A CAMPANHA"), ("gap", 30), ("head", "ELENCO")]
+        for sprite, name, role in CAST:
+            rows.append(("cast", (sprite, name, role)))
+        rows += [("gap", 20), ("head", "IDEIA E DIREÇÃO"), ("text", "Cauã Pedrozo Brito"),
+                 ("gap", 20), ("head", "VILÕES"),
+                 ("text", "Aryel Corrompido · Borba Jr Corrompido"),
+                 ("text", "Albeguinio Corrompido · Cauanzera Corrompido e a IARA"),
+                 ("text", "a Patrulha Cinza, a Daiwone e o comitê da Mansão do Carimbo"),
+                 ("gap", 20),
+                 ("small", "Mato Grelhado, Cuiabrasa e a Mansão do Carimbo são de mentira."),
+                 ("small", "Os 47 graus à sombra, infelizmente, não."),
+                 ("gap", 60), ("title", "OBRIGADO POR JOGAR!")]
+        return rows
+
+    @staticmethod
+    def _height(kind, value):
+        return {"title": 60, "sub": 34, "head": 44, "cast": 92, "text": 30, "small": 26}.get(kind, value or 0)
+
+    @property
+    def total(self):
+        return sum(self._height(k, v) for k, v in self.lines)
+
+    def enter(self):
+        super().enter()
+        hub.set_phase("story", mode="campaign", active=self.active_slots(), banner="CRÉDITOS")
+
+    def _finish(self):
+        if not self.done:
+            self.done = True
+            self.game.change(self.then())
+
+    def handle(self, event):
+        if event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE,
+                                                          pygame.K_KP_ENTER, pygame.K_TAB):
+            self._finish()
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self._finish()
+
+    def update(self):
+        super().update()
+        self.offset += CREDITS_SPEED
+        if self.ticks > 30 and _pressed(self.game, self.active_slots(), "confirm", "attack", "pause"):
+            self._finish()
+        elif self.offset > self.total + config.SCREEN_H * 0.6:
+            self._finish()
+
+    def draw(self, screen):
+        W, H = config.SCREEN_W, config.SCREEN_H
+        screen.blit(self.background, (0, 0))
+        y = H - self.offset
+        for kind, value in self.lines:
+            h = self._height(kind, value)
+            if -100 < y < H + 100:
+                if kind == "title":
+                    self.ui.text(screen, value, theme.L, theme.BRASS, (W // 2, round(y + h / 2)))
+                elif kind == "sub":
+                    self.ui.text(screen, value, theme.S, theme.MUTED, (W // 2, round(y + h / 2)))
+                elif kind == "head":
+                    self.ui.text(screen, value, theme.S, (200, 150, 250), (W // 2, round(y + h / 2)))
+                elif kind == "text":
+                    self.ui.text(screen, value, theme.S, theme.BONE, (W // 2, round(y + h / 2)))
+                elif kind == "small":
+                    self.ui.text(screen, value, theme.XS, theme.MUTED, (W // 2, round(y + h / 2)))
+                elif kind == "cast":
+                    sprite, name, role = value
+                    img = self.assets.sprites[sprite].frame("frente", self.ticks // 6)
+                    screen.blit(img, img.get_rect(midbottom=(W // 2 - 190, round(y + h - 8))))
+                    self.ui.text(screen, name, theme.S, theme.BONE, (W // 2 - 120, round(y + h / 2 - 10)),
+                                 anchor="midleft")
+                    self.ui.text(screen, "como " + role, theme.XS, theme.BRASS, (W // 2 - 120, round(y + h / 2 + 16)),
+                                 anchor="midleft")
+            y += h
+        self.ui.text(screen, "ATACAR PULA", theme.XS, theme.MUTED, (W - 24, H - 20), anchor="midright")
+
+
 # o que a tela de fim de capítulo mostra: texto, sprite e nome do lutador liberado
 CHAPTER_END = {
     1: ("O cristal quebrou, mas um fragmento sumiu. A próxima parada é a LAG LOBBY, "
         "a empresa tomada pela Patrulha Cinza.", "aryel", "ARYEL CORROMPIDO"),
     2: ("O fragmento se partiu, mas um caco sumiu no bolso de alguém. A próxima parada é a CLÍNICA "
         "CLEPALOVERS, estética avançada.", "borba_exo", "BORBA JR CORROMPIDO"),
+    3: ("O caco virou pó, mas uma lasca foi parar no bolso do Cauanzera. A próxima parada é a MANSÃO DO "
+        "CARIMBO, em Cuiabrasa, onde a lasca virou a IARA.", "albeguinio_adm", "ALBEGUINIO CORROMPIDO"),
 }
 
 
@@ -584,12 +792,22 @@ class CampaignEndScene(_RunMenuScene):
         secs = run.frames // config.FPS
         self.best_before = progress.best_time(run.session.difficulty)
         self.full = run.start_chapter == 1
-        self.record, self.unlocked = progress.record_campaign(secs, run.session.difficulty, run.players,
-                                                              full=self.full)
-        progress.clear_campaign()
+        self.rush = run.rush
+        self.seal_new = False
+        if self.rush:
+            # Reunião dos Corrompidos: não mexe na campanha salva nem nos capítulos, só no selo dela
+            self.record, self.unlocked = False, False
+            self.seal_new = progress.record_rush(run.session.difficulty)
+            self.banner = "REUNIÃO ENCERRADA"
+        else:
+            had = run.session.difficulty in progress.seals()
+            self.record, self.unlocked = progress.record_campaign(secs, run.session.difficulty, run.players,
+                                                                  full=self.full)
+            self.seal_new = not had
+            progress.clear_campaign()
+            self.banner = "CAMPANHA CONCLUÍDA"
         self.menu = MenuList([("MENU PRINCIPAL", "menu"), ("JOGAR DE NOVO", "again")],
                              topleft=(64, 356), width=300)
-        self.banner = "CAMPANHA CONCLUÍDA"
 
     def enter(self):
         super().enter()
@@ -612,7 +830,9 @@ class CampaignEndScene(_RunMenuScene):
         screen.fill(theme.MOSS, (64, 124, 120, 3))
         secs = self.run.frames // config.FPS
         best = self.best_before
-        if self.record:
+        if self.rush:
+            line, color = "REUNIÃO DOS CORROMPIDOS: OS 4 CHEFES EM SEQUÊNCIA", theme.BRASS
+        elif self.record:
             line, color = "NOVO RECORDE DE TEMPO!", theme.BRASS
         elif not self.full:
             line, color = f"COMEÇARAM NO CAPÍTULO {self.run.start_chapter}: SEM RECORDE", theme.MUTED
@@ -633,8 +853,16 @@ class CampaignEndScene(_RunMenuScene):
             pygame.draw.ellipse(screen, theme.SHADOW, (x - 30, 318 - 8, 60, 14))
             screen.blit(img, img.get_rect(midbottom=(x, 318 + 2 - bob)))
 
-        draw_unlock(self, screen, pygame.Rect(W - 400, 70, 340, 200), "albeguinio_adm", "ALBEGUINIO CORROMPIDO",
-                    self.unlocked)
+        if self.rush:
+            draw_seals(self, screen, pygame.Rect(W - 400, 70, 340, 200), progress.rush_seals(),
+                       "SELOS DA REUNIÃO", self.run.session.difficulty if self.seal_new else None)
+        else:
+            draw_unlock(self, screen, pygame.Rect(W - 400, 70, 340, 200), "cauanzera_ti", "CAUANZERA CORROMPIDO",
+                        self.unlocked)
+            if self.seal_new:
+                label = DIFFICULTIES[self.run.session.difficulty]["label"].upper()
+                self.ui.text(screen, f"SELO DE ZERADO NO {label}!", theme.XS, theme.BRASS, (64, 194),
+                             anchor="midleft")
         self._stats_panel(screen, pygame.Rect(W - 400, 300, 340, 44 + 22 * (1 + len(self.run.slots))), self.run)
         self.menu.draw(screen, self.ui, self.ticks)
         self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR")])

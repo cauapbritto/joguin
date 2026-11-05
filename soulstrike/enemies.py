@@ -18,7 +18,8 @@ from .entities import Entity, hostile
 SHADOW_TINT = (86, 66, 108)          # almas corrompidas: quase pretas, puxando para o roxo
 TINTS = {"aryel": (66, 48, 86),      # Aryel Corrompido é a sombra mais escura de todas
          "borba_exo": (74, 60, 96),  # Borba Jr Corrompido: placas pretas com veios roxos
-         "albeguinio_adm": (112, 64, 104)}   # Albeguinio Corrompido: puxando para o rosa da clínica
+         "albeguinio_adm": (112, 64, 104),   # Albeguinio Corrompido: puxando para o rosa da clínica
+         "cauanzera_ti": (52, 78, 110)}       # Cauanzera Corrompido: puxando para o ciano da IARA
 SHADOW_KEEP = 0.22                   # quanto da cor original sobra (para ainda reconhecer o herói)
 SHADOW_AURA = (170, 90, 230)         # cor dos textos e avisos das sombras
 SHADOW_RIM = (104, 34, 160)          # contorno que pulsa em volta delas
@@ -798,3 +799,10 @@ from . import clinica as _clinica  # noqa: E402
 CREATURES.update(_clinica.creature_stats())
 BRAINS.update(_clinica.brains())
 BIG_KINDS = BIG_KINDS + _clinica.BIG
+
+# Mansão do Carimbo (capítulo 4): as criaturas e os cérebros moram em mansao.py
+from . import mansao as _mansao  # noqa: E402
+
+CREATURES.update(_mansao.creature_stats())
+BRAINS.update(_mansao.brains())
+BIG_KINDS = BIG_KINDS + _mansao.BIG

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import pygame
 
 from . import config, energia, hud, theme
+from .progress import chapter_cleared
 from .ai import FighterAI
 from .entities import Particle, Pickup
 from .enemies import BIG_KINDS, CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_enemy
@@ -215,8 +216,40 @@ PHASES = (
                 ((("chefe", 1),),),
                 exit_spot=(800, 460), boss_spot=(800, 330), boss="albeguinio"),
     ), chapter=3),
+    # ── capítulo 4: Mansão do Carimbo, onde a lasca virou a IARA ──
+    Phase("mansao_sede", "SEDE DA MANSÃO", "mansao_fachada", (
+        Dungeon("mansao_fila", "FILA DO ATENDIMENTO", LEFT, (1.0, 0.0),
+                ((("processo", 4),),
+                 (("processo", 3), ("carimbador", 2))),
+                exit_spot=(1400, 650), hazard="fila"),
+        Dungeon("mansao_arquivo", "ARQUIVO GERAL", ((90, 640), (90, 760), (150, 640), (150, 760)), (1.0, 0.0),
+                ((("impressora", 2), ("processo", 3)),
+                 (("sombra:paredao", 1), ("carimbador", 2), ("processo", 2))),
+                exit_spot=(1840, 700), hazard="pilha"),
+    ), chapter=4),
+    Phase("mansao_patio", "PÁTIO E CPD", "mansao_copa", (
+        Dungeon("mansao_patio", "PÁTIO A 47°C", LEFT, (1.0, 0.0),
+                ((("garrafa_termica", 3), ("tuiuiu_drone", 2)),
+                 (("arquivo_aco", 1), ("tuiuiu_drone", 3), ("garrafa_termica", 2))),
+                exit_spot=(1800, 700), hazard="calor"),
+        Dungeon("mansao_cpd", "SUBSOLO DO CPD", LEFT, (1.0, 0.0),
+                ((("ponto_eletronico", 2), ("popup_iara", 3)),
+                 (("sombra:faisca", 1), ("ponto_eletronico", 2), ("popup_iara", 2))),
+                exit_spot=(1440, 600), hazard="energia"),
+    ), chapter=4),
+    Phase("mansao_gabinete", "GABINETE", "mansao_escadaria", (
+        Dungeon("mansao_reuniao", "SALA DE REUNIÃO DO COMITÊ", LEFT, (1.0, 0.0),
+                ((("projetor", 2), ("impressora", 2), ("popup_iara", 2)),
+                 (("sombra:trovao", 1), ("arquivo_aco", 1), ("projetor", 1), ("ponto_eletronico", 2))),
+                exit_spot=(1440, 600), hazard="reuniao"),
+        Dungeon("mansao_nucleo", "NÚCLEO DA IARA", BOTTOM, (0.0, -1.0),
+                ((("chefe", 1),),),
+                exit_spot=(800, 460), boss_spot=(800, 360), boss="cauanzera"),
+    ), chapter=4),
 )
-CHAPTER_START = {ch: next(i for i, p in enumerate(PHASES) if p.chapter == ch) for ch in (1, 2, 3)}
+CHAPTER_START = {ch: next(i for i, p in enumerate(PHASES) if p.chapter == ch) for ch in (1, 2, 3, 4)}
+RUSH_PHASES = tuple(i for i, p in enumerate(PHASES) if p.dungeons[-1].boss_spot)   # salas dos 4 chefes
+RUSH_UPGRADES = 4             # Reunião dos Corrompidos: melhorias sorteadas antes do primeiro chefe
 CHAPTER2_SOULS = 120          # começando do capítulo 2: almas para a loja da primeira fase
 CHAPTER2_UPGRADES = 2         # ... e melhorias sorteadas (mais a escolhida antes de entrar)
 
@@ -272,6 +305,7 @@ class CampaignRun:
         self.curse = None                                 # desafio da fase (maldição do altar): market.CURSES
         self.start_chapter = 1                            # 2: começou direto no capítulo 2 (sem recorde de tempo)
         self.rack = []                                    # armário do acampamento: armas guardadas (armario.token_of)
+        self.rush = bool(getattr(session, "rush", False))   # Reunião dos Corrompidos (só os chefes)
         self._snapshot = None
 
     @property
@@ -314,6 +348,26 @@ class CampaignRun:
     def chapter_end(self):
         """Última fase de um capítulo que não é o último (depois dela vem a história do capítulo novo)."""
         return not self.last_phase and PHASES[self.phase_index + 1].chapter != self.chapter
+
+    @property
+    def rush_last(self):
+        return self.rush and self.phase_index == RUSH_PHASES[-1]
+
+    def start_rush(self):
+        """Reunião dos Corrompidos: os 4 chefes em sequência, com melhorias sorteadas para aguentar."""
+        from .upgrades import choices
+        self.rush = True
+        self.start_chapter = 0                  # não vale recorde da campanha
+        self.phase_index = RUSH_PHASES[0]
+        for s in self.slots:
+            for _ in range(RUSH_UPGRADES):
+                self.upgrades[s].append(random.choice(choices(self.upgrades[s])))
+
+    def next_rush(self):
+        """Vai para a sala do próximo chefe (cura um pouco no caminho)."""
+        later = [i for i in RUSH_PHASES if i > self.phase_index]
+        self.phase_index = later[0]
+        self.hp_ratio = {s: min(1.0, r + 0.5) for s, r in self.hp_ratio.items()}
 
     def start_at_chapter(self, chapter):
         """Começa direto num capítulo já liberado: almas e melhorias sorteadas para compensar."""
@@ -468,7 +522,8 @@ class CampaignRun:
                 share = max(0, int(souls)) // len(run.slots)
                 run.souls = {s: share for s in run.slots}
             run.fused_phase = int(state.get("fused_phase", -1))
-            run.start_chapter = 2 if int(state.get("start_chapter", 1)) == 2 else 1
+            start = int(state.get("start_chapter", 1))
+            run.start_chapter = start if start in CHAPTER_START else 1
             run.curse = state.get("curse")
             if run.curse is not None and run.curse not in CURSES:
                 return None
@@ -1187,7 +1242,8 @@ class CampaignMatch(CoopMatch):
             return f"TELETRANSPORTE DE FASE: TODOS CONFIRMAM ({ready}/{len(alive)})"
         if self.exit is not None:
             return "VOLTEM PELA PORTA PARA O ACAMPAMENTO"
-        return ""
+        brain = self.controllers.get(self.boss) if self.boss is not None else None
+        return getattr(brain, "turn_text", "")
 
     def step(self):
         if self.state_timer > 0:
@@ -1396,6 +1452,9 @@ class CampaignMatch(CoopMatch):
         for slot, souls in gains.items():
             self.run.earn(slot, souls)
         best = gains.get(killer.slot) if killer else max(gains.values(), default=0)
+        brain = self.controllers.get(e)
+        if hasattr(brain, "on_death"):
+            brain.on_death(e, self)              # o Processo se desmonta em Apensos
         self._drop_orbs(e)
         if getattr(e, "affix", None) == "explosivo":
             from .entities import Explosion
@@ -1573,7 +1632,8 @@ class CampaignMatch(CoopMatch):
         if self.last:
             title = ("FASE CONCLUÍDA!" if not self.slain_boss else
                      "O FRAGMENTO SE PARTIU!" if self.dungeon.boss == "borba" else
-                     "O CACO SAIU!" if self.dungeon.boss == "albeguinio" else "O CRISTAL ESTÁ LIVRE!")
+                     "O CACO SAIU!" if self.dungeon.boss == "albeguinio" else
+                     "A IARA FOI DESLIGADA!" if self.dungeon.boss == "cauanzera" else "O CRISTAL ESTÁ LIVRE!")
             self._set_banner(title, self.phase.name, theme.MOSS)
             self.assets.stop_music(1500)
             self.assets.play("victory", 0.5)
@@ -1610,6 +1670,9 @@ class CampaignMatch(CoopMatch):
         if self.voting:
             self.vote(f)
             return True
+        brain = self.controllers.get(self.boss) if self.boss is not None else None
+        if brain is not None and hasattr(brain, "interact") and brain.interact(f, self):
+            return True                    # capítulo 4: tirar a IARA da tomada
         if (self.hazard is not None and hasattr(self.hazard, "interact") and self.state in ("fight", "between")
                 and self.hazard.interact(f, self)):
             return True
@@ -1784,6 +1847,9 @@ class LobbyMatch(CoopMatch):
                 self.stalls.append(stall)
                 self.arena.walls.append(stall.wall)
                 self.props.append(stall)
+        if chapter_cleared(4) and self.players:    # recompensa do capítulo 4: a IARA mascote
+            from .mansao import IaraMascot
+            self.add_effect(IaraMascot(self.players[0], self.assets.sprites.get("iara_nucleo")))
         hub_vote(self, 0)
         for p in self.players:              # chegando (teletransporte ou saindo da masmorra)
             self.burst(p.x, p.y - 20, (200, 180, 255), 14, speed=3)
@@ -2024,7 +2090,7 @@ STORY = {
         ("sombra:albeguinio_adm", "ALBEGUINIO CORROMPIDO", "O administrativo fica no fim do corredor. Tragam os "
                                                            "boletos... eu carimbo tudo."),
     )),
-    "final": ("FIM", "clinica_adm", (
+    "fim_capitulo3": ("FIM DO CAPÍTULO 3", "clinica_adm", (
         (BROKEN, None, "O golpe final arranca o caco da máquina. Ele vira pó roxo e as luzes da clínica voltam "
                        "ao normal."),
         ("albeguinio_adm", "ALBEGUINIO", "Hã... que horas são? Alguém fechou o caixa?"),
@@ -2032,6 +2098,59 @@ STORY = {
                                  "celular para baixo."),
         ("sombra:albeguinio_adm", None, "A sombra do Albeguinio ficou do lado dos heróis: ALBEGUINIO CORROMPIDO "
                                         "está liberado no duelo."),
-        (BROKEN, None, "Sem cristal, sem fragmento, sem caco. Por enquanto, a cidade pode descansar."),
+        (FRAGMENT, None, "Mas nem todo o caco virou pó. Uma lasquinha roxa rolou para baixo da mesa... e alguém "
+                         "guardou no bolso."),
+        ("cauanzera_ti", "CAUANZERA", "Isso aqui ainda tá brilhando. Se eu ligar no servidor da Mansão do Carimbo, "
+                                      "é GPU de graça. Ninguém vai notar."),
+    )),
+    # ── extra liberado ao zerar: Reunião dos Corrompidos (os 4 chefes em sequência) ──
+    "reuniao_corrompidos": ("REUNIÃO DOS CORROMPIDOS", "mansao_reuniao", (
+        ("iara", "IARA", "Bem-vindos à reunião extraordinária dos corrompidos. Pauta única: revanche."),
+        ("sombra:aryel", "ARYEL CORROMPIDO", "Eu abro a reunião. Alguém trouxe as almas?"),
+        ("sombra:cauanzera_ti", "CAUANZERA CORROMPIDO", "E eu fecho. Quatro chefes, um atrás do outro, sem "
+                                                        "acampamento no meio. Boa sorte."),
+    )),
+    # ── capítulo 4: Mansão do Carimbo ──
+    "mansao_sede": ("CAPÍTULO 4 · FASE 10 · SEDE DA MANSÃO", "mansao_fila", (
+        (FRAGMENT, None, "Em Cuiabrasa, capital de Mato Grelhado, faz 47 graus à sombra. Lá fica a MANSÃO DO "
+                         "CARIMBO, o órgão onde todo papel precisa de três carimbos e uma assinatura."),
+        ("cauanzera_ti", None, "O Cauanzera trabalha na TI da Mansão. De madrugada, encaixou a lasca no servidor do "
+                               "CPD e ligou uma inteligência artificial para ajudar o órgão."),
+        ("iara", "IARA", "Olá! Eu sou a IARA, Inteligência Artificial de Resposta Administrativa. Posso otimizar "
+                         "você? [ACEITO OS TERMOS]"),
+        ("sombra:cauanzera_ti", None, "Ele clicou em ACEITO sem ler os termos. A lasca tomou conta: agora é "
+                                      "CAUANZERA CORROMPIDO, e todo objeto da repartição ganhou vida."),
+        ("processo", None, "Na Fila do Atendimento, quando a senha é chamada, a fila anda e arrasta quem estiver "
+                           "nas faixas. No Arquivo Geral, cuidado com as pilhas de processo caindo das estantes."),
+        ("sombra:paredao", "PAREDÃO SOMBRIO", "Vim só reconhecer firma. Tô na fila desde 2019."),
+    )),
+    "mansao_patio": ("FASE 11 · PÁTIO E CPD", "mansao_patio", (
+        ("garrafa_termica", None, "No pátio, o sol de Cuiabrasa não perdoa: fiquem na sombra dos toldos antes que o "
+                                  "termômetro encha."),
+        ("ponto_eletronico", None, "No subsolo do CPD caiu a energia. Liguem os três no-breaks das paredes (ATACAR "
+                                   "perto) para a luz voltar."),
+        ("sombra:faisca", "FAÍSCA SOMBRIA", "Encostei no rack para carregar o celular. Foi o último choque que eu "
+                                            "senti."),
+    )),
+    "mansao_gabinete": ("FASE 12 · GABINETE", "mansao_reuniao", (
+        ("projetor", None, "No último andar, o comitê está reunido há três dias. Quando entrar PAUTA NOVA, a mesa "
+                           "puxa todo mundo para o meio da sala."),
+        ("sombra:trovao", "TROVÃO SOMBRIO", "Pedi a palavra na reunião. Até hoje ninguém me devolveu."),
+        ("sombra:cauanzera_ti", "CAUANZERA CORROMPIDO", "A IARA otimizou tudo: agora nada sai do protocolo. Nem "
+                                                        "vocês."),
+        ("iara", "IARA", "Sua solicitação está em análise. Prazo estimado: nunca."),
+    )),
+    "final": ("FIM", "mansao_nucleo", (
+        ("iara", "IARA", "Sua sessão expirou. Deseja salvar as alterações? [ ]SIM [ ]NÃO"),
+        (BROKEN, None, "O cabo sai da tomada. A IARA pisca, trava e a lasca escorrega do servidor e vira pó, "
+                       "a última do cristal."),
+        ("cauanzera_ti", "CAUANZERA", "Gente... o que eu fiz? Eu só queria uma GPU de graça. Da próxima vez eu "
+                                      "leio os termos."),
+        ("aryel", "ARYEL", "Relaxa. Todo mundo aqui já foi corrompido uma vez. Agora você é da turma de verdade."),
+        ("borba", "BORBA JR", "E o servidor? Deixa que eu desligo direito. Com laudo, protocolo e três carimbos."),
+        ("albeguinio", "ALBEGUINIO", "E eu fecho o caixa. Pela primeira vez no mês, sem ninguém mandando oi sumido."),
+        ("sombra:cauanzera_ti", None, "A sombra do Cauanzera ficou do lado dos heróis: CAUANZERA CORROMPIDO está "
+                                      "liberado no duelo."),
+        (BROKEN, None, "Sem cristal, sem fragmento, sem caco e sem lasca. Agora sim, a cidade pode descansar."),
     )),
 }

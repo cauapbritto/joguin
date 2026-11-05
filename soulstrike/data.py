@@ -165,6 +165,12 @@ CHARACTERS = (
                    (_ranged("Boleto", 10, 10, 17, "boleto", mag=8, reload=64,
                             note="Papel girando: rápido e sem fim de pente longo."),
                     _melee("Carimbo", 23, 56)), "albeguinio_adm"),
+    # liberado ao zerar o capítulo 4 (Mansão do Carimbo): o Cauanzera da TI, com a IARA no comando
+    CharacterStats("cauanzera_corrompido", "Cauanzera Corrompido", 140, 3.7, (60, 230, 255),
+                   "Otimização Total", "Oito tentáculos de cabo saem dele em volta: a linha avisa e o choque corre.",
+                   (_ranged("Pacote de Dados", 10, 11, 16, "plasma", mag=8, reload=60,
+                            note="Pacote rápido, pente curto, recarga rápida."),
+                    _melee("Teclado Mecânico", 22, 56)), "cauanzera_ti"),
 )
 SOCCER_STARS = tuple(c.key for c in CHARACTERS if c.soccer_only)
 FIGHTERS = tuple(c for c in CHARACTERS if not c.soccer_only)     # quem luta (duelo e campanha)
@@ -230,11 +236,15 @@ PHASE_RELICS = {
     "clinica_recepcao": ("arco_espinhos", "taser_rede", "bumerangue", "colmeia"),
     "procedimentos": ("bola_neve", "rifle_plasma", "foice_espectral", "lanca_chamas"),
     "suite_vip": ("espelho", "raio_supremo", "manopla_exo", "canhao"),
+    # capítulo 4: Mansão do Carimbo
+    "mansao_sede": ("teclado_mecanico", "besta", "colmeia", "cajado_raio"),
+    "mansao_patio": ("drone_bolso", "escudo_choque", "lanca_chamas", "bola_neve"),
+    "mansao_gabinete": ("raio_supremo", "manopla_exo", "espelho", "rifle_plasma"),
 }
 
 UNLOCKABLE = "aryel_corrompido"
-UNLOCKABLES = {"aryel_corrompido": 1, "borba_corrompido": 2, "albeguinio_corrompido": 3}   # segredo → capítulo da campanha que libera
-SHADOW_CHARACTERS = {"aryel_corrompido", "borba_corrompido", "albeguinio_corrompido"}  # usam a versão sombria do sprite (campo "sprite")
+UNLOCKABLES = {"aryel_corrompido": 1, "borba_corrompido": 2, "albeguinio_corrompido": 3, "cauanzera_corrompido": 4}   # segredo → capítulo da campanha que libera
+SHADOW_CHARACTERS = {"aryel_corrompido", "borba_corrompido", "albeguinio_corrompido", "cauanzera_corrompido"}  # usam a versão sombria do sprite (campo "sprite")
 
 
 def roster(soccer=False):

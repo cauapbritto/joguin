@@ -39,6 +39,14 @@ class Robo:
         if not me.alive_in_match:
             f.stick = (0.0, 0.0)
             return
+        spot = self._chore(me, match)        # capítulo 4: tomada do chefe e no-breaks do CPD
+        if spot is not None:
+            dx, dy = spot[0] - me.x, spot[1] - me.y
+            n = math.hypot(dx, dy) or 1
+            f.stick = (dx / n, dy / n) if n > 40 else (0.0, 0.0)
+            if n <= 60 and self.t % 2 == 0:
+                f.tap("attack")
+            return
         down = [p for p in match.players if not p.alive_in_match]
         enemies = match.fighting_enemies() if hasattr(match, "fighting_enemies") else match.alive_enemies
         target = min(enemies, key=me.distance_to) if enemies else None
@@ -74,6 +82,22 @@ class Robo:
             f.hold("special")
         if random.random() < 0.01:
             f.hold("dodge")
+
+
+    def _chore(self, me, match):
+        boss = getattr(match, "boss", None)
+        brain = match.controllers.get(boss) if boss is not None else None
+        plug = getattr(brain, "plug", None)
+        if plug is not None and not plug.pulled:
+            return plug.x, plug.y
+        hazard = getattr(match, "hazard", None)
+        boxes = getattr(hazard, "off_boxes", None) or []
+        if boxes:
+            enemies = match.alive_enemies
+            if not enemies or min(me.distance_to(e) for e in enemies) > 260:
+                b = min(boxes, key=lambda b: math.hypot(b.x - me.x, b.y - me.y))
+                return b.x, b.y
+        return None
 
 
 def masmorra(difficulty, players, phase, stage, seed):

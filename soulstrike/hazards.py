@@ -500,6 +500,14 @@ HAZARDS = {"laser": LaserGrid, "vento": Wind, "piso_molhado": WetFloor, "laser_g
            "vapor": Steam}
 
 
+def _register():
+    from .mansao import HAZARDS as MANSAO        # capítulo 4: Mansão do Carimbo
+    HAZARDS.update(MANSAO)
+
+
+_register()
+
+
 def make_hazard(key, arena):
     cls = HAZARDS.get(key)
     return cls(arena) if cls else None

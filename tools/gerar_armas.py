@@ -981,6 +981,20 @@ def carimbo():
     return s.finish(), (2, 4)
 
 
+def pacote_dados():
+    """Pacote de Dados (Cauanzera Corrompido): um cubo de holograma ciano da IARA, com a lasca
+    roxa piscando no meio."""
+    s = Sprite(10, 10)
+    s.rect(1, 1, 8, 8, (20, 130, 170))
+    s.rect(2, 2, 6, 6, (60, 230, 255))
+    s.rect(2, 2, 6, 1, (200, 250, 255))
+    s.rect(2, 2, 1, 6, (200, 250, 255))
+    s.rect(4, 4, 2, 2, (170, 90, 230))
+    s.px(8, 0, (200, 250, 255))
+    s.px(0, 8, (60, 230, 255))
+    return s.finish(), (2, 6)
+
+
 # ── armas forjadas (fusão do ferreiro) ───────
 # paleta das forjadas: cada letra é uma cor (as maiúsculas são as versões escuras)
 FORGE = {
@@ -1198,6 +1212,8 @@ WEAPONS = {
     "Punho Corrompido": punho_corrompido, "Fuzil": fuzil,
     # Clínica Clepalovers (capítulo 3): o Albeguinio Corrompido
     "Boleto": boleto, "Carimbo": carimbo,
+    # Mansão do Carimbo (capítulo 4): o Cauanzera Corrompido
+    "Pacote de Dados": pacote_dados,
     # forjadas do ferreiro
     "Lâmina Solar": lamina_solar, "Martelo do Trovão Eterno": martelo_trovao,
     "Arco das Mil Almas": arco_mil_almas, "Canhão do Vazio": canhao_vazio,

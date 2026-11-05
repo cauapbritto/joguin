@@ -109,7 +109,9 @@ class Court:
         return [(500, up), (cls.W - 500, up), (500, down), (cls.W - 500, down)]
 
 
-BASKET_MAPS = ("quadra_ginasio", "quadra_rua", "quadra_soul")
+BASKET_MAPS = ("quadra_ginasio", "quadra_rua", "quadra_soul", "quadra_cuiabrasa")
+SOCCER_MAPS = ("campo_futebol", "campo_cuiabrasa")
+CUIABRASA_MAPS = {"cuiabrasa_praca", "quadra_cuiabrasa", "campo_cuiabrasa"}   # liberados ao zerar a campanha
 
 
 @dataclass
@@ -186,6 +188,14 @@ MAPS = [
         floor=((44, 122, 58), (50, 134, 64)), wall_colors=((112, 102, 90), (150, 138, 122), (60, 52, 44)),
         battle=False,
     ),
+    # recompensa do capítulo 4: o campo de Cuiabrasa, com a grama torrada pelo sol
+    MapConfig(
+        "campo_cuiabrasa", "Estádio de Cuiabrasa", (Pitch.W, Pitch.H),
+        walls=Pitch.walls(),
+        spawns=Pitch.spawns(),
+        floor=((150, 140, 62), (162, 150, 70)), wall_colors=((150, 70, 50), (200, 110, 70), (80, 36, 26)),
+        battle=False,
+    ),
 ]
 # Quadras de basquete: mesmas medidas, só a arte muda (assets/tiles/quadra_*)
 MAPS += [
@@ -193,7 +203,8 @@ MAPS += [
               floor=floor, battle=False)
     for key, name, floor in (("quadra_ginasio", "Ginásio", ((196, 142, 84), (34, 86, 168))),
                              ("quadra_rua", "Quadra de Rua", ((52, 56, 64), (164, 60, 50))),
-                             ("quadra_soul", "Arena Soul Strike", ((30, 24, 44), (74, 32, 118))))
+                             ("quadra_soul", "Arena Soul Strike", ((30, 24, 44), (74, 32, 118))),
+                             ("quadra_cuiabrasa", "Quadra de Cuiabrasa", ((110, 80, 56), (200, 80, 40))))
 ]
 # Variações das arenas (a 2ª masmorra de cada fase da campanha; também valem no duelo)
 MAPS += [
@@ -349,6 +360,96 @@ MAPS += [
     ),
 ]
 
+# Mansão do Carimbo (capítulo 4): Fila, Arquivo, Pátio, CPD, Reunião e o Núcleo da IARA
+MAPS += [
+    MapConfig(
+        "mansao_fila", "Fila do Atendimento", (1600, 1200),
+        walls=[(0, 0, 1600, 30), (0, 0, 30, 1200), (1570, 0, 30, 1200), (0, 1170, 1600, 30),
+               (220, 130, 340, 44), (630, 130, 340, 44), (1040, 130, 340, 44),     # guichês
+               (300, 500, 60, 60), (1240, 500, 60, 60), (300, 850, 60, 60), (1240, 850, 60, 60),
+               (110, 680, 40, 200), (1450, 680, 40, 200)],                       # bancos de espera
+        spawns=[(200, 600), (1400, 600), (800, 330), (800, 1000)],
+        theme="mansao", battle=False,
+    ),
+    MapConfig(
+        "mansao_arquivo", "Arquivo Geral", (2000, 1400),
+        walls=[(0, 0, 2000, 30), (0, 0, 30, 1400), (1970, 0, 30, 1400), (0, 1370, 2000, 30)]
+              + [(x, y, 500, 40) for y in (300, 560, 820, 1080) for x in (150, 750, 1350)],
+        spawns=[(90, 700), (1910, 700), (1000, 170), (1000, 1230)],
+        theme="mansao_arquivo", battle=False,
+    ),
+    MapConfig(
+        "mansao_patio", "Pátio a 47°C", (2000, 1400),
+        walls=[(0, 0, 2000, 30), (0, 0, 30, 1400), (1970, 0, 30, 1400), (0, 1370, 2000, 30),
+               (400, 250, 300, 40), (1300, 250, 300, 40), (400, 1110, 300, 40), (1300, 1110, 300, 40),
+               (250, 500, 120, 60), (250, 840, 120, 60), (1630, 500, 120, 60), (1630, 840, 120, 60),
+               (700, 450, 60, 120), (1240, 830, 60, 120), (940, 330, 120, 60), (940, 1010, 120, 60)],
+        spawns=[(150, 700), (1850, 700), (1000, 180), (1000, 1250)],
+        theme="mansao_patio", battle=False,
+    ),
+    MapConfig(
+        "mansao_cpd", "Subsolo do CPD", (1600, 1200),
+        walls=[(0, 0, 1600, 30), (0, 0, 30, 1200), (1570, 0, 30, 1200), (0, 1170, 1600, 30),
+               (300, 200, 50, 300), (300, 700, 50, 300), (600, 150, 50, 300), (600, 750, 50, 300),
+               (950, 150, 50, 300), (950, 750, 50, 300), (1250, 200, 50, 300), (1250, 700, 50, 300)],
+        spawns=[(160, 600), (1440, 600), (800, 600), (800, 1080)],
+        theme="mansao_cpd", battle=False,
+    ),
+    MapConfig(
+        "mansao_reuniao", "Sala de Reunião do Comitê", (1600, 1200),
+        walls=[(0, 0, 1600, 30), (0, 0, 30, 1200), (1570, 0, 30, 1200), (0, 1170, 1600, 30),
+               (600, 40, 400, 40),                                              # tela do projetor
+               (500, 520, 600, 140),                                            # a mesa do comitê
+               (200, 250, 40, 200), (1360, 250, 40, 200), (200, 780, 40, 200), (1360, 780, 40, 200)],
+        spawns=[(300, 600), (1300, 600), (800, 360), (800, 860)],
+        theme="mansao_reuniao", battle=False,
+    ),
+    MapConfig(
+        "mansao_nucleo", "Núcleo da IARA", (1600, 1200),
+        walls=[(0, 0, 1600, 30), (0, 0, 30, 1200), (1570, 0, 30, 1200), (0, 1170, 1600, 30),
+               (640, 100, 320, 64),                                             # trono do carimbo
+               (300, 300, 50, 50), (1250, 300, 50, 50), (300, 850, 50, 50), (1250, 850, 50, 50)],
+        spawns=[(400, 600), (1200, 600), (800, 400), (800, 900)],
+        theme="mansao_nucleo", battle=False,
+    ),
+]
+
+
+# recompensa do capítulo 4: a praça de Cuiabrasa para o duelo (o pátio da mansão, carros e toldos)
+MAPS += [
+    MapConfig(
+        "cuiabrasa_praca", "Praça de Cuiabrasa", (1600, 1200),
+        walls=[(0, 0, 1600, 30), (0, 0, 30, 1200), (1570, 0, 30, 1200), (0, 1170, 1600, 30),
+               (300, 220, 120, 60), (1180, 220, 120, 60), (300, 920, 120, 60), (1180, 920, 120, 60),
+               (740, 160, 60, 120), (800, 920, 60, 120), (520, 560, 160, 40), (920, 600, 160, 40)],
+        spawns=[(200, 600), (1400, 600), (800, 380), (800, 820)],
+        theme="mansao_patio",
+    ),
+]
+
+
+def battle_maps(cleared=None):
+    """Mapas do duelo que dá para escolher (os de Cuiabrasa só depois de zerar a campanha)."""
+    if cleared is None:
+        from . import progress
+        cleared = progress.chapter_cleared(4)
+    return [m for m in BATTLE_MAPS if cleared or m.key not in CUIABRASA_MAPS]
+
+
+def basket_maps(cleared=None):
+    if cleared is None:
+        from . import progress
+        cleared = progress.chapter_cleared(4)
+    return tuple(k for k in BASKET_MAPS if cleared or k not in CUIABRASA_MAPS)
+
+
+def soccer_maps(cleared=None):
+    if cleared is None:
+        from . import progress
+        cleared = progress.chapter_cleared(4)
+    return tuple(k for k in SOCCER_MAPS if cleared or k not in CUIABRASA_MAPS)
+
+
 def _lobby(theme):
     """Acampamento da campanha (lobby) no tema da fase, desenhado como texto em lobbies.py."""
     name, rows = lobbies.LOBBIES[theme]
@@ -460,7 +561,7 @@ class Arena:
         if background is not None:
             surf.blit(pygame.transform.scale(background, (self.width, self.height)), (0, 0))
             return surf
-        if self.cfg.key == SOCCER_MAP:
+        if self.cfg.key in SOCCER_MAPS:
             _soccer_pitch(surf, self.cfg.floor)
             return surf
         if self.cfg.key in BASKET_MAPS:
