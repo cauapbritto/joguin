@@ -15,7 +15,7 @@ import time
 SLOTS = (1, 2, 3, 4)
 ACTIONS = (
     "up", "down", "left", "right",
-    "attack", "special", "dodge", "switch", "super", "dribble", "sprint", "mark",
+    "attack", "special", "dodge", "switch", "drop", "super", "dribble", "sprint", "mark",
     "char_left", "char_right", "weapon", "confirm", "cancel", "pause",
     "opt1", "opt2", "opt3",          # escolher uma das 3 melhorias (campanha)
 )

@@ -226,7 +226,7 @@
     var vh = window.innerHeight;
     var big = clamp(vh * 0.31, 84, 128);
     document.querySelectorAll(".pad-set").forEach(function (set) {
-      var hasOuter = !!set.querySelector('[data-pos="ww"], [data-pos="nn"]');
+      var hasOuter = !!set.querySelector('.pb:not(.hidden)[data-pos="ww"], .pb:not(.hidden)[data-pos="nn"]');
       var mid = hasOuter ? clamp(vh * 0.21, 60, 88) : clamp(vh * 0.24, 66, 98);
       var small = clamp(vh * 0.175, 52, 72);
       var gap = clamp(vh * 0.032, 10, 16);
@@ -276,7 +276,7 @@
   var holdCount = {};     // ação → quantos dedos estão nela
 
   function padButtons() {
-    return Array.prototype.slice.call(document.querySelectorAll(".pad-set.on .pb"));
+    return Array.prototype.slice.call(document.querySelectorAll(".pad-set.on .pb:not(.hidden)"));
   }
 
   function edgeDistance(b, x, y) {
@@ -863,6 +863,7 @@
       document.body.classList.toggle("soccer", soccerMode);
       document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer"); });
       document.querySelectorAll(".soccer-only").forEach(function (e) { e.classList.toggle("on", mode === "soccer"); });
+      document.querySelectorAll(".campaign-only").forEach(function (e) { e.classList.toggle("hidden", mode !== "campaign"); });
       useHud(status.hud || (soccerMode ? "soccer" : "battle"));
       $("pad-hint").textContent = soccerMode ? "empurre até a borda para correr" : "mova o analógico";
       document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer"); });

@@ -20,6 +20,7 @@ from .matches import Match, Result, _separate
 from .net.remote import hub
 from .ui import darken
 from .data import PHASE_RELICS, RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
+from .armario import RACK_SIZE, Armario, token_of, weapon_of
 from .dungeon import Campfire, Chest, ExitDoor, Gate, GroundWeapon, RelicDrop
 from .hazards import make_hazard
 from .lobbies import cells_rect
@@ -185,7 +186,7 @@ CHAPTER2_UPGRADES = 2         # ... e melhorias sorteadas (mais a escolhida ante
 # etapas de uma fase (CampaignRun.stage)
 LOBBY_START, DUNGEON_1, LOBBY_BACK, DUNGEON_2 = range(4)
 STAGE_REVIVE = 0.3
-DROP_HOLD = 30                # segurar TROCAR ARMA por meio segundo larga a arma da mão            # quem estava caído ao fim de uma masmorra volta com essa vida
+            # quem estava caído ao fim de uma masmorra volta com essa vida
 
 
 def is_elite(kind):
@@ -232,6 +233,7 @@ class CampaignRun:
         self.fused_phase = -1                             # fase em que o grupo já usou a fusão do ferreiro
         self.curse = None                                 # desafio da fase (maldição do altar): market.CURSES
         self.start_chapter = 1                            # 2: começou direto no capítulo 2 (sem recorde de tempo)
+        self.rack = []                                    # armário do acampamento: armas guardadas (armario.token_of)
         self._snapshot = None
 
     @property
@@ -283,7 +285,7 @@ class CampaignRun:
         return {k: copy.deepcopy(getattr(self, k))
                 for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames",
                           "stage", "chest_open", "relics", "held", "loadouts", "souls", "forge", "rerolls",
-                          "fused_phase", "curse", "start_chapter")}
+                          "fused_phase", "curse", "start_chapter", "rack")}
 
     # ── almas ────────────────────────────────
     def wallet(self, slot):
@@ -431,6 +433,10 @@ class CampaignRun:
                         return None
                     forge[str(name)] = [level, enchant]
                 run.forge[s] = forge
+            rack = [str(t) for t in state.get("rack", [])][:RACK_SIZE]       # saves antigos não têm
+            if any(weapon_of(t) is None for t in rack):
+                return None
+            run.rack = rack
             for s, n in {int(k): v for k, v in state.get("rerolls", {}).items()}.items():
                 if s not in run.slots:
                     return None
@@ -493,7 +499,6 @@ class CoopMatch(Match):
         self.ground = []                # armas no chão (largadas ou derrubadas por inimigos)
         self.menus = {}                 # menu do mercado aberto, por jogador
         self.revive_progress = {f: 0.0 for f in self.players}
-        self.switch_hold = {}           # quadros segurando TROCAR ARMA (segurar larga a arma)
         self.strain = {f: 0 for f in self.players}     # quadros forçando o limite do grupo
         self.was_down = set()
         self.wave = -1
@@ -727,25 +732,28 @@ class CoopMatch(Match):
             self.assets.play("dash", 0.3)
 
     def _switch_or_drop(self, f, inp):
-        """TROCAR ARMA: toque rápido troca; segurar (meio segundo) larga a arma da mão no chão."""
-        held = inp.held("switch")
-        hold = self.switch_hold.get(f, 0)
-        if held:
-            if hold >= 0:
-                hold += 1
-                if hold >= DROP_HOLD:
-                    self.drop_held(f)
-                    hold = -1                       # já largou: só volta a contar depois de soltar
-            self.switch_hold[f] = hold
-            return
-        if inp.pressed("switch") or 0 < hold < DROP_HOLD:
-            if f.switch_weapon():
-                self.assets.play("click", 0.4)
-        self.switch_hold[f] = 0
+        """TROCAR ARMA troca; LARGAR ARMA (LB, touchpad do PlayStation, R no teclado, botão do
+        celular) larga a arma da mão no chão, ou guarda no armário se estiver perto dele."""
+        if inp.pressed("switch") and f.switch_weapon():
+            self.assets.play("click", 0.4)
+        if inp.pressed("drop"):
+            rack = self.rack_near(f)
+            if rack is not None:
+                self.store_in_rack(f)
+            else:
+                self.drop_held(f)
 
-    def drop_held(self, f):
-        """Larga a arma da mão: a rara do baú sai da 3ª vaga; a de outro herói volta a ser a arma
-        dele do mesmo tipo. A arma do próprio herói não sai (ele precisa de uma de cada tipo)."""
+    def rack_near(self, f):
+        """O armário do acampamento, se este jogador está perto dele (a masmorra não tem)."""
+        return None
+
+    def droppable(self, f):
+        """A arma da mão pode sair? (a rara do baú ou a de outro herói; a dele, não)."""
+        weapon = f.weapon
+        return (f.relic is not None and weapon is f.relic) or weapon not in f.stats.weapons
+
+    def _take_out(self, f):
+        """Tira a arma da mão (sem jogar no chão) e devolve ela, ou None se for a do herói."""
         weapon = f.weapon
         if f.relic is not None and weapon is f.relic:
             f.relic = None
@@ -762,13 +770,73 @@ class CoopMatch(Match):
             f.weapon_index = i
             self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
         else:
+            return None
+        f.bow_draw = 0
+        return weapon
+
+    def drop_held(self, f):
+        """Larga a arma da mão: a rara do baú sai da 3ª vaga; a de outro herói volta a ser a arma
+        dele do mesmo tipo. A arma do próprio herói não sai (ele precisa de uma de cada tipo)."""
+        weapon = self._take_out(f)
+        if weapon is None:
             self.popup(f.x, f.y - 80, "ESSA É A SUA ARMA", theme.MUTED)
             return False
-        f.bow_draw = 0
         self.drop_weapon(f, weapon)
         self.popup(f.x, f.y - 80, "LARGOU " + weapon.name.upper(), theme.BONE)
         self.assets.play("click", 0.5)
         return True
+
+    # ── armário do acampamento ───────────────
+    def store_in_rack(self, f):
+        """Pendura a arma da mão no armário (cabem RACK_SIZE)."""
+        if not self.droppable(f):
+            self.popup(f.x, f.y - 80, "ESSA É A SUA ARMA", theme.MUTED)
+            return False
+        if len(self.run.rack) >= RACK_SIZE:
+            self.popup(f.x, f.y - 80, "ARMÁRIO CHEIO", theme.MUTED)
+            return False
+        weapon = self._take_out(f)
+        self.run.rack.append(token_of(weapon))
+        self.popup(f.x, f.y - 80, "GUARDOU " + weapon.name.upper(), rarity_color(weapon))
+        self.assets.play("click", 0.5)
+        return True
+
+    def take_from_rack(self, f):
+        """Pega a primeira arma do armário. A que ele tinha no lugar (rara, ou comum de outro herói)
+        vai para o fim da fila do armário; a dele mesmo só volta para a mochila."""
+        if not self.run.rack:
+            return False
+        weapon = weapon_of(self.run.rack.pop(0))
+        if weapon is None:
+            return False
+        if weapon.rare:
+            old = f.give_relic(weapon)
+            self.run.relics[f.slot] = relic_key(weapon)
+        else:
+            base = list(f.base_weapons)
+            i = next(k for k, w in enumerate(base) if w.is_melee == weapon.is_melee)
+            old = base[i]
+            base[i] = weapon
+            f.loadout = None if tuple(base) == f.stats.weapons else tuple(base)
+            f.clips.pop(old, None)
+            f.weapon_index = i
+            f.bow_draw = 0
+            self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
+            if old in f.stats.weapons:
+                old = None
+        if old is not None and old is not weapon:
+            self.run.rack.append(token_of(old))
+        self._got_weapon(f, weapon)
+        return True
+
+    def rack_prompt(self, f):
+        """O que ATACAR faz no armário para este jogador."""
+        if self.droppable(f) and len(self.run.rack) < RACK_SIZE:
+            return "ATACAR: GUARDAR " + f.weapon.name.upper()
+        if self.run.rack:
+            w = weapon_of(self.run.rack[0])
+            return "ATACAR: PEGAR " + w.name.upper() if w is not None else ""
+        return "SEGURE UMA ARMA PARA GUARDAR"
 
     def _separate_bodies(self):
         bodies = [f for f in self.fighters if f.alive_in_match and f.lift <= 0]
@@ -1596,6 +1664,11 @@ class LobbyMatch(CoopMatch):
             self.stalls.append(altar)
             self.arena.walls.append(altar.wall)
             self.props.append(altar)
+        # armário de armas: nos dois acampamentos, do outro lado da fogueira
+        x, y = self.arena.free_spot(fx - 230, fy - 120, 48)
+        self.armario = Armario(x, y, run, self.style)
+        self.arena.walls.append(self.armario.wall)
+        self.props.append(self.armario)
         if self.back:                       # na volta da Masmorra 1: o mercado, perto da fogueira
             for kind, dx in (("loja", -260), ("ferreiro", 260)):
                 x, y = self.arena.free_spot(fx + dx, fy + 170, 40)
@@ -1642,11 +1715,18 @@ class LobbyMatch(CoopMatch):
             if inside and self.group_near(ex, ey - 20, 170):
                 self.leave()
 
+    def rack_near(self, f):
+        return self.armario if self.armario.can_use(f) else None
+
     def interact(self, f):
         if self.chest is not None and self.chest.can_open(f):
             self.chest.open(self)
             self.run.chest_open = True
             return True
+        if self.armario.can_use(f):
+            if self.droppable(f) and len(self.run.rack) < RACK_SIZE:
+                return self.store_in_rack(f)
+            return self.take_from_rack(f) or True
         stall = next((s for s in self.stalls if s.can_use(f)), None)
         if stall is not None:
             self.menus[f] = MarketMenu(self, f, stall)
@@ -1683,6 +1763,8 @@ class LobbyMatch(CoopMatch):
             near = any(self.chest.can_open(p) for p in self.alive_players)
             self.chest.draw_prompt(screen, cam, ui, self.frame, near)
         self.draw_ground(screen, cam, ui)
+        near = [p for p in self.alive_players if self.armario.can_use(p) and p not in self.menus]
+        self.armario.draw_prompt(screen, cam, ui, self.frame, self.rack_prompt(near[0]) if near else "")
         for stall in self.stalls:
             near = any(stall.can_use(p) and p not in self.menus for p in self.alive_players)
             stall.draw_prompt(screen, cam, ui, self.frame, near)
