@@ -355,8 +355,9 @@ class UpgradeScene(_MenuScene):
                          (W - 64, 72), anchor="midright")
         if self.intro:
             from ..campaign import CHAPTER2_SOULS, CHAPTER2_UPGRADES
-            self.ui.text(screen, f"CAPÍTULO 2 · CADA UM COMEÇA COM {CHAPTER2_SOULS} ALMAS E "
-                                 f"{CHAPTER2_UPGRADES} MELHORIAS SORTEADAS",
+            ch = self.run.chapter
+            self.ui.text(screen, f"CAPÍTULO {ch} · CADA UM COMEÇA COM {CHAPTER2_SOULS * (ch - 1)} ALMAS E "
+                                 f"{CHAPTER2_UPGRADES * (ch - 1)} MELHORIAS SORTEADAS",
                          theme.XS, theme.MOSS, (64, 72), anchor="midleft")
             nxt = PHASES[self.run.phase_index]
         else:
@@ -526,6 +527,8 @@ CHAPTER_END = {
         "a empresa tomada pela Patrulha Cinza.", "aryel", "ARYEL CORROMPIDO"),
     2: ("O fragmento se partiu, mas um caco sumiu no bolso de alguém. A próxima parada é a CLÍNICA "
         "CLEPALOVERS, estética avançada.", "borba_exo", "BORBA JR CORROMPIDO"),
+    3: ("O caco virou pó, mas uma lasca foi parar no bolso do Cauanzera. A próxima parada é a MANSÃO DO "
+        "CARIMBO, em Cuiabrasa, onde a lasca virou a IARA.", "albeguinio_adm", "ALBEGUINIO CORROMPIDO"),
 }
 
 
@@ -633,7 +636,7 @@ class CampaignEndScene(_RunMenuScene):
             pygame.draw.ellipse(screen, theme.SHADOW, (x - 30, 318 - 8, 60, 14))
             screen.blit(img, img.get_rect(midbottom=(x, 318 + 2 - bob)))
 
-        draw_unlock(self, screen, pygame.Rect(W - 400, 70, 340, 200), "albeguinio_adm", "ALBEGUINIO CORROMPIDO",
+        draw_unlock(self, screen, pygame.Rect(W - 400, 70, 340, 200), "cauanzera_ti", "CAUANZERA CORROMPIDO",
                     self.unlocked)
         self._stats_panel(screen, pygame.Rect(W - 400, 300, 340, 44 + 22 * (1 + len(self.run.slots))), self.run)
         self.menu.draw(screen, self.ui, self.ticks)

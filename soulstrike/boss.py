@@ -664,8 +664,34 @@ class AlbeguinioBossAI(BossAI):
         match.assets.play("gosma", 0.5)
 
 
+# ─────────────────────────────────────────────
+#  Cauanzera Corrompido (capítulo 4) — versão provisória: a luta em 3 etapas (ele, a IARA e a
+#  fusão, com a virada dos aliados) entra na próxima etapa do capítulo
+# ─────────────────────────────────────────────
+CAUANZERA_STATS = EnemyStats(
+    "cauanzera_corrompido", "Cauanzera Corrompido", 1700, 2.7, SHADOW_AURA,
+    "Otimização Total", "A IARA no comando.",
+    (WeaponStats("Pacote de Dados", "ranged", 11, bullet_speed=8, cooldown=30),
+     WeaponStats("Teclado", "melee", 22, reach=60, cooldown=40)), "cauanzera_ti",
+    radius=26, elite=True, armed=True, knock_resist=1.0, drop_chance=0.0)
+
+
+class CauanzeraBossAI(BossAI):
+    TIRED_LABEL = "REINICIANDO! HORA DE ATACAR"
+    TIRED_POPUP = "REINICIANDO"
+    ROAR_LABEL = "A IARA CHAMOU REFORÇO"
+    ARMOR_LABEL = "FIREWALL: ESPERE ELE REINICIAR"
+    ARMOR_NAME = "FIREWALL"
+    ENRAGE_POPUP = "OTIMIZAÇÃO TOTAL!"
+    LAND_COLOR = (60, 230, 255)
+
+    def summon_kinds(self):
+        return ("processo", "processo", "popup_iara", "carimbador")
+
+
 BOSSES = {"aryel": (BOSS_STATS, "aryel", BossAI), "borba": (BORBA_STATS, "borba_exo", BorbaBossAI),
-          "albeguinio": (ALBEGUINIO_STATS, "albeguinio_adm", AlbeguinioBossAI)}
+          "albeguinio": (ALBEGUINIO_STATS, "albeguinio_adm", AlbeguinioBossAI),
+          "cauanzera": (CAUANZERA_STATS, "cauanzera_ti", CauanzeraBossAI)}
 
 
 class _P:

@@ -230,6 +230,10 @@ PHASE_RELICS = {
     "clinica_recepcao": ("arco_espinhos", "taser_rede", "bumerangue", "colmeia"),
     "procedimentos": ("bola_neve", "rifle_plasma", "foice_espectral", "lanca_chamas"),
     "suite_vip": ("espelho", "raio_supremo", "manopla_exo", "canhao"),
+    # capítulo 4: Mansão do Carimbo
+    "mansao_sede": ("teclado_mecanico", "besta", "colmeia", "cajado_raio"),
+    "mansao_patio": ("drone_bolso", "escudo_choque", "lanca_chamas", "bola_neve"),
+    "mansao_gabinete": ("raio_supremo", "manopla_exo", "espelho", "rifle_plasma"),
 }
 
 UNLOCKABLE = "aryel_corrompido"

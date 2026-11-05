@@ -798,3 +798,10 @@ from . import clinica as _clinica  # noqa: E402
 CREATURES.update(_clinica.creature_stats())
 BRAINS.update(_clinica.brains())
 BIG_KINDS = BIG_KINDS + _clinica.BIG
+
+# Mansão do Carimbo (capítulo 4): as criaturas e os cérebros moram em mansao.py
+from . import mansao as _mansao  # noqa: E402
+
+CREATURES.update(_mansao.creature_stats())
+BRAINS.update(_mansao.brains())
+BIG_KINDS = BIG_KINDS + _mansao.BIG

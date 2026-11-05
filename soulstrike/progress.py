@@ -1,5 +1,6 @@
 """Progresso salvo no computador: capítulos zerados (o 1 libera o Aryel Corrompido, o 2 o Borba Jr
-Corrompido e o 3 o Albeguinio Corrompido) e melhores tempos da campanha inteira.
+Corrompido, o 3 o Albeguinio Corrompido e o 4 o Cauanzera Corrompido) e melhores tempos da campanha
+inteira.
 
 Fica em %APPDATA%/SoulStrike/progresso.json no Windows (ou ~/.soulstrike no Linux/Mac).
 A variável de ambiente SOULSTRIKE_PROGRESS troca o arquivo (usada nos testes).
@@ -52,7 +53,8 @@ def campaign_cleared():
 
 
 def record_chapter(chapter):
-    """Fim de um capítulo que não é o último (1: o cristal quebrou; 2: o fragmento se partiu).
+    """Fim de um capítulo que não é o último (1: o cristal quebrou; 2: o fragmento se partiu;
+    3: o caco virou pó).
     Devolve True se o lutador secreto dele foi liberado agora."""
     unlocked_now = not chapter_cleared(chapter)
     data = load()
@@ -66,8 +68,8 @@ def record_chapter1():
     return record_chapter(1)
 
 
-LAST_CHAPTER = 3
-TIMES = "melhor_tempo_3cap"      # a campanha ganhou o capítulo 3: os tempos de 2 capítulos ficam de fora
+LAST_CHAPTER = 4
+TIMES = "melhor_tempo_4cap"      # a campanha ganhou o capítulo 4: os tempos de 3 capítulos ficam de fora
 
 
 def best_time(difficulty):
@@ -77,7 +79,7 @@ def best_time(difficulty):
 
 def record_campaign(seconds, difficulty, players, full=True):
     """Registra a campanha zerada (fim do último capítulo). Devolve (recorde_novo, desbloqueou_agora):
-    o desbloqueio é o do Albeguinio Corrompido. O tempo só conta como recorde na campanha inteira
+    o desbloqueio é o do Cauanzera Corrompido. O tempo só conta como recorde na campanha inteira
     (``full``); quem começou direto de outro capítulo não entra no recorde."""
     data = load()
     unlocked_now = not data.get(f"capitulo{LAST_CHAPTER}_zerado")

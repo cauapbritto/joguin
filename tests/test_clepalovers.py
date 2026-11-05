@@ -62,15 +62,15 @@ class CapituloTest(unittest.TestCase):
         cap3 = [p.key for p in PHASES if p.chapter == 3]
         self.assertEqual(cap3, ["clinica_recepcao", "procedimentos", "suite_vip"])
         self.assertEqual(PHASES[CHAPTER_START[3]].key, "clinica_recepcao")
-        self.assertEqual(PHASES[-1].dungeons[-1].boss, "albeguinio")
+        self.assertEqual(PHASES[FASE["suite_vip"]].dungeons[-1].boss, "albeguinio")
 
     def test_cobertura_fecha_o_capitulo_2(self):
         g, run = corrida()
         run.phase_index = FASE["cobertura"]
         self.assertTrue(run.chapter_end)
-        run.phase_index = FASE["suite_vip"]
-        self.assertTrue(run.last_phase)
-        self.assertFalse(run.chapter_end)
+        run.phase_index = FASE["suite_vip"]          # o capítulo 3 também fecha: depois vem a Mansão
+        self.assertFalse(run.last_phase)
+        self.assertTrue(run.chapter_end)
 
     def test_comecar_no_capitulo_3_compensa_mais(self):
         g, run = corrida()
@@ -86,7 +86,7 @@ class CapituloTest(unittest.TestCase):
         for p in PHASES:
             self.assertIn(p.key, STORY)
         self.assertIn("fim_capitulo2", STORY)
-        final = " ".join(text for _, _, text in STORY["final"][2])
+        final = " ".join(text for _, _, text in STORY["fim_capitulo3"][2])
         self.assertIn("fechou o caixa", final)
 
     def test_perigos_e_daiwone_nas_masmorras_certas(self):
