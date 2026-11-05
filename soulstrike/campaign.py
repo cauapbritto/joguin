@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import pygame
 
-from . import config, energia, hud, theme
+from . import config, crt, energia, hud, theme
 from .progress import chapter_cleared
 from .ai import FighterAI
 from .entities import Particle, Pickup
@@ -766,7 +766,9 @@ class CoopMatch(Match):
     def give_common(self, fighter, weapon, drop_at=None):
         """Arma de outro herói: entra no lugar da de mesmo tipo e já vem na mão."""
         base = list(fighter.base_weapons)
-        i = next(k for k, w in enumerate(base) if w.is_melee == weapon.is_melee)
+        i = next((k for k, w in enumerate(base) if w.is_melee == weapon.is_melee), None)
+        if i is None:                                # herói sem arma desse tipo (só joga bola): não pega
+            return
         old = base[i]
         base[i] = weapon
         fighter.loadout = None if tuple(base) == fighter.stats.weapons else tuple(base)
@@ -1943,7 +1945,8 @@ class LobbyMatch(CoopMatch):
             near = any(stall.can_use(p) and p not in self.menus for p in self.alive_players)
             stall.draw_prompt(screen, cam, ui, self.frame, near)
         for f, menu in self.menus.items():
-            menu.draw(screen, ui, cam.to_screen(f.x, f.y))
+            at = cam.to_screen(f.x, f.y)
+            crt.panel(screen, ("loja", f.slot), lambda s, menu=menu, at=at: menu.draw(s, ui, at))
         gate = self.gates[self.target_gate]
         alive = self.alive_players
         inside = [p for p in alive if gate.rect.inflate(20, 30).collidepoint(p.x, p.y)]

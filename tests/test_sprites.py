@@ -67,13 +67,42 @@ class FolhaTest(unittest.TestCase):
         self.assertGreater(hit[0], rest[0] + 3)
 
     def test_folha_igual_ao_gerador(self):
+        """A folha salva é a que o gerador faz hoje (ninguém esqueceu de gerar de novo). Uma amostra:
+        o dobro de detalhe deixa o gerador lento demais para conferir os 50 a cada teste."""
+        game()                                   # convert_alpha precisa da janela (escondida)
         spec = importlib.util.spec_from_file_location("gerar_sprites", config.ROOT / "tools" / "gerar_sprites.py")
         gen = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(gen)
-        sheet, info = gen.build_sheet("aryel")
-        saved = pygame.image.load(str(config.CHAR_DIR / "aryel.png"))
-        self.assertEqual(sheet.get_size(), saved.get_size())
-        self.assertEqual(pygame.image.tobytes(sheet, "RGBA"), pygame.image.tobytes(saved.convert_alpha(), "RGBA"))
+        for name in ("aryel", "cauanzera", "golem", "cadeira"):
+            with self.subTest(name):
+                sheet, info = gen.build_sheet(name)
+                saved = pygame.image.load(str(config.CHAR_DIR / f"{name}.png"))
+                self.assertEqual(sheet.get_size(), saved.get_size())
+                self.assertEqual(pygame.image.tobytes(sheet, "RGBA"),
+                                 pygame.image.tobytes(saved.convert_alpha(), "RGBA"))
+
+    def test_desenho_nao_e_cortado_na_borda(self):
+        """O quadro cresce para caber o chapéu, o escudo e o braço levantado: nenhuma pose fica
+        com pedaço do desenho (ou do contorno) cortado em cima ou dos lados."""
+        spec = importlib.util.spec_from_file_location("gerar_sprites", config.ROOT / "tools" / "gerar_sprites.py")
+        gen = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gen)
+        for name in ("atirador", "guerreiro", "cauanzera", "cadeira", "diabrete"):
+            with self.subTest(name):
+                draw, wide, _ = gen.CHARACTERS[name]
+                sheet, info = gen.build_sheet(name)
+                cw, ch = info["cell"]
+                probe = draw(gen.Pose("frente", "parado", 0, wide))
+                side, top = (cw - probe.w) // 2, ch - probe.h
+                inside = pygame.Rect(gen.MARGIN - side, gen.MARGIN - top, cw, ch)
+                for direction in ("frente", "costas", "direita"):
+                    for kind, n in info["poses"]:
+                        for i in range(n):
+                            box = draw(gen.Pose(direction, kind, i, wide)).finish().get_bounding_rect()
+                            # embaixo fica o chão (o contorno da sola pode sobrar), o resto tem de caber
+                            self.assertGreaterEqual(box.top, inside.top, (direction, kind, i))
+                            self.assertGreaterEqual(box.left, inside.left, (direction, kind, i))
+                            self.assertLessEqual(box.right, inside.right, (direction, kind, i))
 
 
 class PoseTest(unittest.TestCase):

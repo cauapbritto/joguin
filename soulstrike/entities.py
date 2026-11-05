@@ -521,17 +521,74 @@ class Explosion(Entity):
             self.alive = False
 
     def draw(self, surf, camera):
-        t = 1 - self.timer / self.DURATION
-        sx, sy = int(self.x - camera.x), int(self.y - camera.y)
-        r = int(10 + self.radius * min(1, t * 1.6))
-        if t < 0.25:
-            pygame.draw.circle(surf, (255, 244, 214), (sx, sy), r)
+        img = _boom_frame(self.radius, self.DURATION - self.timer)
+        surf.blit(img, img.get_rect(center=(int(self.x - camera.x), int(self.y - camera.y))))
+
+
+_BOOMS = {}
+_FIRE = ((255, 252, 236), (255, 226, 120), (252, 160, 58), (220, 84, 40), (128, 40, 34))
+_SMOKE = ((96, 86, 92), (64, 56, 64), (38, 32, 40))
+
+
+def _boom_frame(radius, frame):
+    """Explosão em pixel art, desenhada uma vez por raio e quadro: clarão branco, bola de fogo em
+    gomos com 5 tons (luz em cima à esquerda), fumaça que sobe e se desfaz e faíscas voando."""
+    key = (radius, frame)
+    if key in _BOOMS:
+        return _BOOMS[key]
+    total = Explosion.DURATION
+    t = min(1.0, frame / total)
+    R = int(10 + radius * min(1, t * 1.6))
+    size = R * 2 + 16
+    img = pygame.Surface((size, size), pygame.SRCALPHA)
+    c = size // 2
+    rng = random.Random(radius)
+    puffs = [(i * math.tau / 9 + rng.uniform(-0.3, 0.3), rng.uniform(0.45, 0.7), rng.uniform(0.32, 0.5)) for i in range(9)]
+
+    def ball(cx, cy, r, tones, lift=0.0):
+        """Gomo redondo com contorno escuro e tons do claro (em cima à esquerda) ao escuro."""
+        if r < 1:
             return
-        ring = max(2, int(10 * (1 - t)))
-        pygame.draw.circle(surf, (232, 108, 52), (sx, sy), r, ring)
-        inner = int(r * (1 - t))
-        if inner > 2:
-            pygame.draw.circle(surf, (255, 196, 92), (sx, sy), inner)
+        pygame.draw.circle(img, (30, 16, 22, 255), (cx, cy), r + 1)
+        n = len(tones)
+        for i, col in enumerate(reversed(tones)):
+            k = (n - i) / n
+            rr = max(1, round(r * k))
+            off = round((r - rr) * 0.45)
+            pygame.draw.circle(img, (*col, 255), (cx - off, cy - off - round(lift * (r - rr))), rr)
+
+    if t < 0.18:                                        # clarão
+        pygame.draw.circle(img, (255, 250, 230, 255), (c, c), R)
+        pygame.draw.circle(img, (255, 214, 120, 255), (c, c), R, 2)
+    else:
+        fade = (t - 0.18) / 0.82
+        if fade > 0.35:                                 # fumaça subindo atrás do fogo
+            smoke = int(R * 0.4 * (0.7 + fade * 0.5))
+            for ang, dist, rel in puffs[:6]:
+                px = c + round(math.cos(ang) * R * dist * 0.8)
+                py = c + round(math.sin(ang) * R * dist * 0.6 - fade * R * 0.5)
+                ball(px, py, round(smoke * rel * 1.4 * (1.2 - fade * 0.5)), _SMOKE)
+        fire_r = R * 0.9 * (1 - fade) ** 0.6
+        tones = _FIRE[1:] if fade < 0.5 else _FIRE[2:]
+        for ang, dist, rel in puffs:
+            px = c + round(math.cos(ang) * fire_r * dist)
+            py = c + round(math.sin(ang) * fire_r * dist)
+            ball(px, py, round(fire_r * rel), tones)
+        ball(c, c, round(fire_r * 0.55), _FIRE if fade < 0.4 else tones)
+        if fade < 0.7:                                  # onda de choque fininha
+            ring = (*_FIRE[2], int(255 * (1 - fade)))
+            pygame.draw.circle(img, ring, (c, c), R, 2 if fade < 0.35 else 1)
+        for i in range(10):                             # faíscas
+            ang = i * math.tau / 10 + rng.uniform(-0.2, 0.2)
+            d = R * (0.5 + fade * 0.6)
+            sx, sy = c + round(math.cos(ang) * d), c + round(math.sin(ang) * d)
+            if fade < 0.85 and 0 <= sx < size - 1 and 0 <= sy < size - 1:
+                img.fill((*_FIRE[1 if i % 2 else 0], 255), (sx, sy, 2 if fade < 0.4 else 1, 2 if fade < 0.4 else 1))
+        if fade > 0.6:                                  # no fim tudo se desfaz
+            a = round(255 * max(0.0, 1 - (fade - 0.6) / 0.4) ** 0.7)
+            img.fill((255, 255, 255, a), special_flags=pygame.BLEND_RGBA_MULT)
+    _BOOMS[key] = img
+    return img
 
 
 class GroundMark(Entity):
@@ -667,7 +724,36 @@ def _icon(kind, scale=4):
     for dx, dy in ((0, 1), (2, 1), (1, 0), (1, 2)):
         out.blit(line, (dx, dy))
     out.blit(surf, (1, 1))
-    return pygame.transform.scale(out, (out.get_width() * scale, out.get_height() * scale))
+    if scale != 4:
+        return pygame.transform.scale(out, (out.get_width() * scale, out.get_height() * scale))
+    # mesmo dobro de detalhe dos personagens: Scale2x duas vezes arredonda os degraus, depois luz na
+    # beirada de cima/esquerda, sombra na de baixo/direita e contorno de 1 pixel
+    big = pygame.transform.scale2x(pygame.transform.scale2x(out))
+    solid = pygame.mask.from_surface(big, 1)
+    ink = pygame.mask.from_surface(big, 1)
+    ink.clear()
+    for y in range(big.get_height()):
+        for x in range(big.get_width()):
+            if solid.get_at((x, y)) and sum(big.get_at((x, y))[:3]) < 90:
+                ink.set_at((x, y))
+    color = solid.copy()
+    color.erase(ink, (0, 0))                      # só o miolo colorido (sem o contorno escuro)
+    w, h = big.get_size()
+    for dx, dy, amount in ((0, 2, 46), (2, 0, 22), (0, -2, -40), (-2, 0, -20)):
+        moved = pygame.mask.Mask((w, h))
+        moved.draw(color, (dx, dy))
+        edge = color.copy()
+        edge.erase(moved, (0, 0))                  # pixels do miolo sem miolo no vizinho daquele lado
+        for x, y in _bits(edge):
+            r, g, b, a = big.get_at((x, y))
+            big.set_at((x, y), (max(0, min(255, r + amount)), max(0, min(255, g + amount)),
+                                max(0, min(255, b + amount)), a))
+    return big
+
+
+def _bits(mask):
+    w, h = mask.get_size()
+    return [(x, y) for y in range(h) for x in range(w) if mask.get_at((x, y))]
 
 
 class Pickup(Entity):
@@ -766,7 +852,12 @@ class Particle:
 
     def draw(self, surf, camera):
         s = max(1, round(self.size * self.life / self.max_life))
-        surf.fill(self.color, (self.x - camera.x - s // 2, self.y - camera.y - s // 2, s, s))
+        x, y = self.x - camera.x - s // 2, self.y - camera.y - s // 2
+        surf.fill(self.color, (x, y, s, s))
+        if s >= 3:                                   # volume: brilho em cima à esquerda, sombra embaixo
+            r, g, b = self.color[:3]
+            surf.fill((min(255, r + 60), min(255, g + 60), min(255, b + 60)), (x, y, 1, 1))
+            surf.fill((r * 3 // 5, g * 3 // 5, b * 3 // 5), (x + 1, y + s - 1, s - 1, 1))
 
 
 _BEAMS = {}

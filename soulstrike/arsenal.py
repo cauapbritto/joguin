@@ -158,9 +158,8 @@ class ArsenalPick:
             screen.fill(theme.INK_3 if picked else theme.INK, cell)
             if picked:
                 pygame.draw.rect(screen, self.fighter.color if active else theme.LINE_HI, cell, 2)
-            img = weapon_art.icon(w.name)
-            if img is not None:
-                big = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
+            big = weapon_art.icon2x(w.name)
+            if big is not None:
                 screen.blit(big, big.get_rect(center=(cell.centerx, cell.y + 19)))
             name = w.name.upper()
             limit = max(4, (cell.w - 6) // 8)

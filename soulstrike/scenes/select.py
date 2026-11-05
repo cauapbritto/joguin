@@ -215,6 +215,39 @@ class LobbyScene(_MenuScene):
                      self.layout_button.center)
 
 
+_CARD_STAGES = {}
+
+
+def _card_stage(size, color):
+    """Fundo do boneco no card: canhão de luz na cor do jogador caindo do alto e um piso redondo
+    aceso embaixo dele, com o fundo escurecendo para as bordas."""
+    key = (size, tuple(color[:3]))
+    if key in _CARD_STAGES:
+        return _CARD_STAGES[key]
+    w, h = size
+    s = pygame.Surface(size)
+    base = mix(theme.INK_2, color, 0.05)
+    for y in range(h):                                 # escurece para baixo
+        s.fill(mix(base, (0, 0, 0), 0.25 * y / h), (0, y, w, 1))
+    cone = pygame.Surface(size)                        # luz em cone (soma na tela)
+    cx = w // 2
+    for y in range(h - 8):
+        half = round(14 + (w * 0.36) * y / h)
+        k = 0.10 * (1 - 0.4 * y / h)
+        cone.fill(tuple(round(c * k) for c in color[:3]), (cx - half, y, half * 2, 1))
+        cone.fill(tuple(round(c * k * 0.5) for c in color[:3]), (cx - half - 4, y, 4, 1))
+        cone.fill(tuple(round(c * k * 0.5) for c in color[:3]), (cx + half, y, 4, 1))
+    s.blit(cone, (0, 0), special_flags=pygame.BLEND_RGB_ADD)
+    floor_y = h - 10
+    for i, (rw, k) in enumerate(((96, 0.10), (76, 0.16), (54, 0.24))):   # piso redondo aceso
+        disc = pygame.Surface((rw, rw // 4))
+        pygame.draw.ellipse(disc, tuple(round(c * k) for c in color[:3]), disc.get_rect())
+        s.blit(disc, disc.get_rect(center=(cx, floor_y)), special_flags=pygame.BLEND_RGB_ADD)
+    pygame.draw.ellipse(s, mix(color, theme.BONE, 0.3), (cx - 48, floor_y - 12, 96, 24), 1)
+    _CARD_STAGES[key] = s
+    return s
+
+
 class _Card:
     def __init__(self, setup, choices):
         self.setup = setup
@@ -758,7 +791,7 @@ class CharSelectScene(_MenuScene):
 
         # sprite andando no lugar
         stage = pygame.Rect(rect.x + 2, head.bottom, rect.w - 4, 138)
-        screen.fill(mix(theme.INK_2, setup.color, 0.06), stage)
+        screen.blit(_card_stage(stage.size, setup.color), stage)
         sprites = self.assets.sprites[stats.key]
         if self.soccer:                                  # no futebol o card já mostra o uniforme do time
             sprites = self.assets.kit_sprites(stats.key, self.game.session.team_of(setup.slot))
@@ -872,10 +905,19 @@ class CharSelectScene(_MenuScene):
             return
         if self.soccer:
             ui.panel(screen, c, fill=theme.INK_2)
-            ui.text(screen, "ESTÁDIO", theme.S, theme.BONE, (c.centerx, c.y + 30))
-            thumb = self.game.thumbnail(MAPS_BY_KEY["campo_futebol"], (220, 124))
+            if self.basket:                              # basquete: a quadra escolhida e a regra dele
+                ui.text(screen, "QUADRA", theme.S, theme.BONE, (c.centerx, c.y + 30))
+                thumb = self.game.thumbnail(MAPS_BY_KEY[self.court_key], (220, 124))
+                mode = self.game.session.mode
+                rule = ("3 MINUTOS OU 21 PONTOS" if mode == "basket1"
+                        else "2 TEMPOS DE 2 MINUTOS" if mode == "basket2" else "TREINO LIVRE")
+            else:
+                ui.text(screen, "ESTÁDIO", theme.S, theme.BONE, (c.centerx, c.y + 30))
+                thumb = self.game.thumbnail(MAPS_BY_KEY["campo_futebol"], (220, 124))
+                training = self.game.session.mode.startswith("treino")
+                rule = "TREINO LIVRE" if training or not self._length_mode else self._length_label()
             screen.blit(thumb, thumb.get_rect(midtop=(c.centerx, c.y + 56)))
-            ui.text(screen, self._length_label(), theme.XS, theme.BRASS, (c.centerx, c.y + 188))
+            ui.text(screen, rule, theme.XS, theme.BRASS, (c.centerx, c.y + 188))
             ui.paragraph(screen, "Cada personagem tem um poder próprio no botão SUPER.", theme.XS,
                          theme.MUTED, (c.x + 16, c.y + 204), c.w - 32, spacing=14)
             screen.fill(theme.LINE, (c.x + 16, c.y + 258, c.w - 32, 1))

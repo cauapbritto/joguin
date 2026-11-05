@@ -629,7 +629,11 @@
     }).join("");
     var weapon = ch.weapons[me.weapon] || ch.weapons[0];
     var gun = ch.weapons.filter(function (w) { return !w.melee; })[0];
-    $("ability").innerHTML = mode === "soccer"
+    var basket = mode === "soccer" && status && status.hud === "basket";
+    $("ability").innerHTML = basket
+      ? "<b>SUPER: " + (ch.basket_power || "") + "</b>" + (ch.basket_desc || "") +
+        (ch.basket_passive ? "<br><b>SEMPRE:</b>" + ch.basket_passive : "")
+      : mode === "soccer"
       ? "<b>SUPER: " + (ch.soccer_power || "") + "</b>" + (ch.soccer_desc || "") +
         (ch.soccer_passive ? "<br><b>SEMPRE: " + ch.soccer_passive.toUpperCase() + "</b>" + ch.soccer_passive_desc : "")
       : "<b>" + ch.ability.toUpperCase() + "</b>" + ch.ability_desc +
@@ -834,7 +838,7 @@
       return;
     }
     var mode = status.mode;
-    var modeName = mode === "soccer" ? "FUTEBOL" : mode === "campaign" ? "CAMPANHA" : "DUELO";
+    var modeName = mode === "soccer" ? (status.hud === "basket" ? "BASQUETE" : "FUTEBOL") : mode === "campaign" ? "CAMPANHA" : "DUELO";
     if (mode !== "campaign" && (me.team === 0 || me.team === 1)) {
       modeName += " · TIME " + (me.team === 0 ? "AZUL" : "VERMELHO");   // 2 x 2
     }

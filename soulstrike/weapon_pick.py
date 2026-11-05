@@ -159,8 +159,7 @@ class WeaponPick:
                     pygame.draw.rect(screen, f.color if active else theme.BONE, cell, 2)
                 img = weapon_art.icon(w.name)
                 if img is not None:
-                    scale = 2 if cell.h > 60 else 1
-                    big = pygame.transform.scale(img, (img.get_width() * scale, img.get_height() * scale))
+                    big = weapon_art.icon2x(w.name) if cell.h > 60 else img
                     screen.blit(big, big.get_rect(center=(cell.centerx, cell.y + cell.h * 0.4)))
                 lines = ["MANTER"] if k == 0 else _wrap(w.name.upper(), max(4, (cell.w - 4) // 8))
                 for j, line in enumerate(lines[-2:]):

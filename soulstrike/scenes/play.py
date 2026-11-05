@@ -3,7 +3,7 @@ import math
 
 import pygame
 
-from .. import config, settings, theme
+from .. import config, crt, settings, theme
 from ..stats import record as record_stats
 from ..arena import MAPS_BY_KEY
 from ..host import IdleInput, anyone_pauses, change_rule, fighter_of, host_slot, make_cpu, make_human, rules
@@ -394,23 +394,28 @@ class PlayScene(Scene):
                 screen.blit(veil, band)
                 self.ui.text(screen, word, theme.XL, theme.BRASS, (x, H // 2))
         for slot, menu in self.personal.items():
-            self._draw_personal(screen, slot, menu)
+            crt.panel(screen, ("pessoal", slot), lambda s, slot=slot, menu=menu: self._draw_personal(s, slot, menu))
         if self.request and not self.paused:
-            self._draw_request(screen)
+            crt.panel(screen, "pedido_pausa", self._draw_request)
         if self.joined:
             self.ui.text(screen, self.joined[0], theme.S, theme.BRASS, (W // 2, 96))
         if self.paused:
-            darken(screen, 170)
-            if self.confirming:
-                panel = pygame.Rect(0, 0, 360, 200)
-                panel.midtop = (W // 2, 180)
-                self.ui.panel(screen, panel)
-                self.ui.text(screen, "SAIR DA CAMPANHA?", theme.M, theme.BONE, (W // 2, panel.y + 30))
-                self.ui.text(screen, "O PROGRESSO DESTA CORRIDA SE PERDE", theme.XS, theme.BLOOD,
-                             (W // 2, panel.y + 58))
-                self.pause_menu.draw(screen, self.ui, self.ticks)
-            else:
-                self._draw_panel(screen)
+            crt.panel(screen, "pausa", self._draw_pause)
+
+    def _draw_pause(self, screen):
+        """Pausa: tela escurecida com o painel da partida (ou a confirmação de sair)."""
+        W = config.SCREEN_W
+        darken(screen, 170)
+        if self.confirming:
+            panel = pygame.Rect(0, 0, 360, 200)
+            panel.midtop = (W // 2, 180)
+            self.ui.panel(screen, panel)
+            self.ui.text(screen, "SAIR DA CAMPANHA?", theme.M, theme.BONE, (W // 2, panel.y + 30))
+            self.ui.text(screen, "O PROGRESSO DESTA CORRIDA SE PERDE", theme.XS, theme.BLOOD,
+                         (W // 2, panel.y + 58))
+            self.pause_menu.draw(screen, self.ui, self.ticks)
+        else:
+            self._draw_panel(screen)
 
     def _draw_panel(self, screen):
         W = config.SCREEN_W

@@ -24,18 +24,16 @@ class UI:
         return rect
 
     def logo(self, surf, center, size=theme.XL):
-        """'SOUL STRIKE' com contorno grosso e duas cores, no estilo de fliperama."""
-        text = "SOUL STRIKE"
-        top = self.assets.text(text, size, theme.BRASS)
-        low = self.assets.text(text, size, theme.EMBER)
-        ink = self.assets.text(text, size, theme.SHADOW)
-        rect = top.get_rect(center=center)
-        o = max(2, size // 12)
-        for dx in (-o, 0, o):
-            for dy in (-o, 0, o, o * 2):
-                surf.blit(ink, rect.move(dx, dy))
-        surf.blit(low, rect)
-        surf.blit(top, rect, (0, 0, rect.w, rect.h * 11 // 20))
+        """'SOUL STRIKE' de fliperama: letras em degradê (ouro no alto, brasa embaixo) com brilho na
+        beirada de cima, sombra na de baixo, contorno duplo e um calor atrás. Montado uma vez só."""
+        art = _LOGOS.get(size)
+        if art is None:
+            art = _LOGOS[size] = _build_logo(self.assets.text("SOUL STRIKE", size, (255, 255, 255)), size)
+        img, glow, (ox, oy) = art
+        rect = pygame.Rect(0, 0, img.get_width() - ox * 2, img.get_height() - oy * 2)
+        rect.center = center
+        surf.blit(glow, glow.get_rect(center=rect.center), special_flags=pygame.BLEND_RGB_ADD)
+        surf.blit(img, (rect.x - ox, rect.y - oy))
         return rect
 
     def wrap(self, text, size, width):
@@ -74,8 +72,16 @@ class UI:
         surf.fill(border, (x + w - 2, y + 2, 2, h - 4))
         for cx, cy in ((x + 1, y + 1), (x + w - 2, y + 1), (x + 1, y + h - 2), (x + w - 2, y + h - 2)):
             surf.fill(border, (cx, cy, 1, 1))
-        # brilho interno no topo
-        surf.fill(_mix(fill, (255, 255, 255), 0.06), (x + 2, y + 2, w - 4, 1))
+        # volume: o painel escurece aos poucos para baixo, luz por dentro em cima e à esquerda,
+        # sombra por dentro embaixo e à direita
+        if h > 12:
+            band = (h - 4) // 3
+            for i, k in enumerate((0.04, 0.08, 0.12)):
+                surf.fill(_mix(fill, (0, 0, 0), k), (x + 2, y + h - 2 - band + i * band // 3, w - 4, band - i * band // 3))
+        surf.fill(_mix(fill, (255, 255, 255), 0.10), (x + 2, y + 2, w - 4, 1))
+        surf.fill(_mix(fill, (255, 255, 255), 0.05), (x + 2, y + 3, 1, h - 5))
+        surf.fill(_mix(fill, (0, 0, 0), 0.25), (x + 2, y + h - 3, w - 4, 1))
+        surf.fill(_mix(fill, (0, 0, 0), 0.18), (x + w - 3, y + 3, 1, h - 6))
         if accent:
             surf.fill(accent, (x + 2, y + 2, w - 4, 3))
         return rect
@@ -85,13 +91,20 @@ class UI:
         surf.fill(theme.SHADOW, rect)
         inner = rect.inflate(-2, -2)
         surf.fill(back, inner)
+        surf.fill(_mix(back, (0, 0, 0), 0.4), (inner.x, inner.y, inner.w, 1))     # fundo afundado
         ratio = max(0.0, min(1.0, ratio))
         fw = round(inner.w * ratio)
         if fw > 0:
             fill = pygame.Rect(inner.right - fw if flip else inner.x, inner.y, fw, inner.h)
             surf.fill(color, fill)
             surf.fill(_mix(color, (255, 255, 255), 0.35), (fill.x, fill.y, fill.w, max(1, inner.h // 4)))
+            if inner.h >= 5:                          # barra cilíndrica: brilho fino em cima, sombra embaixo
+                surf.fill(_mix(color, (255, 255, 255), 0.6), (fill.x + 1, fill.y, max(1, fill.w - 2), 1))
+                surf.fill(_mix(color, (0, 0, 0), 0.16), (fill.x, fill.bottom - 2, fill.w, 1))
             surf.fill(_mix(color, (0, 0, 0), 0.3), (fill.x, fill.bottom - 1, fill.w, 1))
+            if fw < inner.w and fw > 1:               # ponta da barra acesa
+                tip = fill.x if flip else fill.right - 1
+                surf.fill(_mix(color, (255, 255, 255), 0.45), (tip, fill.y, 1, fill.h - 1))
         if ticks:
             for i in range(1, ticks):
                 tx = inner.x + inner.w * i // ticks
@@ -195,7 +208,13 @@ class MenuList:
                 color = theme.BRASS if selected else theme.BONE
             if selected:
                 surf.fill(theme.INK_3, rect)
+                for k in range(8):                       # luz da faixa escolhida some para a direita
+                    band = rect.w * (8 - k) // 8
+                    surf.fill((7, 5, 2), (rect.x, rect.y, band, rect.h), special_flags=pygame.BLEND_RGB_ADD)
+                surf.fill(_mix(theme.INK_3, theme.BRASS, 0.25), (rect.x + 3, rect.y, rect.w * 3 // 4, 1))
+                surf.fill(_mix(theme.INK_3, (0, 0, 0), 0.4), (rect.x + 3, rect.bottom - 1, rect.w - 3, 1))
                 surf.fill(theme.BRASS, (rect.x, rect.y, 3, rect.h))
+                surf.fill(_mix(theme.BRASS, (255, 255, 255), 0.4), (rect.x, rect.y, 1, rect.h))
                 nudge = 1 if (ticks // 20) % 2 else 0
                 ui.arrow(surf, (rect.x + 16 + nudge, rect.centery), "right", 6, theme.BRASS)
             ui.text(surf, label, self.size, color, (rect.x + 32, rect.centery + 1), anchor="midleft")
@@ -203,6 +222,61 @@ class MenuList:
 
 def _mix(a, b, t):
     return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))
+
+
+_LOGOS = {}
+_LOGO_STOPS = ((0.0, (255, 240, 184)), (0.22, (244, 196, 92)), (0.5, theme.BRASS), (0.56, theme.EMBER),
+               (0.8, (196, 78, 46)), (1.0, (138, 44, 36)))
+
+
+def _shifted(mask, dx, dy):
+    out = pygame.mask.Mask(mask.get_size())
+    out.draw(mask, (dx, dy))
+    return out
+
+
+def _build_logo(white, size):
+    """Monta o logo a partir do texto branco: devolve (imagem, brilho de fundo, folga da borda)."""
+    w, h = white.get_size()
+    o = max(2, size // 12)                         # grossura do contorno (o "pixel" da fonte)
+    pad_x, pad_y = o * 2 + 2, o * 2 + 2
+    glyph = pygame.mask.from_surface(white, 1)
+    grad = pygame.Surface((w, h), pygame.SRCALPHA)
+    for y in range(h):                             # degradê de cima para baixo, em faixas duras
+        t = y / max(1, h - 1)
+        for (a, ca), (b, cb) in zip(_LOGO_STOPS, _LOGO_STOPS[1:]):
+            if a <= t <= b:
+                k = (t - a) / max(1e-6, b - a)
+                k = round(k * 3) / 3               # 4 tons por trecho, como pixel art
+                grad.fill((*_mix(ca, cb, k), 255), (0, y, w, 1))
+                break
+    grad.blit(glyph.to_surface(setcolor=(255, 255, 255, 255), unsetcolor=(0, 0, 0, 0)), (0, 0),
+              special_flags=pygame.BLEND_RGBA_MULT)
+    step = max(1, o // 2)
+    top = glyph.copy()
+    top.erase(_shifted(glyph, 0, step), (0, 0))    # beirada de cima de cada letra: brilho
+    low = glyph.copy()
+    low.erase(_shifted(glyph, 0, -step), (0, 0))   # beirada de baixo: sombra
+    grad.blit(top.to_surface(setcolor=(255, 228, 160, 255), unsetcolor=(0, 0, 0, 0)), (0, 0))
+    grad.blit(low.to_surface(setcolor=(110, 34, 30, 255), unsetcolor=(0, 0, 0, 0)), (0, 0))
+    img = pygame.Surface((w + pad_x * 2, h + pad_y * 2), pygame.SRCALPHA)
+    outer = glyph.to_surface(setcolor=(52, 18, 44, 255), unsetcolor=(0, 0, 0, 0))
+    ink = glyph.to_surface(setcolor=(8, 4, 10, 255), unsetcolor=(0, 0, 0, 0))
+    big = o + max(1, o // 2)
+    for dx in range(-big, big + 1, max(1, big // 2)):
+        for dy in range(-big, big * 2 + 1, max(1, big // 2)):
+            img.blit(outer, (pad_x + dx, pad_y + dy))
+    for dx in (-o, 0, o):
+        for dy in (-o, 0, o, o * 2):
+            img.blit(ink, (pad_x + dx, pad_y + dy))
+    img.blit(grad, (pad_x, pad_y))
+    gw, gh = w + 160, h + 90                       # calor de brasa atrás do logo (soma na tela)
+    glow = pygame.Surface((gw, gh))
+    for i in range(12, 0, -1):
+        k = i / 12
+        c = (round(34 * (1 - k) ** 1.5), round(14 * (1 - k) ** 1.5), round(8 * (1 - k) ** 1.5))
+        pygame.draw.ellipse(glow, c, (gw * (1 - k) / 2, gh * (1 - k) / 2, gw * k, gh * k))
+    return img, glow, (pad_x, pad_y)
 
 
 def mix(a, b, t):
@@ -245,7 +319,35 @@ class Backdrop:
         ox = 60 + math.sin(ticks * 0.004) * 50
         oy = 40 + math.cos(ticks * 0.003) * 30
         surf.blit(self.image, (-ox, -oy))
+        _embers(surf, ticks)
         surf.blit(self.vignette, (0, 0))
+
+
+_EMBER_SEEDS = [((i * 0.6180339) % 1.0, (i * 0.4142135) % 1.0, 0.35 + (i * 0.7320508) % 1.0, i % 3)
+                for i in range(70)]
+_EMBER_COLORS = ((228, 170, 76), (222, 104, 56), (200, 170, 255))
+
+
+def _embers(surf, ticks):
+    """Brasas e almas subindo devagar pelo fundo dos menus (poucos pixels por quadro)."""
+    import math
+    w, h = surf.get_size()
+    t = ticks * 0.02
+    for fx, fy, speed, kind in _EMBER_SEEDS:
+        y = h + 10 - ((fy * (h + 20) + t * speed * 14) % (h + 20))
+        x = fx * w + math.sin(t * 0.6 + fy * 9) * 14
+        life = y / h                                  # some ao chegar perto do topo
+        flick = 0.6 + 0.4 * math.sin(t * 3 + fx * 20)
+        k = max(0.0, min(1.0, life * flick))
+        if k < 0.08:
+            continue
+        r, g, b = _EMBER_COLORS[kind]
+        col = (round(r * k), round(g * k), round(b * k))
+        n = 2 if speed > 0.9 else 1
+        surf.fill(col, (round(x), round(y), n, n), special_flags=pygame.BLEND_RGB_ADD)
+        if n == 2:                                    # rastro curtinho
+            surf.fill((col[0] // 3, col[1] // 3, col[2] // 3), (round(x), round(y) + 2, 2, 3),
+                      special_flags=pygame.BLEND_RGB_ADD)
 
 
 def _vignette(w, h):

@@ -488,8 +488,10 @@ def draw_campaign(screen, ui, match):
 
 def _campaign_block(screen, ui, f, rect, match):
     screen.fill(theme.SHADOW, rect.move(2, 2))
-    screen.fill(theme.INK_2, rect)
-    screen.fill(f.color, (rect.x, rect.y, 4, rect.h))
+    ui.panel(screen, rect, shadow=False)
+    screen.fill(f.color, (rect.x, rect.y + 1, 4, rect.h - 2))              # faixa da cor do jogador
+    screen.fill(mix(f.color, (255, 255, 255), 0.4), (rect.x, rect.y + 1, 1, rect.h - 2))
+    screen.fill(mix(f.color, (0, 0, 0), 0.35), (rect.x + 3, rect.y + 1, 1, rect.h - 2))
     x = rect.x + 12
     tag = ui.assets.text(f.label, theme.XS, f.color)
     screen.blit(tag, tag.get_rect(midleft=(x, rect.y + 10)))
@@ -535,6 +537,7 @@ def _energy_bar(screen, ui, f, area, match):
     screen.fill((16, 22, 40), area)
     screen.fill(ENERGY_COLOR, (area.x, area.y, round(area.w * ratio), area.h))
     screen.fill(ENERGY_LIGHT, (area.x, area.y, round(area.w * ratio), 1))
+    screen.fill(mix(ENERGY_COLOR, (0, 0, 0), 0.35), (area.x, area.bottom - 1, round(area.w * ratio), 1))
     if price and f.energy >= price:
         # quanto o próximo tiro gasta: o pedaço da ponta pisca
         w = max(2, round(area.w * price / f.energy_max))

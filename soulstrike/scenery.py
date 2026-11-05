@@ -45,8 +45,29 @@ def paint_floor(key, size, theme=None, void=()):
         painter(small, random.Random(f"chão:{key}"))
         for x, y, vw, vh in void:
             small.fill(VOID, (x // U, y // U, vw // U, vh // U))
-        _FLOORS[key] = pygame.transform.scale(small, size)
+        # dobra arredondando os degraus (Scale2x): trilha, poça e pedra ficam com borda curva, no
+        # mesmo dobro de detalhe dos personagens; depois um grão fino de 1 pixel tira o chapado
+        big = pygame.transform.scale2x(small) if U == 2 else pygame.transform.scale(small, size)
+        if big.get_size() != tuple(size):
+            big = big.subsurface((0, 0, min(big.get_width(), size[0]), min(big.get_height(), size[1]))).copy()
+            if big.get_size() != tuple(size):
+                big = pygame.transform.scale(big, size)
+        _grain(big, random.Random(f"grão:{key}"))
+        _FLOORS[key] = big
     return _FLOORS[key]          # só é lido (a miniatura faz a própria cópia)
+
+
+def _grain(surf, rng, density=60):
+    """Grão fino no chão: um pixel em cada ``density`` um tom acima ou abaixo do que está lá."""
+    w, h = surf.get_size()
+    get, put = surf.get_at, surf.set_at
+    for _ in range(w * h // density):
+        x, y = rng.randrange(w), rng.randrange(h)
+        r, g, b, _a = get((x, y))
+        if r + g + b < 40:                       # o escuro de fora das salas fica liso
+            continue
+        k = 7 if rng.random() < 0.5 else -8
+        put((x, y), (max(0, min(255, r + k)), max(0, min(255, g + k)), max(0, min(255, b + k))))
 
 
 def _blob(surf, rng, x, y, r, color):
@@ -892,11 +913,52 @@ class _Style:
         if cache_key not in _WALLS:
             surf = pygame.Surface((w, h + self.below), pygame.SRCALPHA)
             self.paint(surf, w, h, random.Random(f"{self.key}:{seed}"))
+            _solidify(surf, w, h, random.Random(f"sólido:{self.key}:{seed}"))
             _WALLS[cache_key] = surf
         return _WALLS[cache_key]
 
     def paint(self, surf, w, h, rng):
         raise NotImplementedError
+
+
+def _solidify(s, w, h, rng):
+    """Acabamento de toda parede, no mesmo dobro de detalhe dos personagens: contorno fino de 1
+    pixel (mais escuro que a cor que está ali), luz na beirada de cima e da esquerda, sombra na
+    direita e no pé da parede, e um grão de 1 pixel para tirar o chapado."""
+    full = s.get_size()
+    solid = pygame.mask.from_surface(s, 250)            # a sombra no chão é translúcida e fica de fora
+    if not solid.count():
+        return
+    hole = solid.copy()
+    hole.invert()
+    edge = pygame.mask.Mask(full)
+    for off in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        edge.draw(hole, off)                            # vizinho vazio...
+    border = pygame.mask.Mask(full, fill=True)
+    border.erase(pygame.mask.Mask((full[0] - 2, full[1] - 2), fill=True), (1, 1))
+    edge.draw(border, (0, 0))                           # ...ou a borda da folha
+    edge = edge.overlap_mask(solid, (0, 0))
+    lit = pygame.Surface(full, pygame.SRCALPHA)         # luz de cima e da esquerda, sombra embaixo
+    lit.fill((255, 255, 255, 0))
+    lit.fill((255, 255, 255, 255), (0, 0, full[0], 1))
+    band = max(U * 3, min(h // 4, U * 6))
+    for i in range(band):                               # pé da parede escurece aos poucos
+        k = round(255 - 46 * (i + 1) / band)
+        lit.fill((k, k, k, 255), (0, h - band + i, w, 1))
+    lit.fill((222, 222, 222, 255), (w - U, 0, U, h))    # lado direito na sombra
+    s.blit(lit, (0, 0), special_flags=pygame.BLEND_RGB_MULT)
+    s.fill((26, 22, 14), (1, 1, w - 2, U), special_flags=pygame.BLEND_RGB_ADD)
+    s.fill((12, 10, 6), (1, 1, U, h - 2), special_flags=pygame.BLEND_RGB_ADD)
+    line = edge.to_surface(setcolor=(150, 146, 158, 255), unsetcolor=(255, 255, 255, 255))
+    s.blit(line, (0, 0), special_flags=pygame.BLEND_RGB_MULT)
+    get, put = s.get_at, s.set_at
+    for _ in range(w * h // 45):
+        x, y = rng.randrange(w), rng.randrange(h)
+        if not solid.get_at((x, y)):
+            continue
+        r, g, b, a = get((x, y))
+        k = 8 if rng.random() < 0.5 else -9
+        put((x, y), (max(0, min(255, r + k)), max(0, min(255, g + k)), max(0, min(255, b + k)), a))
 
 
 def _px(surf, x, y, color, n=1):
