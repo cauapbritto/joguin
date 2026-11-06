@@ -64,11 +64,47 @@ class Baked:
         return self.dy + self.image.get_height()
 
 
+def finish(s, seed=0):
+    """Acabamento no padrão dos personagens: contorno escuro de 1 pixel em volta da peça, luz na
+    beirada de cima, sombra na de baixo e um grão fino para tirar o chapado. Brilhos e sombras
+    no chão (translúcidos) ficam de fora."""
+    size = s.get_size()
+    solid = pygame.mask.from_surface(s, 200)
+    if not solid.count():
+        return
+    grown = pygame.mask.Mask(size)
+    for off in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        grown.draw(solid, off)
+    ring = grown.copy()
+    ring.erase(solid, (0, 0))
+    top = solid.copy()                                   # pixel com vazio logo acima: luz
+    top.erase(solid, (0, 1))
+    bottom = solid.copy()                                # com vazio logo abaixo: sombra
+    bottom.erase(solid, (0, -1))
+    s.blit(top.to_surface(setcolor=(40, 36, 30, 0), unsetcolor=(0, 0, 0, 0)), (0, 0),
+           special_flags=pygame.BLEND_RGB_ADD)
+    s.blit(bottom.to_surface(setcolor=(170, 166, 176, 255), unsetcolor=(255, 255, 255, 255)), (0, 0),
+           special_flags=pygame.BLEND_RGB_MULT)
+    s.blit(ring.to_surface(setcolor=(18, 12, 16, 255), unsetcolor=(0, 0, 0, 0)), (0, 0))
+    rng = random.Random(seed)
+    rect = solid.get_bounding_rects()
+    get, put = s.get_at, s.set_at
+    for r in rect:
+        for _ in range(r.w * r.h // 40):
+            x, y = rng.randrange(r.x, r.right), rng.randrange(r.y, r.bottom)
+            if not solid.get_at((x, y)):
+                continue
+            cr, cg, cb, a = get((x, y))
+            k = 9 if rng.random() < 0.5 else -10
+            put((x, y), (max(0, min(255, cr + k)), max(0, min(255, cg + k)), max(0, min(255, cb + k)), a))
+
+
 def bake(fn, *args, **kw):
-    """Desenha ``fn(folha, x, y, ...)`` uma vez e recorta só o que foi pintado."""
+    """Desenha ``fn(folha, x, y, ...)`` uma vez, dá o acabamento e recorta só o que foi pintado."""
     canvas = pygame.Surface(CANVAS, pygame.SRCALPHA)
     ax, ay = ANCHOR
     fn(canvas, ax, ay, *args, **kw)
+    finish(canvas, fn.__name__)
     rect = canvas.get_bounding_rect()
     if rect.w == 0 or rect.h == 0:
         rect = pygame.Rect(ax, ay, 1, 1)
@@ -102,35 +138,84 @@ def rug(s, x, y, w, h, c1=(120, 40, 40), c2=(200, 150, 70)):
 
 
 def table(s, x, y, w=120, h=56):
-    shadow(s, x + w // 2, y + h + 8, w + 10)
-    box(s, WOOD_D, x + 6, y + h - 4, 8, 16)
-    box(s, WOOD_D, x + w - 14, y + h - 4, 8, 16)
-    box(s, WOOD, x, y, w, h)
-    box(s, WOOD_L, x, y, w, 4)
-    box(s, WOOD_D, x, y + h - 4, w, 4)
-    for k in range(3):                                       # pratos e um vaso no meio
-        box(s, (236, 232, 220), x + 24 + k * (w - 60) // 2, y + 18, 14, 10)
-    box(s, (90, 140, 200), x + w // 2 - 5, y + 10, 10, 14)
-    box(s, (230, 80, 90), x + w // 2 - 6, y + 4, 4, 4)
-    box(s, (250, 210, 90), x + w // 2 + 2, y + 5, 4, 4)
+    """Mesa de jantar de madeira com toalha, pratos, copos e um vaso de flores (x, y = canto de cima)."""
+    shadow(s, x + w // 2, y + h + 14, w + 16)
+    for lx in (x + 4, x + w - 12):                               # pés grossos
+        box(s, WOOD_D, lx, y + h - 2, 8, 18)
+        box(s, shade(WOOD_D, -18), lx + 6, y + h - 2, 2, 18)
+    box(s, shade(WOOD, -26), x, y + h - 8, w, 10)                # frente do tampo
+    box(s, shade(WOOD, -40), x, y + h, w, 2)
+    box(s, WOOD, x, y, w, h - 8)                                 # tampo, com as tábuas
+    for k in range(1, 4):
+        box(s, shade(WOOD, -14), x, y + k * (h - 8) // 4, w, 1)
+    for k in range(0, w, 37):
+        box(s, shade(WOOD, 10), x + k + 6, y + 4 + (k // 37 % 3) * 9, 14, 1)
+    box(s, WOOD_L, x, y, w, 2)
+    box(s, (226, 220, 204), x + 10, y + 14, w - 20, 22)          # toalha de renda no meio
+    box(s, (244, 240, 228), x + 10, y + 14, w - 20, 2)
+    for k in range(x + 12, x + w - 12, 6):
+        box(s, (200, 190, 170), k, y + 35, 3, 2)
+    for k in range(3):                                           # pratos com comida e copos
+        px = x + 22 + k * (w - 60) // 2
+        pygame.draw.ellipse(s, (250, 250, 248), (px, y + 6, 22, 12))
+        pygame.draw.ellipse(s, (210, 210, 206), (px + 3, y + 8, 16, 8))
+        box(s, (200, 120, 60), px + 7, y + 10, 8, 4)
+        box(s, (190, 220, 240), px + 26, y + 6, 5, 8)
+        box(s, (240, 250, 255), px + 26, y + 6, 5, 2)
+    cx = x + w // 2
+    box(s, (70, 120, 190), cx - 5, y + 16, 10, 14)               # vaso com flores
+    box(s, (110, 160, 220), cx - 5, y + 16, 3, 14)
+    for dx, dy, c in ((-6, 6, (230, 80, 90)), (0, 2, (250, 210, 90)), (6, 6, (240, 140, 180)), (-2, 9, (230, 80, 90))):
+        box(s, (70, 140, 60), cx + dx // 2, y + dy + 4, 1, 12 - dy)
+        box(s, c, cx + dx - 2, y + dy - 2, 5, 5)
 
 
-def chair(s, x, y):
-    shadow(s, x + 10, y + 26, 24)
-    box(s, WOOD_D, x, y, 20, 26)
-    box(s, WOOD, x + 2, y + 2, 16, 10)
+def chair(s, x, y, back=True):
+    """Cadeira de madeira vista de cima (x, y = canto de cima), com o encosto de ripas."""
+    shadow(s, x + 11, y + 30, 26)
+    box(s, WOOD_D, x + 1, y + 20, 3, 10)
+    box(s, WOOD_D, x + 18, y + 20, 3, 10)
+    box(s, WOOD, x, y + 10, 22, 12)                              # assento
+    box(s, WOOD_L, x, y + 10, 22, 2)
+    box(s, shade(WOOD, -24), x, y + 20, 22, 2)
+    if back:
+        box(s, WOOD_D, x, y - 4, 22, 4)                          # encosto
+        for k in range(3):
+            box(s, WOOD, x + 3 + k * 6, y, 4, 10)
+        box(s, WOOD_L, x, y - 4, 22, 1)
 
 
 def sofa(s, x, y, w=150, c=(70, 90, 140)):
-    shadow(s, x + w // 2, y + 46, w)
-    box(s, shade(c, -30), x, y, w, 44)
-    box(s, c, x + 8, y + 4, w - 16, 22)
-    box(s, shade(c, 20), x + 8, y + 4, w - 16, 3)
-    box(s, shade(c, -10), x + 10, y + 26, w - 20, 14)
-    box(s, shade(c, -40), x, y, 10, 44)
-    box(s, shade(c, -40), x + w - 10, y, 10, 44)
-    box(s, shade(c, 30), x + 20, y + 8, 22, 14)              # almofadas
-    box(s, (230, 200, 120), x + w - 42, y + 8, 22, 14)
+    """Sofá de três lugares visto de frente e de cima (x, y = canto de cima)."""
+    dark, darker, light = shade(c, -28), shade(c, -50), shade(c, 26)
+    shadow(s, x + w // 2, y + 50, w + 8)
+    for fx in (x + 8, x + w - 14):                               # pezinhos
+        box(s, WOOD_D, fx, y + 44, 6, 5)
+    box(s, dark, x + 8, y, w - 16, 20)                           # encosto
+    box(s, light, x + 10, y, w - 20, 2)
+    n = 3
+    cw = (w - 28) // n
+    for k in range(n):                                           # almofadas do encosto
+        bx = x + 14 + k * cw
+        box(s, c, bx, y + 3, cw - 2, 15)
+        box(s, light, bx + 2, y + 4, cw - 6, 2)
+        box(s, dark, bx + cw // 2 - 1, y + 9, 2, 2)              # botão do capitonê
+    box(s, darker, x + 8, y + 20, w - 16, 3)
+    for k in range(n):                                           # assentos
+        bx = x + 14 + k * cw
+        box(s, c, bx, y + 22, cw - 2, 14)
+        box(s, light, bx + 1, y + 22, cw - 4, 2)
+        box(s, dark, bx, y + 34, cw - 2, 2)
+    box(s, dark, x + 12, y + 36, w - 24, 8)                      # frente
+    box(s, darker, x + 12, y + 42, w - 24, 2)
+    for ax in (x, x + w - 14):                                   # braços redondos
+        box(s, dark, ax, y + 6, 14, 38)
+        box(s, c, ax + 2, y + 4, 10, 8)
+        box(s, light, ax + 3, y + 4, 8, 2)
+        box(s, darker, ax, y + 40, 14, 4)
+    box(s, (236, 206, 120), x + 20, y + 10, 18, 12)              # almofadas soltas
+    box(s, (250, 230, 160), x + 21, y + 10, 16, 2)
+    box(s, shade(c, 60), x + w - 40, y + 10, 18, 12)
 
 
 def shelf(s, x, y, w=80, seed=0):
@@ -159,14 +244,20 @@ def plant(s, x, y):
 
 
 def lamp(s, x, y):
-    g = pygame.Surface((140, 140), pygame.SRCALPHA)
-    for r in range(70, 0, -6):
-        pygame.draw.circle(g, (255, 210, 130, int(14 * (1 - r / 70)) + 2), (70, 70), r)
-    s.blit(g, (x - 70, y - 70))
-    shadow(s, x, y + 30, 22)
-    box(s, (60, 50, 40), x - 2, y, 4, 30)
-    box(s, (60, 50, 40), x - 8, y + 28, 16, 4)
-    pygame.draw.polygon(s, (230, 200, 140), [(x - 12, y), (x + 12, y), (x + 8, y - 12), (x - 8, y - 12)])
+    """Abajur de pé com cúpula de pano e a luz quente em volta (x, y = alto da haste)."""
+    g = pygame.Surface((160, 160), pygame.SRCALPHA)
+    for r in range(80, 0, -6):
+        pygame.draw.circle(g, (255, 210, 130, int(16 * (1 - r / 80)) + 2), (80, 80), r)
+    s.blit(g, (x - 80, y - 90))
+    shadow(s, x, y + 32, 26)
+    pygame.draw.ellipse(s, (54, 46, 40), (x - 10, y + 26, 20, 8))  # base
+    pygame.draw.ellipse(s, (90, 78, 66), (x - 8, y + 26, 16, 4))
+    box(s, (70, 60, 50), x - 1, y - 20, 3, 48)                    # haste
+    box(s, (120, 104, 86), x - 1, y - 20, 1, 48)
+    pygame.draw.polygon(s, (226, 196, 140), [(x - 15, y - 18), (x + 15, y - 18), (x + 10, y - 38), (x - 10, y - 38)])
+    pygame.draw.polygon(s, (250, 226, 170), [(x - 12, y - 20), (x - 4, y - 20), (x - 2, y - 36), (x - 8, y - 36)])
+    box(s, (190, 150, 100), x - 15, y - 20, 30, 2)               # barra da cúpula
+    box(s, (255, 236, 180), x - 8, y - 17, 16, 2)                # a lâmpada aparecendo embaixo
 
 
 def window_wall(s, x, y, w=120):
@@ -244,6 +335,13 @@ def pc_desk(s, x, y):
     box(s, WOOD_D, x + 128, y + 30, 8, 30)
     box(s, WOOD, x, y + 14, 140, 22)
     box(s, WOOD_L, x, y + 14, 140, 3)
+    box(s, shade(WOOD, -26), x, y + 28, 140, 8)                  # frente da mesa
+    box(s, shade(WOOD, -10), x + 100, y + 29, 34, 6)             # gaveta
+    box(s, (200, 170, 90), x + 115, y + 31, 4, 2)
+    box(s, (20, 20, 26), x + 24, y + 6, 4, 10)                   # caixinhas de som
+    box(s, (20, 20, 26), x + 96, y + 6, 4, 10)
+    box(s, (80, 200, 255), x + 25, y + 8, 2, 2)
+    box(s, (80, 200, 255), x + 97, y + 8, 2, 2)
     box(s, (30, 30, 36), x + 30, y - 34, 64, 42)                 # monitor
     box(s, (16, 28, 48), x + 33, y - 31, 58, 34)
     box(s, (60, 110, 170), x + 33, y - 31, 58, 3)
@@ -261,9 +359,32 @@ def pc_desk(s, x, y):
     box(s, (200, 200, 210), x + 90, y + 20, 6, 5)
     box(s, (240, 240, 240), x + 8, y + 12, 10, 10)
     box(s, (40, 70, 140), x + 18, y + 22, 10, 10)
-    box(s, (30, 30, 40), x + 52, y + 50, 24, 30)                 # cadeira gamer
-    box(s, CAU, x + 54, y + 52, 20, 22)
-    box(s, (20, 20, 26), x + 56, y + 80, 16, 6)
+    gamer_chair(s, x + 64, y + 46)
+
+
+def gamer_chair(s, x, y):
+    """Cadeira gamer do Cauanzera vista de trás, virada para o monitor (x, y = alto do encosto)."""
+    D, D2 = (28, 28, 36), (46, 46, 58)
+    shadow(s, x, y + 44, 40)
+    for k in range(5):                                           # base de estrela com rodinhas
+        ang = k * math.tau / 5 + 0.3
+        ex, ey = x + round(math.cos(ang) * 16), y + 40 + round(math.sin(ang) * 5)
+        pygame.draw.line(s, D2, (x, y + 40), (ex, ey), 2)
+        box(s, D, ex - 2, ey, 4, 3)
+    box(s, (110, 110, 120), x - 1, y + 28, 3, 12)                # pistão
+    box(s, D, x - 15, y + 22, 30, 8)                             # assento aparecendo dos lados
+    box(s, D2, x - 15, y + 22, 30, 2)
+    box(s, D, x - 12, y - 4, 24, 28)                             # encosto
+    box(s, CAU, x - 12, y - 4, 5, 28)                            # faixas azuis do Cauanzera
+    box(s, CAU, x + 7, y - 4, 5, 28)
+    box(s, shade(CAU, 40), x - 12, y - 4, 5, 2)
+    box(s, shade(CAU, 40), x + 7, y - 4, 5, 2)
+    box(s, D2, x - 5, y + 2, 10, 16)
+    box(s, D, x - 8, y - 12, 16, 9)                              # cabeceira
+    box(s, CAU, x - 6, y - 10, 12, 3)
+    for side in (-1, 1):                                         # braços
+        box(s, D2, x + side * 16 - 2, y + 12, 4, 12)
+        box(s, D, x + side * 16 - 3, y + 10, 6, 3)
 
 
 def lectern_book(s, x, y):
@@ -286,58 +407,122 @@ def lectern_book(s, x, y):
 
 
 def uno_armor(s, x, y):
-    """Armadura de enfeite feita de peças de um Uno branco: faróis retangulares, grade e a placa."""
-    W, W2, D = (240, 240, 236), (208, 208, 204), (40, 40, 46)
-    shadow(s, x, y + 2, 64)
-    box(s, (90, 90, 96), x - 26, y - 6, 52, 8)
-    box(s, (120, 120, 126), x - 3, y - 20, 6, 16)
-    box(s, W2, x - 16, y - 40, 12, 22)
-    box(s, W2, x + 4, y - 40, 12, 22)
-    box(s, (40, 40, 44), x - 16, y - 24, 12, 3)
-    box(s, (40, 40, 44), x + 4, y - 24, 12, 3)
-    box(s, W, x - 24, y - 80, 48, 42)                            # peitoral: a frente quadradinha do Uno
-    box(s, W2, x - 24, y - 42, 48, 4)
-    for fx in (x - 21, x + 9):                                   # faróis retangulares
-        box(s, (250, 244, 200), fx, y - 70, 12, 8)
-        box(s, (180, 170, 130), fx, y - 63, 12, 1)
-    box(s, D, x - 7, y - 70, 14, 8)                              # grade com frisos
-    for i in range(3):
-        box(s, (90, 90, 100), x - 6, y - 69 + i * 3, 12, 1)
-    box(s, (30, 30, 34), x - 24, y - 54, 48, 6)                  # para-choque preto
-    box(s, (250, 250, 250), x - 8, y - 52, 16, 4)                # placa
-    box(s, (30, 30, 30), x - 6, y - 51, 12, 1)
-    for sx in (x - 36, x + 24):                                  # ombreiras: para-lamas com a roda
-        box(s, W, sx, y - 82, 12, 16)
-        pygame.draw.circle(s, D, (sx + 6, y - 68), 6)
-        pygame.draw.circle(s, (150, 150, 156), (sx + 6, y - 68), 2)
-    box(s, W, x - 15, y - 104, 30, 24)                           # elmo: a cabine
-    box(s, (90, 140, 180), x - 12, y - 100, 24, 10)
-    box(s, (170, 210, 236), x - 10, y - 99, 6, 2)
-    box(s, W2, x - 15, y - 82, 30, 3)
-    box(s, (40, 40, 46), x - 17, y - 104, 34, 3)                 # bagageiro no teto
+    """Armadura de enfeite feita com peças de um Uno branco (x, y = pé do suporte): o elmo é a cabine
+    com o para-brisa e o bagageiro, o peito é a frente quadradona (faróis retangulares, grade
+    com as listras da Fiat, para-choque preto e a placa UNO), os ombros são as rodas de ferro e as
+    pernas, as lanternas traseiras em pé, do jeitinho do Uno."""
+    W, W2, W3 = (244, 244, 240), (214, 214, 210), (186, 186, 184)
+    D, D2 = (34, 34, 38), (58, 58, 64)
+    GLASS, GLASS_L = (96, 146, 186), (176, 214, 238)
+    shadow(s, x, y + 2, 72)
+    # suporte com a plaquinha
+    box(s, (70, 64, 78), x - 30, y - 8, 60, 10)
+    box(s, (98, 90, 108), x - 30, y - 8, 60, 2)
+    box(s, (40, 70, 150), x - 12, y - 6, 24, 7)
+    box(s, (230, 230, 240), x - 9, y - 4, 18, 1)
+    box(s, (120, 120, 126), x - 3, y - 22, 6, 14)
+    # pernas: as lanternas traseiras do Uno, em pé (vermelho em cima, âmbar e a ré branca)
+    for lx in (x - 18, x + 6):
+        box(s, W2, lx - 1, y - 52, 14, 32)
+        box(s, (200, 40, 40), lx + 2, y - 50, 8, 12)
+        box(s, (240, 90, 80), lx + 3, y - 49, 3, 10)
+        box(s, (236, 150, 40), lx + 2, y - 38, 8, 6)
+        box(s, (236, 236, 236), lx + 2, y - 32, 8, 5)
+        box(s, D, lx - 1, y - 24, 14, 4)                           # o pé: um pedaço de para-choque
+    # peito: a frente do Uno
+    box(s, W, x - 30, y - 96, 60, 46)
+    box(s, (255, 255, 255), x - 30, y - 96, 60, 3)                 # quina do capô
+    box(s, W2, x - 30, y - 90, 60, 2)
+    for side in (-1, 1):
+        hx = x + side * 15 - 9
+        box(s, (150, 150, 156), hx - 1, y - 85, 20, 12)            # aro do farol
+        box(s, (250, 246, 214), hx, y - 84, 18, 10)
+        box(s, (255, 255, 240), hx + 2, y - 83, 6, 3)
+        box(s, (230, 150, 40), x + side * 27 - 2, y - 84, 4, 10)   # pisca âmbar na quina
+    box(s, D, x - 5, y - 85, 10, 12)                               # grade preta no meio...
+    for i in range(5):                                             # ...com as cinco listras da Fiat
+        pygame.draw.line(s, (200, 200, 210), (x - 4 + i * 2, y - 75), (x - 1 + i * 2, y - 84), 1)
+    box(s, W2, x - 30, y - 71, 60, 3)
+    box(s, D, x - 32, y - 66, 64, 10)                              # para-choque preto, bem grosso
+    box(s, D2, x - 32, y - 66, 64, 2)
+    box(s, (250, 250, 250), x - 11, y - 65, 22, 9)                 # placa com UNO
+    box(s, (40, 70, 150), x - 11, y - 65, 22, 2)
+    letters = ((-6, ((0, 0), (0, 1), (0, 2), (0, 3), (1, 4), (2, 0), (2, 1), (2, 2), (2, 3))),          # U
+               (-2, ((0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (1, 1), (1, 2), (2, 2), (2, 3),
+                     (3, 0), (3, 1), (3, 2), (3, 3), (3, 4))),                                          # N
+               (3, ((1, 0), (0, 1), (0, 2), (0, 3), (1, 4), (2, 1), (2, 2), (2, 3))))                   # O
+    for dx, pixels in letters:
+        for px, py in pixels:
+            box(s, D, x + dx + px, y - 62 + py, 1, 1)
+    box(s, W3, x - 30, y - 56, 60, 6)                              # saia de baixo
+    # ombros: para-lamas com as rodas de ferro (pretas, aro cinza e os furos)
+    for side in (-1, 1):
+        cx = x + side * 36
+        box(s, W, cx - 9, y - 98, 18, 14)
+        box(s, W2, cx - 9, y - 86, 18, 2)
+        pygame.draw.circle(s, D, (cx, y - 82), 9)
+        pygame.draw.circle(s, (140, 140, 148), (cx, y - 82), 5)
+        pygame.draw.circle(s, (200, 200, 208), (cx, y - 82), 5, 1)
+        for a in range(4):
+            ang = a * math.tau / 4 + 0.6
+            box(s, D2, cx + round(math.cos(ang) * 3), y - 82 + round(math.sin(ang) * 3), 1, 1)
+        # braço: o retrovisor preto vira a manopla
+        box(s, D, cx - 4, y - 72, 8, 12)
+        box(s, (90, 120, 150), cx - 3, y - 71, 6, 4)
+    # elmo: a cabine vista de frente, para-brisa de viseira e o bagageiro no teto
+    pygame.draw.polygon(s, W, [(x - 22, y - 96), (x + 22, y - 96), (x + 17, y - 126), (x - 17, y - 126)])
+    pygame.draw.polygon(s, GLASS, [(x - 18, y - 99), (x + 18, y - 99), (x + 14, y - 121), (x - 14, y - 121)])
+    pygame.draw.polygon(s, GLASS_L, [(x - 12, y - 117), (x - 5, y - 117), (x - 11, y - 103), (x - 16, y - 103)])
+    pygame.draw.line(s, D, (x - 2, y - 100), (x - 13, y - 106), 1)  # limpador de para-brisa
+    box(s, W2, x - 17, y - 128, 34, 3)
+    box(s, D, x - 19, y - 132, 38, 2)                              # barras do bagageiro
+    box(s, D, x - 17, y - 132, 2, 5)
+    box(s, D, x + 15, y - 132, 2, 5)
+    for side in (-1, 1):                                           # retrovisores nas "orelhas"
+        box(s, D, x + side * 24 - 3, y - 104, 6, 5)
 
 
 # ── canto do Aryel ───────────────────────────
 def moto(s, x, y):
-    """Moto do Aryel, de lado (x, y = chão entre as rodas)."""
-    m = pygame.Surface((120, 80), pygame.SRCALPHA)
-    D = (26, 24, 30)
-    for wx in (22, 96):
-        pygame.draw.circle(m, D, (wx, 62), 15)
-        pygame.draw.circle(m, (120, 120, 130), (wx, 62), 6)
-        pygame.draw.circle(m, (60, 60, 66), (wx, 62), 15, 3)
-    pygame.draw.polygon(m, ARYEL, [(30, 50), (82, 50), (96, 36), (70, 30), (40, 32)])     # tanque e carenagem
-    pygame.draw.polygon(m, shade(ARYEL, -40), [(30, 50), (82, 50), (78, 56), (34, 56)])
-    box(m, (30, 26, 30), 34, 26, 30, 7)                                                   # banco
-    box(m, METAL, 14, 54, 26, 4)                                                          # escapamento
-    box(m, METAL_D, 82, 46, 4, 18)                                                        # garfo
-    box(m, METAL, 84, 16, 4, 18)
-    box(m, D, 80, 14, 16, 4)                                                              # guidão
-    box(m, (250, 240, 190), 98, 30, 8, 6)                                                 # farol
-    box(m, (240, 240, 240), 52, 38, 16, 3)
-    shadow(s, x, y + 4, 110)
+    """Moto esportiva do Aryel, de lado (x, y = chão entre as rodas), na cor dele."""
+    m = pygame.Surface((132, 84), pygame.SRCALPHA)
+    D, D2 = (26, 24, 30), (54, 52, 60)
+    dark, light = shade(ARYEL, -46), shade(ARYEL, 40)
+    for wx in (24, 106):                                         # rodas: pneu, disco e raios
+        pygame.draw.circle(m, D, (wx, 64), 16)
+        pygame.draw.circle(m, D2, (wx, 64), 16, 2)
+        pygame.draw.circle(m, (150, 150, 160), (wx, 64), 9)
+        pygame.draw.circle(m, (60, 60, 66), (wx, 64), 9, 1)
+        for a in range(5):
+            ang = a * math.tau / 5
+            pygame.draw.line(m, (90, 90, 100), (wx, 64), (wx + round(math.cos(ang) * 8), 64 + round(math.sin(ang) * 8)), 1)
+        pygame.draw.circle(m, (200, 200, 210), (wx, 64), 3)
+    pygame.draw.line(m, METAL_D, (24, 64), (52, 52), 4)          # balança traseira
+    box(m, (70, 70, 80), 46, 46, 30, 14)                         # motor
+    for k in range(4):
+        box(m, (110, 110, 120), 48 + k * 7, 48, 4, 10)
+    pygame.draw.line(m, METAL, (34, 60), (64, 60), 3)            # escapamento cromado
+    box(m, METAL, 12, 54, 26, 6)
+    box(m, (220, 220, 230), 12, 54, 26, 2)
+    box(m, D, 10, 54, 3, 6)
+    pygame.draw.line(m, METAL_D, (106, 64), (94, 22), 4)         # garfo dianteiro
+    pygame.draw.line(m, METAL, (104, 64), (92, 22), 1)
+    # carenagem: rabeta, tanque e bico
+    pygame.draw.polygon(m, ARYEL, [(14, 30), (40, 34), (58, 30), (76, 24), (98, 22), (112, 38), (100, 48),
+                                   (76, 50), (56, 46), (40, 44), (20, 40)])
+    pygame.draw.polygon(m, light, [(58, 30), (76, 24), (90, 23), (74, 30)])
+    pygame.draw.polygon(m, dark, [(20, 40), (40, 44), (56, 46), (76, 50), (100, 48), (98, 52), (60, 52), (24, 44)])
+    box(m, (240, 240, 240), 64, 38, 22, 3)                       # faixa branca
+    box(m, (240, 240, 240), 70, 42, 14, 2)
+    box(m, D, 30, 26, 26, 6)                                     # banco
+    box(m, D2, 30, 26, 26, 2)
+    box(m, (220, 50, 40), 12, 30, 5, 4)                          # lanterna
+    pygame.draw.polygon(m, (130, 180, 220), [(92, 12), (100, 12), (106, 22), (96, 22)])   # bolha
+    box(m, D, 86, 18, 14, 3)                                     # guidão
+    box(m, (250, 240, 190), 106, 28, 8, 7)                       # farol
+    box(m, (255, 255, 230), 108, 29, 3, 3)
+    shadow(s, x, y + 4, 120)
     s.blit(m, m.get_rect(midbottom=(x, y + 6)))
-
 
 def roulette_table(s, x, y):
     shadow(s, x, y + 40, 70)
@@ -409,7 +594,14 @@ def bakery(s, x, y):
     """Balcão da PADARIA DO JOÃO: vitrine de vidro com pães, caixa registradora e a placa."""
     shadow(s, x + 110, y + 64, 240)
     box(s, WOOD_D, x, y + 20, 220, 44)
-    box(s, WOOD, x + 4, y + 24, 212, 36)
+    box(s, (236, 226, 200), x + 4, y + 24, 212, 34)              # frente de azulejo
+    for tx in range(x + 4, x + 216, 12):
+        box(s, (206, 194, 168), tx, y + 24, 1, 34)
+    for ty in range(y + 24, y + 58, 12):
+        box(s, (206, 194, 168), x + 4, ty, 212, 1)
+    for tx in range(x + 10, x + 210, 24):                        # faixa de azulejo azul
+        box(s, (70, 120, 180), tx, y + 37, 8, 8)
+    box(s, WOOD_D, x + 4, y + 56, 212, 4)                        # rodapé
     box(s, WOOD_L, x, y + 18, 220, 4)
     box(s, (230, 220, 190), x + 10, y + 8, 180, 22)
     for i in range(12):                                          # pães, sonhos e pão de queijo

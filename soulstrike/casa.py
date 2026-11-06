@@ -397,7 +397,7 @@ class HubMatch(CoopMatch):
         self.speakers.append(Speaker("cauanzera", 2 * T + 24, OY + 2 * T + 10, head_y=OY + T - 24))
         put(art.pc_desk, 4 * T, OY + 2 * T, foot=((0, 20, 140, 18), (52, 66, 24, 16)))
         self.book = put(art.lectern_book, 2 * T + 10, OY + 5 * T + 20, foot=((-14, 30, 28, 12),))
-        put(art.uno_armor, 9 * T + 10, OY + 5 * T, foot=((-26, -10, 52, 14),))
+        put(art.uno_armor, 9 * T + 10, OY + 6 * T, foot=((-30, -10, 60, 14),))
         put(art.shelf, 9 * T + 10, OY + T - 20, 70, foot=((0, 50, 70, 20),))
         # canto do Aryel (alto à direita): retrato, pôster, moto, capacetes e a roleta
         put(art.frame_portrait, 44 * T, OY + T - 18, "aryel", flat=True)
