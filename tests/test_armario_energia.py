@@ -224,7 +224,7 @@ class DificuldadesTest(unittest.TestCase):
         self.assertEqual(dmg, sorted(dmg))
         self.assertEqual(DIFFICULTIES["ibrahim"]["label"], "IBRAHIM")
         self.assertIn("TOMA CUIDADO JOVI", DIFFICULTIES["ibrahim"]["tagline"])
-        self.assertIn("FENOMENAL", DIFFICULTIES["borba"]["tagline"])
+        self.assertIn("SENSACIONAL", DIFFICULTIES["borba"]["tagline"])
 
     def test_continues(self):
         for key, n in (("normal", 3), ("ibrahim", 1), ("borba", 1)):
