@@ -515,8 +515,9 @@ def uno_armor(s, x, y):
 
 
 # ── canto do Aryel ───────────────────────────
-def moto(s, x, y):
-    """Moto esportiva do Aryel, de lado (x, y = chão entre as rodas), na cor dele."""
+def moto(s, x, y, ground=True):
+    """Moto esportiva do Aryel, de lado (x, y = chão entre as rodas), na cor dele. ``ground``: com a
+    sombra no chão (sem ela, para empinar)."""
     m = pygame.Surface((132, 84), pygame.SRCALPHA)
     D, D2 = (26, 24, 30), (54, 52, 60)
     dark, light = shade(ARYEL, -46), shade(ARYEL, 40)
@@ -553,7 +554,8 @@ def moto(s, x, y):
     box(m, D, 86, 18, 14, 3)                                     # guidão
     box(m, (250, 240, 190), 106, 28, 8, 7)                       # farol
     box(m, (255, 255, 230), 108, 29, 3, 3)
-    shadow(s, x, y + 4, 120)
+    if ground:
+        shadow(s, x, y + 4, 120)
     s.blit(m, m.get_rect(midbottom=(x, y + 6)))
 
 def roulette_table(s, x, y):
