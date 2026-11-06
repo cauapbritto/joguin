@@ -10,6 +10,22 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.21.0": [
+        {"title": "O PC DO CAUANZERA", "scene": "computador", "lines": [
+            "Na Casa da turma, ATACAR na mesa do Cauanzera liga o CAUANZERA OS: arquivos, navegador e terminal.",
+            "O notebook do Albeguinio abre no modo hacker. A senha todo mundo já sabe.",
+            "A janela aparece na TV, em cima da mesa, e no celular de quem abriu.",
+        ]},
+        {"title": "LIBERAR TUDO", "scene": "computador", "lines": [
+            "No terminal do PC, liberar --tudo libera os 4 capítulos, os 4 corrompidos no duelo e as portas da casa.",
+            "No notebook é a invasão do cristal, com mais firula. Fica salvo para sempre, sem selo de recorde.",
+            "A tela fica branca com LIBERANDO... e a casa volta com tudo aberto.",
+        ]},
+        {"title": "OS CANTOS DA TURMA", "scene": "cantos", "lines": [
+            "A moto do Aryel dá grau. A roleta gira e para no GREEN ou no RED.",
+            "Na padaria do João, pegue a senha e espere o pão quentinho sair do forno.",
+        ]},
+    ],
     "1.20.0": [
         {"title": "CASA DA TURMA", "scene": "casa", "lines": [
             "A campanha começa na casa da turma. O CONTINUAR também volta por ela.",

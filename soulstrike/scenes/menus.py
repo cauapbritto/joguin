@@ -2043,6 +2043,87 @@ def _scene_casa(screen, ui, rect, t):
     casa.draw_bubble(screen, ui, ui.assets, line, hx, hy - 96)
 
 
+def _scene_computador(screen, ui, rect, t):
+    """O terminal do CAUANZERA OS digitando ``liberar --tudo`` e a barra enchendo, e o notebook do
+    Albeguinio do lado com a chuva verde."""
+    from .. import computador
+    pc = pygame.Rect(rect.x + 12, rect.y + 16, 200, 150)
+    pygame.draw.rect(screen, (30, 30, 36), pc.inflate(10, 10))
+    screen.fill((12, 12, 14), pc)
+    screen.fill((40, 70, 120), (pc.x, pc.y, pc.w, 14))
+    ui.text(screen, "TERMINAL", theme.XS, (255, 255, 255), (pc.x + 6, pc.y + 7), anchor="midleft", shadow=False)
+    k = t % 300
+    command = "liberar --tudo"
+    typed = command[:max(0, min(len(command), (k - 10) // 4))]
+    lines = [("C:\\> " + typed, (200, 200, 200))]
+    if k > 80:
+        lines.append(("  CONTINUAR? (S/N) S", computador.AMBER))
+    for i, label in enumerate(("CAPÍTULOS", "CORROMPIDOS", "PORTAS")):
+        n = max(0, min(10, (k - 100 - i * 40) // 4))
+        if k > 100 + i * 40:
+            lines.append((f"  [{'#' * n}{'-' * (10 - n)}] {label}", computador.HK))
+    if k > 240:
+        lines.append(("  TUDO LIBERADO.", computador.HK_L))
+    for i, (text, color) in enumerate(lines):
+        ui.text(screen, text, theme.XS, color, (pc.x + 6, pc.y + 26 + i * 15), anchor="midleft", shadow=False)
+    pygame.draw.rect(screen, (60, 60, 70), (pc.centerx - 20, pc.bottom + 5, 40, 14))
+    nb = pygame.Rect(rect.right - 132, rect.y + 120, 116, 74)
+    pygame.draw.rect(screen, (34, 34, 42), nb.inflate(8, 8))
+    screen.fill((2, 8, 4), nb)
+    for col in range(nb.x + 6, nb.right - 4, 12):
+        head = nb.y + (col * 7 + t * 2) % (nb.h + 40) - 20
+        for j in range(5):
+            y = head - j * 10
+            if nb.y + 2 < y < nb.bottom - 6:
+                ui.text(screen, "01AB"[(col + j) % 4], theme.XS, (180, 255, 190) if j == 0 else (40, 160 - j * 20, 60),
+                        (col, y), shadow=False)
+    if (t // 40) % 2:
+        ui.text(screen, "oi sumido", theme.XS, computador.PINK, nb.center, shadow=False)
+    screen.fill((60, 60, 70), (nb.x - 14, nb.bottom + 4, nb.w + 28, 8))
+    if k > 250:
+        from .campaign import draw_crystal
+        draw_crystal(screen, (rect.x + 260, rect.y + 60), 30, t)
+
+
+def _scene_cantos(screen, ui, rect, t):
+    """A moto do Aryel dando grau, a roleta girando e a senha da padaria."""
+    from .. import casa, casa_art
+    casa_art.use(ui.assets)
+    screen.fill((96, 62, 38), rect)
+    for y in range(rect.y, rect.bottom, 16):
+        screen.fill((66, 42, 26), (rect.x, y + 14, rect.w, 2))
+    moto = casa._bake(casa_art.moto, ground=False)
+    k = t % 160
+    up = min(1.0, k / 14) * min(1.0, max(0, 120 - k) / 16) if k < 120 else 0
+    angle = up * (24 + 4 * math.sin(k * 0.3))
+    mx, my = rect.x + 110, rect.y + 92
+    screen.blit(*casa.wheelie(moto, mx, my, angle))
+    if angle > 5:
+        ui.text(screen, "GRAU!", theme.S, (240, 150, 60), (mx, rect.y + 20))
+        for j in range(4):
+            pygame.draw.circle(screen, (170, 170, 176), (mx - 70 - j * 10 - (t * 2 + j * 7) % 14, my - 14 - j * 3), 5 - j)
+    table = casa._bake(casa_art.roulette_table)
+    rx, ry = rect.x + 270, rect.y + 70
+    screen.blit(table.image, (rx + table.dx, ry + table.dy))
+    spin = (t % 200)
+    off = sum(max(0.0, 0.5 * 0.97 ** f) for f in range(min(spin, 150)))
+    step = math.tau / 12
+    for j in range(12):
+        a0 = off + j * step
+        pygame.draw.polygon(screen, (50, 170, 80) if j % 2 == 0 else (200, 50, 50),
+                            [(rx, ry - 8), (rx + math.cos(a0) * 22, ry - 8 + math.sin(a0) * 10),
+                             (rx + math.cos(a0 + step) * 22, ry - 8 + math.sin(a0 + step) * 10)])
+    if spin > 150:
+        ui.text(screen, "GREEN!" if (t // 200) % 2 == 0 else "RED...", theme.XS,
+                (60, 220, 100) if (t // 200) % 2 == 0 else (240, 70, 70), (rx, ry - 40))
+    bakery = casa._bake(casa_art.bakery)
+    bx, by = rect.x + 20, rect.y + 196
+    screen.blit(bakery.image, (bx + bakery.dx, by + bakery.dy))
+    ticket = (t // 120) % 99 + 1
+    ui.text(screen, f"SENHA {ticket:03d}" if (t % 120) < 60 else "PÃO SAINDO!", theme.XS, theme.BONE,
+            (rect.x + 290, by - 40))
+
+
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
                "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
                "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
@@ -2051,7 +2132,7 @@ NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "n
                "controle": _scene_controle, "coroa": _scene_coroa, "ultra": _scene_ultra,
                "clepalovers": _scene_clepalovers, "clinica": _scene_clinica, "oi_sumido": _scene_oi_sumido,
                "mansao": _scene_mansao, "iara": _scene_iara,
-               "casa": _scene_casa}
+               "casa": _scene_casa, "computador": _scene_computador, "cantos": _scene_cantos}
 
 
 class NewsScene(_InfoScene):

@@ -11,7 +11,7 @@ import random
 import pygame
 
 from . import casa_art as art
-from . import config, crt, progress, theme
+from . import computador, config, crt, progress, theme
 from .arena import MAPS_BY_KEY
 from .campaign import TILE_PX, CoopMatch, Passage, _spread
 from .entities import Entity, Particle, Wall
@@ -107,6 +107,11 @@ DOORS = (
     ("porao", "PORÃO", "ZERE A CAMPANHA PARA ABRIR"),
 )
 
+FREE_FRAMES = 110          # tela branca do LIBERANDO... antes da casa voltar
+GRAU_FRAMES = 100          # moto do Aryel empinada
+SPIN_MIN = 0.004           # roleta para quando gira mais devagar que isso
+BREAD_FRAMES = 70          # da senha ao pão saindo
+USE_REACH = 44             # perto da mesa, da moto, da roleta ou do balcão
 TALK_REACH = 86
 TALK_FRAMES = 170
 TALK_GAP = 70
@@ -119,7 +124,9 @@ FLOWER_COLORS = ((240, 110, 150), (250, 200, 80), (170, 120, 240), (250, 250, 25
 
 
 def door_open(key):
-    """Porta trancada da casa já destravada pelo progresso salvo."""
+    """Porta trancada da casa já destravada pelo progresso salvo (ou pelo LIBERAR TUDO)."""
+    if computador.freed():
+        return True
     if key == "sotao":
         return progress.chapter_cleared(1)
     if key == "oficina":
@@ -281,6 +288,192 @@ class Bed(Entity):
                     surf.blit(fl.image, (round(x + fx + fl.dx), round(y + 22 + fl.dy * k)))
 
 
+def _near_rect(f, r, reach=USE_REACH):
+    if not f.alive_in_match:
+        return False
+    dx = max(r.left - f.x, 0, f.x - r.right)
+    dy = max(r.top - f.y, 0, f.y - r.bottom)
+    return math.hypot(dx, dy) < reach
+
+
+class Moto(Entity):
+    """A moto do Aryel: ATACAR perto dá grau (empina na roda de trás, fumaça e VRUUUM)."""
+
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.still = _bake(art.moto)
+        self.body = _bake(art.moto, ground=False)
+        self.rect = pygame.Rect(x - 60, y - 14, 120, 22)
+        self.grau = 0
+
+    @property
+    def sort_y(self):
+        return self.y + 2
+
+    @property
+    def tilt(self):
+        """Ângulo da empinada (graus): sobe rápido, balança lá em cima e desce."""
+        if self.grau <= 0:
+            return 0.0
+        t = GRAU_FRAMES - self.grau
+        up = min(1.0, t / 14) * min(1.0, self.grau / 16)
+        return up * (24 + 4 * math.sin(t * 0.3))
+
+    def ride(self, match):
+        if self.grau > 0:
+            return False
+        self.grau = GRAU_FRAMES
+        match.popup(self.x, self.y - 110, "GRAU!", (240, 150, 60))
+        match.popup(self.x + 40, self.y - 84, "VRUUUM", theme.BONE)
+        match.assets.play("dash", 0.6)
+        return True
+
+    def update(self, match):
+        if self.grau <= 0:
+            return
+        self.grau -= 1
+        if self.grau % 3 == 0:                                  # fumaça do escapamento
+            match.particles.append(Particle(self.x - 54, self.y - 14, random.uniform(-2.2, -1.0),
+                                            random.uniform(-0.8, -0.2), random.choice(((170, 170, 176), (130, 130, 138))),
+                                            random.randint(20, 34), random.randint(4, 7)))
+
+    def draw(self, surf, camera):
+        angle = self.tilt
+        if angle < 0.5:
+            b = self.still
+            surf.blit(b.image, (round(self.x + b.dx - camera.x), round(self.y + b.dy - camera.y)))
+            return
+        b = self.body
+        shade = pygame.Surface((110, 12), pygame.SRCALPHA)       # sombra fica no chão, curta na frente
+        pygame.draw.ellipse(shade, (0, 0, 0, 90), shade.get_rect())
+        surf.blit(shade, (round(self.x - 80 - camera.x), round(self.y - 2 - camera.y)))
+        img, rect = wheelie(b, self.x - camera.x, self.y - camera.y, angle)
+        surf.blit(img, rect)
+
+
+def wheelie(b, x, y, angle):
+    """A moto ``b`` (desenhada com o chão em x, y) empinada ``angle`` graus na roda de trás."""
+    img = pygame.transform.rotate(b.image, angle)
+    px, py = x - 42, y + 2                                  # pivô: onde a roda de trás toca o chão
+    w, h = b.image.get_size()
+    cx, cy = x + b.dx + w / 2 - px, y + b.dy + h / 2 - py
+    a = math.radians(angle)
+    rx, ry = cx * math.cos(a) + cy * math.sin(a), -cx * math.sin(a) + cy * math.cos(a)
+    return img, img.get_rect(center=(round(px + rx), round(py + ry)))
+
+
+class Roulette(Entity):
+    """A roleta do Aryel: ATACAR gira; parou, é GREEN ou RED."""
+
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.baked = _bake(art.roulette_table)
+        self.rect = pygame.Rect(x - 34, y - 20, 68, 60)
+        self.angle = 0.0
+        self.speed = 0.0
+        self.rest = 0                      # resultado na tela: a próxima girada espera um pouco
+        self.last = None
+
+    @property
+    def sort_y(self):
+        return self.y + 32
+
+    @property
+    def spinning(self):
+        return self.speed > 0
+
+    @property
+    def busy(self):
+        return self.spinning or self.rest > 0
+
+    def spin(self, match):
+        if self.busy:
+            return False
+        self.speed = random.uniform(0.42, 0.6)
+        match.assets.play("click", 0.4)
+        return True
+
+    def result(self):
+        """GREEN se a fatia embaixo do ponteiro (em cima) é verde."""
+        step = math.tau / 12
+        k = int(((-math.pi / 2 - self.angle) % math.tau) // step)
+        return "GREEN" if k % 2 == 0 else "RED"
+
+    def update(self, match):
+        if self.rest > 0:
+            self.rest -= 1
+        if not self.spinning:
+            return
+        self.angle = (self.angle + self.speed) % math.tau
+        self.speed *= 0.968
+        if self.speed < SPIN_MIN:
+            self.speed = 0.0
+            self.last = self.result()
+            self.rest = 60
+            green = self.last == "GREEN"
+            match.popup(self.x, self.y - 50, "GREEN!" if green else "RED...", (60, 220, 100) if green else (240, 70, 70))
+            match.assets.play("confirm" if green else "cancel", 0.5)
+            if green:
+                match.burst(self.x, self.y - 10, (90, 240, 120), 18, speed=3)
+
+    def draw(self, surf, camera):
+        b = self.baked
+        x, y = self.x - camera.x, self.y - camera.y
+        surf.blit(b.image, (round(x + b.dx), round(y + b.dy)))
+        cx, cy = x, y - 8
+        step = math.tau / 12
+        for k in range(12):
+            a0 = self.angle + k * step
+            a1 = a0 + step
+            c = (50, 170, 80) if k % 2 == 0 else (200, 50, 50)
+            pygame.draw.polygon(surf, c, [(cx, cy), (cx + math.cos(a0) * 22, cy + math.sin(a0) * 10),
+                                          (cx + math.cos(a1) * 22, cy + math.sin(a1) * 10)])
+        pygame.draw.ellipse(surf, (210, 170, 70), (cx - 23, cy - 11, 46, 22), 2)
+        pygame.draw.rect(surf, (240, 240, 240), (cx - 2, cy - 2, 4, 4))
+        pygame.draw.polygon(surf, (250, 250, 250), [(cx - 4, cy - 16), (cx + 4, cy - 16), (cx, cy - 9)])
+        pygame.draw.polygon(surf, (30, 30, 30), [(cx - 4, cy - 16), (cx + 4, cy - 16), (cx, cy - 9)], 1)
+
+
+class Bakery:
+    """O balcão da padaria do João: ATACAR pega a senha e, pouco depois, sai pão quentinho do forno."""
+
+    def __init__(self, rect, chimney):
+        self.rect = rect
+        self.chimney = chimney
+        self.ticket = 0
+        self.wait = 0
+        self.rest = 0                               # o pão acabou de sair: o aviso some antes da próxima senha
+
+    @property
+    def busy(self):
+        return self.wait > 0 or self.rest > 0
+
+    def order(self, match):
+        if self.busy:
+            return False
+        self.ticket = self.ticket % 99 + 1
+        self.wait = BREAD_FRAMES
+        match.popup(self.rect.centerx, self.rect.y - 90, f"SENHA {self.ticket:03d}", theme.BONE)
+        match.assets.play("click", 0.4)
+        return True
+
+    def update(self, match):
+        if self.rest > 0:
+            self.rest -= 1
+        if self.wait <= 0:
+            return
+        self.wait -= 1
+        if self.wait == 0:
+            self.rest = 60
+            match.popup(self.rect.centerx, self.rect.y - 90, "PÃO QUENTINHO SAINDO!", (250, 200, 110))
+            match.assets.play("confirm", 0.4)
+            x, y = self.chimney
+            for _ in range(16):                                 # fumacinha do forno
+                match.particles.append(Particle(x + random.uniform(-6, 6), y, random.uniform(-0.3, 0.3),
+                                                random.uniform(-1.6, -0.7), (236, 232, 226), random.randint(30, 50),
+                                                random.randint(4, 7)))
+
+
 class BookMenu:
     """O livro do Cauanzera aberto: o versículo da vez. Fecha com ATACAR ou ESQUIVA."""
 
@@ -348,6 +541,10 @@ class HubMatch(CoopMatch):
         self.beds = []
         self.doors = []                                     # (chave, aberta, ponto, dica)
         self.big_flower = False
+        self.computers = []                                 # (tipo, mesa, onde a janela fica presa)
+        self.notebook_open = False                          # senha do notebook já digitada nesta visita
+        self.freeing = 0                                    # LIBERAR TUDO: quadros da tela branca
+        self.reload = False
         self._furnish()
         r = pygame.Rect(cells_rect(cfg.markers["D"]))
         self.exit_rect = r
@@ -396,6 +593,7 @@ class HubMatch(CoopMatch):
         put(art.frame_portrait, 2 * T, OY + T - 18, "cauanzera", flat=True)
         self.speakers.append(Speaker("cauanzera", 2 * T + 24, OY + 2 * T + 10, head_y=OY + T - 24))
         put(art.pc_desk, 4 * T, OY + 2 * T, foot=((0, 20, 140, 18), (52, 66, 24, 16)))
+        self.computers.append(("pc", pygame.Rect(4 * T, OY + 2 * T + 20, 140, 18), (4 * T + 70, OY + 2 * T - 40)))
         self.book = put(art.lectern_book, 2 * T + 10, OY + 5 * T + 20, foot=((-14, 30, 28, 12),))
         put(art.uno_armor, 9 * T + 10, OY + 6 * T, foot=((-30, -10, 60, 14),))
         put(art.shelf, 9 * T + 10, OY + T - 20, 70, foot=((0, 50, 70, 20),))
@@ -403,20 +601,26 @@ class HubMatch(CoopMatch):
         put(art.frame_portrait, 44 * T, OY + T - 18, "aryel", flat=True)
         self.speakers.append(Speaker("aryel", 44 * T + 24, OY + 2 * T + 10, head_y=OY + T - 24))
         put(art.poster, 39 * T, OY + T - 14, 60, 34, (40, 150, 70), "GREEN!", flat=True)
-        put(art.moto, 41 * T, OY + 4 * T + 10, foot=((-56, -10, 112, 14),))
+        self.moto = Moto(41 * T, OY + 4 * T + 10)
+        self.props.append(self.moto)
+        self.arena.walls.append(Wall(41 * T - 56, OY + 4 * T, 112, 14, visible=False))
         put(art.helmet_rack, 45 * T + 20, OY + 3 * T + 10, foot=((-14, 62, 28, 12),))
-        put(art.roulette_table, 38 * T, OY + 5 * T + 20, foot=((-30, 24, 60, 16),))
+        self.roulette = Roulette(38 * T, OY + 5 * T + 20)
+        self.props.append(self.roulette)
+        self.arena.walls.append(Wall(38 * T - 30, OY + 5 * T + 44, 60, 16, visible=False))
         # canto do Albeguinio (embaixo à esquerda): retrato no cavalete, arquivo, mesa e o roteador
         put(art.easel_portrait, 3 * T, OY + 10 * T, "albeguinio", foot=((-20, 70, 40, 12),))
         self.speakers.append(Speaker("albeguinio", 3 * T, OY + 12 * T, head_y=OY + 10 * T - 34))
         put(art.file_cabinet, T + 6, OY + 12 * T, foot=((0, 56, 40, 18),))
         put(art.office_desk, 4 * T, OY + 11 * T, foot=((0, 20, 140, 18), (58, 52, 24, 18)))
+        self.computers.append(("notebook", pygame.Rect(4 * T, OY + 11 * T + 20, 140, 18), (4 * T + 70, OY + 11 * T - 30)))
         put(art.router, 9 * T, OY + 10 * T + 10)
         # canto do Borba Jr (embaixo à direita): retrato, a padaria do João, o forno e o exo
         put(art.easel_portrait, 46 * T, OY + 8 * T, "borba", foot=((-20, 70, 40, 12),))
         self.speakers.append(Speaker("borba", 46 * T, OY + 10 * T, head_y=OY + 8 * T - 34))
         put(art.bakery, 38 * T, OY + 11 * T, foot=((0, 20, 220, 44),))
         put(art.oven, 43 * T + 30, OY + 10 * T + 20, foot=((0, 38, 80, 32),))
+        self.bakery = Bakery(pygame.Rect(38 * T, OY + 11 * T, 220, 64), (43 * T + 70, OY + 10 * T - 12))
         put(art.exo_stand, 35 * T + 30, OY + 13 * T + 10, foot=((-24, -10, 48, 14),))
         # corrompidos liberados: cada um no canto do amigo
         for key, chapter, x, y in CORROMPIDOS:
@@ -477,6 +681,22 @@ class HubMatch(CoopMatch):
         return any(o is not speaker and o.talk > 0 and abs(o.x - speaker.x) < BUBBLE_ROOM
                    and abs(o.head_y - speaker.head_y) < 40 for o in self.speakers)
 
+    def computer_near(self, f):
+        """A mesa de computador ao alcance de ``f`` que ninguém está usando (ou None)."""
+        for kind, rect, anchor in self.computers:
+            if _near_rect(f, rect) and not any(getattr(m, "kind", None) == kind for m in self.menus.values()):
+                return kind, rect, anchor
+        return None
+
+    def free_everything(self, fighter):
+        """Chamado pelo computador quando o LIBERAR TUDO termina: tela branca e a casa recarrega."""
+        if self.freeing:
+            return
+        for f in [g for g in self.menus if g is not fighter]:
+            del self.menus[f]
+        self.freeing = 1
+        self.assets.play("confirm", 0.7)
+
     def book_near(self, f):
         return f.alive_in_match and math.hypot(f.x - self.book.x, f.y - (self.book.y + 40)) < BOOK_REACH
 
@@ -494,6 +714,13 @@ class HubMatch(CoopMatch):
             self.speakers.sort(key=lambda s: min(math.hypot(p.x - s.x, p.y - s.y) for p in players))
         for s in self.speakers:
             s.update(self)
+        self.bakery.update(self)
+        if self.freeing:
+            self.freeing += 1
+            if self.freeing >= FREE_FRAMES and not self.finished:
+                self.reload = True
+                self._finish(won=True)
+            return
         if not self.big_flower and self.beds and all(b.watered > 0 for b in self.beds):
             self.big_flower = True                    # os quatro canteiros regados juntos: a flor grande
             x, y = self.flower_at
@@ -509,9 +736,23 @@ class HubMatch(CoopMatch):
     def interact(self, f):
         if self.passage.try_force(self, f):
             return True
+        if self.freeing:
+            return True
         if self.book_near(f):
             self.menus[f] = BookMenu(self, f, next_verse())
             self.assets.play("click", 0.45)
+            return True
+        spot = self.computer_near(f)
+        if spot is not None:
+            kind, _, anchor = spot
+            self.menus[f] = computador.make(self, f, kind, anchor)
+            self.assets.play("select", 0.45)
+            return True
+        if _near_rect(f, self.moto.rect) and self.moto.ride(self):
+            return True
+        if _near_rect(f, self.roulette.rect) and self.roulette.spin(self):
+            return True
+        if _near_rect(f, self.bakery.rect) and self.bakery.order(self):
             return True
         bed = next((b for b in self.beds if b.can_water(f)), None)
         if bed is not None:
@@ -526,7 +767,9 @@ class HubMatch(CoopMatch):
         self.finished = True
 
     def next_scene(self):
-        from .scenes.campaign import start_phase
+        from .scenes.campaign import hub_scene, start_phase
+        if self.reload:                          # LIBERAR TUDO: a casa volta com tudo aberto
+            return hub_scene(self.game, self.run, story=self.story)
         return start_phase(self.game, self.run, story=self.story)
 
     def restart_scene(self):
@@ -543,6 +786,18 @@ class HubMatch(CoopMatch):
             sx, sy = cam.to_screen(self.book.x, self.book.y - 40)
             color = theme.BRASS if (self.frame // 15) % 2 else theme.BONE
             ui.text(screen, "ATACAR: LER O LIVRO", theme.XS, color, (round(sx), round(sy)))
+        blink = theme.BRASS if (self.frame // 15) % 2 else theme.BONE
+        for kind, rect, _ in self.computers:
+            if any(self.computer_near(p) and self.computer_near(p)[0] == kind for p in free):
+                sx, sy = cam.to_screen(rect.centerx, rect.y - 70)
+                text = "ATACAR: LIGAR O COMPUTADOR" if kind == "pc" else "ATACAR: ABRIR O NOTEBOOK"
+                ui.text(screen, text, theme.XS, blink, (round(sx), round(sy)))
+        for thing, text, busy in ((self.moto, "ATACAR: DAR GRAU", self.moto.grau > 0),
+                                  (self.roulette, "ATACAR: GIRAR A ROLETA", self.roulette.busy),
+                                  (self.bakery, "ATACAR: PEGAR A SENHA", self.bakery.busy)):
+            if not busy and any(_near_rect(p, thing.rect) for p in free):
+                sx, sy = cam.to_screen(thing.rect.centerx, thing.rect.y - (100 if thing is self.bakery else 50))
+                ui.text(screen, text, theme.XS, blink, (round(sx), round(sy)))
         for b in self.beds:
             if any(b.can_water(p) for p in free) and b.watered <= 0:
                 sx, sy = cam.to_screen(b.rect.centerx, b.rect.y - 14)
@@ -556,9 +811,38 @@ class HubMatch(CoopMatch):
                 ui.text(screen, hint, theme.XS, theme.BONE, (round(sx), round(sy)))
         self.draw_ground(screen, cam, ui)
         for f, menu in self.menus.items():
+            if isinstance(menu, computador.Computer):
+                crt.panel(screen, (menu.kind, f.slot), lambda s, menu=menu: menu.draw(s, ui, cam))
+                continue
             at = cam.to_screen(f.x, f.y)
             crt.panel(screen, ("livro", f.slot), lambda s, menu=menu, at=at: menu.draw(s, ui, at))
         top = self.door_area.y
         sx, sy = cam.to_screen(self.exit_rect.centerx, top)
         ui.text(screen, "SAÍDA PARA A AVENTURA", theme.XS, theme.BRASS, (round(sx), round(sy) - 64))
         self.draw_passage(screen, ui, self.passage, self.door_area, (self.exit_rect.centerx, top - 4))
+
+    def draw(self, screen, ui):
+        super().draw(screen, ui)
+        if self.freeing:
+            draw_freeing(screen, ui, self.freeing)
+
+
+def draw_freeing(screen, ui, frame):
+    """A tela branca do LIBERAR TUDO: clareia, LIBERANDO... com os pontinhos e a barra enchendo."""
+    W, H = config.SCREEN_W, config.SCREEN_H
+    k = min(1.0, frame / 24)
+    white = pygame.Surface((W, H))
+    white.fill((250, 250, 248))
+    white.set_alpha(round(255 * k))
+    screen.blit(white, (0, 0))
+    if k < 0.8:
+        return
+    dots = "." * (1 + (frame // 10) % 3)
+    ui.text(screen, "LIBERANDO" + dots, theme.XL, (40, 40, 52), (W // 2, H // 2 - 20), shadow=False)
+    bar = pygame.Rect(0, 0, 320, 10)
+    bar.center = (W // 2, H // 2 + 30)
+    pygame.draw.rect(screen, (40, 40, 52), bar, 1)
+    fill = min(1.0, frame / (FREE_FRAMES - 10))
+    screen.fill((84, 162, 222), (bar.x + 2, bar.y + 2, round((bar.w - 4) * fill), bar.h - 4))
+    ui.text(screen, "CAPÍTULOS, CORROMPIDOS E PORTAS DA CASA", theme.XS, (90, 90, 100), (W // 2, H // 2 + 56),
+            shadow=False)

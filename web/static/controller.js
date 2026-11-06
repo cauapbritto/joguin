@@ -942,6 +942,11 @@
         box.appendChild(grid);
       }
       box.appendChild(el("p", "dnote", "AS 3 ARMAS SOMEM E AS SUAS VOLTAM AO +0."));
+    } else if (info.type === "tela") {      // computador da casa: o que está na tela agora
+      var tela = el("div", "tela tela-" + (info.look || "pc"));
+      (info.lines || []).forEach(function (line) { tela.appendChild(el("div", "tl", line || "\u00a0")); });
+      box.appendChild(tela);
+      return;
     } else {
       var nb = el("b", "", r.label);
       nb.style.color = r.color;
@@ -1018,10 +1023,11 @@
     }
     var buy = $("shop-buy");
     buy.disabled = !cur || !cur.ok || !cur.afford;
-    buy.textContent = shop.kind === "altar" ? "ESCOLHER" : shopPick === "doar" ? "DOAR…" :
+    buy.textContent = shop.action ? shop.action : shop.kind === "altar" ? "ESCOLHER" : shopPick === "doar" ? "DOAR…" :
       cur && cur.id === "fundir" ? "FUNDIR" : shop.kind === "ferreiro" ? "FORJAR" : "COMPRAR";
     var note = $("shop-note");
     if (cur && !cur.ok) note.textContent = (cur.info && cur.info.sub) || "INDISPONÍVEL";
+    else if (shop.action) note.textContent = "";
     else if (cur && !cur.afford) note.textContent = "FALTAM " + (cur.cost - shop.souls) + " ALMAS";
     else if (note.textContent !== "PEDIDO ENVIADO" && note.textContent.indexOf("DOOU") !== 0) note.textContent = "";
     renderGift(shop);

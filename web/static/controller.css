@@ -201,6 +201,12 @@ body.locked .opt { opacity: .55; }
 .shop-detail .foot { display: flex; align-items: baseline; gap: 10px; margin-top: auto; }
 .shop-detail .foot strong { font-weight: normal; color: #c8aaff; font-size: 13px; }
 .shop-detail .foot span { font-size: 8px; color: var(--muted); }
+#view-shop[data-kind="pc"] .shop-wallet, #view-shop[data-kind="notebook"] .shop-wallet { visibility: hidden; }
+.shop-detail .tela { flex: 1; min-height: 0; overflow: hidden; padding: 6px 8px; border: 1px solid #3a4a70;
+  background: #0c1224; color: #cfe0ff; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 9px;
+  line-height: 1.5; display: flex; flex-direction: column; justify-content: flex-end; }
+.shop-detail .tela .tl { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.shop-detail .tela-notebook { background: #020804; border-color: #2c6a3a; color: #5af078; }
 .shop-detail .trans { display: flex; align-items: center; gap: 8px; }
 .shop-detail .dtxt { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .shop-detail .dtxt small { font-size: 8px; color: var(--muted); }
