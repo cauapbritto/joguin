@@ -450,14 +450,6 @@ def soccer_maps(cleared=None):
     return tuple(k for k in SOCCER_MAPS if cleared or k not in CUIABRASA_MAPS)
 
 
-def _lobby(theme):
-    """Acampamento da campanha (lobby) no tema da fase, desenhado como texto em lobbies.py."""
-    name, rows = lobbies.LOBBIES[theme]
-    size, walls, void, markers = lobbies.parse(rows)
-    return MapConfig(f"acampamento_{theme}", name, size, walls=walls, spawns=markers["S"], battle=False,
-                     theme=lobbies.LOBBY_SCENERY.get(theme, theme), void=void, markers=markers)
-
-
 def _room(kind, theme):
     """Sala inicial ou corredor da fase (progressão contínua), no cenário do acampamento da fase."""
     name, rows = lobbies.INICIO if kind == "inicio" else lobbies.corredor_rows(theme)
@@ -474,7 +466,6 @@ def _casa():
                      theme="casa", void=void, markers=markers)
 
 
-MAPS += [_lobby(theme) for theme in lobbies.LOBBIES]
 MAPS.append(_casa())
 MAPS += [_room(kind, theme) for theme in lobbies.CHAPTER_OF for kind in ("inicio", "corredor")]
 MAPS_BY_KEY = {m.key: m for m in MAPS}

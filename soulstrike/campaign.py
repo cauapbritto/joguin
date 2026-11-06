@@ -119,10 +119,6 @@ class Phase:
     chapter: int = 1          # capítulo 1: Templo Gelado; capítulo 2: Lag Lobby
 
     @property
-    def lobby(self):
-        return f"acampamento_{self.theme}"
-
-    @property
     def start_room(self):
         return f"inicio_{self.theme}"
 
@@ -1979,6 +1975,9 @@ class LobbyMatch(CoopMatch):
         else:
             self._stall("loja", markers["L"][0], mini=True)      # a lojinha: só o básico
             self._stall("altar", markers["X"][0])                # desafio opcional da fase
+        from . import enfeites, lobbies                          # enfeites do capítulo nos cantos
+        rows = (lobbies.corredor_rows(run.phase.theme) if self.back else lobbies.INICIO)[1]
+        enfeites.furnish(self, rows, run.phase.chapter, joke=self.back)
         if chapter_cleared(4) and self.players:    # recompensa do capítulo 4: a IARA mascote
             from .mansao import IaraMascot
             self.add_effect(IaraMascot(self.players[0], self.assets.sprites.get("iara_nucleo")))

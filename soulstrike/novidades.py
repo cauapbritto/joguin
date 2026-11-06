@@ -10,6 +10,17 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.22.0": [
+        {"title": "CORREDORES DECORADOS", "scene": "corredores", "lines": [
+            "A sala inicial e o corredor de cada capítulo ganharam enfeites nos cantos, sem fechar o caminho.",
+            "Trilha com tochas, barris e cogumelos. Lag Lobby com racks, cones e bebedouro.",
+            "Clepalovers com cadeiras de espera. Mansão com retratos, bustos e pilhas de papel.",
+        ]},
+        {"title": "A PLACA DO CORREDOR", "scene": "corredores", "lines": [
+            "Todo corredor tem uma placa perto de onde o grupo chega. Leia antes de seguir.",
+            "Os acampamentos antigos saíram do jogo: a fase só vai em frente.",
+        ]},
+    ],
     "1.21.0": [
         {"title": "O PC DO CAUANZERA", "scene": "computador", "lines": [
             "Na Casa da turma, ATACAR na mesa do Cauanzera liga o CAUANZERA OS: arquivos, navegador e terminal.",
