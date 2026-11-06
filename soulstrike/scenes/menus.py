@@ -352,6 +352,7 @@ COVER_SCENES = {
     "soccer1": ("campo_futebol", 0.5, 0.5, (255, 250, 220), None),
     "soccer2": ("campo_cuiabrasa", 0.5, 0.5, (255, 230, 170), None),
     "penaltis": ("campo_futebol", 0.93, 0.5, (255, 250, 220), None),
+    "penaltis1": ("campo_futebol", 0.07, 0.5, (255, 250, 220), None),     # 1 x 1: o outro gol
     "desafio_goleiro": ("campo_futebol", 0.93, 0.5, (255, 250, 220), None),
     "treino_futebol": ("campo_futebol", 0.3, 0.5, (255, 250, 220), None),
     "treino_penaltis": ("campo_cuiabrasa", 0.93, 0.5, (255, 230, 170), None),
@@ -2033,11 +2034,14 @@ class NewsScene(_InfoScene):
     heading = "NOVIDADES"
     phase = "news"
     PANEL = pygame.Rect(56, 92, config.SCREEN_W - 112, 360)
+    AUTO_VERSIONS = 6
 
     def __init__(self, game, news, back=None):
         from .. import novidades
         super().__init__(game)
-        self.news = news if back is not None else news[:2]     # sozinha: só as duas versões mais novas
+        # sozinha: todas as versões que o jogador ainda não viu (até AUTO_VERSIONS, as mais novas).
+        # Antes eram só 2, e quem pulou da 1.13 para a 1.16 nunca via o capítulo 4 (1.14).
+        self.news = news if back is not None else news[:self.AUTO_VERSIONS]
         self.back = back
         self.pages = [p for version, entry in self.news for p in novidades.pages_of(version, entry)]
         self.page = 0

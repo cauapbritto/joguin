@@ -31,6 +31,17 @@ class Novidades(unittest.TestCase):
             novidades.NEWS.clear()
             novidades.NEWS.update(old)
 
+    def test_quem_pulou_versoes_ve_todas(self):
+        """Quem vinha da 1.13 e atualizou direto para a mais nova também vê o capítulo 4 (1.14)."""
+        g = game()
+        scene = NewsScene(g, novidades.pending("1.13.0"))
+        versions = [v for v, *_ in scene.pages]
+        self.assertIn("1.14.0", versions)
+        self.assertIn(__version__, versions)
+        self.assertEqual(versions[0], __version__)        # a mais nova primeiro
+        titles = [t for _, t, *_ in scene.pages]
+        self.assertIn("CAPÍTULO 4: MANSÃO DO CARIMBO", titles)
+
     def test_marca_como_vista(self):
         novidades.mark_seen()
         self.assertEqual(settings.get("versao_vista"), __version__)

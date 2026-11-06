@@ -10,6 +10,17 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.17.0": [
+        {"title": "PÊNALTIS 1 x 1", "scene": "penalti", "lines": [
+            "No menu do futebol, PÊNALTIS 1 x 1: um herói de cada lado, que bate e defende.",
+            "5 cobranças para cada um e morte súbita. Sem o P2, a CPU vai para o gol (1 2 3 escolhe a dificuldade).",
+            "A disputa de antes continua lá, agora com o nome PÊNALTIS 2 x 2.",
+        ]},
+        {"title": "CAPAS DOS MODOS", "scene": "modos", "lines": [
+            "As capas da lista de modos mostram o cenário de verdade, com luz e partículas.",
+            "Os nomes dos modos não saem mais cortados.",
+        ]},
+    ],
     "1.16.0": [
         {"title": "LOJA E FERREIRO NO CELULAR", "scene": "loja", "lines": [
             "Cada linha da loja e do ferreiro no celular mostra a imagem da arma.",
