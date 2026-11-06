@@ -14,7 +14,7 @@ import pygame
 from . import config, crt, energia, hud, theme
 from .progress import chapter_cleared
 from .ai import FighterAI
-from .entities import Particle, Pickup
+from .entities import Particle, Pickup, Wall
 from .enemies import BIG_KINDS, CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_enemy
 from .arena import MAPS_BY_KEY
 from .matches import Match, Result, _separate
@@ -22,7 +22,7 @@ from .net.remote import hub
 from .ui import darken
 from .data import PHASE_RELICS, RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
 from .armario import RACK_SIZE, Armario, token_of, weapon_of
-from .dungeon import Campfire, Chest, ExitDoor, Gate, GroundWeapon, RelicDrop
+from .dungeon import Campfire, Chest, ExitDoor, Gate, GroundWeapon, PhasePortal, RelicDrop, StartButton
 from .hazards import make_hazard
 from .lobbies import cells_rect
 from .market import CURSE_HP, CURSE_SPEED, CURSES, ENCHANTS, MAX_LEVEL, MAX_REROLLS, SOUL_COLOR, MarketMenu, Stall, soul_split
@@ -108,9 +108,10 @@ class Dungeon:
 
 @dataclass(frozen=True)
 class Phase:
-    """Uma fase: o acampamento (lobby, no tema da fase) e duas masmorras.
+    """Uma fase: a sala inicial, duas masmorras e o corredor entre elas (no tema da fase).
 
-    Caminho: acampamento → masmorra 1 → acampamento (baú escondido) → masmorra 2 → portal."""
+    Caminho, sem voltar: sala inicial (lojinha e altar) → masmorra 1 → corredor (baú, fogueira,
+    loja, ferreiro e armário) → masmorra 2 → portal para a próxima fase."""
     key: str
     name: str
     theme: str                # tema do acampamento (floresta, calabouco, templo_gelado, lag_...)
@@ -120,6 +121,14 @@ class Phase:
     @property
     def lobby(self):
         return f"acampamento_{self.theme}"
+
+    @property
+    def start_room(self):
+        return f"inicio_{self.theme}"
+
+    @property
+    def corridor(self):
+        return f"corredor_{self.theme}"
 
 
 LEFT = ((180, 640), (180, 760), (260, 640), (260, 760))
@@ -253,7 +262,7 @@ RUSH_UPGRADES = 4             # Reunião dos Corrompidos: melhorias sorteadas an
 CHAPTER2_SOULS = 120          # começando do capítulo 2: almas para a loja da primeira fase
 CHAPTER2_UPGRADES = 2         # ... e melhorias sorteadas (mais a escolhida antes de entrar)
 
-# etapas de uma fase (CampaignRun.stage)
+# etapas de uma fase (CampaignRun.stage): sala inicial, masmorra 1, corredor (LOBBY_BACK) e masmorra 2
 LOBBY_START, DUNGEON_1, LOBBY_BACK, DUNGEON_2 = range(4)
 STAGE_REVIVE = 0.3
             # quem estava caído ao fim de uma masmorra volta com essa vida
@@ -403,7 +412,7 @@ class CampaignRun:
         return True
 
     def begin_phase(self):
-        """Começa a fase no acampamento e guarda como tudo estava (para TENTAR DE NOVO)."""
+        """Começa a fase na sala inicial e guarda como tudo estava (para TENTAR DE NOVO)."""
         self.stage = LOBBY_START
         self.chest_open = False
         self._snapshot = self._state()
@@ -577,8 +586,77 @@ TELEPORT_FRAMES = 80
 LEASH_STEP = 40               # correção grande (teletransporte) só acima disso; abaixo, anda passo a passo
 
 
+PASSAGE_FRAMES = 120         # 2 s de contagem na passagem coletiva (zera se alguém sair)
+PASSAGE_SOLO = 60            # sozinho, só um respiro de 1 s
+FORCE_WAIT = 20 * config.FPS     # alguém travando o grupo por 20 s: o P1 pode ir mesmo assim
+TILE_PX = 40
+
+
+class Passage:
+    """Passagem coletiva: porta da sala inicial, do corredor, saída da masmorra 1 e portal.
+
+    A contagem só começa com todos os jogadores ATIVOS dentro da área, zera se alguém sair e
+    dispara uma vez só. Ativo = em pé e com controle presente (as vagas 1 e 2 têm teclado e
+    contam sempre; as outras precisam do celular ou do controle conectado): um celular que caiu
+    não trava o grupo, e o herói dele vai junto. Se alguém trava o grupo por 20 s com gente na
+    porta, o P1 (a coroa) pode ir mesmo assim com ATACAR."""
+
+    def __init__(self, contains):
+        self.contains = contains        # contains(lutador) -> está dentro da área?
+        self.timer = 0
+        self.wait = 0
+        self.gone = False
+        self.inside = []
+        self.missing = []
+
+    def frames(self):
+        return PASSAGE_SOLO if len(self.inside) + len(self.missing) <= 1 else PASSAGE_FRAMES
+
+    @property
+    def counting(self):
+        return self.timer > 0 and not self.gone
+
+    @property
+    def seconds_left(self):
+        return max(1, math.ceil((self.frames() - self.timer) / config.FPS))
+
+    @property
+    def can_force(self):
+        return not self.gone and self.wait >= FORCE_WAIT
+
+    def update(self, match):
+        """Um quadro. Devolve True no quadro em que o grupo vai (uma vez só)."""
+        if self.gone:
+            return False
+        present = match.present_slots()
+        active = [p for p in match.alive_players if p.slot in present]
+        self.inside = [p for p in active if self.contains(p)]
+        self.missing = [p for p in active if p not in self.inside]
+        if active and not self.missing:
+            before = self.seconds_left if self.timer else None
+            self.timer += 1
+            if self.timer >= self.frames():
+                self.gone = True
+                return True
+            if before != self.seconds_left:
+                match.assets.play("select", 0.35)          # o tique de cada segundo
+        else:
+            self.timer = 0
+        self.wait = self.wait + 1 if self.inside and self.missing else 0
+        return False
+
+    def try_force(self, match, f):
+        """O P1 aperta ATACAR depois da espera longa: o grupo vai sem quem está travando."""
+        from .host import host_slot
+        if not self.can_force or f.slot != host_slot(match.session):
+            return False
+        self.gone = True
+        match.leave()
+        return True
+
+
 class CoopMatch(Match):
-    """Base das etapas da campanha (acampamento e masmorra): os jogadores do mesmo time,
+    """Base das etapas da campanha (sala inicial, corredor e masmorra): os jogadores do mesmo time,
     a mira, levantar quem caiu, os itens, o escurecer entre uma etapa e outra e o HUD."""
 
     min_zoom = 0.5            # bem de longe, a pixel art fica no tamanho original (2 por 1)
@@ -851,7 +929,7 @@ class CoopMatch(Match):
                 self.drop_held(f)
 
     def rack_near(self, f):
-        """O armário do acampamento, se este jogador está perto dele (a masmorra não tem)."""
+        """O armário do corredor, se este jogador está perto dele (a masmorra não tem)."""
         return None
 
     def droppable(self, f):
@@ -1079,6 +1157,41 @@ class CoopMatch(Match):
         alive = self.alive_players
         return bool(alive) and all(math.hypot(p.x - x, p.y - y) < radius for p in alive)
 
+    def present_slots(self):
+        """Vagas com controle presente: as do teclado (1 e 2) e quem tem celular ou controle conectado."""
+        try:
+            connected = set(self.game.connected_slots())
+        except AttributeError:
+            connected = set()
+        return {p.slot for p in self.players if p.slot in (1, 2)} | connected
+
+    def draw_passage(self, screen, ui, passage, area, label_at, show_area=True):
+        """A área da passagem brilhando, um sinal em cima de quem já está dentro, quem falta e a contagem."""
+        cam = self.camera
+        x0, y0 = cam.to_screen(area.x, area.y)
+        x1, y1 = cam.to_screen(area.right, area.bottom)
+        rect = pygame.Rect(round(x0), round(y0), max(1, round(x1 - x0)), max(1, round(y1 - y0)))
+        if show_area:
+            pulse = 0.5 + 0.5 * math.sin(self.frame * (0.35 if passage.counting else 0.12))
+            layer = pygame.Surface(rect.size, pygame.SRCALPHA)
+            color = theme.MOSS if passage.counting else theme.BRASS
+            layer.fill((*color[:3], round(26 + 34 * pulse)))
+            pygame.draw.rect(layer, (*color[:3], round(120 + 100 * pulse)), layer.get_rect(), 2)
+            screen.blit(layer, rect)
+        for p in passage.inside:
+            sx, sy = cam.to_screen(p.x, p.y - 58)
+            ui.text(screen, "OK", theme.XS, theme.MOSS, (round(sx), round(sy)))
+        sx, sy = cam.to_screen(*label_at)
+        if passage.inside and passage.missing:
+            waiting = " ".join(p.label for p in passage.missing)
+            ui.text(screen, f"ESPERANDO {waiting}", theme.XS, theme.BRASS, (round(sx), round(sy) + 24))
+            if passage.can_force:
+                from .host import host_slot
+                ui.text(screen, f"P{host_slot(self.session)}: ATACAR PARA IR ASSIM MESMO", theme.XS, theme.BONE,
+                        (round(sx), round(sy) + 40))
+        elif passage.counting:
+            ui.text(screen, str(passage.seconds_left), theme.XL, theme.BONE, (rect.centerx, rect.y - 30))
+
     def leave(self):
         """Escurece a tela e passa para a próxima etapa."""
         if not self.leaving:
@@ -1182,9 +1295,9 @@ _edge_arrow = hud.edge_arrow
 
 
 class CampaignMatch(CoopMatch):
-    """Uma masmorra: ondas de inimigos saem de portais. Limpou a 1ª, abre a porta de volta para o
-    acampamento; limpou a 2ª, aparece na tela o botão TELETRANSPORTE DE FASE: quando todos
-    confirmam (ATACAR no teclado, o botão no celular ou clique), o grupo vai para a próxima fase."""
+    """Uma masmorra: o grupo entra, se arruma e aperta o botão INICIAR BATALHA; aí as ondas de
+    inimigos saem dos portais. Limpou a 1ª, abre a porta para o corredor; limpou a 2ª, aparece o
+    portal da fase. Nos dois casos o grupo vai junto (passagem coletiva: todos dentro, 2 s)."""
 
     def __init__(self, game, run):
         self.dungeon_index = run.dungeon_index
@@ -1199,9 +1312,9 @@ class CampaignMatch(CoopMatch):
         self.state = "intro"
         self.state_timer = INTRO_FRAMES
         self.slain_boss = False
-        self.exit = None                # porta de volta (só na masmorra 1)
-        self.votes = set()              # quem já confirmou o teletransporte (masmorra 2)
-        self.vote_button = None         # retângulo do botão na tela (para o clique)
+        self.exit = None                # porta para o corredor (masmorra 1) ou portal da fase (masmorra 2)
+        self.passage = None             # passagem coletiva da porta ou do portal
+        self.start_button = None        # INICIAR BATALHA (aparece depois da apresentação)
         self.hazard = make_hazard(self.dungeon.hazard, self.arena)   # laser no chão, vento...
         self.notices = []               # balões do "oi sumido" (capítulo 3), na tela
         self.daiwone_at = None          # quadro em que a Daiwone chega (None = não vem / já veio)
@@ -1224,26 +1337,20 @@ class CampaignMatch(CoopMatch):
     def objective(self):
         if self.exit is not None:
             return self.exit.x, self.exit.y
+        if self.state == "ready" and self.start_button is not None:
+            return self.start_button.x, self.start_button.y
         return None
-
-    @property
-    def voting(self):
-        return self.state == "vote"
-
-    @property
-    def wants_cursor(self):
-        return self.voting                  # o botão do teletransporte também aceita clique
 
     @property
     def objective_text(self):
         if self.state == "teleport":
             return "TELETRANSPORTANDO..."
-        if self.voting:
-            alive = self.alive_players
-            ready = sum(1 for p in alive if p in self.votes)
-            return f"TELETRANSPORTE DE FASE: TODOS CONFIRMAM ({ready}/{len(alive)})"
+        if self.state == "ready":
+            return "PRONTOS? ATACAR NO BOTÃO PARA INICIAR A BATALHA"
+        if self.state == "portal":
+            return "TODOS NO PORTAL PARA A PRÓXIMA FASE"
         if self.exit is not None:
-            return "VOLTEM PELA PORTA PARA O ACAMPAMENTO"
+            return "TODOS NA PORTA PARA O CORREDOR"
         brain = self.controllers.get(self.boss) if self.boss is not None else None
         return getattr(brain, "turn_text", "")
 
@@ -1557,8 +1664,9 @@ class CampaignMatch(CoopMatch):
             if timer == 30:
                 self.banner = None
             if timer == 0:
-                self._start_wave(0)
-                self.state = "fight"
+                self._show_start_button()
+            return
+        if state == "ready":
             return
         if state in ("fight", "between") and not self.alive_players:
             self.state, self.state_timer = "down", DOWN_FRAMES
@@ -1594,22 +1702,15 @@ class CampaignMatch(CoopMatch):
         elif state == "clear":
             if timer == 0:
                 self._open_exit()
-        elif state in ("exit", "vote") and self.banner and self.banner[3] > 130:
+        elif state in ("exit", "portal") and self.banner and self.banner[3] > 130:
             self.banner = None
         if state == "exit":
-            if self.group_near(self.exit.x, self.exit.y, ExitDoor.RADIUS + 40):
+            if self.passage.update(self):
                 self.state = "leaving"
                 self.leave()
-        elif state == "vote":
-            alive = self.alive_players
-            self.votes &= set(alive)
-            if self.frame % 6 == 0:
-                for p in self.players:
-                    hub_vote_slot(p, 2 if p in self.votes else 1)
-            if alive and all(p in self.votes for p in alive):
-                self.state, self.state_timer = "teleport", TELEPORT_FRAMES
-                hub_vote(self, 0)
-                self.assets.play("teletransporte", 0.6)
+        elif state == "portal":
+            if self.passage.update(self):
+                self._teleport()
         elif state == "teleport":
             if timer % 3 == 0:
                 for p in self.alive_players:
@@ -1643,35 +1744,60 @@ class CampaignMatch(CoopMatch):
             self._set_banner("MASMORRA LIMPA!", self.dungeon.name, theme.MOSS)
             self.assets.play("select", 0.6)
 
+    def _show_start_button(self):
+        """Fim da apresentação: o grupo anda livre e o botão INICIAR BATALHA aparece na frente dele."""
+        starts = self.dungeon.starts
+        cx, cy = _center(starts)
+        fx, fy = self.dungeon.facing
+        x, y = self.arena.free_spot(cx + fx * 110, cy + fy * 110, 30)
+        self.start_button = StartButton(x, y)
+        self.arena.walls.append(self.start_button.wall)
+        self.props.append(self.start_button)
+        self.state = "ready"
+        self.assets.play("ability", 0.35)
+
+    def start_battle(self, f=None):
+        """Alguém apertou INICIAR BATALHA: a primeira onda sai dos portais."""
+        if self.state != "ready":
+            return False
+        if self.start_button is not None:
+            self.start_button.press(self)
+        self._set_banner("VALENDO!", None, theme.BLOOD)
+        self.assets.play("barrier", 0.5)
+        self._start_wave(0)
+        self.state = "fight"
+        return True
+
     def _open_exit(self):
-        if self.last:
-            self.state = "vote"            # o botão TELETRANSPORTE DE FASE aparece na tela
-            self.votes = set()
-            hub_vote(self, 1)
-            self.assets.play("ability", 0.5)
-            return
         x, y = self.arena.free_spot(*self.dungeon.exit_spot, 40)
-        self.exit = ExitDoor(x, y)
-        self.state = "exit"
-        self.popup(x, y - 100, "SAÍDA", theme.BRASS)
+        if self.last:                      # o portal da fase: todos dentro e o grupo vai junto
+            self.exit = PhasePortal(x, y)
+            self.state = "portal"
+            self.popup(x, y - 110, "PORTAL", (200, 170, 255))
+            self.passage = Passage(self.exit.contains)
+        else:
+            self.exit = ExitDoor(x, y)
+            self.state = "exit"
+            self.popup(x, y - 100, "SAÍDA", theme.BRASS)
+            door = self.exit
+            self.passage = Passage(lambda p: math.hypot(p.x - door.x, p.y - door.y) < ExitDoor.RADIUS + 40)
         self.props.append(self.exit)
         self.assets.play("ability", 0.5)
 
-    def vote(self, f):
-        """Um jogador confirmou o teletransporte."""
-        if self.voting and f.alive_in_match and f not in self.votes:
-            self.votes.add(f)
-            self.burst(f.x, f.y - 20, (200, 170, 255), 12, speed=3)
-            self.popup(f.x, f.y - 70, "PRONTO", theme.MOSS)
-            self.assets.play("select", 0.4)
-            hub_vote_slot(f, 2)
-            return True
-        return False
+    def _teleport(self):
+        self.state, self.state_timer = "teleport", TELEPORT_FRAMES
+        self.assets.play("teletransporte", 0.6)
 
     def interact(self, f):
-        if self.voting:
-            self.vote(f)
+        if self.passage is not None and self.passage.try_force(self, f):
+            if self.state == "portal":
+                self.leaving = 0           # o portal tem a própria animação (teletransporte)
+                self._teleport()
+            else:
+                self.state = "leaving"
             return True
+        if self.state == "ready" and self.start_button is not None and self.start_button.can_use(f):
+            return self.start_battle(f)
         brain = self.controllers.get(self.boss) if self.boss is not None else None
         if brain is not None and hasattr(brain, "interact") and brain.interact(f, self):
             return True                    # capítulo 4: tirar a IARA da tomada
@@ -1679,16 +1805,6 @@ class CampaignMatch(CoopMatch):
                 and self.hazard.interact(f, self)):
             return True
         return self.pick_ground(f)
-
-    def click(self, pos):
-        """Clique no botão da tela: confirma o próximo jogador do teclado que ainda não confirmou."""
-        if not self.voting or self.vote_button is None or not self.vote_button.collidepoint(pos):
-            return False
-        phones = self.game.connected_slots()          # celular e controle confirmam no botão deles
-        for f in self.players:
-            if f.alive_in_match and f not in self.votes and f.slot not in phones:
-                return self.vote(f)
-        return False
 
     def _finish(self, won):
         if won and self.last:
@@ -1749,12 +1865,21 @@ class CampaignMatch(CoopMatch):
         for n in self.notices:
             if n.target.alive_in_match:
                 n.draw(screen, cam, ui)
-        if self.voting:
-            self.vote_button = hud.draw_teleport_vote(screen, ui, self)
-        else:
-            self.vote_button = None
+        if self.state == "ready" and self.start_button is not None:
+            near = any(self.start_button.can_use(p) for p in self.alive_players)
+            self.start_button.draw_prompt(screen, cam, ui, self.frame, near)
+        if self.state in ("exit", "portal") and self.passage is not None:
+            area = self._passage_rect()
+            self.draw_passage(screen, ui, self.passage, area, (self.exit.x, self.exit.y + 40),
+                              show_area=self.state != "portal")
         if self.state == "teleport":
             self._draw_teleport(screen, cam)
+
+    def _passage_rect(self):
+        e = self.exit
+        r = PhasePortal.RADIUS if self.state == "portal" else ExitDoor.RADIUS + 40
+        h = r * 1.4 if self.state == "portal" else r * 2
+        return pygame.Rect(round(e.x - r), round(e.y - h / 2), r * 2, round(h))
 
     def _draw_teleport(self, screen, cam):
         """Cada um vira uma coluna de luz e a tela fica branca no fim."""
@@ -1794,76 +1919,97 @@ def hub_vote_slot(fighter, value):
 
 
 class LobbyMatch(CoopMatch):
-    """Acampamento (lobby) da fase: sem batalha, com a fogueira que recupera vida, a entrada
-    das duas masmorras e, na volta da primeira, o baú escondido com as armas raras."""
+    """Trecho sem batalha da fase (progressão contínua, ninguém volta para trás):
+
+    - SALA INICIAL (``back`` falso): pequena, com a lojinha e o altar das maldições; a porta 1
+      leva à masmorra 1.
+    - CORREDOR (``back`` verdadeiro, depois da masmorra 1): o grupo chega pela porta 1 (de onde
+      saiu) e encontra o baú, a fogueira, a loja, o ferreiro e o armário; a porta 2 leva à
+      masmorra 2.
+
+    A porta só leva o grupo com a passagem coletiva (todos dentro, contagem de 2 s)."""
 
     lobby = True
     music = "camp"
 
     def __init__(self, game, run):
-        cfg = MAPS_BY_KEY[run.phase.lobby]
-        markers = cfg.markers
         self.back = run.stage == LOBBY_BACK
+        cfg = MAPS_BY_KEY[run.phase.corridor if self.back else run.phase.start_room]
+        markers = cfg.markers
         self.style = "lag" if run.phase.chapter == 2 else None     # cofre e bancas da Lag Lobby
         starts = markers["a"] if self.back else markers["S"]
         starts = _spread(starts, len(run.session.slots))
         super().__init__(game, run, cfg.key, starts, (0.0, -1.0))
         self.state = "explore"
         self.gates = {}
-        for number in (1, 2):
+        numbers = (1, 2) if self.back else (1,)
+        for number in numbers:
             rect = cells_rect(markers[str(number)])
             if number == 1:
                 state = "done" if self.back else "open"
             else:
                 state = "locked"
-            self.gates[number] = Gate(number, rect, state)
+            gate = Gate(number, rect, state)
+            self.gates[number] = gate
+            r = gate.rect                    # ninguém passa da porta para o escuro de trás
+            self.arena.walls.append(Wall(r.x - 8, r.y - TILE_PX, r.w + 16, TILE_PX, visible=False))
         for gate in self.gates.values():
             gate.sync_wall(self.arena)
-        fx, fy = _center(markers["F"])
-        self.campfire = Campfire(fx, fy)
-        self.arena.walls.append(self.campfire.wall)
-        self.props += list(self.gates.values()) + [self.campfire]
-        self.chest = None
-        if self.back and not run.chest_open:
-            cx, cy = markers["C"][0]
-            self.chest = Chest(cx, cy, self.style)
-            self.arena.walls.append(self.chest.wall)
-            self.props.append(self.chest)
+        self.props += list(self.gates.values())
         self.target_gate = 2 if self.back else 1
+        self.passage = Passage(lambda p: self._gate_area().collidepoint(p.x, p.y))
+        self.campfire = None
+        self.chest = None
+        self.armario = None
         self.stalls = []
-        if not self.back:                   # na chegada: o altar das maldições (desafio opcional)
-            x, y = self.arena.free_spot(fx + 230, fy + 150, 40)
-            altar = Stall("altar", x, y, self.style)
-            self.stalls.append(altar)
-            self.arena.walls.append(altar.wall)
-            self.props.append(altar)
-        # armário de armas: nos dois acampamentos, do outro lado da fogueira
-        x, y = self.arena.free_spot(fx - 230, fy - 120, 48)
-        self.armario = Armario(x, y, run, self.style)
-        self.arena.walls.append(self.armario.wall)
-        self.props.append(self.armario)
-        if self.back:                       # na volta da Masmorra 1: o mercado, perto da fogueira
-            for kind, dx in (("loja", -260), ("ferreiro", 260)):
-                x, y = self.arena.free_spot(fx + dx, fy + 170, 40)
-                stall = Stall(kind, x, y, self.style)
-                self.stalls.append(stall)
-                self.arena.walls.append(stall.wall)
-                self.props.append(stall)
+        if self.back:
+            fx, fy = _center(markers["F"])
+            self.campfire = Campfire(fx, fy)
+            self.arena.walls.append(self.campfire.wall)
+            self.props.append(self.campfire)
+            if not run.chest_open:
+                cx, cy = markers["C"][0]
+                self.chest = Chest(cx, cy, self.style)
+                self.arena.walls.append(self.chest.wall)
+                self.props.append(self.chest)
+            x, y = markers["K"][0]
+            self.armario = Armario(x, y, run, self.style)
+            self.arena.walls.append(self.armario.wall)
+            self.props.append(self.armario)
+            self._stall("loja", markers["L"][0])
+            self._stall("ferreiro", markers["R"][0])
+        else:
+            self._stall("loja", markers["L"][0], mini=True)      # a lojinha: só o básico
+            self._stall("altar", markers["X"][0])                # desafio opcional da fase
         if chapter_cleared(4) and self.players:    # recompensa do capítulo 4: a IARA mascote
             from .mansao import IaraMascot
             self.add_effect(IaraMascot(self.players[0], self.assets.sprites.get("iara_nucleo")))
         hub_vote(self, 0)
-        for p in self.players:              # chegando (teletransporte ou saindo da masmorra)
+        for p in self.players:              # chegando (portal da fase anterior ou saindo da masmorra)
             self.burst(p.x, p.y - 20, (200, 180, 255), 14, speed=3)
+
+    def _stall(self, kind, at, mini=False):
+        stall = Stall(kind, *at, self.style, mini=mini)
+        self.stalls.append(stall)
+        self.arena.walls.append(stall.wall)
+        self.props.append(stall)
+        return stall
+
+    def _gate_area(self):
+        """Onde o grupo se junta para entrar: o vão da porta e um pedaço do chão na frente dela."""
+        r = self.gates[self.target_gate].rect
+        return pygame.Rect(r.x - 20, r.y, r.w + 40, r.h + 110)
 
     @property
     def objective_text(self):
         if self.back and self.gates[2].state != "open":
-            return "A MASMORRA 2 ESTÁ ABRINDO..."
+            return "CORREDOR · A MASMORRA 2 ESTÁ ABRINDO..."
         if self.back and self.chest is not None and self.chest.state == "closed":
-            hidden = "UM COFRE" if self.style == "lag" else "UM BAÚ"
-            return f"TEM {hidden} ESCONDIDO POR AQUI · ENTRE NA MASMORRA 2"
-        return f"ACAMPAMENTO · ENTREM NA MASMORRA {self.target_gate}"
+            hidden = "O COFRE" if self.style == "lag" else "O BAÚ"
+            return f"ABRAM {hidden} · DEPOIS, TODOS NA PORTA DA MASMORRA 2"
+        if self.back:
+            return "CORREDOR · TODOS NA PORTA DA MASMORRA 2"
+        return "SALA INICIAL · TODOS NA PORTA DA MASMORRA 1"
 
     def objective(self):
         gate = self.gates[self.target_gate]
@@ -1877,29 +2023,28 @@ class LobbyMatch(CoopMatch):
         if self.frame == 1:
             name = self.arena.cfg.name.upper()
             if self.back:
-                self._set_banner("ACAMPAMENTO", f"DE VOLTA · {name}", theme.BRASS)
+                self._set_banner("CORREDOR", f"{self.phase.name} · {name}", theme.BRASS)
             else:
-                self._set_banner(f"FASE {self.run.phase_index + 1}", f"{self.phase.name} · {name}", theme.BRASS)
+                self._set_banner(f"FASE {self.run.phase_index + 1}", self.phase.name, theme.BRASS)
         if self.banner and self.banner[3] > 110:
             self.banner = None
         if self.leaving:
             return
         gate = self.gates[self.target_gate]
-        if gate.state == "open" and gate.bars <= 0:
-            ex, ey = gate.entrance
-            inside = any(gate.rect.inflate(20, 30).collidepoint(p.x, p.y) for p in self.alive_players)
-            if inside and self.group_near(ex, ey - 20, 170):
-                self.leave()
+        if gate.state == "open" and gate.bars <= 0 and self.passage.update(self):
+            self.leave()
 
     def rack_near(self, f):
-        return self.armario if self.armario.can_use(f) else None
+        return self.armario if self.armario is not None and self.armario.can_use(f) else None
 
     def interact(self, f):
+        if self.passage.try_force(self, f):
+            return True
         if self.chest is not None and self.chest.can_open(f):
             self.chest.open(self)
             self.run.chest_open = True
             return True
-        if self.armario.can_use(f):
+        if self.armario is not None and self.armario.can_use(f):
             if self.droppable(f) and len(self.run.rack) < RACK_SIZE:
                 return self.store_in_rack(f)
             return self.take_from_rack(f) or True
@@ -1939,8 +2084,9 @@ class LobbyMatch(CoopMatch):
             near = any(self.chest.can_open(p) for p in self.alive_players)
             self.chest.draw_prompt(screen, cam, ui, self.frame, near)
         self.draw_ground(screen, cam, ui)
-        near = [p for p in self.alive_players if self.armario.can_use(p) and p not in self.menus]
-        self.armario.draw_prompt(screen, cam, ui, self.frame, self.rack_prompt(near[0]) if near else "")
+        if self.armario is not None:
+            near = [p for p in self.alive_players if self.armario.can_use(p) and p not in self.menus]
+            self.armario.draw_prompt(screen, cam, ui, self.frame, self.rack_prompt(near[0]) if near else "")
         for stall in self.stalls:
             near = any(stall.can_use(p) and p not in self.menus for p in self.alive_players)
             stall.draw_prompt(screen, cam, ui, self.frame, near)
@@ -1948,13 +2094,8 @@ class LobbyMatch(CoopMatch):
             at = cam.to_screen(f.x, f.y)
             crt.panel(screen, ("loja", f.slot), lambda s, menu=menu, at=at: menu.draw(s, ui, at))
         gate = self.gates[self.target_gate]
-        alive = self.alive_players
-        inside = [p for p in alive if gate.rect.inflate(20, 30).collidepoint(p.x, p.y)]
-        if inside and len(inside) < len(alive):
-            # alguém já está na entrada: avisa quem falta
-            waiting = " ".join(p.label for p in alive if p not in inside)
-            sx, sy = cam.to_screen(*gate.entrance)
-            ui.text(screen, f"ESPERANDO {waiting}", theme.XS, theme.BRASS, (round(sx), round(sy) + 24))
+        if gate.state == "open":
+            self.draw_passage(screen, ui, self.passage, self._gate_area(), gate.entrance)
 
 
 def _center(points):

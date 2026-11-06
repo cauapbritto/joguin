@@ -10,6 +10,22 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.18.0": [
+        {"title": "A FASE VAI EM FRENTE", "scene": "lag", "lines": [
+            "Ninguém volta mais para o acampamento: a fase começa numa sala inicial com a lojinha e o altar.",
+            "Depois da masmorra 1 vem um corredor com o baú, a fogueira, a loja, o ferreiro e o armário.",
+            "A masmorra 2 termina num portal que leva o grupo direto para a próxima fase.",
+        ]},
+        {"title": "TODOS JUNTOS NA PORTA", "scene": "hud", "lines": [
+            "Portas e portal só levam o grupo com todo mundo dentro: aí corre uma contagem de 2 segundos.",
+            "Quem sair zera a contagem. Celular desconectado não trava ninguém, e o herói vai junto.",
+            "Se alguém travar por 20 segundos, o P1 pode ir assim mesmo com ATACAR.",
+        ]},
+        {"title": "INICIAR BATALHA", "scene": "perigos", "lines": [
+            "Na entrada de cada masmorra tem um botão: os inimigos só saem quando alguém aperta.",
+            "Dá tempo de o grupo se arrumar, trocar de arma e respirar antes da luta.",
+        ]},
+    ],
     "1.16.0": [
         {"title": "LOJA E FERREIRO NO CELULAR", "scene": "loja", "lines": [
             "Cada linha da loja e do ferreiro no celular mostra a imagem da arma.",

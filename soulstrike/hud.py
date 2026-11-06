@@ -599,41 +599,6 @@ def _ammo_strip(screen, f, area):
         screen.fill(color, (area.x + i * (pip + 1), area.y, pip, area.h))
 
 
-def draw_teleport_vote(screen, ui, match):
-    """Botão TELETRANSPORTE DE FASE no fim da fase, com quem já confirmou. Devolve o retângulo do botão."""
-    W = config.SCREEN_W
-    pulse = 0.5 + 0.5 * math.sin(match.frame * 0.12)
-    button = pygame.Rect(0, 0, 440, 54)
-    button.midtop = (W // 2, 92)
-    hot = button.collidepoint(pygame.mouse.get_pos())
-    glow = pygame.Surface(button.inflate(24, 24).size, pygame.SRCALPHA)
-    glow.fill((170, 120, 250, round(40 + 50 * pulse)))
-    screen.blit(glow, button.inflate(24, 24).topleft)
-    screen.fill(theme.SHADOW, button.move(3, 4))
-    screen.fill((46, 30, 70) if not hot else (70, 46, 104), button)
-    pygame.draw.rect(screen, mix(theme.BRASS, (255, 255, 255), 0.3 * pulse), button, 3)
-    ui.text(screen, "TELETRANSPORTE DE FASE", theme.S, theme.BONE, (button.centerx, button.centery + 1))
-    players = match.players
-    chip_w, gap = 96, 8
-    x = W // 2 - (len(players) * chip_w + (len(players) - 1) * gap) // 2
-    for p in players:
-        chip = pygame.Rect(x, button.bottom + 12, chip_w, 20)
-        ready = p in match.votes
-        screen.fill(theme.SHADOW, chip.move(2, 2))
-        screen.fill(mix(theme.MOSS, theme.INK, 0.5) if ready else theme.INK_2, chip)
-        screen.fill(p.color, (chip.x, chip.y, 3, chip.h))
-        if ready:
-            label, color = f"{p.label} PRONTO", theme.BONE
-        else:
-            label = f"{p.label} " + "." * (1 + (match.frame // 15) % 3)
-            color = theme.MUTED
-        ui.text(screen, label, theme.XS, color, (chip.x + 10, chip.centery + 1), anchor="midleft", shadow=False)
-        x += chip_w + gap
-    ui.text(screen, "ATACAR NO TECLADO · BOTÃO NO CELULAR · OU CLIQUE", theme.XS, theme.MUTED,
-            (W // 2, button.bottom + 48))
-    return button
-
-
 def draw_campaign_banners(screen, ui, match):
     W = config.SCREEN_W
     if match.wave_banner > 0 and getattr(match, "state", "") == "fight":

@@ -11,13 +11,22 @@ Cada caractere é um quadrado de 40 px:
     C  baú escondido (aparece depois da masmorra 1)
     1  entrada da masmorra 1 (na linha da parede)
     2  entrada da masmorra 2 (trancada até a masmorra 1 acabar)
+    L  loja (na sala inicial, a lojinha)
+    R  ferreiro
+    K  armário de armas
+    X  altar das maldições
+
+Desde a progressão contínua a fase não volta mais ao acampamento: começa na SALA INICIAL
+(pequena, com a lojinha e o altar), passa pela masmorra 1, segue pelo CORREDOR (baú, fogueira,
+loja, ferreiro e armário) e termina na masmorra 2, com o portal. Os dois trechos novos usam o
+cenário do acampamento da fase; o corredor tem um desenho por capítulo.
 
 Tudo o que não é parede nem "fora" é chão. As paredes viram poucos retângulos grandes
 (quadrados vizinhos juntados), para a colisão e o desenho ficarem baratos.
 """
 
 TILE = 40
-MARKERS = "Sa FC12".replace(" ", "")
+MARKERS = "SaFC12LRKX"
 
 LOBBIES = {
     "floresta": ("ACAMPAMENTO DA CLAREIRA", (
@@ -290,6 +299,92 @@ LOBBY_SCENERY = {"lag_estacionamento": "lag_garagem", "lag_copa": "lag_escritori
                  "clinica_fachada": "clinica_calcada", "clinica_vestiario": "clinica_spa",
                  "clinica_antessala": "clinica_vip",
                  "mansao_fachada": "mansao_jardim", "mansao_copa": "mansao", "mansao_escadaria": "mansao_reuniao"}
+
+# ─────────────────────────────────────────────
+#  Progressão contínua: sala inicial e corredores
+# ─────────────────────────────────────────────
+# capítulo de cada acampamento (o corredor da fase usa o desenho do capítulo)
+CHAPTER_OF = {"floresta": 1, "calabouco": 1, "templo_gelado": 1,
+              "lag_estacionamento": 2, "lag_copa": 2, "lag_reuniao": 2,
+              "clinica_fachada": 3, "clinica_vestiario": 3, "clinica_antessala": 3,
+              "mansao_fachada": 4, "mansao_copa": 4, "mansao_escadaria": 4}
+
+# sala inicial: cabe inteira na tela, só a lojinha, o altar e a passagem para a masmorra 1
+INICIO = ("SALA INICIAL", (
+    "#######111#######",
+    "#...............#",
+    "#..L.........X..#",
+    "#...............#",
+    "#.....S...S.....#",
+    "#...............#",
+    "#.....S...S.....#",
+    "#...............#",
+    "#################",
+))
+
+# corredor entre as masmorras: chega pela porta 1 (de onde saiu a masmorra 1), anda pelo trecho
+# estreito e abre na área de recompensas (baú, fogueira, loja, ferreiro e armário) com a porta 2
+CORREDORES = {
+    1: ("TRILHA ENTRE AS MASMORRAS", (
+        "#####111####",
+        "#..........#",
+        "#...a.a....#",
+        "#...a.a....#########################222#####",
+        "#..........................................#",
+        "#..........##...........##.................#",
+        "#..........##...........##.................#",
+        "#############..............................#",
+        "            #.........................K....#",
+        "            ####.................FF........#",
+        "               #..L....C.........FF........#",
+        "               #..............R............#",
+        "               #############################",
+    )),
+    2: ("CORREDOR DE SERVIÇO", (
+        "####111#############################222####",
+        "#..........#.......................#.....#",
+        "#...a.a....#.......................#.....#",
+        "#...a.a....#..L...........R........#.....#",
+        "#..........#.......................#.....#",
+        "#..........................FF...........C#",
+        "#..........................FF............#",
+        "#..........#.............................#",
+        "#..........#....##..........##.....K.....#",
+        "############.............................#",
+        "           ###############################",
+    )),
+    3: ("CORREDOR DOS FUNCIONÁRIOS", (
+        "####111####                               ",
+        "#.........#                               ",
+        "#...a.a...#                               ",
+        "#...a.a...#######################222######",
+        "#.......................................C#",
+        "#........................................#",
+        "#.........#####........FF.......L.......##",
+        "###########   #........FF..............#  ",
+        "              #...K...........R........#  ",
+        "              ##########################  ",
+    )),
+    4: ("CORREDOR DO ARQUIVO", (
+        "#######111#######################222#######",
+        "#.......................#................#",
+        "#.....a.a...............#.......C........#",
+        "#.....a.a....##.....##..#................#",
+        "#.......................#....FF..........#",
+        "#....##.....##.....##.........FF....K....#",
+        "#..........................L.......R.....#",
+        "#.......................#................#",
+        "##########################################",
+    )),
+}
+
+
+def inicio_rows():
+    return INICIO
+
+
+def corredor_rows(theme):
+    return CORREDORES[CHAPTER_OF.get(theme, 1)]
 
 
 def _grid(rows):
