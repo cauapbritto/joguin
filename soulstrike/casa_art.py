@@ -329,36 +329,68 @@ def poster(s, x, y, w, h, bg, text, fg=(255, 255, 255)):
 
 # ── canto do Cauanzera ───────────────────────
 def pc_desk(s, x, y):
-    """Mesa do Cauanzera: monitor ligado, gabinete com luz, teclado, caneca e cadeira gamer."""
+    """Mesa do Cauanzera: monitor com o CAUANZERA OS ligado, gabinete com luz colorida, teclado,
+    mouse no mousepad, caneca de café, caixinhas de som e a cadeira gamer."""
     shadow(s, x + 70, y + 62, 160)
-    box(s, WOOD_D, x + 4, y + 30, 8, 30)
-    box(s, WOOD_D, x + 128, y + 30, 8, 30)
-    box(s, WOOD, x, y + 14, 140, 22)
-    box(s, WOOD_L, x, y + 14, 140, 3)
+    for lx in (x + 4, x + 128):                                  # pés
+        box(s, WOOD_D, lx, y + 30, 8, 30)
+        box(s, shade(WOOD_D, -18), lx + 6, y + 30, 2, 30)
+    box(s, WOOD, x, y + 14, 140, 16)                             # tampo
+    box(s, WOOD_L, x, y + 14, 140, 2)
     box(s, shade(WOOD, -26), x, y + 28, 140, 8)                  # frente da mesa
     box(s, shade(WOOD, -10), x + 100, y + 29, 34, 6)             # gaveta
     box(s, (200, 170, 90), x + 115, y + 31, 4, 2)
-    box(s, (20, 20, 26), x + 24, y + 6, 4, 10)                   # caixinhas de som
-    box(s, (20, 20, 26), x + 96, y + 6, 4, 10)
-    box(s, (80, 200, 255), x + 25, y + 8, 2, 2)
-    box(s, (80, 200, 255), x + 97, y + 8, 2, 2)
-    box(s, (30, 30, 36), x + 30, y - 34, 64, 42)                 # monitor
-    box(s, (16, 28, 48), x + 33, y - 31, 58, 34)
-    box(s, (60, 110, 170), x + 33, y - 31, 58, 3)
-    for i in range(3):
-        box(s, (200, 220, 250), x + 37 + i * 16, y - 24, 8, 8)
-    box(s, (40, 40, 48), x + 33, y - 2, 58, 4)
-    box(s, (40, 40, 46), x + 58, y + 8, 8, 8)
-    glow(s, (x + 62, y - 15), (110, 70), (90, 170, 255), 34)
-    box(s, (34, 34, 40), x + 104, y - 26, 26, 40)                # gabinete com luz colorida
+    light = pygame.Surface((90, 10), pygame.SRCALPHA)           # a luz da tela no tampo
+    light.fill((120, 180, 255, 40))
+    s.blit(light, (x + 18, y + 15))
+    # monitor: moldura fina, a área de trabalho azul com ícones e a barra de tarefas
+    box(s, (22, 22, 28), x + 28, y - 38, 68, 46)
+    sx, sy, sw, sh = x + 31, y - 35, 62, 38
+    for k in range(sh):                                          # fundo em degradê
+        t = k / sh
+        box(s, (round(24 + 30 * t), round(52 + 50 * t), round(110 + 70 * t)), sx, sy + k, sw, 1)
+    for k, (c, label) in enumerate((((236, 190, 70), 0), ((40, 40, 46), 1), ((90, 170, 240), 2), ((150, 150, 160), 3))):
+        ix, iy = sx + 4 + (k % 2) * 12, sy + 4 + (k // 2) * 12
+        box(s, c, ix, iy, 7, 6)                                  # pasta, terminal, navegador, lixeira
+        if label == 1:
+            box(s, (90, 240, 120), ix + 1, iy + 2, 3, 1)
+        box(s, (220, 230, 245), ix, iy + 8, 7, 1)
+    box(s, (250, 250, 255), sx + 38, sy + 8, 18, 14)             # janela aberta
+    box(s, CAU, sx + 38, sy + 8, 18, 3)
+    for k in range(3):
+        box(s, (150, 160, 180), sx + 40, sy + 13 + k * 3, 10 + (k * 3) % 5, 1)
+    box(s, (16, 18, 26), sx, sy + sh - 5, sw, 5)                 # barra de tarefas
+    box(s, CAU, sx + 1, sy + sh - 4, 5, 3)
+    box(s, (200, 210, 230), sx + sw - 10, sy + sh - 4, 8, 3)
+    box(s, (40, 40, 48), x + 58, y + 8, 8, 6)                    # pé do monitor
+    box(s, (40, 40, 48), x + 52, y + 13, 20, 3)
+    # gabinete com luz colorida e o ventilador
+    box(s, (30, 30, 36), x + 104, y - 28, 28, 44)
+    box(s, (50, 50, 60), x + 104, y - 28, 28, 2)
+    pygame.draw.circle(s, (60, 60, 72), (x + 118, y - 12), 8)
+    pygame.draw.circle(s, (240, 80, 160), (x + 118, y - 12), 8, 1)
+    pygame.draw.circle(s, (80, 200, 255), (x + 118, y - 12), 4, 1)
     for i, c in enumerate(((240, 80, 160), (80, 200, 255), (120, 240, 140))):
-        box(s, c, x + 108, y - 20 + i * 8, 18, 2)
-    box(s, (60, 60, 70), x + 30, y + 18, 54, 8)                  # teclado, mouse, caneca, disquete
-    for i in range(6):
-        box(s, (110, 110, 120), x + 33 + i * 8, y + 20, 6, 2)
-    box(s, (200, 200, 210), x + 90, y + 20, 6, 5)
-    box(s, (240, 240, 240), x + 8, y + 12, 10, 10)
-    box(s, (40, 70, 140), x + 18, y + 22, 10, 10)
+        box(s, c, x + 108, y + 2 + i * 4, 20, 1)
+    box(s, (120, 240, 140), x + 127, y - 25, 2, 2)               # luzinha de ligado
+    # caixinhas de som
+    for cx in (x + 18, x + 100):
+        box(s, (20, 20, 26), cx, y + 2, 7, 13)
+        pygame.draw.circle(s, (60, 60, 70), (cx + 3, y + 10), 2)
+        box(s, (80, 200, 255), cx + 2, y + 4, 2, 1)
+    # teclado, mousepad com o mouse, caneca com fumacinha
+    box(s, (40, 40, 48), x + 34, y + 18, 54, 9)
+    for r in range(2):
+        for i in range(8):
+            box(s, (110, 110, 124), x + 36 + i * 6 + r * 2, y + 20 + r * 3, 4, 2)
+    box(s, (30, 60, 110), x + 90, y + 17, 16, 11)
+    box(s, (220, 220, 230), x + 96, y + 19, 5, 7)
+    box(s, (170, 170, 180), x + 98, y + 19, 1, 3)
+    box(s, (240, 240, 240), x + 6, y + 14, 10, 11)
+    box(s, (240, 240, 240), x + 16, y + 17, 3, 5)
+    box(s, (90, 50, 30), x + 7, y + 15, 8, 2)
+    for k in range(3):
+        box(s, (220, 220, 230, 110), x + 8 + (k % 2) * 3, y + 6 - k * 4, 2, 3)
     gamer_chair(s, x + 64, y + 46)
 
 
@@ -550,24 +582,50 @@ def helmet_rack(s, x, y):
 
 # ── canto do Albeguinio ──────────────────────
 def office_desk(s, x, y):
-    """Mesa do Albeguinio: notebook aberto, pilhas de papel, carimbo e o celular virado para baixo."""
+    """Mesa do Albeguinio: o notebook aberto no modo hacker (texto verde), pilhas de papel, o
+    carimbo, a caneca, o celular virado para baixo, os post-its e a cadeira de escritório."""
     shadow(s, x + 70, y + 50, 160)
-    box(s, METAL_D, x + 4, y + 26, 6, 26)
-    box(s, METAL_D, x + 130, y + 26, 6, 26)
-    box(s, (170, 160, 140), x, y + 10, 140, 20)
-    box(s, (200, 190, 170), x, y + 10, 140, 3)
-    box(s, (40, 40, 48), x + 50, y - 16, 40, 26)                 # notebook
-    box(s, (20, 40, 30), x + 53, y - 13, 34, 20)
-    for i in range(4):
-        box(s, (90, 230, 120), x + 56, y - 10 + i * 4, 10 + (i * 7) % 20, 2)
-    box(s, (70, 70, 80), x + 46, y + 10, 48, 5)
-    for k in range(3):                                           # papéis
+    for lx in (x + 4, x + 130):
+        box(s, METAL_D, lx, y + 26, 6, 26)
+        box(s, METAL, lx, y + 26, 2, 26)
+    box(s, (178, 168, 146), x, y + 10, 140, 14)                  # tampo de fórmica
+    box(s, (206, 196, 176), x, y + 10, 140, 2)
+    box(s, (140, 132, 116), x, y + 22, 140, 6)                   # frente
+    # notebook: tampa aberta com o terminal, a base com o teclado e os post-its
+    box(s, (34, 34, 42), x + 46, y - 22, 48, 32)
+    box(s, (8, 16, 10), x + 49, y - 19, 42, 26)
+    for i, (w, c) in enumerate(((18, (90, 230, 120)), (30, (90, 230, 120)), (12, (200, 240, 120)),
+                                (26, (90, 230, 120)), (20, (240, 90, 90)), (8, (90, 230, 120)))):
+        box(s, c, x + 51, y - 17 + i * 4, w, 2)
+    box(s, (90, 230, 120), x + 60, y + 3, 3, 2)                  # cursor piscando
+    box(s, (250, 230, 90), x + 92, y - 22, 6, 6)                 # post-its na tampa
+    box(s, (250, 140, 180), x + 92, y - 14, 6, 6)
+    pygame.draw.polygon(s, (60, 60, 72), [(x + 44, y + 10), (x + 96, y + 10), (x + 100, y + 18), (x + 40, y + 18)])
+    for i in range(9):
+        box(s, (100, 100, 116), x + 46 + i * 5, y + 12, 3, 2)
+    box(s, (110, 110, 126), x + 64, y + 15, 12, 2)               # touchpad
+    glow(s, (x + 70, y - 6), (70, 46), (90, 255, 140), 26)
+    # papéis, carimbo, caneca, celular
+    for k in range(3):
         for j in range(5 + k * 2):
-            box(s, (240, 236, 224) if j % 2 else (226, 220, 206), x + 6 + k * 14, y + 4 - j * 2, 12, 2)
-    box(s, (150, 30, 40), x + 104, y + 2, 10, 8)                 # carimbo
-    box(s, (60, 40, 30), x + 107, y - 6, 4, 8)
-    box(s, (20, 20, 24), x + 118, y + 8, 12, 6)                  # celular virado
-    box(s, (120, 200, 255), x + 120, y + 5, 8, 1)
+            box(s, (240, 236, 224) if j % 2 else (222, 216, 200), x + 4 + k * 13, y + 10 - j * 2, 12, 2)
+    box(s, (150, 30, 40), x + 104, y + 6, 12, 7)                 # carimbo e a almofada
+    box(s, (60, 40, 30), x + 108, y - 2, 4, 8)
+    box(s, (90, 60, 40), x + 106, y - 4, 8, 3)
+    box(s, (60, 60, 120), x + 118, y + 14, 10, 4)
+    box(s, (230, 230, 220), x + 126, y + 2, 9, 10)               # caneca do café
+    box(s, (230, 230, 220), x + 135, y + 4, 3, 5)
+    box(s, (90, 50, 30), x + 127, y + 3, 7, 2)
+    box(s, (20, 20, 24), x + 104, y + 15, 12, 6)                 # celular virado para baixo
+    box(s, (120, 200, 255), x + 106, y + 14, 8, 1)
+    # cadeira de escritório, de costas
+    cx, cy = x + 70, y + 40
+    box(s, (40, 40, 50), cx - 12, cy, 24, 22)
+    box(s, (64, 64, 78), cx - 12, cy, 24, 2)
+    box(s, (52, 52, 64), cx - 4, cy + 6, 8, 12)
+    box(s, (110, 110, 120), cx - 1, cy + 22, 3, 6)
+    for dx in (-10, 0, 10):
+        box(s, (34, 34, 40), cx + dx - 2, cy + 27, 4, 3)
 
 
 def file_cabinet(s, x, y):

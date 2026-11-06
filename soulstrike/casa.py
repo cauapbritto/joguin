@@ -410,7 +410,7 @@ class HubMatch(CoopMatch):
         put(art.easel_portrait, 3 * T, OY + 10 * T, "albeguinio", foot=((-20, 70, 40, 12),))
         self.speakers.append(Speaker("albeguinio", 3 * T, OY + 12 * T, head_y=OY + 10 * T - 34))
         put(art.file_cabinet, T + 6, OY + 12 * T, foot=((0, 56, 40, 18),))
-        put(art.office_desk, 4 * T, OY + 11 * T, foot=((0, 20, 140, 32),))
+        put(art.office_desk, 4 * T, OY + 11 * T, foot=((0, 20, 140, 18), (58, 52, 24, 18)))
         put(art.router, 9 * T, OY + 10 * T + 10)
         # canto do Borba Jr (embaixo à direita): retrato, a padaria do João, o forno e o exo
         put(art.easel_portrait, 46 * T, OY + 8 * T, "borba", foot=((-20, 70, 40, 12),))
