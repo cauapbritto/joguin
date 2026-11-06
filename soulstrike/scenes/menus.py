@@ -2124,6 +2124,31 @@ def _scene_cantos(screen, ui, rect, t):
             (rect.x + 290, by - 40))
 
 
+def _scene_corredores(screen, ui, rect, t):
+    """Os enfeites de cada capítulo, um capítulo por vez, com a placa da piada."""
+    from .. import casa, casa_art, enfeites
+    casa_art.use(ui.assets)
+    chapter = 1 + (t // 150) % 4
+    floor, wall, name = {1: ((52, 74, 44), (40, 90, 46), "TRILHA"), 2: ((58, 58, 62), (170, 170, 168), "LAG LOBBY"),
+                         3: ((226, 222, 220), (246, 244, 246), "CLEPALOVERS"),
+                         4: ((150, 150, 90), (226, 216, 190), "MANSÃO")}[chapter]
+    screen.fill(floor, rect)
+    screen.fill(wall, (rect.x, rect.y, rect.w, 56))
+    screen.fill(casa_art.shade(wall, -50), (rect.x, rect.y + 56, rect.w, 4))
+    walls, floors, lines, colors = enfeites.CHAPTERS[chapter]
+    for x in (rect.x + 70, rect.x + 270):
+        b = casa._bake(walls[0])
+        screen.blit(b.image, (x + b.dx, rect.y + 56 + b.dy))
+    for k, fn in enumerate(floors):
+        b = casa._bake(fn)
+        x, y = rect.x + 50 + k * 80, rect.y + (130 if k % 2 == 0 else 160)
+        screen.blit(b.image, (x + b.dx, y + b.dy))
+    sign = casa._bake(enfeites.joke_sign, lines, colors)
+    screen.blit(sign.image, (rect.centerx + sign.dx, rect.y + 222 + sign.dy))
+    screen.fill((20, 20, 26), (rect.x, rect.bottom - 22, rect.w, 22))
+    ui.text(screen, f"CAPÍTULO {chapter} · {name}", theme.XS, theme.BONE, (rect.centerx, rect.bottom - 11))
+
+
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
                "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
                "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
@@ -2132,7 +2157,8 @@ NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "n
                "controle": _scene_controle, "coroa": _scene_coroa, "ultra": _scene_ultra,
                "clepalovers": _scene_clepalovers, "clinica": _scene_clinica, "oi_sumido": _scene_oi_sumido,
                "mansao": _scene_mansao, "iara": _scene_iara,
-               "casa": _scene_casa, "computador": _scene_computador, "cantos": _scene_cantos}
+               "casa": _scene_casa, "computador": _scene_computador, "cantos": _scene_cantos,
+               "corredores": _scene_corredores}
 
 
 class NewsScene(_InfoScene):

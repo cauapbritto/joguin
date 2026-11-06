@@ -11,7 +11,7 @@ from soulstrike.campaign import (DUNGEON_1, DUNGEON_2, FORCE_WAIT, LEAVE_FRAMES,
                                  PHASES, TELEPORT_FRAMES, CampaignMatch, CampaignRun, LobbyMatch)
 from soulstrike.data import CHARACTERS, RARE_WEAPONS
 from soulstrike.dungeon import DONE_AT, Campfire
-from soulstrike.lobbies import CHAPTER_OF, CORREDORES, INICIO, LOBBIES, parse
+from soulstrike.lobbies import CHAPTER_OF, CORREDORES, INICIO, LOBBY_SCENERY, parse
 from soulstrike.session import Session, SlotSetup
 
 KEYS = [c.key for c in CHARACTERS]
@@ -62,14 +62,8 @@ def na_porta(match):
 
 
 class MapasTest(unittest.TestCase):
-    def test_acampamentos_fechados_e_com_tudo(self):
-        for theme, (name, rows) in LOBBIES.items():
-            size, walls, void, markers = parse(rows)
-            for ch, n in (("S", 4), ("a", 4), ("F", 4), ("C", 1), ("1", 2), ("2", 2)):
-                self.assertEqual(len(markers.get(ch, ())), n, (theme, ch))
-            arena = Arena(MAPS_BY_KEY[f"acampamento_{theme}"], game().assets)
-            for x, y in markers["S"] + markers["a"] + markers["C"]:
-                self.assertTrue(arena.is_free(x, y, 12), (theme, x, y))
+    def test_acampamentos_antigos_sairam(self):
+        self.assertFalse([m.key for m in MAPS_BY_KEY.values() if m.key.startswith("acampamento_")])
 
     def test_variacoes_viram_arenas_do_duelo(self):
         keys = [m.key for m in BATTLE_MAPS]
@@ -216,7 +210,7 @@ class AcampamentoTest(unittest.TestCase):
             g, run = corrida(phase=PHASES.index(phase), stage=LOBBY_BACK)
             match = LobbyMatch(g, run)
             keys.add(match.arena.cfg.name)
-            self.assertEqual(match.arena.cfg.scenery, MAPS_BY_KEY[phase.lobby].scenery)   # o cenário da fase
+            self.assertEqual(match.arena.cfg.scenery, LOBBY_SCENERY.get(phase.theme, phase.theme))   # o cenário da fase
         self.assertEqual(len(keys), 4)
 
     def test_fogueira_cura_ate_70_por_cento(self):
