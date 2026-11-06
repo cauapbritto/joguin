@@ -447,21 +447,6 @@ body.soccer #stick-stamina { opacity: 1; }
 #stick-base.run { border-color: var(--moss); }
 #stick-base.run #stick-knob { background: var(--moss); }
 
-#vote-btn {
-  display: none;
-  position: absolute; left: 50%; top: 58px; z-index: 4;
-  transform: translateX(-50%);
-  min-height: 64px; padding: 14px 22px 12px;
-  font-size: 14px; white-space: nowrap;
-  border-color: var(--brass);
-  animation: vote-pulse 1s ease-in-out infinite alternate;
-}
-#vote-btn.on { display: block; }
-#vote-btn:active { transform: translate(-50%, 3px); }
-#vote-btn.is-ready { animation: none; background: #2f4a2a; border-color: var(--moss); font-size: 11px; }
-@keyframes vote-pulse { from { box-shadow: 0 4px 0 #000, 0 0 0 0 rgba(228,170,76,.0); }
-                        to   { box-shadow: 0 4px 0 #000, 0 0 0 8px rgba(228,170,76,.35); } }
-
 #paused {
   display: none;
   position: absolute; inset: 0;
@@ -514,7 +499,7 @@ body.lefty #stick-base { left: auto; right: calc(var(--pad) + 30px); }
 .hud-group.end { margin-left: auto; }
 .hud-toggle.is-on { background: var(--slot-dark); border-color: var(--slot); }
 body.editing #hud-bar { display: flex; }
-body.editing .pad-top, body.editing .hint, body.editing #vote-btn { visibility: hidden; }
+body.editing .pad-top, body.editing .hint { visibility: hidden; }
 body.editing .pb, body.editing #stick-base { outline: 2px dashed var(--line-hi); outline-offset: 4px; }
 body.editing .editing-sel { outline: 2px dashed var(--brass); z-index: 2; }
 body.editing #btn-zone, body.editing #stick-zone { background: rgba(255, 255, 255, .02); }

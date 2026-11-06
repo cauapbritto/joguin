@@ -177,7 +177,6 @@ class OndasTest(unittest.TestCase):
         self.assertTrue(scene.match.back)
 
     def test_portal_leva_para_a_proxima_fase(self):
-        from soulstrike.net.remote import hub
         match, inputs = campanha(dungeon=1)
         pular_intro(match)
         match.wave = len(match.waves) - 1
@@ -185,7 +184,6 @@ class OndasTest(unittest.TestCase):
         p1.hp = 30
         passo(match, EXIT_DELAY + 4)
         self.assertEqual(match.state, "portal")
-        self.assertEqual(hub.status(2, "tele")["me"]["vote"], 0)       # sem botão no celular: só o portal
         portal = match.exit
         for p in match.players:
             p.x, p.y = portal.x, portal.y

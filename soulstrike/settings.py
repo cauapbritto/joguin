@@ -22,7 +22,7 @@ DEFAULTS = {
     "versao_vista": "",     # última versão cujas novidades o jogador já viu (novidades.py)
     "ultimo_modo": "",      # último modo jogado: a tela de modos já abre nele
     "controles": {},        # botões trocados por controle: {nome: {perfil, luta, bola, zona}} (pad_profiles.py)
-    "vibracao": True,       # o controle vibra ao apanhar, no gol/cesta e no SUPER (rumble.py)
+    "vibracao": True,       # controle e celular vibram ao apanhar, no gol/cesta, no SUPER e nas portas (rumble.py)
     "uniforme": False,      # crachá da Mansão do Carimbo nos jogadores (recompensa do capítulo 4)
 }
 VOLUME_KEYS = ("volume_geral", "volume_musica", "volume_efeitos")
