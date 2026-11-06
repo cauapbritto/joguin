@@ -17,7 +17,7 @@ DIFFICULTIES = {
 DIFFICULTIES["ibrahim"] = dict(DIFFICULTIES["dificil"], label="IBRAHIM", reaction=2, dodge=0.7,
                                tagline='"TOMA CUIDADO JOVI, ESSE É DIFÍCIL"')
 DIFFICULTIES["borba"] = dict(DIFFICULTIES["dificil"], label="BORBA", reaction=1, scatter=0.04, fire=0.95,
-                             dodge=0.8, ability=0.3, tagline='"FENOMENAL"')
+                             dodge=0.8, ability=0.3, tagline='"SENSACIONAL"')
 DIFFICULTY_ORDER = ("facil", "normal", "dificil")
 CAMPAIGN_ORDER = ("facil", "normal", "dificil", "ibrahim", "borba")
 

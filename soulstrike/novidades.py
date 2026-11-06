@@ -62,7 +62,7 @@ NEWS = {
         {"title": "CINCO DIFICULDADES", "scene": "perigos", "lines": [
             "A campanha agora tem FÁCIL, NORMAL, DIFÍCIL, IBRAHIM e BORBA.",
             "IBRAHIM: toma cuidado jovi, esse é difícil. Inimigos com poderes extras e só 1 continue.",
-            "BORBA: fenomenal. Sem cura entre as fases e cada um só é levantado uma vez por masmorra.",
+            "BORBA: sensacional. Sem cura entre as fases e cada um só é levantado uma vez por masmorra.",
         ]},
         {"title": "ENERGIA", "scene": "almas", "lines": [
             "Armas raras, roubadas e forjadas gastam energia (barra azul de 200) em vez de pente.",
