@@ -32,7 +32,7 @@ def start_campaign(game):
 
 
 def start_phase(game, run, story=True):
-    """Começa a fase no acampamento (depois da história dela)."""
+    """Começa a fase na sala inicial (depois da história dela)."""
     if run.rush:
         # Reunião dos Corrompidos: direto na sala do chefe (sem acampamento, história nem save)
         run.begin_phase()
@@ -48,7 +48,7 @@ def start_phase(game, run, story=True):
 
 
 def stage_scene(game, run):
-    """A etapa atual da fase: acampamento ou masmorra."""
+    """A etapa atual da fase: sala inicial, masmorra ou corredor."""
     from .play import PlayScene
     match = LobbyMatch(game, run) if run.in_lobby else CampaignMatch(game, run)
     return PlayScene(game, match)

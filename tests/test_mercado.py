@@ -101,9 +101,26 @@ class AlmasTest(unittest.TestCase):
 
 
 class MercadoTest(unittest.TestCase):
-    def test_so_aparece_na_volta(self):
-        self.assertEqual([s.kind for s in acampamento(back=False)[0].stalls], ["altar"])
+    def test_lojinha_na_sala_inicial_e_loja_completa_no_corredor(self):
+        inicio = acampamento(back=False)[0]
+        self.assertEqual(sorted(s.kind for s in inicio.stalls), ["altar", "loja"])
+        lojinha = next(s for s in inicio.stalls if s.kind == "loja")
+        self.assertTrue(lojinha.mini)
         self.assertEqual({s.kind for s in acampamento()[0].stalls}, {"loja", "ferreiro"})
+        self.assertFalse(any(s.mini for s in acampamento()[0].stalls))
+
+    def test_lojinha_vende_so_o_basico(self):
+        from soulstrike.market import MarketMenu
+        match, _ = acampamento(back=False)
+        p = match.players[0]
+        lojinha = next(s for s in match.stalls if s.kind == "loja")
+        keys = [e.key for e in MarketMenu(match, p, lojinha).entries()]
+        self.assertEqual(keys, ["pocao", "continue", "doar:2"])
+        corredor, _ = acampamento()
+        loja = next(s for s in corredor.stalls if s.kind == "loja")
+        full = [e.key for e in MarketMenu(corredor, corredor.players[0], loja).entries()]
+        self.assertIn("arma", full)
+        self.assertTrue(any(k.startswith("vitrine:") for k in full))
 
     def test_pocao_cura_e_gasta_almas(self):
         match, inputs = acampamento(souls=50)

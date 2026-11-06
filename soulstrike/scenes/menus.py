@@ -268,8 +268,8 @@ MODE_TEXT = {
     "desafio_goleiro": ("Defenda 3 seguidas contra a CPU para passar de rodada. A CPU fica mais difícil a cada "
                         "rodada, e 3 gols tomados acabam o desafio.",
                         "1 JOGADOR"),
-    "campaign": ("Juntos contra as sombras, em 4 capítulos: em cada fase, um acampamento e duas masmorras, "
-                 "com um baú escondido de armas raras no caminho. O capítulo 1 acaba no Aryel Corrompido, o 2 "
+    "campaign": ("Juntos contra as sombras, em 4 capítulos: cada fase vai em frente, sem voltar, da sala inicial "
+                 "para duas masmorras, com um corredor no meio (baú de armas raras, loja e ferreiro). O capítulo 1 acaba no Aryel Corrompido, o 2 "
                  "no Borba Jr Corrompido (Lag Lobby), o 3 no Albeguinio Corrompido (Clínica Clepalovers) e o 4 "
                  "no Cauanzera Corrompido (Mansão do Carimbo). Quem cair pode ser levantado.",
                  "1 A 4 JOGADORES"),
@@ -352,6 +352,7 @@ COVER_SCENES = {
     "soccer1": ("campo_futebol", 0.5, 0.5, (255, 250, 220), None),
     "soccer2": ("campo_cuiabrasa", 0.5, 0.5, (255, 230, 170), None),
     "penaltis": ("campo_futebol", 0.93, 0.5, (255, 250, 220), None),
+    "penaltis1": ("campo_futebol", 0.07, 0.5, (255, 250, 220), None),     # 1 x 1: o outro gol
     "desafio_goleiro": ("campo_futebol", 0.93, 0.5, (255, 250, 220), None),
     "treino_futebol": ("campo_futebol", 0.3, 0.5, (255, 250, 220), None),
     "treino_penaltis": ("campo_cuiabrasa", 0.93, 0.5, (255, 230, 170), None),
@@ -733,7 +734,7 @@ class ModeScene(_MenuScene):
         from ..campaign import PHASES
         run = self.saved_run
         n = run.players
-        desc = (f"Volta para o acampamento da fase {run.phase_index + 1} de {len(PHASES)}: "
+        desc = (f"Volta para a sala inicial da fase {run.phase_index + 1} de {len(PHASES)}: "
                 f"{run.phase.name}, dificuldade {DIFFICULTIES[run.session.difficulty]['label']}. As melhorias, as armas "
                 "raras e a vida continuam como estavam. Quem jogava pelo celular ou controle precisa estar "
                 "conectado antes.")
@@ -1241,7 +1242,7 @@ ABOUT = [
      "armas (Arrow, Grenade, ChainBall...) herdam de Projectile, que herda de Bullet. ShadowBomb herda "
      "de GroundMark: é o mesmo aviso no chão, só que explode no fim. BattleMatch, SoccerMatch e "
      "CampaignMatch herdam de Match, que já cuida de câmera, tiros, partículas e desenho. Na campanha, "
-     "CampaignMatch (a masmorra) e LobbyMatch (o acampamento) herdam de CoopMatch, que junta o que as duas "
+     "CampaignMatch (a masmorra) e LobbyMatch (a sala inicial e o corredor) herdam de CoopMatch, que junta o que as duas "
      "têm em comum (levantar quem caiu, a mira, os itens, o escurecer entre as etapas). TeamBattleMatch "
      "(o duelo 2 x 2) herda de BattleMatch e só troca o que é um \"lado\": em vez de um lutador, um time "
      "inteiro, que precisa cair todo para perder o round. Os inimigos da "

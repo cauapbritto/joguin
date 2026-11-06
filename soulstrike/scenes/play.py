@@ -173,8 +173,6 @@ class PlayScene(Scene):
         if not self.paused:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self._set_paused(True)
-            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and hasattr(self.match, "click"):
-                self.match.click(event.pos)          # botão TELETRANSPORTE DE FASE
             return
         if event.type == pygame.KEYDOWN:
             cmd = {pygame.K_UP: "up", pygame.K_w: "up", pygame.K_DOWN: "down", pygame.K_s: "down",

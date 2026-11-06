@@ -458,7 +458,17 @@ def _lobby(theme):
                      theme=lobbies.LOBBY_SCENERY.get(theme, theme), void=void, markers=markers)
 
 
+def _room(kind, theme):
+    """Sala inicial ou corredor da fase (progressão contínua), no cenário do acampamento da fase."""
+    name, rows = lobbies.INICIO if kind == "inicio" else lobbies.corredor_rows(theme)
+    size, walls, void, markers = lobbies.parse(rows)
+    spawns = markers.get("S") or markers["a"]
+    return MapConfig(f"{kind}_{theme}", name, size, walls=walls, spawns=spawns, battle=False,
+                     theme=lobbies.LOBBY_SCENERY.get(theme, theme), void=void, markers=markers)
+
+
 MAPS += [_lobby(theme) for theme in lobbies.LOBBIES]
+MAPS += [_room(kind, theme) for theme in lobbies.CHAPTER_OF for kind in ("inicio", "corredor")]
 MAPS_BY_KEY = {m.key: m for m in MAPS}
 BATTLE_MAPS = [m for m in MAPS if m.battle]
 

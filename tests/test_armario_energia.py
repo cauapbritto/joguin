@@ -26,7 +26,7 @@ def corrida(chars=("guerreiro", "atirador"), phase=0, stage=0, difficulty="norma
     return g, run
 
 
-def acampamento(back=False, run=None):
+def acampamento(back=True, run=None):
     g, r = corrida(stage=LOBBY_BACK if back else 0)
     run = run or r
     match = LobbyMatch(g, run)
@@ -40,9 +40,9 @@ def perto(match, p, thing):
 
 
 class ArmarioTest(unittest.TestCase):
-    def test_tem_armario_nos_dois_acampamentos(self):
-        for back in (False, True):
-            self.assertIsNotNone(acampamento(back).armario)
+    def test_armario_fica_no_corredor(self):
+        self.assertIsNotNone(acampamento(back=True).armario)
+        self.assertIsNone(acampamento(back=False).armario)       # a sala inicial só tem a lojinha e o altar
 
     def test_guardar_e_pegar(self):
         match = acampamento()
