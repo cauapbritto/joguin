@@ -10,6 +10,18 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.20.0": [
+        {"title": "CASA DA TURMA", "scene": "casa", "lines": [
+            "A campanha começa na casa da turma. O CONTINUAR também volta por ela.",
+            "Cada amigo tem o seu canto. A saída do quintal leva o grupo para a fase.",
+            "O livro do Cauanzera mostra um versículo diferente cada vez que é aberto.",
+        ]},
+        {"title": "A VITRINE FALA", "scene": "casa", "lines": [
+            "Chegue perto de um herói da vitrine e ele fala, cada vez uma frase.",
+            "Regue a horta com ATACAR. Com os quatro canteiros regados juntos, nasce uma flor grande.",
+            "As portas trancadas abrem conforme a campanha avança.",
+        ]},
+    ],
     "1.19.0": [
         {"title": "O CELULAR VIBRA", "scene": "hud", "lines": [
             "O celular vibra quando o seu herói apanha, no gol, na cesta e no SUPER.",

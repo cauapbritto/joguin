@@ -886,6 +886,45 @@ def _mansao_jardim(s, rng):
     _vignette(s, (120, 80, 20), 30)
 
 
+
+def _casa(s, rng):
+    """Hub (Casa da turma): tábuas de madeira na casa e grama com um caminho de terra no quintal."""
+    from .lobbies import CASA_SPLIT, CASA_TOP, TILE
+    w, h = s.get_size()
+    split = CASA_SPLIT // U
+    t = TILE // U
+    # quintal: grama em manchas, o caminho da porta da casa até a saída e uns tufos
+    base = (40, 78, 36)
+    s.fill(base, (0, split, w, h - split))
+    for _ in range(320):
+        c = _shade(base, rng.choice((-8, -4, 5, 10)))
+        _blob(s, rng, rng.randrange(w), rng.randrange(split, h), rng.randint(5, 18), c)
+    dirt, dirt_d = (110, 84, 54), (88, 66, 42)
+    x0, x1 = 21 * t, 27 * t
+    s.fill(dirt_d, (x0 - 2, split, x1 - x0 + 4, h - split))
+    s.fill(dirt, (x0, split, x1 - x0, h - split))
+    for y in range(split, h, 6):                             # pedrinhas do caminho
+        s.fill(_shade(dirt, rng.choice((-14, 10))), (rng.randrange(x0, x1 - 6), y + rng.randrange(0, 4), 5, 3))
+    for _ in range(90):
+        x, y = rng.randrange(w), rng.randrange(split, h)
+        if x0 - 6 < x < x1 + 6:
+            continue
+        s.fill((70, 120, 54), (x, y, 1, 3))
+        s.fill((70, 120, 54), (x + 2, y + 1, 1, 2))
+    # casa: tábuas corridas com as juntas desencontradas
+    top = CASA_TOP * t
+    s.fill((96, 62, 38), (0, top, w, split - top))
+    for y in range(top, split, 8):
+        off = rng.randrange(0, 40)
+        for x in range(-off, w, 40 + rng.randrange(0, 20)):
+            c = _shade((104, 68, 42), rng.randint(-12, 12))
+            s.fill(c, (x, y, 60, 7))
+            s.fill((70, 44, 26), (x, y, 1, 7))
+        s.fill((66, 42, 26), (0, y + 7, w, 1))
+    for _ in range(140):
+        s.fill((88, 56, 34), (rng.randrange(w), rng.randrange(top, split), rng.randrange(2, 6), 1))
+
+
 _PAINTERS = {"floresta": _floresta, "calabouco": _calabouco, "templo_gelado": _templo,
              "lag_escritorio": _lag_escritorio, "lag_datacenter": _lag_datacenter, "lag_garagem": _lag_garagem,
              "lag_cobertura": _lag_cobertura,
@@ -893,7 +932,7 @@ _PAINTERS = {"floresta": _floresta, "calabouco": _calabouco, "templo_gelado": _t
              "clinica_adm": _clinica_adm, "clinica_calcada": _clinica_calcada,
              "mansao": _mansao, "mansao_arquivo": _mansao_arquivo, "mansao_patio": _mansao_patio,
              "mansao_cpd": _mansao_cpd, "mansao_reuniao": _mansao_reuniao, "mansao_nucleo": _mansao_nucleo,
-             "mansao_jardim": _mansao_jardim}
+             "mansao_jardim": _mansao_jardim, "casa": _casa}
 THEMED_MAPS = tuple(_PAINTERS)
 
 
@@ -1449,12 +1488,42 @@ class GardenWall(_Style):
         pygame.draw.rect(s, (160, 140, 100), (0, 0, w, h), 1)
 
 
+
+class CasaWall(_Style):
+    """Parede da Casa da turma: papel de parede verde-musgo listrado com lambri de madeira embaixo.
+    No quintal (abaixo da casa) o muro é a cerca viva da floresta; a garagem é parede de casa."""
+
+    def render(self, w, h, seed):
+        from .lobbies import CASA, CASA_SPLIT, TILE
+        inner = 0 < seed[0] and seed[0] + w < len(CASA[1][0]) * TILE       # a garagem, no meio do quintal
+        if seed[1] >= CASA_SPLIT and not inner:
+            return Hedge("floresta").render(w, h, seed)
+        return super().render(w, h, seed)
+
+    def paint(self, s, w, h, rng):
+        wood, wood_d, wood_l = (122, 80, 48), (84, 54, 32), (156, 108, 66)
+        s.fill((20, 12, 8, 140), (0, 6, w, h))
+        s.fill((70, 96, 74), (0, 0, w, h))
+        for x in range(0, w, 8):
+            s.fill((62, 86, 66), (x, 0, 3, h))
+        s.fill((96, 124, 98), (0, 0, w, 3))
+        if w >= h:
+            wain = max(6, h // 2)
+            s.fill(wood, (0, h - wain, w, wain))
+            s.fill(wood_l, (0, h - wain, w, 2))
+            for x in range(12, w - 6, 20):
+                s.fill(wood_d, (x, h - wain + 4, 1, wain - 6))
+        else:
+            s.fill(wood, (0, 0, max(4, w // 3), h))
+
+
 _STYLES = {"floresta": Hedge, "calabouco": DungeonStone, "templo_gelado": IceBlock,
            "lag_escritorio": GlassWall, "lag_datacenter": ServerRack, "lag_garagem": Barrier, "lag_cobertura": Barrier,
            "clinica": ClinicWall, "clinica_spa": SpaWall, "clinica_vip": MirrorWall, "clinica_adm": FileCabinet,
            "clinica_calcada": ClinicWall,
            "mansao": MansionWall, "mansao_arquivo": ShelfWall, "mansao_patio": PatioWall, "mansao_cpd": CellarRack,
-           "mansao_reuniao": BoardroomWall, "mansao_nucleo": CoreWall, "mansao_jardim": GardenWall}
+           "mansao_reuniao": BoardroomWall, "mansao_nucleo": CoreWall, "mansao_jardim": GardenWall,
+           "casa": CasaWall}
 
 
 def wall_style(key):

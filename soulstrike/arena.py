@@ -467,7 +467,15 @@ def _room(kind, theme):
                      theme=lobbies.LOBBY_SCENERY.get(theme, theme), void=void, markers=markers)
 
 
+def _casa():
+    """Hub da campanha: a Casa da turma com o quintal (lobbies.CASA)."""
+    size, walls, void, markers = lobbies.casa_parse()
+    return MapConfig("hub_casa", lobbies.CASA[0], size, walls=walls, spawns=markers["S"], battle=False,
+                     theme="casa", void=void, markers=markers)
+
+
 MAPS += [_lobby(theme) for theme in lobbies.LOBBIES]
+MAPS.append(_casa())
 MAPS += [_room(kind, theme) for theme in lobbies.CHAPTER_OF for kind in ("inicio", "corredor")]
 MAPS_BY_KEY = {m.key: m for m in MAPS}
 BATTLE_MAPS = [m for m in MAPS if m.battle]
