@@ -45,6 +45,24 @@
 
   function buzz() { if (navigator.vibrate && !(hud && hud.vibrate === false)) navigator.vibrate(8); }
 
+  // Vibração por evento: o jogo manda [contador, padrão] e o celular vibra quando o contador muda.
+  // O iPhone não tem navigator.vibrate: aí nada acontece (e nada quebra). O botão VIBRAR vale aqui também.
+  var BUZZ_PATTERNS = {
+    hit: [30], big_hit: [70], score: [80, 40, 80], super: [20],
+    call: [60, 80, 60, 80, 60], tick: [15], go: [140]
+  };
+  var lastBuzz = null;
+  function vibrateFor(b) {
+    if (!b || b.length < 2) return;
+    var first = lastBuzz === null;
+    if (b[0] === lastBuzz) return;
+    lastBuzz = b[0];
+    if (first) return;                 // ao abrir a página não vibra pelo que já passou
+    if (!navigator.vibrate || (hud && hud.vibrate === false)) return;
+    var pattern = BUZZ_PATTERNS[b[1]];
+    if (pattern) navigator.vibrate(pattern);
+  }
+
   function capture(el, id) {
     try { el.setPointerCapture(id); } catch (e) { /* ponteiro já liberado */ }
   }
@@ -1137,13 +1155,7 @@
       sb.classList.toggle("ready", cd <= 0);
       renderAmmo(me, mode);
       renderSouls(me);
-      var vote = me.vote || 0;                 // 1 = falta confirmar o teletransporte, 2 = confirmado
-      var vb = $("vote-btn");
-      vb.classList.toggle("on", vote > 0 && phase === "playing");
-      vb.classList.toggle("is-ready", vote === 2);
-      var vtext = vote === 2 ? "PRONTO! ESPERANDO OS OUTROS" : "TELETRANSPORTE DE FASE";
-      if (vb.textContent !== vtext) vb.textContent = vtext;
-      vb.disabled = vote === 2;
+      vibrateFor(me.buzz);
       var st = $("stick-stamina");
       st.style.setProperty("--st", (me.stamina === undefined ? 1 : me.stamina).toFixed(3));
       st.classList.toggle("tired", !!me.tired);

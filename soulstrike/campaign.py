@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import pygame
 
-from . import config, crt, energia, hud, theme
+from . import config, crt, energia, hud, rumble, theme
 from .progress import chapter_cleared
 from .ai import FighterAI
 from .entities import Particle, Pickup, Wall
@@ -589,6 +589,7 @@ LEASH_STEP = 40               # correção grande (teletransporte) só acima dis
 PASSAGE_FRAMES = 120         # 2 s de contagem na passagem coletiva (zera se alguém sair)
 PASSAGE_SOLO = 60            # sozinho, só um respiro de 1 s
 FORCE_WAIT = 20 * config.FPS     # alguém travando o grupo por 20 s: o P1 pode ir mesmo assim
+CALL_EVERY = 3 * config.FPS      # com gente na porta, o celular de quem falta vibra a cada 3 s
 TILE_PX = 40
 
 
@@ -637,12 +638,19 @@ class Passage:
             self.timer += 1
             if self.timer >= self.frames():
                 self.gone = True
+                for p in match.players:
+                    rumble.fighter(p, rumble.GO)
                 return True
             if before != self.seconds_left:
                 match.assets.play("select", 0.35)          # o tique de cada segundo
+                for p in self.inside:
+                    rumble.fighter(p, rumble.TICK)
         else:
             self.timer = 0
         self.wait = self.wait + 1 if self.inside and self.missing else 0
+        if self.wait and self.wait % CALL_EVERY == 0:
+            for p in self.missing:                         # convocação: o grupo está esperando você
+                rumble.fighter(p, rumble.CALL)
         return False
 
     def try_force(self, match, f):
@@ -651,6 +659,8 @@ class Passage:
         if not self.can_force or f.slot != host_slot(match.session):
             return False
         self.gone = True
+        for p in match.players:
+            rumble.fighter(p, rumble.GO)
         match.leave()
         return True
 
@@ -1319,7 +1329,6 @@ class CampaignMatch(CoopMatch):
         self.notices = []               # balões do "oi sumido" (capítulo 3), na tela
         self.daiwone_at = None          # quadro em que a Daiwone chega (None = não vem / já veio)
         self._vanished = []
-        hub_vote(self, 0)
 
     @property
     def last(self):
@@ -1907,17 +1916,6 @@ class CampaignMatch(CoopMatch):
             _edge_arrow(screen, sx, sy, color, 11 if big else 7)
 
 
-def hub_vote(match, value):
-    """Avisa o celular de cada jogador: 0 = sem votação, 1 = falta confirmar, 2 = já confirmou."""
-    for p in match.players:
-        hub_vote_slot(p, value)
-
-
-def hub_vote_slot(fighter, value):
-    if fighter.slot and not fighter.is_cpu:
-        hub.publish_slot(fighter.slot, vote=value)
-
-
 class LobbyMatch(CoopMatch):
     """Trecho sem batalha da fase (progressão contínua, ninguém volta para trás):
 
@@ -1984,7 +1982,6 @@ class LobbyMatch(CoopMatch):
         if chapter_cleared(4) and self.players:    # recompensa do capítulo 4: a IARA mascote
             from .mansao import IaraMascot
             self.add_effect(IaraMascot(self.players[0], self.assets.sprites.get("iara_nucleo")))
-        hub_vote(self, 0)
         for p in self.players:              # chegando (portal da fase anterior ou saindo da masmorra)
             self.burst(p.x, p.y - 20, (200, 180, 255), 14, speed=3)
 

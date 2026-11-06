@@ -10,6 +10,16 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.19.0": [
+        {"title": "O CELULAR VIBRA", "scene": "hud", "lines": [
+            "O celular vibra quando o seu herói apanha, no gol, na cesta e no SUPER.",
+            "Funciona no Android. O botão VIBRAR do celular e a opção VIBRAÇÃO desligam tudo.",
+        ]},
+        {"title": "CHAMADA NA PORTA", "scene": "lag", "lines": [
+            "Na campanha, quando o grupo está na porta e falta você, o celular chama a cada 3 segundos.",
+            "Ele também vibra em cada segundo da contagem e na hora em que o grupo vai.",
+        ]},
+    ],
     "1.18.0": [
         {"title": "A FASE VAI EM FRENTE", "scene": "lag", "lines": [
             "Ninguém volta mais para o acampamento: a fase começa numa sala inicial com a lojinha e o altar.",

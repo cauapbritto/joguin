@@ -991,7 +991,7 @@ class OptionsScene(_InfoScene):
         ("tremor", "TREMOR DE TELA", "NOS IMPACTOS E EXPLOSÕES"),
         ("duplo_toque", "DUPLO TOQUE = ESQUIVA", "DUAS VEZES NA MESMA SETA"),
         ("controle_comeca_no_p2", "1º CONTROLE USB É O P2", "DESLIGADO: É O P1"),
-        ("vibracao", "VIBRAÇÃO DO CONTROLE", "AO APANHAR, NO GOL E NO SUPER"),
+        ("vibracao", "VIBRAÇÃO", "CONTROLE E CELULAR (ANDROID)"),
         ("novidades", "NOVIDADES", "O QUE MUDOU EM CADA VERSÃO"),
     ]
     ROW_H = 36
