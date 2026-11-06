@@ -181,6 +181,19 @@
     show("join");
   });
 
+  // ── tela de novidades: < PULAR > ──
+  document.querySelectorAll("[data-news]").forEach(function (el) {
+    el.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      buzz();
+      el.classList.add("down");
+      newsTap(el.dataset.news);
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (t) {
+      el.addEventListener(t, function () { el.classList.remove("down"); });
+    });
+  });
+
   // ── botões de toque (um aperto) e de segurar ──
   document.querySelectorAll("[data-tap]").forEach(function (el) {
     el.addEventListener("pointerdown", function (e) {
@@ -1179,9 +1192,11 @@
     }
     show("wait");
     renderNews(phase === "news" ? status.news || [] : []);
+    renderNewsPage(phase === "news" ? status.news_page : null);
     if (phase === "news") {
       bind("wait-title", status.banner || "Novidades");
-      bind("wait-text", "Na TV: setas ou ENTER para virar as páginas.");
+      bind("wait-text", status.news_page ? "Os botões daqui também viram as notícias." :
+                                           "Na TV: setas ou ENTER para escolher.");
     } else if (phase === "story") {
       bind("wait-title", status.banner || "História");
       bind("wait-text", me.playing ? "Acompanhe a história na tela." : "");
@@ -1284,6 +1299,22 @@
     badge.classList.toggle("empty", !reloading && ammo <= 0);
     var text = reloading ? "RECARGA" : ammo <= 0 ? "VAZIO" : ammo + "/" + mag;
     if (badge.textContent !== text) badge.textContent = text;
+  }
+
+  function renderNewsPage(page) {
+    $("news-page").classList.toggle("on", !!page);
+    $("news-actions").classList.toggle("on", !!page);
+    if (!page) return;
+    var count = page.index ? "NOTÍCIA " + page.index + " DE " + page.total : "AS MANCHETES DE HOJE";
+    if ($("news-page-count").textContent !== count) $("news-page-count").textContent = count;
+    var title = page.index ? page.title : page.total + " novidades: aperte > para começar";
+    if ($("news-page-title").textContent !== title) $("news-page-title").textContent = title;
+  }
+
+  function newsTap(go) {
+    if (!slot) return;
+    post("/api/news", { slot: slot, token: token, go: go }).catch(function () {});
+    setTimeout(refresh, 90);
   }
 
   function renderNews(lines) {

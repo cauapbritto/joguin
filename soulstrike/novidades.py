@@ -5,11 +5,24 @@ Ao subir a versão em __init__.py, acrescente aqui o que mudou, em frases curtas
 
 Uma versão pode ser só uma lista de frases (uma página) ou uma lista de páginas, cada uma
 um dicionário com título, cena animada (ver NEWS_SCENES em scenes/menus.py) e frases.
+Opcional: "tv" escolhe uma imagem feita para o plantão (FOOTAGE em scenes/plantao.py, ou
+"estudio" para a bancada dos âncoras).
 """
 from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.23.0": [
+        {"title": "PLANTÃO SOUL STRIKE", "scene": "novidades", "tv": "estudio", "lines": [
+            "As novidades viraram um telejornal: cada versão é uma edição e cada novidade é uma notícia.",
+            "Cada notícia tem a sua imagem ao vivo, e a lista do lado marca o que você já viu.",
+            "Atualizou depois de muito tempo? Aparecem todas as versões que você ainda não viu.",
+        ]},
+        {"title": "NO CELULAR E NO ARQUIVO", "scene": "hud", "lines": [
+            "No celular, os botões < PULAR > viram as notícias de qualquer jogador.",
+            "Em OPÇÕES > NOVIDADES fica o arquivo com todas as edições, desde a 1.1.0.",
+        ]},
+    ],
     "1.22.0": [
         {"title": "CORREDORES DECORADOS", "scene": "corredores", "lines": [
             "A sala inicial e o corredor de cada capítulo ganharam enfeites nos cantos, sem fechar o caminho.",
