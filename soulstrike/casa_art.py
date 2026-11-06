@@ -660,8 +660,8 @@ def exo_stand(s, x, y):
 
 
 def city_car(s, x, y):
-    """O Honda City do João estacionado no quintal, de lado (x, y = chão no meio do carro)."""
-    W, W2, D = (226, 228, 232), (190, 192, 198), (30, 30, 34)
+    """O Honda City cinza-escuro do João estacionado no quintal, de lado (x, y = chão no meio do carro)."""
+    W, W2, D = (84, 88, 96), (62, 65, 72), (24, 24, 28)
     shadow(s, x, y + 2, 176)
     pygame.draw.ellipse(s, (0, 0, 0, 60), (x - 92, y - 8, 184, 18))
     box(s, W2, x - 84, y - 30, 168, 26)                          # carroceria (sedã: porta-malas atrás)
