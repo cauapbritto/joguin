@@ -268,7 +268,7 @@ MODE_TEXT = {
     "desafio_goleiro": ("Defenda 3 seguidas contra a CPU para passar de rodada. A CPU fica mais difícil a cada "
                         "rodada, e 3 gols tomados acabam o desafio.",
                         "1 JOGADOR"),
-    "campaign": ("Juntos contra as sombras, em 4 capítulos: cada fase vai em frente, sem voltar, da sala inicial "
+    "campaign": ("Juntos contra as sombras, em 4 capítulos, saindo da Casa da turma: cada fase vai em frente, sem voltar, da sala inicial "
                  "para duas masmorras, com um corredor no meio (baú de armas raras, loja e ferreiro). O capítulo 1 acaba no Aryel Corrompido, o 2 "
                  "no Borba Jr Corrompido (Lag Lobby), o 3 no Albeguinio Corrompido (Clínica Clepalovers) e o 4 "
                  "no Cauanzera Corrompido (Mansão do Carimbo). Quem cair pode ser levantado.",
@@ -598,10 +598,10 @@ class ModeScene(_MenuScene):
             self.game.change(CinemaScene(self.game))
             return
         if choice == "continue":
-            from .campaign import start_phase
+            from .campaign import hub_scene
             run = self.saved_run
             self.game.session = run.session
-            self.game.change(start_phase(self.game, run, story=False))
+            self.game.change(hub_scene(self.game, run, story=False))
             return
         settings.change("ultimo_modo", choice)
         start_mode(self.game, choice)
@@ -734,7 +734,7 @@ class ModeScene(_MenuScene):
         from ..campaign import PHASES
         run = self.saved_run
         n = run.players
-        desc = (f"Volta para a sala inicial da fase {run.phase_index + 1} de {len(PHASES)}: "
+        desc = (f"Volta pela Casa da turma para a fase {run.phase_index + 1} de {len(PHASES)}: "
                 f"{run.phase.name}, dificuldade {DIFFICULTIES[run.session.difficulty]['label']}. As melhorias, as armas "
                 "raras e a vida continuam como estavam. Quem jogava pelo celular ou controle precisa estar "
                 "conectado antes.")
@@ -2018,6 +2018,31 @@ def _scene_iara(screen, ui, rect, t):
         ui.text(screen, "TIROU DA TOMADA!", theme.XS, (140, 220, 120), (plug.centerx, plug.y - 46), shadow=False)
 
 
+def _scene_casa(screen, ui, rect, t):
+    """Hub: a sala da Casa da turma, com o livro do Cauanzera e um herói da vitrine falando."""
+    from .. import casa, casa_art
+    casa_art.use(ui.assets)
+    screen.fill((96, 62, 38), rect)
+    for y in range(rect.y, rect.bottom, 16):                                   # tábuas
+        off = (y * 37) % 50
+        for x in range(rect.x - off, rect.right, 70):
+            screen.fill((104 + (x * 7 + y) % 13 - 6, 68, 42), (x, y, 66, 14))
+        screen.fill((66, 42, 26), (rect.x, y + 14, rect.w, 2))
+    screen.fill((70, 96, 74), (rect.x, rect.y, rect.w, 34))                   # parede
+    screen.fill((122, 80, 48), (rect.x, rect.y + 22, rect.w, 12))
+    book = casa._bake(casa_art.lectern_book)
+    bx, by = rect.x + 90, rect.y + 150
+    screen.blit(book.image, (bx + book.dx, by + book.dy))
+    ref = casa.VERSES[(t // 90) % len(casa.VERSES)][0]
+    ui.text(screen, ref, theme.XS, theme.BRASS, (bx, by - 50))
+    key = ("cauanzera", "aryel", "albeguinio", "borba")[(t // 120) % 4]
+    hero = casa._bake(casa_art.mannequin, key)
+    hx, hy = rect.x + 250, rect.y + 200
+    screen.blit(hero.image, (hx + hero.dx, hy + hero.dy))
+    line = casa.FALAS[key][(t // 480) % 5]
+    casa.draw_bubble(screen, ui, ui.assets, line, hx, hy - 96)
+
+
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
                "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
                "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
@@ -2025,7 +2050,8 @@ NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "n
                "bate": _scene_bate, "agarra": _scene_agarra, "modos": _scene_modos,
                "controle": _scene_controle, "coroa": _scene_coroa, "ultra": _scene_ultra,
                "clepalovers": _scene_clepalovers, "clinica": _scene_clinica, "oi_sumido": _scene_oi_sumido,
-               "mansao": _scene_mansao, "iara": _scene_iara}
+               "mansao": _scene_mansao, "iara": _scene_iara,
+               "casa": _scene_casa}
 
 
 class NewsScene(_InfoScene):

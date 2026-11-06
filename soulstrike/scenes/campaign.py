@@ -27,8 +27,15 @@ def start_campaign(game):
     if chapter > 1:
         # direto no capítulo 2 ou 3: almas, melhorias sorteadas e mais uma escolhida antes de entrar
         run.start_at_chapter(chapter)
-        return UpgradeScene(game, run, lambda: start_phase(game, run), intro=True)
-    return StoryScene(game, "prologo", lambda: start_phase(game, run))
+        return UpgradeScene(game, run, lambda: hub_scene(game, run), intro=True)
+    return StoryScene(game, "prologo", lambda: hub_scene(game, run))
+
+
+def hub_scene(game, run, story=True):
+    """A Casa da turma: a campanha (e o CONTINUAR) começa aqui; a saída do quintal leva à fase."""
+    from ..casa import HubMatch
+    from .play import PlayScene
+    return PlayScene(game, HubMatch(game, run, story))
 
 
 def start_phase(game, run, story=True):

@@ -450,3 +450,61 @@ def cells_rect(points):
     ys = [y for _, y in points]
     half = TILE // 2
     return (min(xs) - half, min(ys) - half, max(xs) - min(xs) + TILE, max(ys) - min(ys) + TILE)
+
+
+# ─────────────────────────────────────────────
+#  Hub: Casa da turma (onde a campanha começa)
+# ─────────────────────────────────────────────
+# A casa em cima (chão de tábuas e papel de parede) e o quintal embaixo (grama e cerca viva), com a
+# garagem no canto do quintal. D: a saída para a aventura, no muro de baixo do quintal.
+CASA = ("CASA DA TURMA", (
+    "################################################",
+    "#..............................................#",
+    "#..............................................#",
+    "#..............................................#",
+    "#..............................................#",
+    "#..............................................#",
+    "#..............................................#",
+    "#..............................................#",
+    "#..............................................#",
+    "#..............................................#",
+    "#..............................................#",
+    "#.....................SSSS.....................#",
+    "#..............................................#",
+    "#..............................................#",
+    "####################........####################",
+))
+QUINTAL = (
+    "#..............................................#",
+    "#..............................................#",
+    "#..............................................#",
+    "#.................................###########..#",
+    "#.................................###########..#",
+    "#..............................................#",
+    "#..............................................#",
+    "#..............................................#",
+    "#####################DDDDDD#####################",
+)
+CASA_TOP = 2                 # linhas escuras em cima (a parede de cima não fica atrás do HUD)
+CASA_BOTTOM = 3              # e embaixo: o túnel escuro depois da saída
+CASA_SPLIT = (CASA_TOP + len(CASA[1])) * TILE      # onde a casa acaba e o quintal começa (px)
+
+
+def casa_parse():
+    """Como ``parse``, mas a casa e o quintal juntam as paredes cada um por si (a parede da casa é
+    papel de parede; a do quintal, cerca viva). Devolve (tamanho, paredes, fora, marcadores)."""
+    width = len(CASA[1][0])
+    house = [" " * width] * CASA_TOP + list(CASA[1])
+    yard = list(QUINTAL) + [" " * width] * CASA_BOTTOM
+    grid = house + yard
+    size = (width * TILE, len(grid) * TILE)
+    split = len(house)
+    walls = _merge(house, lambda ch: ch == "#")
+    walls += [(x, y + split * TILE, w, h) for x, y, w, h in _merge(yard, lambda ch: ch == "#")]
+    void = _merge(grid, lambda ch: ch == " ")
+    markers = {}
+    for y, row in enumerate(grid):
+        for x, ch in enumerate(row):
+            if ch in "SD":
+                markers.setdefault(ch, []).append((x * TILE + TILE // 2, y * TILE + TILE // 2))
+    return size, walls, void, markers
