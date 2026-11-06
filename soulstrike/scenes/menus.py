@@ -352,6 +352,7 @@ COVER_SCENES = {
     "soccer1": ("campo_futebol", 0.5, 0.5, (255, 250, 220), None),
     "soccer2": ("campo_cuiabrasa", 0.5, 0.5, (255, 230, 170), None),
     "penaltis": ("campo_futebol", 0.93, 0.5, (255, 250, 220), None),
+    "penaltis1": ("campo_futebol", 0.07, 0.5, (255, 250, 220), None),     # 1 x 1: o outro gol
     "desafio_goleiro": ("campo_futebol", 0.93, 0.5, (255, 250, 220), None),
     "treino_futebol": ("campo_futebol", 0.3, 0.5, (255, 250, 220), None),
     "treino_penaltis": ("campo_cuiabrasa", 0.93, 0.5, (255, 230, 170), None),
