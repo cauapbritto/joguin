@@ -438,6 +438,40 @@ def lectern_book(s, x, y):
     box(s, (200, 40, 50), x + 10, y + 2, 2, 10)                  # fitinha marcando a página
 
 
+def uno_stand(s, x, y):
+    """O suporte da armadura de Uno vazio (alguém está vestindo): só a base, a haste e a plaquinha."""
+    shadow(s, x, y + 2, 72)
+    box(s, (70, 64, 78), x - 30, y - 8, 60, 10)
+    box(s, (98, 90, 108), x - 30, y - 8, 60, 2)
+    box(s, (40, 70, 150), x - 12, y - 6, 24, 7)
+    box(s, (230, 230, 240), x - 9, y - 4, 18, 1)
+    box(s, (120, 120, 126), x - 3, y - 70, 6, 62)
+    box(s, (120, 120, 126), x - 22, y - 70, 44, 4)                 # o cabide dos ombros
+
+
+def uno_car(s, x, y):
+    """O Uno branco de lado, quadradinho (x, y = chão no meio do carro). Hatch: a traseira reta."""
+    W, W2, D = (244, 244, 240), (210, 210, 206), (26, 26, 30)
+    shadow(s, x, y + 2, 150)
+    pygame.draw.ellipse(s, (0, 0, 0, 60), (x - 78, y - 8, 156, 18))
+    box(s, W2, x - 72, y - 30, 144, 26)
+    box(s, W, x - 72, y - 34, 144, 22)
+    box(s, (255, 255, 255), x - 72, y - 34, 144, 3)
+    box(s, W, x - 60, y - 62, 92, 30)                             # cabine alta e reta (o Uno é um caixote)
+    box(s, (90, 130, 170), x - 54, y - 58, 38, 22)                # vidros
+    box(s, (90, 130, 170), x - 12, y - 58, 38, 22)
+    box(s, W, x - 15, y - 60, 3, 28)
+    box(s, (176, 214, 238), x - 50, y - 56, 10, 2)
+    box(s, (36, 36, 40), x - 72, y - 12, 144, 6)                  # para-choque preto
+    box(s, (250, 246, 214), x + 64, y - 30, 8, 7)                 # farol (frente à direita)
+    box(s, (210, 50, 50), x - 74, y - 32, 6, 10)                  # lanterna
+    box(s, (190, 192, 198), x - 6, y - 26, 8, 2)                  # maçaneta
+    for wx in (x - 44, x + 44):
+        pygame.draw.circle(s, D, (wx, y - 4), 14)
+        pygame.draw.circle(s, (200, 200, 206), (wx, y - 4), 7)
+        pygame.draw.circle(s, (90, 90, 96), (wx, y - 4), 2)
+
+
 def uno_armor(s, x, y):
     """Armadura de enfeite feita com peças de um Uno branco (x, y = pé do suporte): o elmo é a cabine
     com o para-brisa e o bagageiro, o peito é a frente quadradona (faróis retangulares, grade
