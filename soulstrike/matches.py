@@ -38,11 +38,11 @@ class Match(ABC):
     min_zoom = 0.6
     music = "battle"
 
-    def __init__(self, game, session, map_key):
+    def __init__(self, game, session, map_key, arena=None):
         self.game = game
         self.assets = game.assets
         self.session = session
-        self.arena = Arena(MAPS_BY_KEY[map_key], game.assets)
+        self.arena = arena or Arena(MAPS_BY_KEY[map_key], game.assets)
         self.camera = Camera(self.arena.size, self.min_zoom)
         self.fighters = []
         self.controllers = {}

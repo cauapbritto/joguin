@@ -268,8 +268,8 @@ MODE_TEXT = {
     "desafio_goleiro": ("Defenda 3 seguidas contra a CPU para passar de rodada. A CPU fica mais difícil a cada "
                         "rodada, e 3 gols tomados acabam o desafio.",
                         "1 JOGADOR"),
-    "campaign": ("Juntos contra as sombras, em 4 capítulos: em cada fase, um acampamento e duas masmorras, "
-                 "com um baú escondido de armas raras no caminho. O capítulo 1 acaba no Aryel Corrompido, o 2 "
+    "campaign": ("Juntos contra as sombras, em 4 capítulos, saindo da Casa da turma: cada fase é um mapa só, a pé, com salas "
+                 "ligadas por corredores: três salas de luta, que trancam até ser limpas, e uma de recompensa (baú de armas raras, loja e ferreiro). O capítulo 1 acaba no Aryel Corrompido, o 2 "
                  "no Borba Jr Corrompido (Lag Lobby), o 3 no Albeguinio Corrompido (Clínica Clepalovers) e o 4 "
                  "no Cauanzera Corrompido (Mansão do Carimbo). Quem cair pode ser levantado.",
                  "1 A 4 JOGADORES"),
@@ -464,6 +464,7 @@ class ModeScene(_MenuScene):
 
     menu_keys = True
     CARD_W, CARD_H, CARD_GAP, CARD_Y = 196, 300, 20, 112
+    PANEL_BOTTOM = 498                  # o painel de descrição cresce até aqui (o rodapé fica livre)
 
     def __init__(self, game, category=None):
         super().__init__(game)
@@ -598,10 +599,10 @@ class ModeScene(_MenuScene):
             self.game.change(CinemaScene(self.game))
             return
         if choice == "continue":
-            from .campaign import start_phase
+            from .campaign import hub_scene
             run = self.saved_run
             self.game.session = run.session
-            self.game.change(start_phase(self.game, run, story=False))
+            self.game.change(hub_scene(self.game, run, story=False))
             return
         settings.change("ultimo_modo", choice)
         start_mode(self.game, choice)
@@ -710,9 +711,11 @@ class ModeScene(_MenuScene):
         self.menu.draw(screen, self.ui, self.ticks)
 
         key = self.menu.value
-        panel = pygame.Rect(420, 120, 484, 330)
-        self.ui.panel(screen, panel)
         desc, players = MODE_TEXT[key] if key != "continue" else self._continue_text()
+        # texto comprido: o painel cresce para baixo (até perto do rodapé) em vez de o texto vazar
+        lines = len(self.ui.wrap(desc, theme.XS, 484 - 48))
+        panel = pygame.Rect(420, 120, 484, max(330, min(self.PANEL_BOTTOM - 120, 250 + lines * 16)))
+        self.ui.panel(screen, panel)
         self._illustration(screen, key, pygame.Rect(panel.x + 2, panel.y + 2, panel.w - 4, 170))
         title = ({"continue": "CONTINUAR CAMPANHA", "campaign2": "CAMPANHA: CAPÍTULO 2",
                   "campaign3": "CAMPANHA: CAPÍTULO 3", "campaign4": "CAMPANHA: CAPÍTULO 4",
@@ -726,7 +729,8 @@ class ModeScene(_MenuScene):
             y += 10
         else:
             self.ui.text(screen, players, theme.XS, theme.MUTED, (panel.right - 24, panel.y + 200), anchor="topright")
-        self.ui.paragraph(screen, desc, theme.XS, theme.BONE, (panel.x + 24, y), panel.w - 48, spacing=16)
+        self.ui.paragraph(screen, desc, theme.XS, theme.BONE, (panel.x + 24, y), panel.w - 48, spacing=16,
+                          max_height=panel.bottom - 14 - y)
         self.footer(screen, [("↑↓", "ESCOLHER"), ("LB RB", "MODALIDADE"), ("A", "JOGAR"), ("B", "VOLTAR")])
 
     def _continue_text(self):
@@ -734,7 +738,7 @@ class ModeScene(_MenuScene):
         from ..campaign import PHASES
         run = self.saved_run
         n = run.players
-        desc = (f"Volta para o acampamento da fase {run.phase_index + 1} de {len(PHASES)}: "
+        desc = (f"Volta pela Casa da turma para a fase {run.phase_index + 1} de {len(PHASES)}: "
                 f"{run.phase.name}, dificuldade {DIFFICULTIES[run.session.difficulty]['label']}. As melhorias, as armas "
                 "raras e a vida continuam como estavam. Quem jogava pelo celular ou controle precisa estar "
                 "conectado antes.")
@@ -951,15 +955,24 @@ class ControlsScene(_InfoScene):
         y += 12
         screen.fill(theme.LINE, (panel.x + 16, y, panel.w - 32, 2))
         y += 18
-        for label, k1, k2 in self.rows():
+        rows = list(self.rows())
+        # linhas de teclas, dicas e o DUPLO TOQUE dentro do painel: aperta os espaços se precisar
+        row_h, tip_h = 21, 15
+        room = panel.bottom - 16 - y
+        while len(rows) * row_h + 2 + len(self.TIPS) * tip_h + 10 > room and (row_h > 18 or tip_h > 12):
+            if row_h > 18:
+                row_h -= 1
+            else:
+                tip_h -= 1
+        for label, k1, k2 in rows:
             self.ui.text(screen, label, theme.XS, theme.BONE, (cols[0], y), anchor="midleft", shadow=False)
             self.ui.keycap(screen, k1, (cols[1], y))
             self.ui.keycap(screen, k2, (cols[2], y))
-            y += 21
+            y += row_h
         y += 2
         for tip in self.TIPS:
             self.ui.text(screen, tip, theme.XS, theme.MUTED, (cols[0], y), anchor="midleft", shadow=False)
-            y += 15
+            y += tip_h
         state = "LIGADO" if PlayerInput.double_tap_enabled else "DESLIGADO"
         self.toggle_rect = self.ui.keycap(screen, "T", (cols[0], y + 6))
         self.ui.text(screen, f"DUPLO TOQUE NAS SETAS = ESQUIVA/CORTE: {state}", theme.XS,
@@ -991,7 +1004,7 @@ class OptionsScene(_InfoScene):
         ("tremor", "TREMOR DE TELA", "NOS IMPACTOS E EXPLOSÕES"),
         ("duplo_toque", "DUPLO TOQUE = ESQUIVA", "DUAS VEZES NA MESMA SETA"),
         ("controle_comeca_no_p2", "1º CONTROLE USB É O P2", "DESLIGADO: É O P1"),
-        ("vibracao", "VIBRAÇÃO DO CONTROLE", "AO APANHAR, NO GOL E NO SUPER"),
+        ("vibracao", "VIBRAÇÃO", "CONTROLE E CELULAR (ANDROID)"),
         ("novidades", "NOVIDADES", "O QUE MUDOU EM CADA VERSÃO"),
     ]
     ROW_H = 36
@@ -1010,7 +1023,7 @@ class OptionsScene(_InfoScene):
         if key == "novidades":
             from .. import novidades
             self.sfx("confirm", 0.4)
-            self.game.change(NewsScene(self.game, novidades.history(), back=OptionsScene))
+            self.game.change(ArchiveScene(self.game))
             return
         value = settings.get(key)
         if key in settings.VOLUME_KEYS:
@@ -1242,8 +1255,8 @@ ABOUT = [
      "armas (Arrow, Grenade, ChainBall...) herdam de Projectile, que herda de Bullet. ShadowBomb herda "
      "de GroundMark: é o mesmo aviso no chão, só que explode no fim. BattleMatch, SoccerMatch e "
      "CampaignMatch herdam de Match, que já cuida de câmera, tiros, partículas e desenho. Na campanha, "
-     "CampaignMatch (a masmorra) e LobbyMatch (o acampamento) herdam de CoopMatch, que junta o que as duas "
-     "têm em comum (levantar quem caiu, a mira, os itens, o escurecer entre as etapas). TeamBattleMatch "
+     "CampaignMatch (a sala de luta) e HubMatch (a Casa da turma) herdam de CoopMatch, que junta o que elas "
+     "têm em comum, e PhaseMatch (a fase inteira, num mapa só) herda de CampaignMatch (levantar quem caiu, a mira, os itens, o escurecer entre as etapas). TeamBattleMatch "
      "(o duelo 2 x 2) herda de BattleMatch e só troca o que é um \"lado\": em vez de um lutador, um time "
      "inteiro, que precisa cair todo para perder o round. Os inimigos da "
      "campanha são Fighters do time das sombras. Todas as telas herdam de Scene."),
@@ -2018,6 +2031,157 @@ def _scene_iara(screen, ui, rect, t):
         ui.text(screen, "TIROU DA TOMADA!", theme.XS, (140, 220, 120), (plug.centerx, plug.y - 46), shadow=False)
 
 
+def _scene_casa(screen, ui, rect, t):
+    """Hub: a sala da Casa da turma, com o livro do Cauanzera e um herói da vitrine falando."""
+    from .. import casa, casa_art
+    casa_art.use(ui.assets)
+    screen.fill((96, 62, 38), rect)
+    for y in range(rect.y, rect.bottom, 16):                                   # tábuas
+        off = (y * 37) % 50
+        for x in range(rect.x - off, rect.right, 70):
+            screen.fill((104 + (x * 7 + y) % 13 - 6, 68, 42), (x, y, 66, 14))
+        screen.fill((66, 42, 26), (rect.x, y + 14, rect.w, 2))
+    screen.fill((70, 96, 74), (rect.x, rect.y, rect.w, 34))                   # parede
+    screen.fill((122, 80, 48), (rect.x, rect.y + 22, rect.w, 12))
+    book = casa._bake(casa_art.lectern_book)
+    bx, by = rect.x + 90, rect.y + 150
+    screen.blit(book.image, (bx + book.dx, by + book.dy))
+    ref = casa.VERSES[(t // 90) % len(casa.VERSES)][0]
+    ui.text(screen, ref, theme.XS, theme.BRASS, (bx, by - 50))
+    key = ("cauanzera", "aryel", "albeguinio", "borba")[(t // 120) % 4]
+    hero = casa._bake(casa_art.mannequin, key)
+    hx, hy = rect.x + 250, rect.y + 200
+    screen.blit(hero.image, (hx + hero.dx, hy + hero.dy))
+    line = casa.FALAS[key][(t // 480) % 5]
+    casa.draw_bubble(screen, ui, ui.assets, line, hx, hy - 96)
+
+
+def _scene_computador(screen, ui, rect, t):
+    """O terminal do CAUANZERA OS digitando ``liberar --tudo`` e a barra enchendo, e o notebook do
+    Albeguinio do lado com a chuva verde."""
+    from .. import computador
+    pc = pygame.Rect(rect.x + 12, rect.y + 16, 200, 150)
+    pygame.draw.rect(screen, (30, 30, 36), pc.inflate(10, 10))
+    screen.fill((12, 12, 14), pc)
+    screen.fill((40, 70, 120), (pc.x, pc.y, pc.w, 14))
+    ui.text(screen, "TERMINAL", theme.XS, (255, 255, 255), (pc.x + 6, pc.y + 7), anchor="midleft", shadow=False)
+    k = t % 300
+    command = "liberar --tudo"
+    typed = command[:max(0, min(len(command), (k - 10) // 4))]
+    lines = [("C:\\> " + typed, (200, 200, 200))]
+    if k > 80:
+        lines.append(("  CONTINUAR? (S/N) S", computador.AMBER))
+    for i, label in enumerate(("CAPÍTULOS", "CORROMPIDOS", "PORTAS")):
+        n = max(0, min(10, (k - 100 - i * 40) // 4))
+        if k > 100 + i * 40:
+            lines.append((f"  [{'#' * n}{'-' * (10 - n)}] {label}", computador.HK))
+    if k > 240:
+        lines.append(("  TUDO LIBERADO.", computador.HK_L))
+    for i, (text, color) in enumerate(lines):
+        ui.text(screen, text, theme.XS, color, (pc.x + 6, pc.y + 26 + i * 15), anchor="midleft", shadow=False)
+    pygame.draw.rect(screen, (60, 60, 70), (pc.centerx - 20, pc.bottom + 5, 40, 14))
+    nb = pygame.Rect(rect.right - 132, rect.y + 120, 116, 74)
+    pygame.draw.rect(screen, (34, 34, 42), nb.inflate(8, 8))
+    screen.fill((2, 8, 4), nb)
+    for col in range(nb.x + 6, nb.right - 4, 12):
+        head = nb.y + (col * 7 + t * 2) % (nb.h + 40) - 20
+        for j in range(5):
+            y = head - j * 10
+            if nb.y + 2 < y < nb.bottom - 6:
+                ui.text(screen, "01AB"[(col + j) % 4], theme.XS, (180, 255, 190) if j == 0 else (40, 160 - j * 20, 60),
+                        (col, y), shadow=False)
+    if (t // 40) % 2:
+        ui.text(screen, "oi sumido", theme.XS, computador.PINK, nb.center, shadow=False)
+    screen.fill((60, 60, 70), (nb.x - 14, nb.bottom + 4, nb.w + 28, 8))
+    if k > 250:
+        from .campaign import draw_crystal
+        draw_crystal(screen, (rect.x + 260, rect.y + 60), 30, t)
+
+
+def _scene_cantos(screen, ui, rect, t):
+    """A moto do Aryel dando grau, a roleta girando e a senha da padaria."""
+    from .. import casa, casa_art
+    casa_art.use(ui.assets)
+    screen.fill((96, 62, 38), rect)
+    for y in range(rect.y, rect.bottom, 16):
+        screen.fill((66, 42, 26), (rect.x, y + 14, rect.w, 2))
+    moto = casa._bake(casa_art.moto, ground=False)
+    k = t % 160
+    up = min(1.0, k / 14) * min(1.0, max(0, 120 - k) / 16) if k < 120 else 0
+    angle = up * (24 + 4 * math.sin(k * 0.3))
+    mx, my = rect.x + 110, rect.y + 92
+    screen.blit(*casa.wheelie(moto, mx, my, angle))
+    if angle > 5:
+        ui.text(screen, "GRAU!", theme.S, (240, 150, 60), (mx, rect.y + 20))
+        for j in range(4):
+            pygame.draw.circle(screen, (170, 170, 176), (mx - 70 - j * 10 - (t * 2 + j * 7) % 14, my - 14 - j * 3), 5 - j)
+    table = casa._bake(casa_art.roulette_table)
+    rx, ry = rect.x + 270, rect.y + 70
+    screen.blit(table.image, (rx + table.dx, ry + table.dy))
+    spin = (t % 200)
+    off = sum(max(0.0, 0.5 * 0.97 ** f) for f in range(min(spin, 150)))
+    step = math.tau / 12
+    for j in range(12):
+        a0 = off + j * step
+        pygame.draw.polygon(screen, (50, 170, 80) if j % 2 == 0 else (200, 50, 50),
+                            [(rx, ry - 8), (rx + math.cos(a0) * 22, ry - 8 + math.sin(a0) * 10),
+                             (rx + math.cos(a0 + step) * 22, ry - 8 + math.sin(a0 + step) * 10)])
+    if spin > 150:
+        ui.text(screen, "GREEN!" if (t // 200) % 2 == 0 else "RED...", theme.XS,
+                (60, 220, 100) if (t // 200) % 2 == 0 else (240, 70, 70), (rx, ry - 40))
+    bakery = casa._bake(casa_art.bakery)
+    bx, by = rect.x + 20, rect.y + 196
+    screen.blit(bakery.image, (bx + bakery.dx, by + bakery.dy))
+    ticket = (t // 120) % 99 + 1
+    ui.text(screen, f"SENHA {ticket:03d}" if (t % 120) < 60 else "PÃO SAINDO!", theme.XS, theme.BONE,
+            (rect.x + 290, by - 40))
+
+
+def _scene_mapa_fase(screen, ui, rect, t):
+    """O mini mapa da fase em tamanho grande: o grupo passa de sala em sala e as salas acendem."""
+    from .. import mapa_fase
+    from ..campaign import PHASES
+    layout = mapa_fase.PhaseLayout.of(PHASES[0])
+    route = ("abertura", "luta1", "abertura", "luta2", "recompensa", "luta2", "abertura", "final")
+    step = (t // 70) % (len(route) + 1)
+    here = route[min(step, len(route) - 1)]
+    visited = set(route[:step + 1])
+    mini = pygame.Surface((mapa_fase.MINI_W, mapa_fase.MINI_H), pygame.SRCALPHA)
+    mapa_fase.draw_minimap(mini, ui, layout, visited, here, mini.get_rect(), portal=step >= len(route))
+    screen.fill((14, 14, 22), rect)
+    k = min((rect.w - 40) / mini.get_width(), (rect.h - 50) / mini.get_height())
+    big = pygame.transform.scale(mini, (round(mini.get_width() * k), round(mini.get_height() * k)))
+    screen.blit(big, big.get_rect(center=(rect.centerx, rect.centery - 10)))
+    names = {"abertura": "ABERTURA", "luta1": "MASMORRA 1", "luta2": "MASMORRA 2",
+             "recompensa": "RECOMPENSA", "final": "ÚLTIMA SALA"}
+    ui.text(screen, names[here], theme.XS, theme.BRASS, (rect.centerx, rect.bottom - 14))
+
+
+def _scene_corredores(screen, ui, rect, t):
+    """Os enfeites de cada capítulo, um capítulo por vez, com a placa da piada."""
+    from .. import casa, casa_art, enfeites
+    casa_art.use(ui.assets)
+    chapter = 1 + (t // 150) % 4
+    floor, wall, name = {1: ((52, 74, 44), (40, 90, 46), "TRILHA"), 2: ((58, 58, 62), (170, 170, 168), "LAG LOBBY"),
+                         3: ((226, 222, 220), (246, 244, 246), "CLEPALOVERS"),
+                         4: ((150, 150, 90), (226, 216, 190), "MANSÃO")}[chapter]
+    screen.fill(floor, rect)
+    screen.fill(wall, (rect.x, rect.y, rect.w, 56))
+    screen.fill(casa_art.shade(wall, -50), (rect.x, rect.y + 56, rect.w, 4))
+    walls, floors, lines, colors = enfeites.CHAPTERS[chapter]
+    for x in (rect.x + 70, rect.x + 270):
+        b = casa._bake(walls[0])
+        screen.blit(b.image, (x + b.dx, rect.y + 56 + b.dy))
+    for k, fn in enumerate(floors):
+        b = casa._bake(fn)
+        x, y = rect.x + 50 + k * 80, rect.y + (130 if k % 2 == 0 else 160)
+        screen.blit(b.image, (x + b.dx, y + b.dy))
+    sign = casa._bake(enfeites.joke_sign, lines, colors)
+    screen.blit(sign.image, (rect.centerx + sign.dx, rect.y + 222 + sign.dy))
+    screen.fill((20, 20, 26), (rect.x, rect.bottom - 22, rect.w, 22))
+    ui.text(screen, f"CAPÍTULO {chapter} · {name}", theme.XS, theme.BONE, (rect.centerx, rect.bottom - 11))
+
+
 NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
                "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
                "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
@@ -2025,112 +2189,9 @@ NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "n
                "bate": _scene_bate, "agarra": _scene_agarra, "modos": _scene_modos,
                "controle": _scene_controle, "coroa": _scene_coroa, "ultra": _scene_ultra,
                "clepalovers": _scene_clepalovers, "clinica": _scene_clinica, "oi_sumido": _scene_oi_sumido,
-               "mansao": _scene_mansao, "iara": _scene_iara}
+               "mansao": _scene_mansao, "iara": _scene_iara,
+               "casa": _scene_casa, "computador": _scene_computador, "cantos": _scene_cantos,
+               "corredores": _scene_corredores, "mapa_fase": _scene_mapa_fase}
 
 
-class NewsScene(_InfoScene):
-    """Novidades em páginas, cada uma com uma cena animada. Abre sozinha uma vez quando o jogo
-    é atualizado, e em OPÇÕES > NOVIDADES quando quiser."""
-    heading = "NOVIDADES"
-    phase = "news"
-    PANEL = pygame.Rect(56, 92, config.SCREEN_W - 112, 360)
-    AUTO_VERSIONS = 6
-
-    def __init__(self, game, news, back=None):
-        from .. import novidades
-        super().__init__(game)
-        # sozinha: todas as versões que o jogador ainda não viu (até AUTO_VERSIONS, as mais novas).
-        # Antes eram só 2, e quem pulou da 1.13 para a 1.16 nunca via o capítulo 4 (1.14).
-        self.news = news if back is not None else news[:self.AUTO_VERSIONS]
-        self.back = back
-        self.pages = [p for version, entry in self.news for p in novidades.pages_of(version, entry)]
-        self.page = 0
-        self.age = 0
-        self.summary = [line for _, entry in self.news[:1] for line in novidades.summary(entry)]
-
-    def enter(self):
-        from ..net.remote import hub
-        hub.news = self.summary
-        super().enter()
-        if self.news:
-            hub.set_phase("news", banner=f"NOVIDADES DA {self.news[0][0]}")
-
-    def leave(self):
-        self.sfx("confirm", 0.4)
-        self.game.change(self.back(self.game) if self.back else TitleScene(self.game))
-
-    def turn(self, step):
-        page = max(0, min(len(self.pages) - 1, self.page + step))
-        if page != self.page:
-            self.page, self.age = page, 0
-            self.sfx("pagina", 0.5)
-
-    def update(self):
-        super().update()
-        self.age += 1
-
-    def handle(self, event):
-        if self.is_back(event) or not self.pages:
-            if self.is_back(event) or event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                self.leave()
-            return
-        if event.type == pygame.KEYDOWN:
-            if event.key in (pygame.K_LEFT, pygame.K_a):
-                self.turn(-1)
-            elif event.key in (pygame.K_RIGHT, pygame.K_d):
-                self.turn(1)
-            elif event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
-                if self.page >= len(self.pages) - 1:
-                    self.leave()
-                else:
-                    self.turn(1)
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 3:
-                self.turn(-1)
-            elif self.page >= len(self.pages) - 1:
-                self.leave()
-            else:
-                self.turn(1)
-
-    def draw_body(self, screen):
-        panel = self.PANEL
-        self.ui.panel(screen, panel)
-        if not self.pages:
-            self.footer(screen, [("ENTER", "CONTINUAR")])
-            return
-        version, title, scene, lines = self.pages[self.page]
-        n = len(self.pages)
-        self.ui.text(screen, f"VERSÃO {version}", theme.XS, theme.MUTED, (panel.right - 20, panel.y + 18),
-                     anchor="midright", shadow=False)
-        draw = NEWS_SCENES.get(scene)
-        x = panel.x + 24
-        if draw is not None:
-            stage = pygame.Rect(panel.x + 20, panel.y + 40, 340, 250)
-            screen.fill(theme.INK, stage)
-            pygame.draw.rect(screen, theme.LINE, stage, 1)
-            clip = screen.get_clip()
-            screen.set_clip(stage)
-            draw(screen, self.ui, stage, self.ticks)
-            screen.set_clip(clip)
-            x = stage.right + 28
-        width = panel.right - 24 - x
-        slide = max(0, 12 - self.age) * 3                        # o texto entra deslizando ao virar a página
-        y = panel.y + 52
-        self.ui.text(screen, title, theme.S, theme.BRASS, (x + slide, y), anchor="midleft")
-        y += 28
-        for line in lines:
-            if y > panel.bottom - 40:
-                break
-            screen.fill(theme.MOSS, (x + 2 + slide, y + 2, 5, 5))
-            y = self.ui.paragraph(screen, line.upper(), theme.XS, theme.BONE, (x + 16 + slide, y),
-                                  width - 16, spacing=15) + 10
-        # bolinhas das páginas
-        if n > 1:
-            gap = 14
-            left = panel.centerx - (n - 1) * gap // 2
-            for i in range(min(n, 40)):
-                color = theme.BRASS if i == self.page else theme.LINE_HI
-                size = 6 if i == self.page else 4
-                screen.fill(color, (left + i * gap - size // 2, panel.bottom - 18 - size // 2, size, size))
-        last = self.page >= n - 1
-        self.footer(screen, [("←→", "PÁGINAS"), ("ENTER", "SAIR" if last else "PRÓXIMA"), ("ESC", "SAIR")])
+from .plantao import ArchiveScene, NewsScene  # noqa: E402  (o plantão usa as cenas daqui)

@@ -7,7 +7,8 @@ from test_campanha import campanha, inimigo, passo, pular_intro
 
 from soulstrike import config
 from soulstrike import market as M
-from soulstrike.campaign import LOBBY_BACK, LOBBY_START, CampaignRun, LobbyMatch
+from soulstrike.campaign import CampaignRun
+from soulstrike.fase import PhaseMatch
 from soulstrike.data import CHARACTERS
 from soulstrike.session import Session, SlotSetup
 from soulstrike.training import DummyAI
@@ -15,15 +16,15 @@ from soulstrike.training import DummyAI
 KEYS = [c.key for c in CHARACTERS]
 
 
-def acampamento(back=True, souls=500):
+def acampamento(souls=500):
+    """A fase: a lojinha e o altar na abertura, a loja completa e o ferreiro na sala de recompensas."""
     g = game()
     g.session = Session("campaign", [SlotSetup(1, char=KEYS.index("guerreiro")),
                                      SlotSetup(2, char=KEYS.index("atirador"))])
     run = CampaignRun(g.session)
     run.begin_phase()
-    run.stage = LOBBY_BACK if back else LOBBY_START
     run.souls = {s: souls for s in run.slots}
-    match = LobbyMatch(g, run)
+    match = PhaseMatch(g, run)
     inputs = {}
     for f in match.players:
         inputs[f.slot] = match.controllers[f] = FakeInput()
@@ -32,7 +33,7 @@ def acampamento(back=True, souls=500):
 
 def abrir(match, inp, kind):
     p = match.players[0]
-    stall = next(s for s in match.stalls if s.kind == kind)
+    stall = next(s for s in match.stalls if s.kind == kind and not s.mini)
     p.x, p.y = stall.x, stall.y + 40
     inp.tap("attack")
     match.update()
@@ -43,7 +44,7 @@ def abrir(match, inp, kind):
 
 def abrir_outro(match, inp):
     q = match.players[1]
-    stall = next(s for s in match.stalls if s.kind == "loja")
+    stall = next(s for s in match.stalls if s.kind == "loja" and not s.mini)
     q.x, q.y = stall.x + 30, stall.y + 40
     inp.tap("attack")
     match.update()
@@ -101,9 +102,23 @@ class AlmasTest(unittest.TestCase):
 
 
 class MercadoTest(unittest.TestCase):
-    def test_so_aparece_na_volta(self):
-        self.assertEqual([s.kind for s in acampamento(back=False)[0].stalls], ["altar"])
-        self.assertEqual({s.kind for s in acampamento()[0].stalls}, {"loja", "ferreiro"})
+    def test_lojinha_na_abertura_e_loja_completa_na_recompensa(self):
+        match = acampamento()[0]
+        where = {(s.kind, s.mini): match.layout.room_at(s.x, s.y).key for s in match.stalls}
+        self.assertEqual(where, {("loja", True): "abertura", ("altar", False): "abertura",
+                                 ("loja", False): "recompensa", ("ferreiro", False): "recompensa"})
+
+    def test_lojinha_vende_so_o_basico(self):
+        from soulstrike.market import MarketMenu
+        match, _ = acampamento()
+        p = match.players[0]
+        lojinha = next(s for s in match.stalls if s.kind == "loja" and s.mini)
+        keys = [e.key for e in MarketMenu(match, p, lojinha).entries()]
+        self.assertEqual(keys, ["pocao", "continue", "doar:2"])
+        loja = next(s for s in match.stalls if s.kind == "loja" and not s.mini)
+        full = [e.key for e in MarketMenu(match, match.players[0], loja).entries()]
+        self.assertIn("arma", full)
+        self.assertTrue(any(k.startswith("vitrine:") for k in full))
 
     def test_pocao_cura_e_gasta_almas(self):
         match, inputs = acampamento(souls=50)

@@ -6,7 +6,8 @@ import pygame
 from apoio import game
 
 from soulstrike import progress
-from soulstrike.campaign import PHASES, CampaignRun, LobbyMatch
+from soulstrike.campaign import PHASES, CampaignRun
+from soulstrike.casa import HubMatch
 from soulstrike.scenes.campaign import CampaignEndScene, start_phase
 from soulstrike.scenes.menus import ModeScene
 from soulstrike.scenes.play import PlayScene
@@ -94,7 +95,8 @@ class CampanhaSalvaTest(unittest.TestCase):
         scene.handle(enter())
         self.assertIsInstance(g.scene, PlayScene)
         match = g.scene.match
-        self.assertIsInstance(match, LobbyMatch)
+        self.assertIsInstance(match, HubMatch)          # o CONTINUAR volta pela Casa da turma
+        self.assertFalse(match.story)
         self.assertEqual(match.run.phase_index, 1)
         self.assertEqual(g.session.difficulty, "dificil")
         p1 = next(f for f in match.players if f.slot == 1)

@@ -6,7 +6,8 @@ from apoio import FakeInput, game
 from soulstrike import energia
 from soulstrike.ai import CAMPAIGN_ORDER, DIFFICULTIES
 from soulstrike.armario import RACK_SIZE, token_of, weapon_of
-from soulstrike.campaign import AFFIXES, DUNGEON_1, LEVELS, LOBBY_BACK, CampaignMatch, CampaignRun, LobbyMatch
+from soulstrike.campaign import AFFIXES, DUNGEON_1, LEVELS, CampaignMatch, CampaignRun
+from soulstrike.fase import PhaseMatch
 from soulstrike.entities import Explosion, Pickup
 from soulstrike.forged import FORGED
 from soulstrike.data import CHARACTERS, RARE_WEAPONS
@@ -26,10 +27,10 @@ def corrida(chars=("guerreiro", "atirador"), phase=0, stage=0, difficulty="norma
     return g, run
 
 
-def acampamento(back=False, run=None):
-    g, r = corrida(stage=LOBBY_BACK if back else 0)
+def acampamento(run=None):
+    g, r = corrida()
     run = run or r
-    match = LobbyMatch(g, run)
+    match = PhaseMatch(g, run)
     for f in match.players:
         match.controllers[f] = FakeInput()
     return match
@@ -40,9 +41,9 @@ def perto(match, p, thing):
 
 
 class ArmarioTest(unittest.TestCase):
-    def test_tem_armario_nos_dois_acampamentos(self):
-        for back in (False, True):
-            self.assertIsNotNone(acampamento(back).armario)
+    def test_armario_fica_na_sala_de_recompensas(self):
+        match = acampamento()
+        self.assertEqual(match.layout.room_at(match.armario.x, match.armario.y).key, "recompensa")
 
     def test_guardar_e_pegar(self):
         match = acampamento()
@@ -224,7 +225,7 @@ class DificuldadesTest(unittest.TestCase):
         self.assertEqual(dmg, sorted(dmg))
         self.assertEqual(DIFFICULTIES["ibrahim"]["label"], "IBRAHIM")
         self.assertIn("TOMA CUIDADO JOVI", DIFFICULTIES["ibrahim"]["tagline"])
-        self.assertIn("FENOMENAL", DIFFICULTIES["borba"]["tagline"])
+        self.assertIn("SENSACIONAL", DIFFICULTIES["borba"]["tagline"])
 
     def test_continues(self):
         for key, n in (("normal", 3), ("ibrahim", 1), ("borba", 1)):
@@ -275,9 +276,9 @@ class DificuldadesTest(unittest.TestCase):
     def test_loja_mais_cara(self):
         from soulstrike.market import MarketMenu, Stall
         for key, mult in (("normal", 1.0), ("ibrahim", 1.25)):
-            g, run = corrida(stage=LOBBY_BACK, difficulty=key)
-            m = LobbyMatch(g, run)
-            stall = next(s for s in m.stalls if s.kind == "loja")
+            g, run = corrida(difficulty=key)
+            m = PhaseMatch(g, run)
+            stall = next(s for s in m.stalls if s.kind == "loja" and not s.mini)
             menu = MarketMenu(m, m.players[0], stall)
             potion = next(e for e in menu.entries() if e.key == "pocao")
             self.assertEqual(potion.cost, round(20 * mult))

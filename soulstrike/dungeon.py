@@ -1,5 +1,5 @@
-"""Coisas do caminho entre as masmorras da campanha: entradas com grade, fogueira do
-acampamento, o baú escondido (com as armas raras) e a porta de volta ao acampamento."""
+"""Coisas do caminho da campanha: a fogueira e o baú (com as armas raras) da sala de recompensa,
+a porta de saída da sala avulsa, o portal da fase e o botão INICIAR BATALHA."""
 import math
 import random
 
@@ -9,7 +9,6 @@ from . import theme, weapon_art
 from .data import rarity_color
 from .entities import Entity, Particle, Wall
 
-GATE_LIFT = 26               # quadros da grade subindo (ou descendo)
 
 
 def _glow(radius, color, strength=1.0):
@@ -31,113 +30,10 @@ def glow(radius, color, strength=1.0):
 
 
 # ─────────────────────────────────────────────
-#  Entrada de masmorra (acampamento)
-# ─────────────────────────────────────────────
-class Gate(Entity):
-    """Entrada de uma masmorra na parede do acampamento.
-
-    Estados: "open" (dá para entrar, brilha por dentro), "locked" (grade fechada) e
-    "done" (grade fechada com um OK: essa masmorra já foi). A grade sobe e desce animada;
-    fechada, ela vira parede (ninguém passa)."""
-
-    flat = True                  # desenhada junto do chão, por cima das paredes
-
-    def __init__(self, number, rect, state="locked"):
-        r = pygame.Rect(rect)
-        super().__init__(r.centerx, r.centery)
-        self.number = number
-        self.rect = r
-        self.state = state
-        self.bars = 0.0 if state == "open" else 1.0      # 1 = grade toda abaixada
-        self.wall = Wall(r.x, r.y, r.w, r.h, visible=False)
-        self.age = 0
-
-    @property
-    def closed(self):
-        return self.state != "open"
-
-    @property
-    def entrance(self):
-        """Ponto logo na frente da entrada (onde o grupo se junta para entrar)."""
-        return self.rect.centerx, self.rect.bottom + 40
-
-    def open(self):
-        self.state = "open"
-
-    def sync_wall(self, arena):
-        """Grade fechada é parede; aberta não."""
-        blocking = self.bars > 0.5
-        present = self.wall in arena.walls
-        if blocking and not present:
-            arena.walls.append(self.wall)
-        elif not blocking and present:
-            arena.walls.remove(self.wall)
-
-    def update(self, match):
-        self.age += 1
-        target = 0.0 if self.state == "open" else 1.0
-        if self.bars != target:
-            step = 1 / GATE_LIFT
-            self.bars = max(target, self.bars - step) if target < self.bars else min(target, self.bars + step)
-            if self.age % 6 == 0:
-                match.dust(self.rect.centerx + random.uniform(-20, 20), self.rect.bottom - 18, 1)
-        self.sync_wall(match.arena)
-        if self.state == "open" and self.age % 5 == 0:
-            # luz sendo puxada para dentro da masmorra
-            x = self.rect.centerx + random.uniform(-self.rect.w / 2, self.rect.w / 2)
-            match.particles.append(Particle(x, self.rect.bottom + 30, random.uniform(-0.2, 0.2),
-                                            random.uniform(-1.4, -0.8), (180, 150, 250), 26, 3))
-
-    def draw(self, surf, camera):
-        r = self.rect.move(-round(camera.x), -round(camera.y))
-        # vão escuro
-        for i in range(r.h):
-            k = i / max(1, r.h - 1)
-            surf.fill((round(6 + 16 * k), round(4 + 12 * k), round(10 + 18 * k)), (r.x, r.y + i, r.w, 1))
-        if self.state == "open":
-            pulse = 0.65 + 0.35 * math.sin(self.age * 0.09)
-            g = glow(48, (150, 110, 240), pulse)
-            surf.blit(g, g.get_rect(center=(r.centerx, r.bottom - 6)), special_flags=pygame.BLEND_ADD)
-        # moldura de pedra (pilares e verga)
-        stone, edge, light = (96, 90, 104), (40, 36, 48), (140, 134, 150)
-        for x in (r.x - 8, r.right):
-            surf.fill(edge, (x - 1, r.y - 2, 10, r.h + 8))
-            surf.fill(stone, (x, r.y, 8, r.h + 5))
-            surf.fill(light, (x, r.y, 2, r.h + 5))
-        surf.fill(edge, (r.x - 9, r.y - 3, r.w + 18, 7))
-        surf.fill(stone, (r.x - 8, r.y - 2, r.w + 16, 5))
-        # grade
-        if self.bars > 0:
-            drop = round(r.h * self.bars)
-            clip = surf.get_clip()
-            surf.set_clip(pygame.Rect(r.x, r.y, r.w, r.h + 4).clip(clip))
-            top = r.y + r.h - drop
-            for x in range(r.x + 3, r.right - 2, 8):
-                surf.fill((24, 22, 30), (x - 1, top - 2, 5, drop + 2))
-                surf.fill((122, 118, 132), (x, top - 2, 3, drop + 2))
-                surf.fill((180, 176, 190), (x, top - 2, 1, drop + 2))
-            for y in (top + drop // 3, top + 2 * drop // 3):
-                surf.fill((24, 22, 30), (r.x, y - 1, r.w, 4))
-                surf.fill((100, 96, 110), (r.x, y, r.w, 2))
-            surf.set_clip(clip)
-
-    def draw_label(self, screen, camera, ui, frame):
-        sx, sy = camera.to_screen(self.rect.centerx, self.rect.bottom + 16)
-        if self.state == "done":
-            text, color = f"MASMORRA {self.number} · OK", theme.MOSS
-        elif self.state == "locked":
-            text, color = f"MASMORRA {self.number}", theme.MUTED
-        else:
-            text = f"MASMORRA {self.number}"
-            color = theme.BRASS if (frame // 20) % 2 else theme.BONE
-        ui.text(screen, text, theme.XS, color, (round(sx), round(sy)))
-
-
-# ─────────────────────────────────────────────
 #  Fogueira (acampamento)
 # ─────────────────────────────────────────────
 class Campfire(Entity):
-    """Fogueira do acampamento: quem fica perto recupera vida devagar (até 70%)."""
+    """Fogueira do corredor: quem fica perto recupera vida devagar (até 70%)."""
 
     RADIUS = 110
     HEAL_TO = 0.7
@@ -473,7 +369,7 @@ class GroundWeapon(Entity):
 #  Saída da masmorra 1 (a fase acaba com o botão TELETRANSPORTE DE FASE)
 # ─────────────────────────────────────────────
 class ExitDoor(Entity):
-    """Porta que aparece quando a masmorra 1 fica limpa: leva de volta ao acampamento."""
+    """Porta que aparece quando a masmorra 1 fica limpa: leva ao corredor (nunca de volta)."""
 
     RADIUS = 70
 
@@ -509,3 +405,109 @@ class ExitDoor(Entity):
             surf.fill((round(255 - 60 * k), round(210 - 80 * k), round(130 - 70 * k)), (door.x, door.y + i, door.w, 1))
         pygame.draw.circle(surf, (110, 100, 112), (door.centerx, door.y), door.w // 2 + 6, 6, draw_top_left=True,
                            draw_top_right=True)
+
+
+# ─────────────────────────────────────────────
+#  Portal da fase (fim da masmorra 2)
+# ─────────────────────────────────────────────
+class PhasePortal(Entity):
+    """Portal que aparece quando a masmorra 2 fica limpa. Todos dentro do círculo (contagem de
+    2 s, a passagem coletiva) e o grupo vai para a próxima fase."""
+
+    RADIUS = 78
+    flat = True
+
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.age = 0
+
+    def contains(self, fighter):
+        return math.hypot(fighter.x - self.x, (fighter.y - self.y) * 1.4) < self.RADIUS
+
+    def update(self, match):
+        self.age += 1
+        if self.age % 3 == 0:
+            a = random.uniform(0, math.tau)
+            r = self.RADIUS * random.uniform(0.6, 1.0)
+            match.particles.append(Particle(self.x + math.cos(a) * r, self.y + math.sin(a) * r * 0.7,
+                                            -math.cos(a) * 0.6, -0.9 - random.uniform(0, 0.6),
+                                            random.choice(((240, 230, 255), (170, 120, 250))), 30, 3))
+
+    def draw(self, surf, camera):
+        sx, sy = round(self.x - camera.x), round(self.y - camera.y)
+        grow = min(1.0, self.age / 24)
+        w, h = round(self.RADIUS * 2 * grow), round(self.RADIUS * 1.4 * grow)
+        if w < 6:
+            return
+        pulse = 0.6 + 0.4 * math.sin(self.age * 0.1)
+        g = glow(round(self.RADIUS * grow) + 20, (150, 100, 250), pulse)
+        surf.blit(g, g.get_rect(center=(sx, sy)), special_flags=pygame.BLEND_ADD)
+        ring = pygame.Rect(0, 0, w, h)
+        ring.center = (sx, sy)
+        pygame.draw.ellipse(surf, (40, 20, 70), ring)
+        for i, color in enumerate(((120, 70, 220), (170, 120, 250), (230, 210, 255))):
+            k = 1 - i * 0.22
+            r = ring.inflate(-ring.w * (1 - k), -ring.h * (1 - k))
+            spin = (self.age * (0.05 + 0.02 * i)) % math.tau
+            pygame.draw.arc(surf, color, r, spin, spin + math.pi * 1.2, 3)
+            pygame.draw.arc(surf, color, r, spin + math.pi, spin + math.pi * 1.7, 2)
+
+
+# ─────────────────────────────────────────────
+#  Botão INICIAR BATALHA (entrada da masmorra)
+# ─────────────────────────────────────────────
+class StartButton(Entity):
+    """Botão no chão, na entrada da masmorra: os inimigos só começam a sair quando alguém aperta
+    (ATACAR perto). Dá tempo de o grupo se arrumar, trocar de arma e respirar."""
+
+    REACH = 64
+
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.age = 0
+        self.pressed = 0                 # quadros desde que foi apertado (0 = ainda não)
+        self.wall = Wall(round(x) - 20, round(y) - 8, 40, 18, visible=False)
+
+    @property
+    def sort_y(self):
+        return self.y
+
+    def can_use(self, fighter):
+        return not self.pressed and fighter.alive_in_match and fighter.distance_to(self) < self.REACH
+
+    def press(self, match):
+        self.pressed = 1
+        match.camera.shake(4)
+        match.burst(self.x, self.y - 20, (255, 120, 90), 22, speed=5)
+
+    def update(self, match):
+        self.age += 1
+        if self.pressed:
+            self.pressed += 1
+            if self.pressed > 50:
+                self.alive = False
+                if self.wall in match.arena.walls:
+                    match.arena.walls.remove(self.wall)
+
+    def draw(self, surf, camera):
+        sx, sy = round(self.x - camera.x), round(self.y - camera.y)
+        sink = min(8, self.pressed // 2) if self.pressed else 0
+        pygame.draw.ellipse(surf, (10, 8, 12), (sx - 24, sy + 2, 48, 12))
+        surf.fill((40, 36, 48), (sx - 20, sy - 14, 40, 18))
+        surf.fill((96, 90, 104), (sx - 18, sy - 14, 36, 14))
+        surf.fill((140, 134, 150), (sx - 18, sy - 14, 36, 2))
+        pulse = 0.5 + 0.5 * math.sin(self.age * 0.15)
+        if not self.pressed:
+            g = glow(30, (255, 90, 70), 0.4 + 0.4 * pulse)
+            surf.blit(g, g.get_rect(center=(sx, sy - 22)), special_flags=pygame.BLEND_ADD)
+        top = sy - 26 + sink
+        pygame.draw.ellipse(surf, (90, 20, 20), (sx - 13, top + 4, 26, 12))
+        pygame.draw.ellipse(surf, (220, 60, 50) if not self.pressed else (120, 40, 36), (sx - 13, top, 26, 12))
+        pygame.draw.ellipse(surf, (255, 170, 150), (sx - 7, top + 2, 10, 4))
+
+    def draw_prompt(self, screen, camera, ui, frame, near):
+        if self.pressed:
+            return
+        sx, sy = camera.to_screen(self.x, self.y - 52)
+        color = theme.BONE if near and (frame // 15) % 2 else theme.BRASS
+        ui.text(screen, "INICIAR BATALHA", theme.XS, color, (round(sx), round(sy)))

@@ -770,7 +770,7 @@ class QueueLanes:
     def __init__(self, arena, rng=random):
         self.arena = arena
         self.rng = rng
-        self.lanes = [(pygame.Rect(x, y, w, h), d) for x, y, w, h, d in self.LANES]
+        self.lanes = [(pygame.Rect(*arena.at(x, y), w, h), d) for x, y, w, h, d in self.LANES]
         self.active = []
         self.state = "calm"
         self.timer = 150
@@ -935,7 +935,7 @@ class Heat:
         self.heat = {}
         self.shades = []
         for x, y in self.SHADES:
-            x, y = arena.free_spot(x, y, 40)
+            x, y = arena.free_spot(*arena.at(x, y), 40)
             self.shades.append(pygame.Rect(round(x - self.SHADE[0] / 2), round(y - self.SHADE[1] / 2), *self.SHADE))
         self.match = None
 
@@ -1018,7 +1018,7 @@ class Blackout:
 
     def __init__(self, arena, rng=random):
         self.arena = arena
-        self.boxes = [NoBreak(*arena.free_spot(x, y, 24)) for x, y in self.SPOTS]
+        self.boxes = [NoBreak(*arena.free_spot(*arena.at(x, y), 24)) for x, y in self.SPOTS]
         self.density = 1.0
         self.match = None
         self._veil = None
@@ -1111,7 +1111,7 @@ class Meeting:
         self.rng = rng
         self.state = "calm"
         self.timer = 240
-        self.center = (arena.width / 2, arena.height / 2)
+        self.center = arena.room.center
         self.topic = self.TOPICS[0]
 
     def update(self, match):

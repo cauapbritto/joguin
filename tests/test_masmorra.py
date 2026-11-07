@@ -1,16 +1,16 @@
-"""Campanha em masmorras: acampamento (lobby) com fogueira e entradas, masmorra 1, volta ao
-acampamento com o baú escondido (armas raras), masmorra 2 e o teletransporte de fase."""
+"""Campanha em masmorras: as salas de luta (CampaignMatch avulsa), o baú com as armas raras, a
+fogueira e as armas no chão. O mapa da fase inteira fica em test_fase_mapa."""
 import unittest
 
 from apoio import FakeInput, game
 
 from soulstrike import projectiles as P
 from soulstrike.arena import BATTLE_MAPS, MAPS_BY_KEY, Arena
-from soulstrike.campaign import (DUNGEON_1, DUNGEON_2, LEAVE_FRAMES, LOBBY_BACK, PHASES, CampaignMatch, CampaignRun,
-                                 LobbyMatch)
+from soulstrike.campaign import (DUNGEON_1, DUNGEON_2, LOBBY_BACK, PASSAGE_FRAMES,
+                                 PHASES, TELEPORT_FRAMES, CampaignMatch, CampaignRun)
+from soulstrike.fase import PhaseMatch
 from soulstrike.data import CHARACTERS, RARE_WEAPONS
 from soulstrike.dungeon import DONE_AT, Campfire
-from soulstrike.lobbies import LOBBIES, parse
 from soulstrike.session import Session, SlotSetup
 
 KEYS = [c.key for c in CHARACTERS]
@@ -33,8 +33,9 @@ def corrida(chars=("guerreiro", "atirador"), phase=0, stage=0):
 
 
 def acampamento(chars=("guerreiro", "atirador"), phase=0, back=False):
-    g, run = corrida(chars, phase, LOBBY_BACK if back else 0)
-    match = LobbyMatch(g, run)
+    """A fase inteira (a abertura e a sala de recompensas ficam no mesmo mapa)."""
+    g, run = corrida(chars, phase)
+    match = PhaseMatch(g, run)
     inputs = {}
     for f in match.players:
         inputs[f.slot] = match.controllers[f] = _Input()
@@ -54,14 +55,8 @@ def juntar(match, x, y):
 
 
 class MapasTest(unittest.TestCase):
-    def test_acampamentos_fechados_e_com_tudo(self):
-        for theme, (name, rows) in LOBBIES.items():
-            size, walls, void, markers = parse(rows)
-            for ch, n in (("S", 4), ("a", 4), ("F", 4), ("C", 1), ("1", 2), ("2", 2)):
-                self.assertEqual(len(markers.get(ch, ())), n, (theme, ch))
-            arena = Arena(MAPS_BY_KEY[f"acampamento_{theme}"], game().assets)
-            for x, y in markers["S"] + markers["a"] + markers["C"]:
-                self.assertTrue(arena.is_free(x, y, 12), (theme, x, y))
+    def test_acampamentos_antigos_sairam(self):
+        self.assertFalse([m.key for m in MAPS_BY_KEY.values() if m.key.startswith("acampamento_")])
 
     def test_variacoes_viram_arenas_do_duelo(self):
         keys = [m.key for m in BATTLE_MAPS]
@@ -74,7 +69,7 @@ class MapasTest(unittest.TestCase):
     def test_masmorras_com_entrada_e_saida_livres(self):
         for phase in PHASES:
             self.assertEqual(len(phase.dungeons), 2)
-            for d in phase.dungeons:
+            for d in phase.dungeons + (phase.middle,):
                 arena = Arena(MAPS_BY_KEY[d.map_key], game().assets)
                 for x, y in d.starts:
                     self.assertTrue(arena.is_free(x, y, 16), (d.map_key, x, y))
@@ -82,51 +77,57 @@ class MapasTest(unittest.TestCase):
 
 
 class AcampamentoTest(unittest.TestCase):
-    def test_comeco_da_fase_no_acampamento(self):
-        match, _ = acampamento()
-        self.assertTrue(match.lobby)
-        self.assertEqual(match.gates[1].state, "open")
-        self.assertEqual(match.gates[2].state, "locked")
-        self.assertIn(match.gates[2].wall, match.arena.walls)       # grade fechada é parede
-        self.assertNotIn(match.gates[1].wall, match.arena.walls)
-        self.assertIsNone(match.chest)                              # o baú só aparece na volta
-        self.assertEqual(match.enemies, [])
-
-    def test_entrar_na_masmorra_1(self):
-        match, inputs = acampamento()
-        passo(match, inputs, 5)
-        gate = match.gates[1]
-        x, y = gate.entrance
-        match.players[0].x, match.players[0].y = x, y + 60
-        match.players[1].x, match.players[1].y = x + 400, y + 300
-        passo(match, inputs, 20)
-        self.assertFalse(match.leaving)                  # falta o P2
-        juntar(match, x, y - 30)
-        passo(match, inputs, 3)
-        self.assertTrue(match.leaving)
-        passo(match, inputs, LEAVE_FRAMES + 2)
-        self.assertTrue(match.finished)
-        scene = match.next_scene()
-        self.assertIsInstance(scene.match, CampaignMatch)
-        self.assertEqual(scene.match.dungeon_index, 0)
-
-    def test_volta_abre_a_masmorra_2(self):
-        match, inputs = acampamento(back=True)
-        self.assertEqual(match.gates[1].state, "done")
-        passo(match, inputs, 52)
-        self.assertEqual(match.gates[2].state, "open")
-        passo(match, inputs, 30)
-        self.assertNotIn(match.gates[2].wall, match.arena.walls)
-        self.assertIn(match.gates[1].wall, match.arena.walls)
-
     def test_fogueira_cura_ate_70_por_cento(self):
-        match, inputs = acampamento()
+        match, inputs = acampamento(back=True)
         p1 = match.players[0]
         fire = next(p for p in match.props if isinstance(p, Campfire))
         juntar(match, fire.x + 50, fire.y + 30)
         p1.hp = 10
         passo(match, inputs, 60 * 30)
         self.assertEqual(p1.hp, round(p1.max_hp * Campfire.HEAL_TO))
+
+
+class MasmorraTest(unittest.TestCase):
+    def _masmorra(self, dungeon=0, chars=("guerreiro", "atirador")):
+        g, run = corrida(chars, stage=DUNGEON_2 if dungeon else DUNGEON_1)
+        match = CampaignMatch(g, run)
+        inputs = {}
+        for f in match.players:
+            inputs[f.slot] = match.controllers[f] = _Input()
+        return match, inputs
+
+    def test_inimigos_esperam_o_botao_iniciar_batalha(self):
+        match, inputs = self._masmorra()
+        passo(match, inputs, 400)
+        self.assertEqual(match.state, "ready")
+        self.assertEqual(match.portals, [])                 # ninguém sai dos portais ainda
+        self.assertEqual(match.alive_enemies, [])
+        button = match.start_button
+        p1 = match.players[0]
+        p1.x, p1.y = button.x, button.y + 40
+        p1.vx = p1.vy = 0
+        inputs[1].tap("attack")
+        passo(match, inputs, 2)
+        self.assertEqual(match.state, "fight")
+        self.assertTrue(match.portals or match.alive_enemies)
+        self.assertEqual(match.bullets, [])                 # o ATACAR apertou o botão (não atirou)
+
+    def test_portal_da_fase_leva_todos_juntos(self):
+        match, inputs = self._masmorra(dungeon=1)
+        match.state, match.state_timer, match.banner = "fight", 0, None
+        match.wave = len(match.waves) - 1
+        passo(match, inputs, 80)
+        self.assertEqual(match.state, "portal")
+        portal = match.exit
+        p1, p2 = match.players
+        p1.x, p1.y = portal.x, portal.y
+        passo(match, inputs, PASSAGE_FRAMES + 10)
+        self.assertEqual(match.state, "portal")             # falta o P2
+        p2.x, p2.y = portal.x + 30, portal.y
+        passo(match, inputs, PASSAGE_FRAMES + 2)
+        self.assertEqual(match.state, "teleport")
+        passo(match, inputs, TELEPORT_FRAMES + 2)
+        self.assertTrue(match.finished and match.won)
 
 
 class BauTest(unittest.TestCase):
@@ -165,7 +166,7 @@ class BauTest(unittest.TestCase):
     def test_bau_aberto_nao_volta_e_tentar_de_novo_devolve(self):
         g, run = corrida(stage=LOBBY_BACK)
         run.chest_open = True
-        self.assertIsNone(LobbyMatch(g, run).chest)
+        self.assertIsNone(PhaseMatch(g, run).chest)
         run.retry_phase()
         self.assertEqual(run.stage, 0)
         self.assertFalse(run.chest_open)
@@ -177,7 +178,7 @@ class ArmaNoChaoTest(unittest.TestCase):
     def _bau_com_besta(self):
         g, run = corrida(chars=("guerreiro", "atirador"), stage=LOBBY_BACK)
         run.relics[1] = "besta"                            # já tinha uma arma rara da fase anterior
-        match = LobbyMatch(g, run)
+        match = PhaseMatch(g, run)
         inputs = {}
         for f in match.players:
             inputs[f.slot] = match.controllers[f] = _Input()
@@ -335,49 +336,6 @@ class ArmasRarasTest(unittest.TestCase):
         p1.weapon_index = 0
         self.assertEqual(p1.ammo, p1.mag)                   # o arco do herói continua com o pente cheio
         self.assertGreater(p1.mag, 0)
-
-
-class CampanhaInteiraTest(unittest.TestCase):
-    def test_tres_fases_de_ponta_a_ponta(self):
-        """Acampamento → masmorra 1 → acampamento (baú) → masmorra 2 → teletransporte, nas 3 fases."""
-        from soulstrike.scenes.campaign import StoryScene, UpgradeScene, start_phase
-        g, run = corrida()
-        real = g.inputs
-        g.inputs = {s: _Input() for s in (1, 2, 3, 4)}
-        try:
-            for phase in range(3):
-                run.phase_index = phase
-                scene = start_phase(g, run, story=False)
-                for stage in range(4):
-                    m = scene.match
-                    ins = {f.slot: m.controllers[f] for f in m.players}
-                    if isinstance(m, LobbyMatch):
-                        passo(m, ins, 60)
-                        if m.chest is not None:
-                            juntar(m, m.chest.x - 40, m.chest.y + 10)
-                            passo(m, ins, 2)
-                            ins[1].tap("attack")
-                            passo(m, ins, DONE_AT + 10)
-                        gate = m.gates[m.target_gate]
-                        juntar(m, gate.entrance[0], gate.entrance[1] - 30)
-                        passo(m, ins, LEAVE_FRAMES + 10)
-                    else:
-                        m.state, m.state_timer, m.banner = "fight", 0, None
-                        m.wave = len(m.waves) - 1
-                        passo(m, ins, 80)
-                        if m.state == "vote":
-                            for inp in ins.values():
-                                inp.tap("attack")
-                            passo(m, ins, 120)
-                        else:
-                            juntar(m, m.exit.x, m.exit.y)
-                            passo(m, ins, LEAVE_FRAMES + 10)
-                    self.assertTrue(m.finished and m.won, (phase, stage, type(m).__name__))
-                    scene = m.next_scene()
-                self.assertIsInstance(scene, StoryScene if phase == 2 else UpgradeScene)
-                self.assertTrue(all(run.relics.values()))
-        finally:
-            g.inputs = real
 
 
 if __name__ == "__main__":

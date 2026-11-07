@@ -25,6 +25,7 @@ STALE_SECONDS = 4.0      # sem notícias do celular há esse tempo → desconect
 RELEASE_SECONDS = 20.0   # depois disso a vaga é liberada
 INPUT_TIMEOUT = 1.0      # controle sem notícias há esse tempo → solta tudo (para por segurança)
 LEGACY_AXIS_SECONDS = 0.6
+BUZZ_GAP = 0.25          # vibração do celular: no máximo uma a cada 250 ms por jogador
 
 
 class PadState:
@@ -62,7 +63,8 @@ class SlotInfo:
         self.ammo = 0         # munição da arma na mão (duelo e campanha)
         self.mag = 0          # tamanho do pente (0 = arma sem munição, ex.: corpo a corpo)
         self.reload = 0.0     # 0..1 da recarga (0 = não está recarregando)
-        self.vote = 0         # teletransporte de fase: 0 nada, 1 falta você confirmar, 2 confirmado
+        self.buzz = [0, ""]   # vibração: [contador, padrão]; o celular vibra quando o contador muda
+        self.buzz_at = -1.0   # quando foi a última (no máximo uma a cada BUZZ_GAP)
         self.options = []     # melhorias para escolher (campanha): [{name, desc, color}]
         self.choice = 0       # qual está marcada
         self.souls = None     # saldo de almas na campanha (None = fora da campanha)
@@ -94,6 +96,8 @@ class RemoteHub:
         self._banner = ""
         self.roster_size = 0       # quantos personagens o celular deve mostrar (muda ao liberar um)
         self.news = []             # resumo das novidades (o celular mostra com a tela de novidades aberta)
+        self.news_page = None      # notícia aberta no plantão: {"index", "total", "title"}
+        self._news_taps = []       # botões < PULAR > do celular na tela de novidades
         self.hud = "battle"         # disposição de botões do celular (battle, soccer, basket)
         self._orders = []          # pedidos da loja vindos do celular: (vaga, id do item, comprar?)
 
@@ -135,6 +139,22 @@ class RemoteHub:
                 return False                  # a banca já fechou
             self._orders = (self._orders + [(slot, str(item)[:64], bool(buy))])[-16:]
             return True
+
+    def news_tap(self, slot, go):
+        """Botão do celular na tela de novidades: "prev", "next" ou "skip". O jogo aplica no quadro."""
+        if slot not in self._slots or go not in ("prev", "next", "skip"):
+            return False
+        with self._lock:
+            if self._phase != "news":
+                return False
+            self._news_taps = (self._news_taps + [go])[-8:]
+            return True
+
+    def news_taps(self):
+        """Toques do celular na tela de novidades desde o último quadro (e esvazia a fila)."""
+        with self._lock:
+            out, self._news_taps = self._news_taps, []
+        return out
 
     def orders(self):
         """Pedidos da loja desde o último quadro (e esvazia a fila)."""
@@ -250,7 +270,6 @@ class RemoteHub:
                     pad.held = set()
                 if phase != "paused":
                     for info in self._slots.values():
-                        info.vote = 0             # fora da partida não tem teletransporte para confirmar
                         info.shop = None
                         if phase != "penalty":
                             info.penalty = None
@@ -262,10 +281,25 @@ class RemoteHub:
             info = self._slots[slot]
             for name, value in fields.items():
                 if name not in ("char", "weapon", "ready", "team", "cooldown", "stamina", "tired",
-                                "options", "choice", "ammo", "mag", "reload", "vote", "souls", "shop", "penalty",
+                                "options", "choice", "ammo", "mag", "reload", "souls", "shop", "penalty",
                                 "energy", "emax", "ecost"):
                     raise ValueError(name)
                 setattr(info, name, value)
+
+    def buzz(self, slot, pattern, force=False):
+        """Vibra o celular desta vaga com um padrão (o celular conhece os nomes: hit, big_hit, score,
+        super, call, tick, go). No máximo uma a cada BUZZ_GAP, para não virar um zumbido sem fim;
+        ``force`` passa por cima disso (avisos que não podem se perder, como o portal)."""
+        now = time.monotonic()
+        with self._lock:
+            info = self._slots.get(slot)
+            if info is None or not info.connected(now):
+                return False
+            if not force and now - info.buzz_at < BUZZ_GAP:
+                return False
+            info.buzz = [info.buzz[0] + 1, pattern]
+            info.buzz_at = now
+            return True
 
     def status(self, slot=None, token=None):
         now = time.monotonic()
@@ -279,6 +313,7 @@ class RemoteHub:
                 "roster": self.roster_size,
                 "hud": self.hud,
                 "news": self.news if self._phase == "news" else [],
+                "news_page": self.news_page if self._phase == "news" else None,
                 "slots": {
                     str(s): {"claimed": i.claimed, "connected": i.connected(now)}
                     for s, i in self._slots.items()
@@ -301,7 +336,7 @@ class RemoteHub:
                     "energy": mine.energy if self._mode == "campaign" else 0,
                     "emax": mine.emax if self._mode == "campaign" else 0,
                     "ecost": mine.ecost if self._mode == "campaign" else 0,
-                    "vote": mine.vote,
+                    "buzz": list(mine.buzz),
                     "options": mine.options,
                     "choice": mine.choice,
                     "souls": mine.souls if self._mode == "campaign" else None,

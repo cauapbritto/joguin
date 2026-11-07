@@ -10,7 +10,7 @@ from ..arena import MAPS_BY_KEY
 from ..enemies import SHADOW_RIM
 from ..fighter import draw_aura
 from ..campaign import (BROKEN, CRYSTAL, DUNGEON_2, FRAGMENT, PHASE_HEAL, PHASES, STORY, CampaignMatch,
-                        CampaignRun, LobbyMatch)
+                        CampaignRun)
 from ..net.remote import hub
 from ..ui import MenuList, darken, mix
 from ..upgrades import ICONS, UPGRADES, choices
@@ -27,12 +27,19 @@ def start_campaign(game):
     if chapter > 1:
         # direto no capítulo 2 ou 3: almas, melhorias sorteadas e mais uma escolhida antes de entrar
         run.start_at_chapter(chapter)
-        return UpgradeScene(game, run, lambda: start_phase(game, run), intro=True)
-    return StoryScene(game, "prologo", lambda: start_phase(game, run))
+        return UpgradeScene(game, run, lambda: hub_scene(game, run), intro=True)
+    return StoryScene(game, "prologo", lambda: hub_scene(game, run))
+
+
+def hub_scene(game, run, story=True):
+    """A Casa da turma: a campanha (e o CONTINUAR) começa aqui; o City do quintal leva à fase."""
+    from ..casa import HubMatch
+    from .play import PlayScene
+    return PlayScene(game, HubMatch(game, run, story))
 
 
 def start_phase(game, run, story=True):
-    """Começa a fase no acampamento (depois da história dela)."""
+    """Começa a fase na abertura (depois da história dela)."""
     if run.rush:
         # Reunião dos Corrompidos: direto na sala do chefe (sem acampamento, história nem save)
         run.begin_phase()
@@ -48,9 +55,11 @@ def start_phase(game, run, story=True):
 
 
 def stage_scene(game, run):
-    """A etapa atual da fase: acampamento ou masmorra."""
+    """A fase: o mapa inteiro, a pé da abertura até o portal (na Reunião dos Corrompidos, só a sala
+    do chefe)."""
+    from ..fase import PhaseMatch
     from .play import PlayScene
-    match = LobbyMatch(game, run) if run.in_lobby else CampaignMatch(game, run)
+    match = CampaignMatch(game, run) if run.rush else PhaseMatch(game, run)
     return PlayScene(game, match)
 
 
@@ -242,8 +251,13 @@ class StoryScene(_MenuScene):
                 draw_aura(screen, img, rect, SHADOW_RIM, self.ticks, 3)
             screen.blit(img, rect)
 
-        # caixa de texto
+        # caixa de texto: fala comprida faz a caixa crescer para cima (o retrato fica acima de y 292)
+        lines = self.ui.wrap(text, theme.S, W - 160 - 48)
+        need = 18 + (18 if speaker else 0) + len(lines) * 26 + 6
         box = pygame.Rect(80, 330, W - 160, 136)
+        if need > box.h:
+            box.top = max(296, box.bottom - need)
+            box.h = 466 - box.top
         self.ui.panel(screen, box, fill=theme.INK_2)
         y = box.y + 18
         if speaker:
@@ -251,8 +265,7 @@ class StoryScene(_MenuScene):
                          else theme.BRASS, (box.x + 24, y + 4), anchor="midleft")
             y += 18
         visible = text[:int(self.shown)]
-        # quebra as linhas com o texto inteiro (as palavras não pulam de linha enquanto aparecem)
-        lines = self.ui.wrap(text, theme.S, box.w - 48)
+        # as linhas saem do texto inteiro (as palavras não pulam de linha enquanto aparecem)
         left = len(visible)
         for line in lines:
             part = line[:max(0, left)]
@@ -771,7 +784,12 @@ class ChapterEndScene(_RunMenuScene):
         self.draw_background(screen)
         self.ui.text(screen, "CAMPANHA", theme.XS, theme.MUTED, (64, 64), anchor="midleft")
         text, sprite, name = CHAPTER_END[self.done]
-        self.ui.text(screen, f"CAPÍTULO {self.done} CONCLUÍDO!", theme.L, theme.MOSS, (64, 100), anchor="midleft")
+        title = f"CAPÍTULO {self.done} CONCLUÍDO!"
+        # o título não pode entrar embaixo do quadro do lutador liberado (que começa em W - 400)
+        size = self.ui.fit_size(title, W - 400 - 16 - 64, (theme.L, theme.M))
+        if self.assets.text_width(title, size) > W - 400 - 16 - 64:
+            title = title.rstrip("!")
+        self.ui.text(screen, title, size, theme.MOSS, (64, 100), anchor="midleft")
         screen.fill(theme.MOSS, (64, 124, 120, 3))
         self.ui.paragraph(screen, text, theme.XS, theme.BONE, (64, 156), 420, spacing=16)
         self.ui.paragraph(screen, "Se pararem aqui, o CONTINUAR CAMPANHA do menu volta no começo do "

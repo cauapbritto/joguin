@@ -7,8 +7,8 @@ from apoio import FakeInput, game
 from soulstrike import progress
 from soulstrike.boss import BossAI
 from soulstrike.campaign import (CHAPTER_START, DOWN_FRAMES, DUNGEON_1, DUNGEON_2, EXIT_DELAY, GAMEOVER_FRAMES, LEAVE_FRAMES,
-                                 PHASE_HEAL, PHASES, REVIVE_FRAMES, CampaignMatch, CampaignRun, elite_hp_scale,
-                                 scaled_count)
+                                 PASSAGE_FRAMES, PHASE_HEAL, PHASES, REVIVE_FRAMES, TELEPORT_FRAMES, CampaignMatch,
+                                 CampaignRun, elite_hp_scale, scaled_count)
 from soulstrike.data import CHARACTERS, UNLOCKABLE, roster, roster_indices
 from soulstrike.entities import Barrier, Bullet, Explosion, ShadowBomb
 from soulstrike.session import Session, SlotSetup
@@ -149,8 +149,8 @@ class OndasTest(unittest.TestCase):
         self.assertEqual(len(match.alive_enemies), scaled_count("diabrete", 5, 2))
         self.assertTrue(all(e.team == 1 for e in match.enemies))
 
-    def test_limpar_a_masmorra_1_abre_a_porta_de_volta(self):
-        from soulstrike.campaign import LobbyMatch
+    def test_limpar_a_masmorra_1_abre_a_porta_do_corredor(self):
+        from soulstrike.fase import PhaseMatch
         from soulstrike.dungeon import ExitDoor
         match, _ = campanha()
         pular_intro(match)
@@ -169,55 +169,52 @@ class OndasTest(unittest.TestCase):
         self.assertFalse(match.finished)            # ninguém foi até a porta ainda
         for p in match.players:
             p.x, p.y = door.x, door.y + 20
-        passo(match, LEAVE_FRAMES + 4)
+        passo(match, PASSAGE_FRAMES + LEAVE_FRAMES + 4)
         self.assertTrue(match.finished and match.won)
         self.assertAlmostEqual(match.run.hp_ratio[1], 30 / p1.max_hp, places=3)
-        scene = match.next_scene()
-        self.assertIsInstance(scene.match, LobbyMatch)
-        self.assertTrue(scene.match.back)
+        self.assertIsInstance(match.next_scene().match, PhaseMatch)     # a sala avulsa volta para a fase
 
-    def test_botao_de_teletransporte_leva_para_a_proxima_fase(self):
-        from soulstrike.net.remote import hub
+    def test_faixa_valendo_some_depois_de_iniciar_a_batalha(self):
+        from soulstrike.campaign import BANNER_FRAMES, INTRO_FRAMES
+        match, _ = campanha()
+        passo(match, INTRO_FRAMES + 5)
+        self.assertEqual(match.state, "ready")
+        self.assertTrue(match.start_battle())
+        self.assertEqual(match.banner[0], "VALENDO!")
+        passo(match, BANNER_FRAMES + 5)
+        self.assertIn(match.state, ("fight", "between"))
+        self.assertIsNone(match.banner)
+
+    def test_portal_leva_para_a_proxima_fase(self):
         match, inputs = campanha(dungeon=1)
         pular_intro(match)
         match.wave = len(match.waves) - 1
         p1, p2 = match.players
         p1.hp = 30
-        hub.join(2, "tele")
-        try:
-            passo(match, EXIT_DELAY + 4)
-            self.assertEqual(match.state, "vote")
-            self.assertTrue(match.wants_cursor)
-            self.assertEqual(hub.status(2, "tele")["me"]["vote"], 1)     # o celular mostra o botão
-            inputs[1].tap("attack")
-            passo(match, 2)
-            self.assertEqual(match.votes, {p1})
-            self.assertEqual(match.state, "vote")      # ainda falta o P2
-            inputs[2].tap("confirm")                   # botão no celular
-            passo(match, 2)
-            self.assertEqual(match.state, "teleport")
-            self.assertEqual(hub.status(2, "tele")["me"]["vote"], 0)
-        finally:
-            hub.leave(2, "tele")
-        passo(match, 120)
+        passo(match, EXIT_DELAY + 4)
+        self.assertEqual(match.state, "portal")
+        portal = match.exit
+        for p in match.players:
+            p.x, p.y = portal.x, portal.y
+        passo(match, PASSAGE_FRAMES + 2)
+        self.assertEqual(match.state, "teleport")
+        passo(match, TELEPORT_FRAMES + 4)
         self.assertTrue(match.finished and match.won)
         self.assertAlmostEqual(match.run.hp_ratio[1], min(1.0, 30 / p1.max_hp + PHASE_HEAL), places=3)
         from soulstrike.scenes.campaign import UpgradeScene
         self.assertIsInstance(match.next_scene(), UpgradeScene)
 
-    def test_clique_no_botao_confirma_quem_esta_no_teclado(self):
+    def test_quem_caiu_nao_trava_o_portal(self):
         match, inputs = campanha(dungeon=1)
         pular_intro(match)
         match.wave = len(match.waves) - 1
         passo(match, EXIT_DELAY + 4)
-        g = game()
-        match.draw(g.screen, g.ui)                     # o botão aparece na tela
-        button = match.vote_button
-        self.assertIsNotNone(button)
-        self.assertFalse(match.click((5, 5)))
-        self.assertTrue(match.click(button.center))
-        self.assertTrue(match.click(button.center))
-        self.assertEqual(match.votes, set(match.players))
+        portal = match.exit
+        p1, p2 = match.players
+        p1.x, p1.y = portal.x, portal.y
+        p2.hp = 0                                       # caiu depois de limpar: não conta
+        passo(match, PASSAGE_FRAMES + 2)
+        self.assertEqual(match.state, "teleport")
 
     def test_ultima_fase_vai_para_o_final(self):
         match, _ = campanha(phase=len(PHASES) - 1, dungeon=1)
@@ -490,7 +487,7 @@ class ChefaoTest(unittest.TestCase):
         boss.hp = 0
         passo(match, 400)
         self.assertTrue(match.slain_boss)
-        self.assertEqual(match.state, "vote")        # o teletransporte leva para o final
+        self.assertEqual(match.state, "portal")      # o portal leva para o final
 
 
 class DesbloqueioTest(unittest.TestCase):

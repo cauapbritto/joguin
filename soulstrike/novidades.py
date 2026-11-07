@@ -5,11 +5,128 @@ Ao subir a versão em __init__.py, acrescente aqui o que mudou, em frases curtas
 
 Uma versão pode ser só uma lista de frases (uma página) ou uma lista de páginas, cada uma
 um dicionário com título, cena animada (ver NEWS_SCENES em scenes/menus.py) e frases.
+Opcional: "tv" escolhe uma imagem feita para o plantão (FOOTAGE em scenes/plantao.py, ou
+"estudio" para a bancada dos âncoras).
 """
 from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.26.0": [
+        {"title": "TODOS NO CITY", "scene": "casa", "lines": [
+            "A saída da Casa agora é o City do João, estacionado no quintal.",
+            "Com todo mundo em volta do carro, a contagem começa e o grupo pega a estrada.",
+            "O caminho de terra do quintal leva direto até ele.",
+        ]},
+        {"title": "O CITY QUEBROU", "scene": "casa", "lines": [
+            "A viagem passa pelo bairro e chega no cenário do capítulo, com os quatro nas janelas.",
+            "No meio do caminho o carro falha, solta fumaça e faz PUFF. Daqui é a pé.",
+            "ESQUIVA pula a cena.",
+        ]},
+    ],
+    "1.25.0": [
+        {"title": "CONVERSA NO BOTÃO", "scene": "casa", "lines": [
+            "Na Casa da turma, ninguém fala mais sozinho quando você passa perto.",
+            "Chegou perto de alguém da vitrine ou de um retrato, aparece um balão com ... em cima dele.",
+            "ATACAR conversa: uma frase por toque. Apertou de novo, vem a próxima.",
+        ]},
+        {"title": "UM DE CADA VEZ", "scene": "casa", "lines": [
+            "Perto da mesa, da moto, da roleta ou da padaria, o ATACAR continua usando essas coisas.",
+            "Com dois por perto, conversa quem estiver mais perto. O balão do vizinho some.",
+        ]},
+    ],
+    "1.24.0": [
+        {"title": "A FASE É UM MAPA SÓ", "scene": "mapa_fase", "lines": [
+            "Cada fase agora é um mapa inteiro, a pé, com as salas ligadas por corredores.",
+            "Saindo da Casa pelo portal, o grupo chega na abertura, com a lojinha e o altar.",
+            "No fim da fase, um portal leva para a próxima. Na 3ª de cada capítulo, depois do chefe.",
+        ]},
+        {"title": "SALAS QUE TRANCAM", "scene": "mapa_fase", "lines": [
+            "Entrou numa sala de luta, as portas fecham até a última onda cair.",
+            "Cada fase tem uma sala de luta nova no meio do caminho e uma sala de recompensa.",
+            "A sala do chefe só abre depois que as outras duas salas de luta forem limpas.",
+        ]},
+        {"title": "O MINI MAPA", "scene": "mapa_fase", "lines": [
+            "No canto da tela, um mapinha mostra onde o grupo está, em dourado.",
+            "As salas já visitadas ficam cinza. As que faltam aparecem com um ?.",
+        ]},
+    ],
+    "1.23.0": [
+        {"title": "PLANTÃO SOUL STRIKE", "scene": "novidades", "tv": "estudio", "lines": [
+            "As novidades viraram um telejornal: cada versão é uma edição e cada novidade é uma notícia.",
+            "Cada notícia tem a sua imagem ao vivo, e a lista do lado marca o que você já viu.",
+            "Atualizou depois de muito tempo? Aparecem todas as versões que você ainda não viu.",
+        ]},
+        {"title": "NO CELULAR E NO ARQUIVO", "scene": "hud", "lines": [
+            "No celular, os botões < PULAR > viram as notícias de qualquer jogador.",
+            "Em OPÇÕES > NOVIDADES fica o arquivo com todas as edições, desde a 1.1.0.",
+        ]},
+    ],
+    "1.22.0": [
+        {"title": "CORREDORES DECORADOS", "scene": "corredores", "lines": [
+            "A sala inicial e o corredor de cada capítulo ganharam enfeites nos cantos, sem fechar o caminho.",
+            "Trilha com tochas, barris e cogumelos. Lag Lobby com racks, cones e bebedouro.",
+            "Clepalovers com cadeiras de espera. Mansão com retratos, bustos e pilhas de papel.",
+        ]},
+        {"title": "A PLACA DO CORREDOR", "scene": "corredores", "lines": [
+            "Todo corredor tem uma placa perto de onde o grupo chega. Leia antes de seguir.",
+            "Os acampamentos antigos saíram do jogo: a fase só vai em frente.",
+        ]},
+    ],
+    "1.21.0": [
+        {"title": "O PC DO CAUANZERA", "scene": "computador", "lines": [
+            "Na Casa da turma, ATACAR na mesa do Cauanzera liga o CAUANZERA OS: arquivos, navegador e terminal.",
+            "O notebook do Albeguinio abre no modo hacker. A senha todo mundo já sabe.",
+            "A janela aparece na TV, em cima da mesa, e no celular de quem abriu.",
+        ]},
+        {"title": "LIBERAR TUDO", "scene": "computador", "lines": [
+            "No terminal do PC, liberar --tudo libera os 4 capítulos, os 4 corrompidos no duelo e as portas da casa.",
+            "No notebook é a invasão do cristal, com mais firula. Fica salvo para sempre, sem selo de recorde.",
+            "A tela fica branca com LIBERANDO... e a casa volta com tudo aberto.",
+        ]},
+        {"title": "OS CANTOS DA TURMA", "scene": "cantos", "lines": [
+            "A moto do Aryel dá grau. A roleta gira e para no GREEN ou no RED.",
+            "Na padaria do João, pegue a senha e espere o pão quentinho sair do forno.",
+        ]},
+    ],
+    "1.20.0": [
+        {"title": "CASA DA TURMA", "scene": "casa", "lines": [
+            "A campanha começa na casa da turma. O CONTINUAR também volta por ela.",
+            "Cada amigo tem o seu canto. A saída do quintal leva o grupo para a fase.",
+            "O livro do Cauanzera mostra um versículo diferente cada vez que é aberto.",
+        ]},
+        {"title": "A VITRINE FALA", "scene": "casa", "lines": [
+            "Chegue perto de um herói da vitrine e ele fala, cada vez uma frase.",
+            "Regue a horta com ATACAR. Com os quatro canteiros regados juntos, nasce uma flor grande.",
+            "As portas trancadas abrem conforme a campanha avança.",
+        ]},
+    ],
+    "1.19.0": [
+        {"title": "O CELULAR VIBRA", "scene": "hud", "lines": [
+            "O celular vibra quando o seu herói apanha, no gol, na cesta e no SUPER.",
+            "Funciona no Android. O botão VIBRAR do celular e a opção VIBRAÇÃO desligam tudo.",
+        ]},
+        {"title": "CHAMADA NA PORTA", "scene": "lag", "lines": [
+            "Na campanha, quando o grupo está na porta e falta você, o celular chama a cada 3 segundos.",
+            "Ele também vibra em cada segundo da contagem e na hora em que o grupo vai.",
+        ]},
+    ],
+    "1.18.0": [
+        {"title": "A FASE VAI EM FRENTE", "scene": "lag", "lines": [
+            "Ninguém volta mais para o acampamento: a fase começa numa sala inicial com a lojinha e o altar.",
+            "Depois da masmorra 1 vem um corredor com o baú, a fogueira, a loja, o ferreiro e o armário.",
+            "A masmorra 2 termina num portal que leva o grupo direto para a próxima fase.",
+        ]},
+        {"title": "TODOS JUNTOS NA PORTA", "scene": "hud", "lines": [
+            "Portas e portal só levam o grupo com todo mundo dentro: aí corre uma contagem de 2 segundos.",
+            "Quem sair zera a contagem. Celular desconectado não trava ninguém, e o herói vai junto.",
+            "Se alguém travar por 20 segundos, o P1 pode ir assim mesmo com ATACAR.",
+        ]},
+        {"title": "INICIAR BATALHA", "scene": "perigos", "lines": [
+            "Na entrada de cada masmorra tem um botão: os inimigos só saem quando alguém aperta.",
+            "Dá tempo de o grupo se arrumar, trocar de arma e respirar antes da luta.",
+        ]},
+    ],
     "1.17.0": [
         {"title": "PÊNALTIS 1 x 1", "scene": "penalti", "lines": [
             "No menu do futebol, PÊNALTIS 1 x 1: um herói de cada lado, que bate e defende.",
@@ -73,7 +190,7 @@ NEWS = {
         {"title": "CINCO DIFICULDADES", "scene": "perigos", "lines": [
             "A campanha agora tem FÁCIL, NORMAL, DIFÍCIL, IBRAHIM e BORBA.",
             "IBRAHIM: toma cuidado jovi, esse é difícil. Inimigos com poderes extras e só 1 continue.",
-            "BORBA: fenomenal. Sem cura entre as fases e cada um só é levantado uma vez por masmorra.",
+            "BORBA: sensacional. Sem cura entre as fases e cada um só é levantado uma vez por masmorra.",
         ]},
         {"title": "ENERGIA", "scene": "almas", "lines": [
             "Armas raras, roubadas e forjadas gastam energia (barra azul de 200) em vez de pente.",

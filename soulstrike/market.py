@@ -156,9 +156,14 @@ class Stall(Entity):
     REACH = 74
     NAMES = {"loja": "LOJA", "ferreiro": "FERREIRO", "altar": "ALTAR DAS MALDIÇÕES"}
 
-    def __init__(self, kind, x, y, style=None):
+    @property
+    def title(self):
+        return "LOJINHA" if self.mini else self.NAMES[self.kind]
+
+    def __init__(self, kind, x, y, style=None, mini=False):
         super().__init__(x, y)
         self.kind = kind
+        self.mini = mini                # lojinha da sala inicial: só poção, continue e doar
         self.style = style              # "lag": máquina de venda, bancada de solda e servidor com o fragmento
         self.age = 0
         self.stock = None               # loja: as armas da vitrine (sorteadas na primeira vez que abre)
@@ -274,7 +279,7 @@ class Stall(Entity):
 
     def draw_prompt(self, screen, camera, ui, frame, near):
         sx, sy = camera.to_screen(self.x, self.y - 82)
-        ui.text(screen, self.NAMES[self.kind], theme.XS, theme.BRASS, (round(sx), round(sy)))
+        ui.text(screen, self.title, theme.XS, theme.BRASS, (round(sx), round(sy)))
         if near:
             color = theme.BRASS if (frame // 15) % 2 else theme.BONE
             ui.text(screen, "ATACAR: ABRIR", theme.XS, color, (round(sx), round(sy) + 12))
@@ -336,20 +341,26 @@ class MarketMenu:
         f, run = self.fighter, self.run
         full = f.hp >= f.max_hp
         used = run.rerolls[f.slot]
-        return [
-            Entry("POÇÃO DE VIDA", 20, "cura metade da vida", not full, self._potion, key="pocao",
-                  info={"sub": "VIDA CHEIA" if full else "CURA METADE"}),
-        ] + self._vitrine() + [
+        potion = [Entry("POÇÃO DE VIDA", 20, "cura metade da vida", not full, self._potion, key="pocao",
+                        info={"sub": "VIDA CHEIA" if full else "CURA METADE"})]
+        gifts = [Entry(f"DOAR {GIFT} > {m.label}", GIFT, f"passa {GIFT} almas para {m.label}", True,
+                       lambda m=m: self._gift(m), m.color, f"doar:{m.slot}")
+                 for m in self.match.players if m is not f]
+        if self.stall.mini:            # lojinha da sala inicial: a loja completa fica no corredor
+            return potion + [self._continue_entry()] + gifts
+        return potion + self._vitrine() + [
             Entry("ARMA SURPRESA", SURPRISE_COST, "uma arma de outro herói cai no chão", True, self._weapon,
                   key="arma", info={"sub": "CAI NO CHÃO"}),
             Entry("TROCAR MELHORIAS", 25, "no fim da fase, TROCAR ARMA sorteia de novo",
                   used < MAX_REROLLS, self._reroll, key="trocar",
                   info={"sub": f"{used} DE {MAX_REROLLS} USADAS"}),
-            Entry("CONTINUE", 120, "uma vida a mais para o grupo", run.continues < 3, self._continue,
-                  key="continue", info={"sub": "O GRUPO JÁ TEM 3" if run.continues >= 3 else "VIDA PRO GRUPO"}),
-        ] + [Entry(f"DOAR {GIFT} > {m.label}", GIFT, f"passa {GIFT} almas para {m.label}", True,
-                   lambda m=m: self._gift(m), m.color, f"doar:{m.slot}")
-             for m in self.match.players if m is not f]
+            self._continue_entry(),
+        ] + gifts
+
+    def _continue_entry(self):
+        run = self.run
+        return Entry("CONTINUE", 120, "uma vida a mais para o grupo", run.continues < 3, self._continue,
+                     key="continue", info={"sub": "O GRUPO JÁ TEM 3" if run.continues >= 3 else "VIDA PRO GRUPO"})
 
     def stock(self):
         """As armas da vitrine: uma de tiro e uma de perto de outros heróis, que ninguém do grupo
@@ -530,7 +541,7 @@ class MarketMenu:
         picked = entries[self.index % len(entries)].key if entries else None
         return {
             "kind": self.stall.kind,
-            "title": Stall.NAMES[self.stall.kind],
+            "title": self.stall.title,
             "souls": wallet,
             "picked": picked,
             "mates": [{"slot": m.slot, "label": m.label, "name": m.stats.name.upper(),
@@ -569,7 +580,7 @@ class MarketMenu:
         y = max(60, min(config.SCREEN_H - h - 70, round(anchor[1]) - h - 70))
         rect = pygame.Rect(x, y, w, h)
         ui.panel(screen, rect, fill=theme.INK_2, accent=f.color)
-        ui.text(screen, f"{f.label} · {Stall.NAMES[self.stall.kind]}", theme.XS, theme.BONE,
+        ui.text(screen, f"{f.label} · {self.stall.title}", theme.XS, theme.BONE,
                 (rect.x + 10, rect.y + 14), anchor="midleft")
         ui.text(screen, f"{self.run.wallet(f.slot)} ALMAS", theme.XS, SOUL_COLOR, (rect.right - 10, rect.y + 14),
                 anchor="midright")

@@ -45,6 +45,24 @@
 
   function buzz() { if (navigator.vibrate && !(hud && hud.vibrate === false)) navigator.vibrate(8); }
 
+  // Vibração por evento: o jogo manda [contador, padrão] e o celular vibra quando o contador muda.
+  // O iPhone não tem navigator.vibrate: aí nada acontece (e nada quebra). O botão VIBRAR vale aqui também.
+  var BUZZ_PATTERNS = {
+    hit: [30], big_hit: [70], score: [80, 40, 80], super: [20],
+    call: [60, 80, 60, 80, 60], tick: [15], go: [140]
+  };
+  var lastBuzz = null;
+  function vibrateFor(b) {
+    if (!b || b.length < 2) return;
+    var first = lastBuzz === null;
+    if (b[0] === lastBuzz) return;
+    lastBuzz = b[0];
+    if (first) return;                 // ao abrir a página não vibra pelo que já passou
+    if (!navigator.vibrate || (hud && hud.vibrate === false)) return;
+    var pattern = BUZZ_PATTERNS[b[1]];
+    if (pattern) navigator.vibrate(pattern);
+  }
+
   function capture(el, id) {
     try { el.setPointerCapture(id); } catch (e) { /* ponteiro já liberado */ }
   }
@@ -161,6 +179,19 @@
     joined = false;
     slot = 0;
     show("join");
+  });
+
+  // ── tela de novidades: < PULAR > ──
+  document.querySelectorAll("[data-news]").forEach(function (el) {
+    el.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      buzz();
+      el.classList.add("down");
+      newsTap(el.dataset.news);
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (t) {
+      el.addEventListener(t, function () { el.classList.remove("down"); });
+    });
   });
 
   // ── botões de toque (um aperto) e de segurar ──
@@ -924,6 +955,11 @@
         box.appendChild(grid);
       }
       box.appendChild(el("p", "dnote", "AS 3 ARMAS SOMEM E AS SUAS VOLTAM AO +0."));
+    } else if (info.type === "tela") {      // computador da casa: o que está na tela agora
+      var tela = el("div", "tela tela-" + (info.look || "pc"));
+      (info.lines || []).forEach(function (line) { tela.appendChild(el("div", "tl", line || "\u00a0")); });
+      box.appendChild(tela);
+      return;
     } else {
       var nb = el("b", "", r.label);
       nb.style.color = r.color;
@@ -1000,10 +1036,11 @@
     }
     var buy = $("shop-buy");
     buy.disabled = !cur || !cur.ok || !cur.afford;
-    buy.textContent = shop.kind === "altar" ? "ESCOLHER" : shopPick === "doar" ? "DOAR…" :
+    buy.textContent = shop.action ? shop.action : shop.kind === "altar" ? "ESCOLHER" : shopPick === "doar" ? "DOAR…" :
       cur && cur.id === "fundir" ? "FUNDIR" : shop.kind === "ferreiro" ? "FORJAR" : "COMPRAR";
     var note = $("shop-note");
     if (cur && !cur.ok) note.textContent = (cur.info && cur.info.sub) || "INDISPONÍVEL";
+    else if (shop.action) note.textContent = "";
     else if (cur && !cur.afford) note.textContent = "FALTAM " + (cur.cost - shop.souls) + " ALMAS";
     else if (note.textContent !== "PEDIDO ENVIADO" && note.textContent.indexOf("DOOU") !== 0) note.textContent = "";
     renderGift(shop);
@@ -1137,13 +1174,7 @@
       sb.classList.toggle("ready", cd <= 0);
       renderAmmo(me, mode);
       renderSouls(me);
-      var vote = me.vote || 0;                 // 1 = falta confirmar o teletransporte, 2 = confirmado
-      var vb = $("vote-btn");
-      vb.classList.toggle("on", vote > 0 && phase === "playing");
-      vb.classList.toggle("is-ready", vote === 2);
-      var vtext = vote === 2 ? "PRONTO! ESPERANDO OS OUTROS" : "TELETRANSPORTE DE FASE";
-      if (vb.textContent !== vtext) vb.textContent = vtext;
-      vb.disabled = vote === 2;
+      vibrateFor(me.buzz);
       var st = $("stick-stamina");
       st.style.setProperty("--st", (me.stamina === undefined ? 1 : me.stamina).toFixed(3));
       st.classList.toggle("tired", !!me.tired);
@@ -1161,9 +1192,11 @@
     }
     show("wait");
     renderNews(phase === "news" ? status.news || [] : []);
+    renderNewsPage(phase === "news" ? status.news_page : null);
     if (phase === "news") {
       bind("wait-title", status.banner || "Novidades");
-      bind("wait-text", "Na TV: setas ou ENTER para virar as páginas.");
+      bind("wait-text", status.news_page ? "Os botões daqui também viram as notícias." :
+                                           "Na TV: setas ou ENTER para escolher.");
     } else if (phase === "story") {
       bind("wait-title", status.banner || "História");
       bind("wait-text", me.playing ? "Acompanhe a história na tela." : "");
@@ -1266,6 +1299,22 @@
     badge.classList.toggle("empty", !reloading && ammo <= 0);
     var text = reloading ? "RECARGA" : ammo <= 0 ? "VAZIO" : ammo + "/" + mag;
     if (badge.textContent !== text) badge.textContent = text;
+  }
+
+  function renderNewsPage(page) {
+    $("news-page").classList.toggle("on", !!page);
+    $("news-actions").classList.toggle("on", !!page);
+    if (!page) return;
+    var count = page.index ? "NOTÍCIA " + page.index + " DE " + page.total : "AS MANCHETES DE HOJE";
+    if ($("news-page-count").textContent !== count) $("news-page-count").textContent = count;
+    var title = page.index ? page.title : page.total + " novidades: aperte > para começar";
+    if ($("news-page-title").textContent !== title) $("news-page-title").textContent = title;
+  }
+
+  function newsTap(go) {
+    if (!slot) return;
+    post("/api/news", { slot: slot, token: token, go: go }).catch(function () {});
+    setTimeout(refresh, 90);
   }
 
   function renderNews(lines) {
