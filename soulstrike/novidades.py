@@ -12,6 +12,23 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.29.0": [
+        {"title": "A HISTÓRIA COSTURADA", "scene": "iara", "lines": [
+            "Uma voz roxa sai do cristal e tenta cada amigo: o Aryel, o Borba Jr, o Albeguinio.",
+            "No capítulo 4 ela entra no servidor e ganha nome: é a IARA.",
+            "A Patrulha Cinza volta na Mansão do Carimbo, com contrato assinado pela IARA.",
+            "Albeguinio e Cauanzera agora acordam no fim do capítulo 2, e dá para ver quem pega o caco.",
+        ]},
+        {"title": "COMEÇA E TERMINA NA CASA", "scene": "casa", "lines": [
+            "A campanha abre numa noite de encontro na Casa, com o Aryel saindo de moto.",
+            "Depois dos créditos vem o epílogo: pão da padaria da família, City consertado e café com a IARA.",
+            "No final, a turma chega a pé depois da luta. O City quebrou de novo.",
+        ]},
+        {"title": "OS CHEFES FALAM", "scene": "mansao", "lines": [
+            "Cada chefe solta três falas na luta: ao entrar, quando cansa e quando a vida está acabando.",
+            "O cinema ganhou a abertura e o epílogo.",
+        ]},
+    ],
     "1.28.0": [
         {"title": "O COMPUTADOR NO CELULAR", "scene": "casa", "lines": [
             "Abriu o PC do Cauanzera ou o notebook do Albeguinio, o celular mostra a tela dele.",

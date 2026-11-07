@@ -9,8 +9,8 @@ from ..ai import DIFFICULTIES
 from ..arena import MAPS_BY_KEY
 from ..enemies import SHADOW_RIM
 from ..fighter import draw_aura
-from ..campaign import (BROKEN, CRYSTAL, DUNGEON_2, FRAGMENT, PHASE_HEAL, PHASES, STORY, CampaignMatch,
-                        CampaignRun)
+from ..campaign import (BROKEN, CRYSTAL, DUNGEON_2, FRAGMENT, PHASE_HEAL, PHASES, STORY, VOICE, VOICE_NAME,
+                        CampaignMatch, CampaignRun)
 from ..net.remote import hub
 from ..ui import MenuList, darken, mix
 from ..upgrades import ICONS, UPGRADES, choices
@@ -28,7 +28,7 @@ def start_campaign(game):
         # direto no capítulo 2 ou 3: almas, melhorias sorteadas e mais uma escolhida antes de entrar
         run.start_at_chapter(chapter)
         return UpgradeScene(game, run, lambda: hub_scene(game, run), intro=True)
-    return StoryScene(game, "prologo", lambda: hub_scene(game, run))
+    return StoryScene(game, "abertura", lambda: StoryScene(game, "prologo", lambda: hub_scene(game, run)))
 
 
 def hub_scene(game, run, story=True):
@@ -78,7 +78,8 @@ def after_phase(game, run):
             return start_phase(game, run)
         return UpgradeScene(game, run, next_boss)
     if run.last_phase:
-        return StoryScene(game, "final", lambda: CreditsScene(game, lambda: CampaignEndScene(game, run)))
+        return StoryScene(game, "final", lambda: CreditsScene(
+            game, lambda: StoryScene(game, "epilogo", lambda: CampaignEndScene(game, run))))
 
     def next_phase():
         run.advance()
@@ -161,6 +162,21 @@ def draw_fragment(screen, center, ticks):
         screen.fill((150, 70, 220), (tube.right + 4, y + 10, 8, 2))
 
 
+VOICE_TEXT = (214, 170, 255)        # a voz do cristal fala em roxo (no capítulo 4 é a mesma cor da IARA)
+
+
+def draw_voice(screen, center, ticks):
+    """A voz do cristal: sem rosto, só uma lasca roxa no escuro e ondas de som saindo dela."""
+    cx, cy = center
+    for k in range(4):
+        r = 30 + ((ticks * 1.2 + k * 26) % 104)
+        a = max(0, int(150 * (1 - (r - 30) / 104)))
+        ring = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
+        pygame.draw.circle(ring, (180, 110, 255, a), (r + 2, r + 2), r, 2)
+        screen.blit(ring, (cx - r - 2, cy - r - 2))
+    draw_crystal(screen, (cx, cy + round(math.sin(ticks * 0.05) * 4)), 40, ticks)
+
+
 class StoryScene(_MenuScene):
     """Páginas de história com retrato, texto aparecendo aos poucos e botão de pular."""
 
@@ -238,6 +254,8 @@ class StoryScene(_MenuScene):
                          broken=portrait == BROKEN)
         elif portrait == FRAGMENT:
             draw_fragment(screen, (W // 2, stage_y - 20), self.ticks)
+        elif portrait == VOICE:
+            draw_voice(screen, (W // 2, stage_y - 30), self.ticks)
         else:
             sprites = (self.assets.shadow_sprites(portrait.split(":", 1)[1]) if portrait.startswith("sombra:")
                        else self.assets.sheet_sprites(portrait))
@@ -261,8 +279,9 @@ class StoryScene(_MenuScene):
         self.ui.panel(screen, box, fill=theme.INK_2)
         y = box.y + 18
         if speaker:
-            self.ui.text(screen, speaker, theme.XS, (200, 150, 250) if "CORROMPIDO" in speaker or "SOMBRIO" in speaker
-                         else theme.BRASS, (box.x + 24, y + 4), anchor="midleft")
+            purple = "CORROMPIDO" in speaker or "SOMBRIO" in speaker or speaker == VOICE_NAME
+            self.ui.text(screen, speaker, theme.XS, (200, 150, 250) if purple else theme.BRASS,
+                         (box.x + 24, y + 4), anchor="midleft")
             y += 18
         visible = text[:int(self.shown)]
         # as linhas saem do texto inteiro (as palavras não pulam de linha enquanto aparecem)
@@ -271,7 +290,8 @@ class StoryScene(_MenuScene):
             part = line[:max(0, left)]
             left -= len(line) + 1
             if part:
-                self.ui.text(screen, part, theme.S, theme.BONE, (box.x + 24, y), anchor="topleft")
+                self.ui.text(screen, part, theme.S, VOICE_TEXT if portrait == VOICE else theme.BONE,
+                             (box.x + 24, y), anchor="topleft")
             y += 26
         if self.shown >= len(text) and (self.ticks // 20) % 2:
             self.ui.arrow(screen, (box.right - 24, box.bottom - 18), "down", 6, theme.BRASS)
@@ -589,12 +609,12 @@ def draw_seals(scene, screen, box, earned, title, new=None):
 
 
 # cinema: (rótulo, histórias em sequência)
-CINEMA = (("CAPÍTULO 1 · AS SOMBRAS", ("prologo", "floresta", "calabouco", "templo", "fim_capitulo1")),
+CINEMA = (("CAPÍTULO 1 · AS SOMBRAS", ("abertura", "prologo", "floresta", "calabouco", "templo", "fim_capitulo1")),
           ("CAPÍTULO 2 · LAG LOBBY", ("recepcao", "datacenter", "cobertura", "fim_capitulo2")),
           ("CAPÍTULO 3 · CLEPALOVERS", ("clinica_recepcao", "procedimentos", "suite_vip", "fim_capitulo3")),
           ("CAPÍTULO 4 · MANSÃO DO CARIMBO", ("mansao_sede", "mansao_patio", "mansao_gabinete", "final")),
           ("REUNIÃO DOS CORROMPIDOS", ("reuniao_corrompidos",)),
-          ("CRÉDITOS", ("creditos",)))
+          ("CRÉDITOS E EPÍLOGO", ("creditos", "epilogo")))
 
 
 def _play_stories(game, keys, then):
