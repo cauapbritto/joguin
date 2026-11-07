@@ -502,6 +502,7 @@ class Arena:
             self.walls.append(wall)
         for x, y, w, h in cfg.bounds:
             self.walls.append(Wall(x, y, w, h, visible=False))
+        scenery.join_walls(self.walls)  # cantos fechados: as paredes que se encostam viram uma forma só
         for wall in self.walls:
             wall.prepare()          # pronto antes da partida começar (nada de tranco no primeiro quadro)
         self.floor = self._render_floor(assets.backgrounds.get(cfg.key))

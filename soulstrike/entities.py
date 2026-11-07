@@ -73,6 +73,8 @@ class Wall(Entity):
         self.visible = visible
         self.image = None          # textura definida pela arena
         self._drawn = None         # parede desenhada no código, guardada pronta (com a sombra embaixo)
+        self.draw_offset = (0, 0)  # parede juntada (scenery.join_walls): o desenho começa antes do retângulo
+        self.joined = False
 
     def update(self, match):
         pass
@@ -82,6 +84,9 @@ class Wall(Entity):
         """Retângulo que o desenho ocupa (sombra e enfeites passam um pouco da base)."""
         if self.image is not None:
             return self.rect
+        if self.joined:
+            dx, dy = self.draw_offset
+            return pygame.Rect(self.rect.x + dx, self.rect.y + dy, *self._drawn.get_size())
         below = getattr(self.style, "below", 6)
         return pygame.Rect(self.rect.x, self.rect.y, self.rect.w, self.rect.h + below)
 
@@ -104,7 +109,7 @@ class Wall(Entity):
             return
         if self._drawn is None:
             self.prepare()
-        surf.blit(self._drawn, r)
+        surf.blit(self._drawn, r.move(self.draw_offset))
 
     def overlaps_circle(self, x, y, radius):
         return push_circle_out(x, y, radius, self.rect) is not None

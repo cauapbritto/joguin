@@ -290,6 +290,7 @@ class PhaseArena(Arena):
         for k in ("abertura", "recompensa"):
             rect = layout.rooms[k].rect
             self.ambiences.append((scenery.create_ambience(layout.scenery, rect.size, []), rect))
+        scenery.join_walls(self.walls)  # cantos fechados: as paredes que se encostam viram uma forma só
         for wall in self.walls:
             wall.prepare()
         self.floor = None
