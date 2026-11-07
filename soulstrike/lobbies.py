@@ -131,10 +131,10 @@ QUINTAL = (
     "#..............................................#",
     "#..............................................#",
     "#..............................................#",
-    "#####################DDDDDD#####################",
+    "################################################",
 )
 CASA_TOP = 2                 # linhas escuras em cima (a parede de cima não fica atrás do HUD)
-CASA_BOTTOM = 3              # e embaixo: o túnel escuro depois da saída
+CASA_BOTTOM = 3              # e embaixo: uma faixa escura (a parede de baixo não fica atrás do HUD)
 CASA_SPLIT = (CASA_TOP + len(CASA[1])) * TILE      # onde a casa acaba e o quintal começa (px)
 
 

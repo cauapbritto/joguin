@@ -2,9 +2,9 @@
 
 A casa tem os cantos da turma (Cauanzera, Aryel, Albeguinio e Borba Jr), a vitrine com os heróis
 (cada um fala quando alguém chega perto e aperta ATACAR), o livro do Cauanzera com um versículo por vez, as portas
-trancadas (abrem conforme a campanha avança) e o quintal com a horta, o City do João e a saída para
-a aventura. A saída só leva o grupo com a passagem coletiva (todos dentro, contagem de 2 s) e vai
-para a sala inicial da fase salva. Ninguém volta para a casa no meio da campanha."""
+trancadas (abrem conforme a campanha avança) e o quintal com a horta e o City do João, que é a saída
+para a aventura: com todos em volta do carro (passagem coletiva, contagem de 2 s), o grupo vai de City
+(scenes/viagem.py), o carro quebra no caminho e a fase salva começa na abertura. Ninguém volta para a casa no meio da campanha."""
 import math
 import random
 
@@ -15,13 +15,14 @@ from . import computador, config, crt, progress, theme
 from .arena import MAPS_BY_KEY
 from .campaign import TILE_PX, CoopMatch, Passage, _spread
 from .entities import Entity, Particle, Wall
-from .lobbies import CASA_SPLIT, CASA_TOP, cells_rect
+from .lobbies import CASA_SPLIT, CASA_TOP
 from .matches import Result
 
 HUB_MAP = "hub_casa"
 T = TILE_PX
 OY = CASA_TOP * T            # a casa começa abaixo das linhas escuras de cima
 QY = CASA_SPLIT              # e o quintal logo abaixo da casa
+CITY_AT = (31 * T, QY + 5 * T)  # o City do João no quintal (chão no meio do carro): a saída
 
 # ── livro do Cauanzera (Almeida Revista e Corrigida) ──
 VERSES = (
@@ -551,10 +552,10 @@ class HubMatch(CoopMatch):
         self.freeing = 0                                    # LIBERAR TUDO: quadros da tela branca
         self.reload = False
         self._furnish()
-        r = pygame.Rect(cells_rect(cfg.markers["D"]))
-        self.exit_rect = r
-        self.arena.walls.append(Wall(r.x - 8, r.y + 24, r.w + 16, T, visible=False))
-        self.door_area = pygame.Rect(r.x, r.y - 104, r.w, r.h + 104 - 16)
+        # a saída é o City do João: o grupo entra no carro (todos em volta dele) e vai de carro
+        cx, cy = CITY_AT
+        self.exit_rect = pygame.Rect(cx - 86, cy - 58, 172, 60)
+        self.door_area = self.exit_rect.inflate(110, 96)
         self.passage = Passage(lambda p: self.door_area.collidepoint(p.x, p.y))
         if progress.chapter_cleared(4) and self.players:     # recompensa do capítulo 4: a IARA mascote
             from .mansao import IaraMascot
@@ -642,13 +643,12 @@ class HubMatch(CoopMatch):
         put(art.sign, 7 * T + 20, QY + 7 * T, "HORTA", foot=((-4, 12, 8, 10),))
         put(art.watering_can, 11 * T, QY + 7 * T)
         self._door("garagem", art.locked_door, 39 * T, QY + 5 * T - 20, w=100, inside=art.inside_garagem)
-        put(art.city_car, 31 * T, QY + 5 * T, foot=((-86, -24, 172, 26),))
+        put(art.city_car, *CITY_AT, foot=((-86, -24, 172, 26),))
         self._door("porao", art.cellar_door, 14 * T, QY + 5 * T)
         for i, key in enumerate(CRAQUES):
             self._hero(key, 34 * T + 20 + i * 80, QY + 2 * T + 20)
         for x, y in ((17 * T, QY + 2 * T), (33 * T, QY + 7 * T), (45 * T, QY + 2 * T)):
             put(art.plant, x, y, foot=((-10, -10, 20, 14),))
-        put(art.adventure_arch, 21 * T, QY + 8 * T, 6 * T, flat=True)
 
     def _hero(self, key, x, y):
         self._put(art.mannequin, x, y, key, foot=((-20, -10, 40, 14),))
@@ -676,7 +676,7 @@ class HubMatch(CoopMatch):
     # ── consultas ────────────────────────────
     @property
     def objective_text(self):
-        return "CASA DA TURMA · TODOS NA SAÍDA DO QUINTAL PARA A AVENTURA"
+        return "CASA DA TURMA · TODOS NO CITY DO QUINTAL PARA A AVENTURA"
 
     def objective(self):
         return self.exit_rect.centerx, self.exit_rect.y
@@ -784,9 +784,11 @@ class HubMatch(CoopMatch):
 
     def next_scene(self):
         from .scenes.campaign import hub_scene, start_phase
+        from .scenes.viagem import CarTripScene
         if self.reload:                          # LIBERAR TUDO: a casa volta com tudo aberto
             return hub_scene(self.game, self.run, story=self.story)
-        return start_phase(self.game, self.run, story=self.story)
+        return CarTripScene(self.game, [p.sprites for p in self.players], self.run.chapter,
+                            lambda: start_phase(self.game, self.run, story=self.story))
 
     def restart_scene(self):
         from .scenes.campaign import hub_scene
@@ -834,7 +836,7 @@ class HubMatch(CoopMatch):
             crt.panel(screen, ("livro", f.slot), lambda s, menu=menu, at=at: menu.draw(s, ui, at))
         top = self.door_area.y
         sx, sy = cam.to_screen(self.exit_rect.centerx, top)
-        ui.text(screen, "SAÍDA PARA A AVENTURA", theme.XS, theme.BRASS, (round(sx), round(sy) - 64))
+        ui.text(screen, "TODOS NO CITY PARA A AVENTURA", theme.XS, theme.BRASS, (round(sx), round(sy) - 14))
         self.draw_passage(screen, ui, self.passage, self.door_area, (self.exit_rect.centerx, top - 4))
 
     def draw(self, screen, ui):

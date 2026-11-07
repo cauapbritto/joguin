@@ -893,7 +893,7 @@ def _casa(s, rng):
     w, h = s.get_size()
     split = CASA_SPLIT // U
     t = TILE // U
-    # quintal: grama em manchas, o caminho da porta da casa até a saída e uns tufos
+    # quintal: grama em manchas, o caminho da porta da casa até o City (a saída) e uns tufos
     base = (40, 78, 36)
     s.fill(base, (0, split, w, h - split))
     for _ in range(320):
@@ -901,13 +901,19 @@ def _casa(s, rng):
         _blob(s, rng, rng.randrange(w), rng.randrange(split, h), rng.randint(5, 18), c)
     dirt, dirt_d = (110, 84, 54), (88, 66, 42)
     x0, x1 = 21 * t, 27 * t
-    s.fill(dirt_d, (x0 - 2, split, x1 - x0 + 4, h - split))
-    s.fill(dirt, (x0, split, x1 - x0, h - split))
-    for y in range(split, h, 6):                             # pedrinhas do caminho
+    y1 = split + 6 * t + t // 2                              # desce da porta e vira para o carro
+    gy0, gx1 = split + 3 * t + t // 2, 35 * t
+    for rect in ((x0, split, x1 - x0, y1 - split), (x0, gy0, gx1 - x0, y1 - gy0)):
+        s.fill(dirt_d, pygame.Rect(rect).inflate(4, 4))
+    for rect in ((x0, split, x1 - x0, y1 - split), (x0, gy0, gx1 - x0, y1 - gy0)):
+        s.fill(dirt, rect)
+    for y in range(split, y1, 6):                            # pedrinhas do caminho
         s.fill(_shade(dirt, rng.choice((-14, 10))), (rng.randrange(x0, x1 - 6), y + rng.randrange(0, 4), 5, 3))
+    for y in range(gy0, y1, 6):
+        s.fill(_shade(dirt, rng.choice((-14, 10))), (rng.randrange(x1, gx1 - 6), y + rng.randrange(0, 4), 5, 3))
     for _ in range(90):
         x, y = rng.randrange(w), rng.randrange(split, h)
-        if x0 - 6 < x < x1 + 6:
+        if x0 - 6 < x < x1 + 6 and y < y1 + 6 or x0 - 6 < x < gx1 + 6 and gy0 - 6 < y < y1 + 6:
             continue
         s.fill((70, 120, 54), (x, y, 1, 3))
         s.fill((70, 120, 54), (x + 2, y + 1, 1, 2))

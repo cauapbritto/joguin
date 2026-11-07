@@ -12,6 +12,18 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.26.0": [
+        {"title": "TODOS NO CITY", "scene": "casa", "lines": [
+            "A saída da Casa agora é o City do João, estacionado no quintal.",
+            "Com todo mundo em volta do carro, a contagem começa e o grupo pega a estrada.",
+            "O caminho de terra do quintal leva direto até ele.",
+        ]},
+        {"title": "O CITY QUEBROU", "scene": "casa", "lines": [
+            "A viagem passa pelo bairro e chega no cenário do capítulo, com os quatro nas janelas.",
+            "No meio do caminho o carro falha, solta fumaça e faz PUFF. Daqui é a pé.",
+            "ESQUIVA pula a cena.",
+        ]},
+    ],
     "1.25.0": [
         {"title": "CONVERSA NO BOTÃO", "scene": "casa", "lines": [
             "Na Casa da turma, ninguém fala mais sozinho quando você passa perto.",
