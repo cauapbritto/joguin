@@ -210,6 +210,15 @@ def leave():
     return "", 204
 
 
+@app.get("/api/tela.png")
+def computer_screen():
+    """A tela do computador da Casa que este celular abriu (o celular mostra e toca nela)."""
+    data = hub.screen(_slot_arg(request.args), request.args.get("token"))
+    if data is None:
+        abort(404)
+    return Response(data, mimetype="image/png", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/status")
 def status():
     return jsonify(status_payload(_slot_arg(request.args), request.args.get("token")))

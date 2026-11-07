@@ -23,6 +23,7 @@ COMMANDS = frozenset(f"p{s}_{a}" for s in SLOTS for a in ACTIONS)
 
 STALE_SECONDS = 4.0      # sem notícias do celular há esse tempo → desconectado
 RELEASE_SECONDS = 20.0   # depois disso a vaga é liberada
+ORDER_CHARS = 120        # pedido da loja do celular (no computador, o texto digitado vai junto)
 INPUT_TIMEOUT = 1.0      # controle sem notícias há esse tempo → solta tudo (para por segurança)
 LEGACY_AXIS_SECONDS = 0.6
 BUZZ_GAP = 0.25          # vibração do celular: no máximo uma a cada 250 ms por jogador
@@ -100,6 +101,7 @@ class RemoteHub:
         self._news_taps = []       # botões < PULAR > do celular na tela de novidades
         self.hud = "battle"         # disposição de botões do celular (battle, soccer, basket)
         self._orders = []          # pedidos da loja vindos do celular: (vaga, id do item, comprar?)
+        self._screens = {}         # computador da Casa aberto: vaga -> PNG da tela (o celular toca nela)
 
     # ── entrada vinda do celular ──────────────
     def apply_input(self, slot, sid, seq, held, counts, x=0.0, y=0.0):
@@ -137,8 +139,24 @@ class RemoteHub:
         with self._lock:
             if self._slots[slot].shop is None:
                 return False                  # a banca já fechou
-            self._orders = (self._orders + [(slot, str(item)[:64], bool(buy))])[-16:]
+            self._orders = (self._orders + [(slot, str(item)[:ORDER_CHARS], bool(buy))])[-16:]
             return True
+
+    def set_screen(self, slot, png):
+        """A tela do computador que esta vaga abriu, em PNG (None: fechou)."""
+        with self._lock:
+            if png is None:
+                self._screens.pop(slot, None)
+            else:
+                self._screens[slot] = png
+
+    def screen(self, slot, token):
+        """PNG da tela do computador para o celular desta vaga (só com o token certo)."""
+        with self._lock:
+            info = self._slots.get(slot)
+            if info is None or info.token != token:
+                return None
+            return self._screens.get(slot)
 
     def news_tap(self, slot, go):
         """Botão do celular na tela de novidades: "prev", "next" ou "skip". O jogo aplica no quadro."""

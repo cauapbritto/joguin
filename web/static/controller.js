@@ -11,7 +11,7 @@
   var failures = 0;
 
   var $ = function (id) { return document.getElementById(id); };
-  var views = ["join", "wait", "select", "pad", "choose", "shop", "penalty"];
+  var views = ["join", "wait", "select", "pad", "choose", "shop", "penalty", "pc"];
 
   function loadToken() {
     var t = null;
@@ -1076,6 +1076,94 @@
     ok.textContent = giftTo === null ? "DOAR" : "DOAR PARA P" + giftTo;
   }
 
+  // ── computador da Casa: a cópia da tela vem em PNG; o toque vira clique lá na TV ──
+  var pcOpen = false;
+  var pcData = null;
+  var pcVersion = -1;
+  var pcLoaded = 0;
+  var pcSent = "";
+  var pcBufTimer = null;
+
+  function pcFit() {
+    var stage = $("pc-stage"), img = $("pc-screen");
+    var ratio = (pcData && pcData.ratio) || 1.9;
+    var w = stage.clientWidth, h = stage.clientHeight - 14;
+    if (w <= 0 || h <= 0) return;
+    if (w / h > ratio) w = h * ratio; else h = w / ratio;
+    img.style.width = Math.floor(w) + "px";
+    img.style.height = Math.floor(h) + "px";
+  }
+
+  function renderPc(pc) {
+    var view = $("view-pc");
+    var first = !pcOpen;
+    pcOpen = true;
+    pcData = pc;
+    $("pc-title").textContent = pc.title;
+    var now = Date.now();
+    if (first || pc.version !== pcVersion || now - pcLoaded > 1500) {   // tela nova (ou o cristal girando)
+      pcVersion = pc.version;
+      pcLoaded = now;
+      $("pc-screen").src = "/api/tela.png?slot=" + slot + "&token=" + encodeURIComponent(token) + "&v=" + pc.version + "_" + now;
+    }
+    view.classList.toggle("typing", !!pc.typing);
+    var names = { terminal: "TERMINAL", url: "ENDEREÇO", senha: "SENHA" };
+    $("pc-field").textContent = names[pc.focus] || "";
+    var input = $("pc-input");
+    input.type = pc.focus === "senha" ? "password" : "text";
+    if (!pc.typing && document.activeElement === input) input.blur();
+    if (first) { input.value = ""; pcSent = ""; }
+    $("pc-hint").textContent = pc.typing ? "TOQUE NA LINHA DE BAIXO PARA DIGITAR" : "TOQUE NA TELA PARA CLICAR";
+    pcFit();
+  }
+
+  function pcField(u, v) {
+    var hit = null;
+    ((pcData && pcData.fields) || []).forEach(function (f) {
+      if (u >= f[0] && u <= f[0] + f[2] && v >= f[1] && v <= f[1] + f[3]) hit = f[4];
+    });
+    return hit;
+  }
+
+  $("pc-screen").addEventListener("click", function (e) {
+    var r = e.currentTarget.getBoundingClientRect();
+    var u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
+    if (u < 0 || u > 1 || v < 0 || v > 1) return;
+    buzz();
+    order("pc:tap:" + u.toFixed(4) + "," + v.toFixed(4), false);
+    if (pcField(u, v)) {                      // campo de texto: o teclado sobe no mesmo toque
+      var input = $("pc-input");
+      input.value = "";
+      pcSent = "";
+      $("view-pc").classList.add("typing");
+      input.focus();
+    }
+  });
+  window.addEventListener("resize", function () { if (pcOpen) pcFit(); });
+
+  $("pc-input").addEventListener("focus", function () { $("view-pc").classList.add("keyboard"); });
+  $("pc-input").addEventListener("blur", function () {
+    $("view-pc").classList.remove("keyboard");
+    setTimeout(pcFit, 60);
+  });
+  $("pc-input").addEventListener("input", function () {   // a TV mostra o que está sendo digitado
+    if (pcBufTimer) return;
+    pcBufTimer = setTimeout(function () {
+      pcBufTimer = null;
+      var text = $("pc-input").value;
+      if (text !== pcSent) { pcSent = text; order("pc:buf:" + text, false); }
+    }, 120);
+  });
+  $("pc-type").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var input = $("pc-input");
+    if (pcBufTimer) { clearTimeout(pcBufTimer); pcBufTimer = null; }
+    order("pc:text:" + input.value, false);
+    input.value = "";
+    pcSent = "";
+    if (pcData && pcData.focus !== "terminal") input.blur();   // no terminal o teclado fica aberto
+  });
+
   function onPress(el, fn) {
     el.addEventListener("pointerdown", function (e) {
       e.preventDefault();
@@ -1090,6 +1178,8 @@
   }
 
   onPress($("shop-close"), function () { order("fechar", false); });
+  onPress($("pc-close"), function () { $("pc-input").blur(); order("fechar", false); });
+  onPress($("pc-back"), function () { order("voltar", false); });
   onPress($("shop-buy"), function () {
     if (shopPick === "doar") {
       giftTo = null;
@@ -1137,6 +1227,13 @@
     $("story-actions").classList.toggle("on", phase === "story" && me.playing);
     if (status.roster && status.roster !== roster.length) loadRoster();   // personagem novo liberado
 
+    if (phase === "playing" && me.playing && me.shop && me.shop.screen) {
+      if (!$("view-pc").classList.contains("on")) releaseAll();
+      show("pc");
+      renderPc(me.shop);
+      return;
+    }
+    pcOpen = false;
     if (phase === "playing" && me.playing && me.shop) {
       if (!$("view-shop").classList.contains("on")) releaseAll();   // nada fica segurado com a loja aberta
       show("shop");
