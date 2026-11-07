@@ -279,9 +279,9 @@ class BossAI(EnemyAI):
     DASH_SPEED = 15
     DASH_DAMAGE = 24
 
-    def _aim_dash(self, me, match, frames):
+    def _aim_dash(self, me, match, frames, target=None):
         """Investida sombria: mira no jogador e marca o caminho no chão (dá para sair da frente)."""
-        target = match.nearest_player(me)
+        target = target or match.nearest_player(me)
         if target is None:
             return
         self.dash_dir = me.direction_to(target)
@@ -679,75 +679,11 @@ CAUANZERA_STATS = EnemyStats(
     radius=26, elite=True, armed=True, knock_resist=1.0, drop_chance=0.0)
 IARA_CABLES = ((325, 380), (1275, 380), (325, 800), (1275, 800))
 IARA_SPOT = (800, 520)
-TURN_AT = 0.25               # com essa vida, na fusão, os aliados chegam
-ALLIES = (("aryel", "ARYEL", "Cauanzera, volta pra gente! Isso aí não é você!"),
-          ("borba", "BORBA JR", "Já desliguei uma fábrica inteira. Um servidor é moleza."),
-          ("albeguinio", "ALBEGUINIO", "Deixa comigo: vou travar a rede dela. Hoje o wi-fi cai do lado certo!"))
-ALLY_GAP = 110               # quadros entre a chegada de um aliado e a do próximo
-
-
-class AllyCameo(Entity):
-    """Um aliado entrando na luta (a virada): corre da beira da sala até perto do chefe, solta a
-    fala e o golpe dele. O golpe só atordoa o chefe (quem acaba a luta são os jogadores)."""
-
-    RUN = 50
-
-    def __init__(self, key, name, line, start, spot, boss, order):
-        super().__init__(*start)
-        self.key, self.name, self.line = key, name, line
-        self.start, self.spot = start, spot
-        self.boss = boss
-        self.order = order
-        self.age = 0
-
-    def update(self, match):
-        self.age += 1
-        t = min(1.0, self.age / self.RUN)
-        self.x = self.start[0] + (self.spot[0] - self.start[0]) * t
-        self.y = self.start[1] + (self.spot[1] - self.start[1]) * t
-        if self.age == self.RUN:
-            self._strike(match)
-        if self.age > self.RUN + 30 and self.age % 40 == 0:
-            match.burst(self.x, self.y - 30, (240, 230, 160), 2, speed=1)
-
-    def _strike(self, match):
-        b = self.boss
-        match.popup(self.x, self.y - 90, self.name + "!", theme.BRASS)
-        match.popup(self.x, self.y - 112, self.line, theme.BONE)
-        if self.order == 0:                                 # Aryel: chuva de luz em volta do chefe
-            for k in range(10):
-                a = k * math.tau / 10
-                match.burst(b.x + math.cos(a) * 90, b.y + math.sin(a) * 40, (255, 230, 140), 6, speed=3)
-            match.assets.play("ability", 0.6)
-        elif self.order == 1:                               # Borba Jr: soco do exo no chão
-            match.dust(b.x, b.y + 20, 20)
-            match.burst(b.x, b.y, (90, 170, 255), 24, speed=6)
-            match.assets.play("soco_metal", 0.7)
-        else:                                               # Albeguinio: trava a rede
-            for k in range(6):
-                match.burst(b.x + random.uniform(-50, 50), b.y - random.uniform(0, 90), IARA_C, 5, speed=4)
-            match.assets.play("eletrico", 0.7)
-        match.camera.shake(8)
-        b.stun_timer = max(b.stun_timer, 240)
-        match.popup(b.x, b.y - 150, "ATORDOADO", (240, 230, 160))
-
-    def draw(self, surf, camera):
-        sprites = self.match_sprites
-        if sprites is None:
-            return
-        running = self.age < self.RUN
-        dx = self.spot[0] - self.start[0]
-        dy = self.spot[1] - self.start[1]
-        if running:
-            direction = ("direita" if dx > 0 else "esquerda") if abs(dx) > abs(dy) else ("frente" if dy > 0 else "costas")
-            img = sprites.frame(direction, self.age // 4)
-        else:
-            img = sprites.pose("costas", "ataque" if self.age < self.RUN + 20 else "parado", min(2, (self.age - self.RUN) // 6))
-        pos = (round(self.x - camera.x), round(self.y - camera.y) + 22)
-        pygame.draw.ellipse(surf, (0, 0, 0), (pos[0] - 18, pos[1] - 6, 36, 10))
-        surf.blit(img, img.get_rect(midbottom=pos))
-
-    match_sprites = None
+OVERLOAD_AT = 0.15           # com essa vida, na fusão, a lasca superaquece e a tomada aparece
+PLUG_SPOT = (800, 210)
+GUARD_GAP = 130              # sobrecarga: ele fica a essa distância da tomada, do lado de quem vem
+GUARD_ALERT = 300            # alguém chegou a essa distância da tomada: ele investe em cima
+GUARD_COOLDOWN = 110         # quadros entre uma investida de proteção e a próxima
 
 
 class PowerPlug(Entity):
@@ -800,23 +736,6 @@ class PowerPlug(Entity):
                 pygame.draw.rect(surf, (255, 230, 140), plate.inflate(16, 16), 2)
 
 
-class _TurnDirector(Entity):
-    """Conduz a virada quadro a quadro (o cérebro do chefe para enquanto ele está atordoado)."""
-
-    def __init__(self, brain, boss):
-        super().__init__(boss.x, boss.y)
-        self.brain, self.boss = brain, boss
-
-    def update(self, match):
-        if not self.boss.alive_in_match or (self.brain.plug is not None and self.brain.plug.pulled):
-            self.alive = False
-            return
-        self.brain._turn_tick(self.boss, match)
-
-    def draw(self, surf, camera):
-        pass
-
-
 class CauanzeraBossAI(BossAI):
     """Cauanzera Corrompido, no Núcleo da IARA, em três etapas:
 
@@ -825,8 +744,9 @@ class CauanzeraBossAI(BossAI):
     2. Com metade da vida liga o FIREWALL (nada passa nele) e a IARA sai do servidor no meio da
        sala, presa por 4 cabos. Cortem os cabos e derrubem a IARA.
     3. FUSÃO: ele puxa o que sobrou da IARA, fica mais rápido e os tentáculos entram na sequência.
-       Com 15% da vida vem a virada: o Aryel, o Borba Jr e o Albeguinio chegam um de cada vez e
-       atordoam o chefe. Aí aparece a tomada do servidor: ATACAR perto tira a IARA da tomada."""
+    4. SOBRECARGA: com 15% da vida a lasca superaquece e a tomada do servidor aparece. Ele não cai
+       mais na porrada: continua lutando e protege a tomada (fica entre ela e quem chega, e investe
+       em quem chega perto). ATACAR perto da tomada tira a IARA dela: é o golpe final."""
 
     PATTERNS = ("pacotes", "carimbo", "jump", "dash")
     WINDUPS = {"pacotes": 30, "carimbo": 36, "jump": 26, "dash": 40, "tentaculos": 34}
@@ -846,9 +766,9 @@ class CauanzeraBossAI(BossAI):
         self.stage = 1
         self.iara = None
         self.cables = []
-        self.turn = 0                        # quadros desde o começo da virada
-        self.allies = []
         self.plug = None
+        self.guard_cd = 0                    # sobrecarga: espera até a próxima investida de proteção
+        self.guard_target = None             # quem ele vai atropelar na próxima investida
         self.packet = CAUANZERA_STATS.weapons[0]
 
     def summon_kinds(self):
@@ -889,24 +809,22 @@ class CauanzeraBossAI(BossAI):
             if c.alive_in_match:
                 c.hp = 0
 
-    def _start_turn(self, me, match):
-        """A virada: os aliados chegam um de cada vez e atordoam o chefe."""
+    def _overload(self, me, match):
+        """Etapa 4: a lasca superaquece e a tomada do servidor aparece. Ele segue lutando."""
         self.stage = 4
-        self.turn = 0
-        self.combo = []
-        me.windup = 0
-        me.invulnerable_timer = 99999
-        me.vulnerability = 0.0
-        me.phase_label = "AGUENTEM FIRME: A TURMA CHEGOU!"
-        me.lift = 0
-        match.burst(me.x, me.y - 30, IARA_C, 24, speed=5)
-        me.x, me.y = match.arena.free_spot(*match.arena.at(800, 600), me.radius)     # a lasca puxa ele para o meio do núcleo
-        match.burst(me.x, me.y - 30, IARA_C, 24, speed=5)
-        match.bullets.clear()
-        match.add_effect(_TurnDirector(self, me))      # anda mesmo com o chefe atordoado
+        # a tomada aparece no canto do núcleo mais longe do grupo (ele chega antes e protege)
+        players = match.alive_players or match.players
+        spots = [match.arena.at(*xy) for xy in (PLUG_SPOT,) + IARA_CABLES]
+        far = max(spots, key=lambda xy: min(math.hypot(xy[0] - p.x, xy[1] - p.y) for p in players))
+        x, y = match.arena.free_spot(*far, 20)
+        self.plug = PowerPlug(x, y, me)
+        match.add_effect(self.plug)
+        match.popup(me.x, me.y - 140, "SOBRECARGA!", (255, 120, 80))
+        match.popup(x, y - 80, "TOMADA DO SERVIDOR", (255, 230, 140))
+        match.burst(me.x, me.y - 30, IARA_C, 30, speed=6)
         if hasattr(match, "_set_banner"):
-            match._set_banner("A TURMA CHEGOU!", "ARYEL, BORBA JR E ALBEGUINIO", theme.BRASS)
-        match.assets.play("ability", 0.6)
+            match._set_banner("SOBRECARGA!", "TIREM A IARA DA TOMADA", (255, 120, 80))
+        match.assets.play("select", 0.6)
 
     def update(self, me, match):
         if not me.alive_in_match:
@@ -919,49 +837,64 @@ class CauanzeraBossAI(BossAI):
             if self.iara is not None and not self.iara.alive_in_match:
                 self._fuse(me, match)
         elif self.stage == 3:
-            if me.hp <= me.max_hp * TURN_AT:
-                me.hp = max(1, round(me.max_hp * TURN_AT))
-                self._start_turn(me, match)
+            if me.hp <= me.max_hp * OVERLOAD_AT and self.state not in ("jump", "air"):
+                me.hp = max(1, round(me.max_hp * OVERLOAD_AT))
+                self._overload(me, match)
         if self.stage == 4:
-            me.hp = max(me.hp, 1)
-            me.steer(0, 0)
-            return
+            me.hp = max(me.hp, 1)                # só a tomada derruba ele
+            self._guard(me, match)
         super().update(me, match)
+        if self.stage == 4:
+            me.phase_label = "SOBRECARGA: TIREM A IARA DA TOMADA (ATACAR PERTO)"
         if self.stage == 2:                  # FIREWALL: nada passa (o _set da base mexe nisso)
             me.vulnerability = 0.0
 
-    def _turn_tick(self, me, match):
-        self.turn += 1
-        me.hp = max(me.hp, 1)
-        if self.turn == 100 and getattr(match, "banner", None):
-            match.banner = None
-        me.vulnerability = 0.0
-        k = self.turn // ALLY_GAP
-        if self.turn % ALLY_GAP == 30 and k < len(ALLIES):
-            key, name, line = ALLIES[k]
-            room = match.arena.room
-            starts = ((room.x + 60, me.y), (me.x, room.y + 1130), (room.x + 1540, me.y))
-            spots = ((me.x - 170, me.y), (me.x, me.y + 140), (me.x + 170, me.y))
-            start = starts[k]
-            spot = match.arena.free_spot(*spots[k], 16)
-            ally = AllyCameo(key, name, line, start, spot, me, k)
-            ally.match_sprites = match.assets.sprites.get(key)
-            self.allies.append(ally)
-            match.add_effect(ally)
-            match.popup(start[0], start[1] - 80, name, theme.BRASS)
-        if self.turn == ALLY_GAP * len(ALLIES) + 40 and self.plug is None:
-            x, y = match.arena.free_spot(*match.arena.at(800, 210), 20)
-            self.plug = PowerPlug(x, y, me)
-            match.add_effect(self.plug)
-            me.phase_label = "TIREM A IARA DA TOMADA! (ATACAR PERTO)"
-            match.popup(x, y - 80, "TOMADA DO SERVIDOR", (255, 230, 140))
-            match.assets.play("select", 0.6)
-        if self.plug is not None:
-            me.stun_timer = max(me.stun_timer, 30)
+    def _guard(self, me, match):
+        """Sobrecarga: quem chega perto da tomada leva uma investida (de tempos em tempos)."""
+        self.guard_cd -= 1
+        if self.plug is None or self.guard_cd > 0 or self.state not in ("walk", "pause"):
+            return
+        near = [p for p in match.alive_players
+                if math.hypot(p.x - self.plug.x, p.y - self.plug.y) < GUARD_ALERT]
+        if not near:
+            return
+        self.guard_target = min(near, key=lambda p: math.hypot(p.x - self.plug.x, p.y - self.plug.y))
+        self.guard_cd = GUARD_COOLDOWN
+        self.combo = ["dash"] + list(self.combo)
+        self._next(me, match)
+
+    def _walk(self, me, match, target, shoot=True):
+        if self.stage != 4 or self.plug is None:
+            return super()._walk(me, match, target, shoot)
+        # fica entre a tomada e o jogador mais perto dela, atirando
+        lead = min(match.alive_players, key=lambda p: math.hypot(p.x - self.plug.x, p.y - self.plug.y),
+                   default=target)
+        dx, dy = lead.x - self.plug.x, lead.y - self.plug.y
+        d = math.hypot(dx, dy) or 1
+        gap = min(GUARD_GAP, d * 0.6)
+        gx, gy = self.plug.x + dx / d * gap, self.plug.y + dy / d * gap
+        if math.hypot(gx - me.x, gy - me.y) > 12:
+            me.steer(*self.chase(me, match, gx, gy))
+        else:
+            me.steer(0, 0)
+        if shoot and me.attack_cd <= 0 and random.random() < 0.06 * self.speed:
+            self._basic_attack(me, match, lead, me.distance_to(lead))
+
+    def _aim_dash(self, me, match, frames, target=None):
+        # investida de proteção: em cima de quem chegou na tomada
+        guard, self.guard_target = self.guard_target, None
+        if target is None and guard is not None and guard.alive_in_match:
+            target = guard
+        super()._aim_dash(me, match, frames, target)
+
+    @property
+    def unkillable(self):
+        """Golpe nenhum derruba ele: só tirar a IARA da tomada (a vida para em 1)."""
+        return self.plug is None or not self.plug.pulled
 
     @property
     def turn_text(self):
-        return "TIREM A IARA DA TOMADA! (ATACAR PERTO)" if self.plug is not None else ""
+        return "TIREM A IARA DA TOMADA! (ATACAR PERTO)" if self.plug is not None and not self.plug.pulled else ""
 
     def interact(self, f, match):
         """ATACAR perto da tomada: o golpe final."""
