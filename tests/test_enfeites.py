@@ -1,14 +1,16 @@
-"""Etapa 4 do hub: os enfeites de cada capítulo na sala inicial e no corredor."""
+"""Os enfeites de cada capítulo na abertura, nos corredores e na sala de recompensas da fase."""
 import unittest
 from collections import deque
 
 from test_masmorra import corrida
 
 from soulstrike import enfeites, lobbies
-from soulstrike.campaign import LOBBY_BACK, PHASES, LobbyMatch
+from soulstrike.campaign import PHASES
 from soulstrike.casa import Decor
+from soulstrike.fase import PhaseMatch
+from soulstrike.mapa_fase import PhaseLayout
 
-ROOMS = [("inicio", lobbies.INICIO[1])] + [(f"corredor {k}", rows) for k, (_, rows) in lobbies.CORREDORES.items()]
+ROOMS = [(phase.key, PhaseLayout.of(phase).rows) for phase in PHASES]
 
 
 def reachable(grid, start, blocked):
@@ -29,7 +31,7 @@ class EnfeitesTest(unittest.TestCase):
         for name, rows in ROOMS:
             grid = lobbies.grid_of(rows)
             blocked = enfeites.blocked_cells(rows)
-            start = next((x, y) for y, row in enumerate(grid) for x, ch in enumerate(row) if ch in "Sa")
+            start = next((x, y) for y, row in enumerate(grid) for x, ch in enumerate(row) if ch == "S")
             before = reachable(grid, start, set())
             after = reachable(grid, start, blocked)
             self.assertEqual(before - blocked, after, name)
@@ -38,18 +40,16 @@ class EnfeitesTest(unittest.TestCase):
                     if ch in lobbies.MARKERS:
                         self.assertNotIn((x, y), blocked, (name, ch))
 
-    def test_cada_corredor_tem_enfeites_e_a_piada(self):
-        for chapter, (_, rows) in lobbies.CORREDORES.items():
+    def test_cada_fase_tem_enfeites_e_a_piada(self):
+        for phase in PHASES:
+            rows = PhaseLayout.of(phase).rows
             ground, wall = enfeites.spots(rows)
-            self.assertGreaterEqual(len(ground), 4, chapter)
-            self.assertGreaterEqual(len(wall), 2, chapter)
-            pieces = [fn for fn, *_ in enfeites.layout(rows, chapter)]
-            self.assertEqual(pieces.count(enfeites.joke_sign), 1, chapter)
-            walls, floors, _, _ = enfeites.chapter_set(chapter)
-            self.assertTrue(set(pieces) - {enfeites.joke_sign} <= set(walls) | set(floors), chapter)
-        pieces = [fn for fn, *_ in enfeites.layout(lobbies.INICIO[1], 1, joke=False)]
-        self.assertNotIn(enfeites.joke_sign, pieces)
-        self.assertTrue(pieces)
+            self.assertGreaterEqual(len(ground), 4, phase.key)
+            self.assertGreaterEqual(len(wall), 2, phase.key)
+            pieces = [fn for fn, *_ in enfeites.layout(rows, phase.chapter)]
+            self.assertEqual(pieces.count(enfeites.joke_sign), 1, phase.key)
+            walls, floors, _, _ = enfeites.chapter_set(phase.chapter)
+            self.assertTrue(set(pieces) - {enfeites.joke_sign} <= set(walls) | set(floors), phase.key)
 
     def test_partida_com_enfeites_e_largada_livre(self):
         seen = set()
@@ -57,15 +57,14 @@ class EnfeitesTest(unittest.TestCase):
             if phase.chapter in seen:
                 continue
             seen.add(phase.chapter)
-            for stage in (0, LOBBY_BACK):
-                g, run = corrida(phase=k, stage=stage)
-                match = LobbyMatch(g, run)
-                decor = [p for p in match.props if isinstance(p, Decor)]
-                self.assertTrue(decor, (phase.key, stage))
-                for p in match.players:
-                    self.assertTrue(match.arena.is_free(p.x, p.y, 12), (phase.key, stage))
-                match.update()
-                match.draw(g.screen, g.ui)
+            g, run = corrida(phase=k)
+            match = PhaseMatch(g, run)
+            decor = [p for p in match.props if isinstance(p, Decor)]
+            self.assertTrue(decor, phase.key)
+            for p in match.players:
+                self.assertTrue(match.arena.is_free(p.x, p.y, 12), phase.key)
+            match.update()
+            match.draw(g.screen, g.ui)
 
 
 if __name__ == "__main__":

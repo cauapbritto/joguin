@@ -120,6 +120,13 @@ button {
 #results-actions.on, #story-actions.on { display: flex; }
 #results-actions .btn { min-width: 64px; }
 #story-actions .btn { min-width: 120px; }
+#news-actions { display: none; }
+#news-actions.on { display: flex; }
+#news-actions .btn { min-width: 64px; }
+.news-page { display: none; flex-direction: column; gap: 6px; padding: 8px 14px; background: var(--ink); border-top: 2px solid #d63434; min-width: 220px; }
+.news-page.on { display: flex; }
+.news-page-count { font-size: 9px; color: var(--muted); }
+.news-page-title { font-size: 12px; color: var(--brass); }
 
 /* ── campanha: melhorias ── */
 #view-choose { flex-direction: column; gap: 10px; }

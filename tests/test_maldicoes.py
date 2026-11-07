@@ -14,7 +14,7 @@ from soulstrike.scenes.campaign import UpgradeScene
 
 class AltarTest(unittest.TestCase):
     def test_escolher_maldicao_no_altar(self):
-        match, inputs = acampamento(back=False)
+        match, inputs = acampamento()
         p, menu = abrir(match, inputs[1], "altar")
         apertar(match, inputs[1], stick=(0.0, 1.0))      # inimigos fortes
         apertar(match, inputs[1], "attack")

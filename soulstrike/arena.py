@@ -450,13 +450,30 @@ def soccer_maps(cleared=None):
     return tuple(k for k in SOCCER_MAPS if cleared or k not in CUIABRASA_MAPS)
 
 
-def _room(kind, theme):
-    """Sala inicial ou corredor da fase (progressão contínua), no cenário do acampamento da fase."""
-    name, rows = lobbies.INICIO if kind == "inicio" else lobbies.corredor_rows(theme)
-    size, walls, void, markers = lobbies.parse(rows)
-    spawns = markers.get("S") or markers["a"]
-    return MapConfig(f"{kind}_{theme}", name, size, walls=walls, spawns=spawns, battle=False,
-                     theme=lobbies.LOBBY_SCENERY.get(theme, theme), void=void, markers=markers)
+# Sala de luta do meio de cada fase (a fase é um mapa só: masmorra 1, esta sala e a masmorra final).
+# Todas do mesmo tamanho, com a passagem livre no meio da parede da esquerda e no meio da de baixo.
+SALA_SIZE = (1200, 880)
+_SALA_BORDER = [(0, 0, 1200, 30), (0, 0, 30, 880), (1170, 0, 30, 880), (0, 850, 1200, 30)]
+_SALA_SHAPES = (
+    [(260, 200, 80, 80), (860, 200, 80, 80), (260, 600, 80, 80), (860, 600, 80, 80), (540, 400, 120, 80)],
+    [(200, 170, 300, 30), (700, 170, 300, 30), (200, 680, 300, 30), (700, 680, 300, 30), (585, 330, 30, 220)],
+    [(420, 250, 40, 140), (740, 250, 40, 140), (420, 490, 40, 140), (740, 490, 40, 140), (520, 420, 160, 40)],
+)
+SALAS = (("sala_floresta", "Bosque Fechado", "floresta", 0),
+         ("sala_calabouco", "Galeria das Correntes", "calabouco", 1),
+         ("sala_templo", "Claustro de Gelo", "templo_gelado", 2),
+         ("sala_recepcao", "Sala de Treinamento", "lag_escritorio", 1),
+         ("sala_datacenter", "Sala de Cabos", "lag_datacenter", 0),
+         ("sala_cobertura", "Terraço", "lag_cobertura", 2),
+         ("sala_clinica_recepcao", "Sala de Avaliação", "clinica", 0),
+         ("sala_procedimentos", "Sala de Massagem", "clinica_spa", 2),
+         ("sala_suite_vip", "Closet VIP", "clinica_vip", 1),
+         ("sala_mansao_sede", "Protocolo Geral", "mansao", 2),
+         ("sala_mansao_patio", "Estacionamento", "mansao_patio", 0),
+         ("sala_mansao_gabinete", "Antessala do Gabinete", "mansao_reuniao", 1))
+MAPS += [MapConfig(key, name, SALA_SIZE, walls=_SALA_BORDER + _SALA_SHAPES[shape],
+                   spawns=[(160, 440), (1040, 440), (600, 120), (600, 760)], theme=theme, battle=False)
+         for key, name, theme, shape in SALAS]
 
 
 def _casa():
@@ -467,7 +484,6 @@ def _casa():
 
 
 MAPS.append(_casa())
-MAPS += [_room(kind, theme) for theme in lobbies.CHAPTER_OF for kind in ("inicio", "corredor")]
 MAPS_BY_KEY = {m.key: m for m in MAPS}
 BATTLE_MAPS = [m for m in MAPS if m.battle]
 
@@ -490,6 +506,17 @@ class Arena:
             wall.prepare()          # pronto antes da partida começar (nada de tranco no primeiro quadro)
         self.floor = self._render_floor(assets.backgrounds.get(cfg.key))
         self.ambience = scenery.create_ambience(cfg.scenery, cfg.size, self.walls)
+        self.room = pygame.Rect(0, 0, self.width, self.height)
+
+    # ── sala da luta ─────────────────────────
+    # Numa arena comum a sala é o mapa inteiro. Na fase em mapa só (mapa_fase.PhaseArena) é a sala
+    # de luta onde o grupo está: os perigos, os chefes e os portais dos inimigos ficam dentro dela.
+    def at(self, x, y):
+        """Ponto (x, y) medido do canto da sala, em coordenadas do mapa."""
+        return self.room.x + x, self.room.y + y
+
+    def reset_room(self):
+        self.room = pygame.Rect(0, 0, self.width, self.height)
 
     @property
     def size(self):
@@ -532,12 +559,14 @@ class Arena:
         return x, y
 
     def random_free_spot(self, radius, rng=random):
+        """Ponto livre sorteado dentro da sala."""
+        r = self.room
         for _ in range(80):
-            x = rng.uniform(80, self.width - 80)
-            y = rng.uniform(80, self.height - 80)
+            x = rng.uniform(r.x + 80, r.right - 80)
+            y = rng.uniform(r.y + 80, r.bottom - 80)
             if self.is_free(x, y, radius + 6):
                 return x, y
-        return self.width / 2, self.height / 2
+        return r.centerx, r.centery
 
     def blocks_segment(self, a, b):
         return any(w.rect.clipline(a, b) for w in self.walls)

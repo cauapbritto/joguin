@@ -746,7 +746,8 @@ def brains():
 
         def _leave(self, me, match):
             self.leaving -= 1
-            exit_x = 0 if me.x < match.arena.width / 2 else match.arena.width
+            room = match.arena.room
+            exit_x = room.x if me.x < room.centerx else room.right
             me.steer(1.0 if exit_x > me.x else -1.0, 0.0)
             me.cloak = min(1.0, me.cloak + 0.02)
             if self.leaving % 5 == 0:

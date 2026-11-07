@@ -268,8 +268,8 @@ MODE_TEXT = {
     "desafio_goleiro": ("Defenda 3 seguidas contra a CPU para passar de rodada. A CPU fica mais difícil a cada "
                         "rodada, e 3 gols tomados acabam o desafio.",
                         "1 JOGADOR"),
-    "campaign": ("Juntos contra as sombras, em 4 capítulos, saindo da Casa da turma: cada fase vai em frente, sem voltar, da sala inicial "
-                 "para duas masmorras, com um corredor no meio (baú de armas raras, loja e ferreiro). O capítulo 1 acaba no Aryel Corrompido, o 2 "
+    "campaign": ("Juntos contra as sombras, em 4 capítulos, saindo da Casa da turma: cada fase é um mapa só, a pé, com salas "
+                 "ligadas por corredores: três salas de luta, que trancam até ser limpas, e uma de recompensa (baú de armas raras, loja e ferreiro). O capítulo 1 acaba no Aryel Corrompido, o 2 "
                  "no Borba Jr Corrompido (Lag Lobby), o 3 no Albeguinio Corrompido (Clínica Clepalovers) e o 4 "
                  "no Cauanzera Corrompido (Mansão do Carimbo). Quem cair pode ser levantado.",
                  "1 A 4 JOGADORES"),
@@ -1023,7 +1023,7 @@ class OptionsScene(_InfoScene):
         if key == "novidades":
             from .. import novidades
             self.sfx("confirm", 0.4)
-            self.game.change(NewsScene(self.game, novidades.history(), back=OptionsScene))
+            self.game.change(ArchiveScene(self.game))
             return
         value = settings.get(key)
         if key in settings.VOLUME_KEYS:
@@ -1255,8 +1255,8 @@ ABOUT = [
      "armas (Arrow, Grenade, ChainBall...) herdam de Projectile, que herda de Bullet. ShadowBomb herda "
      "de GroundMark: é o mesmo aviso no chão, só que explode no fim. BattleMatch, SoccerMatch e "
      "CampaignMatch herdam de Match, que já cuida de câmera, tiros, partículas e desenho. Na campanha, "
-     "CampaignMatch (a masmorra) e LobbyMatch (a sala inicial e o corredor) herdam de CoopMatch, que junta o que as duas "
-     "têm em comum (levantar quem caiu, a mira, os itens, o escurecer entre as etapas). TeamBattleMatch "
+     "CampaignMatch (a sala de luta) e HubMatch (a Casa da turma) herdam de CoopMatch, que junta o que elas "
+     "têm em comum, e PhaseMatch (a fase inteira, num mapa só) herda de CampaignMatch (levantar quem caiu, a mira, os itens, o escurecer entre as etapas). TeamBattleMatch "
      "(o duelo 2 x 2) herda de BattleMatch e só troca o que é um \"lado\": em vez de um lutador, um time "
      "inteiro, que precisa cair todo para perder o round. Os inimigos da "
      "campanha são Fighters do time das sombras. Todas as telas herdam de Scene."),
@@ -2137,6 +2137,26 @@ def _scene_cantos(screen, ui, rect, t):
             (rect.x + 290, by - 40))
 
 
+def _scene_mapa_fase(screen, ui, rect, t):
+    """O mini mapa da fase em tamanho grande: o grupo passa de sala em sala e as salas acendem."""
+    from .. import mapa_fase
+    from ..campaign import PHASES
+    layout = mapa_fase.PhaseLayout.of(PHASES[0])
+    route = ("abertura", "luta1", "abertura", "luta2", "recompensa", "luta2", "abertura", "final")
+    step = (t // 70) % (len(route) + 1)
+    here = route[min(step, len(route) - 1)]
+    visited = set(route[:step + 1])
+    mini = pygame.Surface((mapa_fase.MINI_W, mapa_fase.MINI_H), pygame.SRCALPHA)
+    mapa_fase.draw_minimap(mini, ui, layout, visited, here, mini.get_rect(), portal=step >= len(route))
+    screen.fill((14, 14, 22), rect)
+    k = min((rect.w - 40) / mini.get_width(), (rect.h - 50) / mini.get_height())
+    big = pygame.transform.scale(mini, (round(mini.get_width() * k), round(mini.get_height() * k)))
+    screen.blit(big, big.get_rect(center=(rect.centerx, rect.centery - 10)))
+    names = {"abertura": "ABERTURA", "luta1": "MASMORRA 1", "luta2": "MASMORRA 2",
+             "recompensa": "RECOMPENSA", "final": "ÚLTIMA SALA"}
+    ui.text(screen, names[here], theme.XS, theme.BRASS, (rect.centerx, rect.bottom - 14))
+
+
 def _scene_corredores(screen, ui, rect, t):
     """Os enfeites de cada capítulo, um capítulo por vez, com a placa da piada."""
     from .. import casa, casa_art, enfeites
@@ -2171,135 +2191,7 @@ NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "n
                "clepalovers": _scene_clepalovers, "clinica": _scene_clinica, "oi_sumido": _scene_oi_sumido,
                "mansao": _scene_mansao, "iara": _scene_iara,
                "casa": _scene_casa, "computador": _scene_computador, "cantos": _scene_cantos,
-               "corredores": _scene_corredores}
+               "corredores": _scene_corredores, "mapa_fase": _scene_mapa_fase}
 
 
-class NewsScene(_InfoScene):
-    """Novidades em páginas, cada uma com uma cena animada. Abre sozinha uma vez quando o jogo
-    é atualizado, e em OPÇÕES > NOVIDADES quando quiser."""
-    heading = "NOVIDADES"
-    phase = "news"
-    PANEL = pygame.Rect(56, 92, config.SCREEN_W - 112, 360)
-
-    def __init__(self, game, news, back=None):
-        from .. import novidades
-        super().__init__(game)
-        self.news = news if back is not None else news[:2]     # sozinha: só as duas versões mais novas
-        self.back = back
-        self.pages = [p for version, entry in self.news for p in novidades.pages_of(version, entry)]
-        self.pages = [part for page in self.pages for part in self._split(page)]
-        self.page = 0
-        self.age = 0
-        self.summary = [line for _, entry in self.news[:1] for line in novidades.summary(entry)]
-
-    def _text_box(self, scene):
-        """(x, largura) da coluna de texto de uma página (ao lado da cena animada, se tiver)."""
-        x = self.PANEL.x + 24 + (340 + 28 - 4 if scene in NEWS_SCENES else 0)
-        return x, self.PANEL.right - 24 - x
-
-    def _split(self, page):
-        """Página com itens demais vira duas (ou mais), em vez de os últimos itens sumirem."""
-        version, title, scene, lines = page
-        x, width = self._text_box(scene)
-        top, bottom = self.PANEL.y + 80, self.PANEL.bottom - 30
-        parts, current, y = [], [], top
-        for line in lines:
-            h = len(self.ui.wrap(line.upper(), theme.XS, width - 16)) * 15
-            if current and y + h > bottom:
-                parts.append(current)
-                current, y = [], top
-            current.append(line)
-            y += h + 10
-        parts.append(current)
-        return [(version, title, scene, part) for part in parts]
-
-    def enter(self):
-        from ..net.remote import hub
-        hub.news = self.summary
-        super().enter()
-        if self.news:
-            hub.set_phase("news", banner=f"NOVIDADES DA {self.news[0][0]}")
-
-    def leave(self):
-        self.sfx("confirm", 0.4)
-        self.game.change(self.back(self.game) if self.back else TitleScene(self.game))
-
-    def turn(self, step):
-        page = max(0, min(len(self.pages) - 1, self.page + step))
-        if page != self.page:
-            self.page, self.age = page, 0
-            self.sfx("pagina", 0.5)
-
-    def update(self):
-        super().update()
-        self.age += 1
-
-    def handle(self, event):
-        if self.is_back(event) or not self.pages:
-            if self.is_back(event) or event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                self.leave()
-            return
-        if event.type == pygame.KEYDOWN:
-            if event.key in (pygame.K_LEFT, pygame.K_a):
-                self.turn(-1)
-            elif event.key in (pygame.K_RIGHT, pygame.K_d):
-                self.turn(1)
-            elif event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
-                if self.page >= len(self.pages) - 1:
-                    self.leave()
-                else:
-                    self.turn(1)
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 3:
-                self.turn(-1)
-            elif self.page >= len(self.pages) - 1:
-                self.leave()
-            else:
-                self.turn(1)
-
-    def draw_body(self, screen):
-        panel = self.PANEL
-        self.ui.panel(screen, panel)
-        if not self.pages:
-            self.footer(screen, [("ENTER", "CONTINUAR")])
-            return
-        version, title, scene, lines = self.pages[self.page]
-        n = len(self.pages)
-        self.ui.text(screen, f"VERSÃO {version}", theme.XS, theme.MUTED, (panel.right - 20, panel.y + 18),
-                     anchor="midright", shadow=False)
-        draw = NEWS_SCENES.get(scene)
-        x = panel.x + 24
-        if draw is not None:
-            stage = pygame.Rect(panel.x + 20, panel.y + 40, 340, 250)
-            screen.fill(theme.INK, stage)
-            pygame.draw.rect(screen, theme.LINE, stage, 1)
-            clip = screen.get_clip()
-            screen.set_clip(stage)
-            draw(screen, self.ui, stage, self.ticks)
-            screen.set_clip(clip)
-            x = stage.right + 28
-        width = panel.right - 24 - x
-        slide = max(0, 12 - self.age) * 3                        # o texto entra deslizando ao virar a página
-        y = panel.y + 52
-        self.ui.text(screen, title, self.ui.fit_size(title, width, (theme.S, theme.XS)), theme.BRASS, (x + slide, y),
-                     anchor="midleft")
-        y += 28
-        for line in lines:
-            if y > panel.bottom - 40:
-                break
-            screen.fill(theme.MOSS, (x + 2 + slide, y + 2, 5, 5))
-            y = self.ui.paragraph(screen, line.upper(), theme.XS, theme.BONE, (x + 16 + slide, y),
-                                  width - 16, spacing=15) + 10
-        # bolinhas das páginas (muitas páginas: vira "3 / 57", senão as bolinhas saem do painel)
-        if n > (panel.w - 80) // 14:
-            self.ui.text(screen, f"{self.page + 1} / {n}", theme.XS, theme.MUTED, (panel.centerx, panel.bottom - 18),
-                         shadow=False)
-        elif n > 1:
-            gap = 14
-            left = panel.centerx - (n - 1) * gap // 2
-            for i in range(min(n, 40)):
-                color = theme.BRASS if i == self.page else theme.LINE_HI
-                size = 6 if i == self.page else 4
-                screen.fill(color, (left + i * gap - size // 2, panel.bottom - 18 - size // 2, size, size))
-        last = self.page >= n - 1
-        self.footer(screen, [("←→", "PÁGINAS"), ("ENTER", "SAIR" if last else "PRÓXIMA"), ("ESC", "SAIR")])
+from .plantao import ArchiveScene, NewsScene  # noqa: E402  (o plantão usa as cenas daqui)

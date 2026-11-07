@@ -107,19 +107,19 @@ class TextosCabemTest(unittest.TestCase):
                     scene.shown = 10 ** 6
                     self.assertEqual(espiao.problemas(scene, g.screen), [], f"{key} página {page}")
 
-    def test_novidades_nao_somem_itens(self):
+    def test_novidades(self):
         from soulstrike import novidades
-        from soulstrike.scenes.menus import NewsScene, TitleScene
+        from soulstrike.scenes.plantao import ArchiveScene, NewsScene
         g = self.g
-        history = novidades.history()
-        scene = NewsScene(g, history, back=TitleScene)
-        total = sum(len(p[3]) for v, e in history for p in novidades.pages_of(v, e))
-        self.assertEqual(sum(len(p[3]) for p in scene.pages), total)
         with _Espiao() as espiao:
+            scene = NewsScene(g, novidades.history(), back=lambda game: None)
             for page in range(len(scene.pages)):
-                scene.page, scene.age = page, 99
-                self.assertEqual(espiao.problemas(scene, g.screen), [], scene.pages[page][:2])
-
+                scene.page, scene.age = page, 999
+                self.assertEqual(espiao.problemas(scene, g.screen), [], f"página {page}")
+            arquivo = ArchiveScene(g)
+            for i in range(len(arquivo.news)):
+                arquivo.index, arquivo.age = i, 999
+                self.assertEqual(espiao.problemas(arquivo, g.screen), [], arquivo.news[i][0])
 
 if __name__ == "__main__":
     unittest.main()
