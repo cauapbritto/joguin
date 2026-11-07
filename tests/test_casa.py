@@ -90,17 +90,41 @@ class SaidaTest(unittest.TestCase):
 
 
 class CasaTest(unittest.TestCase):
-    def test_vitrine_fala_quando_alguem_chega_perto(self):
+    def test_vitrine_so_fala_no_botao(self):
         reset_progress()
         match, inputs = casa_da_turma()
         s = next(s for s in match.speakers if s.key == "cauanzera")
-        self.assertIsNone(s.line)
         p = match.players[0]
         p.x, p.y = s.x, s.y + 20
-        passo(match, inputs, 3)
+        passo(match, inputs, 30)
+        self.assertIsNone(s.line)                 # chegou perto: só o "..."
+        self.assertTrue(s.waiting)
+        self.assertIs(match.speaker_near(p), s)
+        self.assertTrue(match.interact(p))
         self.assertEqual(s.line, FALAS["cauanzera"][0])
-        passo(match, inputs, casa.TALK_FRAMES + casa.TALK_GAP + 2)
+        self.assertGreater(s.talk, 0)
+        self.assertTrue(match.interact(p))        # apertou de novo: a próxima, na hora
         self.assertEqual(s.line, FALAS["cauanzera"][1])
+        passo(match, inputs, casa.TALK_FRAMES + 2)
+        self.assertEqual(s.talk, 0)
+        self.assertEqual(s.line, FALAS["cauanzera"][1])   # não puxa outra sozinho
+
+    def test_longe_nao_tem_conversa(self):
+        reset_progress()
+        match, inputs = casa_da_turma()
+        p = match.players[0]
+        p.x, p.y = match.exit_rect.centerx, match.exit_rect.y - 200
+        passo(match, inputs, 3)
+        self.assertIsNone(match.speaker_near(p))
+        self.assertFalse(any(s.waiting for s in match.speakers))
+
+    def test_moto_ganha_da_conversa(self):
+        reset_progress()
+        match, inputs = casa_da_turma()
+        p = match.players[0]
+        r = match.moto.rect
+        p.x, p.y = r.centerx, r.bottom + 10
+        self.assertIsNone(match.speaker_near(p))
 
     def test_corrompidos_so_depois_de_liberados(self):
         reset_progress()
