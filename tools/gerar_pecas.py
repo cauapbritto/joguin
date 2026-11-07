@@ -14,6 +14,7 @@ o mesmo caminho dos heróis), no tamanho em que aparece na tela: o jogo não amp
   fogueira_<cap>.png          a base (o fogo ou o vapor é desenhado no jogo, mexendo)
   carro_city.png, carro_uno.png, moto.png   os carros da turma de lado (os _vidro: vidro translúcido)
   estrada_*.png               casinhas, árvores e poste da beira da estrada na viagem
+  garagem_*.png               painel de ferramentas, estante, troféus, carrinho, pneus e tambor
 """
 import math
 import os
@@ -1039,6 +1040,102 @@ def poste():
     return hd(b.s, keep=[(250, 230, 160)])
 
 
+
+# ═════════════════════════════════════════════
+#  Garagem lá embaixo
+# ═════════════════════════════════════════════
+def painel_ferramentas():
+    """Painel de furos com as ferramentas penduradas (vai preso na parede)."""
+    b = B(70, 40)
+    b.r(0, 0, 70, 40, (150, 110, 70))
+    b.r(0, 0, 70, 2, (180, 140, 96))
+    for yy in range(4, 40, 5):
+        for xx in range(4, 70, 5):
+            b.p(xx, yy, (110, 80, 50))
+    b.r(6, 6, 2, 18, (200, 40, 40))                                  # chave inglesa
+    b.r(4, 6, 6, 4, (180, 184, 196))
+    b.r(14, 6, 2, 16, (120, 80, 50))                                 # martelo
+    b.r(12, 5, 7, 4, (90, 92, 100))
+    b.r(24, 6, 3, 14, (240, 200, 40))                                # chave de fenda
+    b.r(25, 20, 1, 6, (190, 196, 210))
+    b.r(32, 6, 10, 2, (180, 184, 196))                               # alicate
+    b.r(32, 8, 2, 12, (180, 184, 196))
+    b.r(40, 8, 2, 12, (180, 184, 196))
+    for i in range(5):                                               # jogo de chaves
+        b.r(48 + i * 4, 6, 2, 8 + i * 2, (180, 184, 196))
+    b.circ((58, 30), 6, (60, 60, 66))                                # rolo de fio
+    b.circ((58, 30), 3, (150, 110, 70))
+    b.r(8, 30, 30, 6, (60, 62, 70))                                  # furadeira
+    b.r(8, 30, 10, 6, (240, 200, 40))
+    return hd(b.s)
+
+
+def estante_trofeus():
+    """Estante de madeira: a prateleira de cima vazia (o jogo põe os troféus) e a de baixo com o
+    capacete, a placa UNO, o galão e a caixa."""
+    b = B(80, 44)
+    b.r(0, 2, 80, 40, (96, 62, 38))
+    b.r(2, 4, 76, 18, (60, 40, 26))
+    b.r(2, 24, 76, 16, (60, 40, 26))
+    b.r(0, 21, 80, 3, (130, 88, 52))
+    b.r(0, 2, 80, 2, (130, 88, 52))
+    b.r(6, 28, 14, 10, (220, 60, 60))                                # capacete
+    b.r(8, 30, 10, 6, (250, 250, 250))
+    b.r(26, 30, 20, 8, (40, 70, 150))                                # placa UNO
+    b.r(28, 32, 16, 2, (250, 250, 250))
+    b.r(52, 26, 6, 12, (236, 120, 40))                               # galão
+    b.r(62, 28, 12, 10, (60, 60, 66))                                # caixa
+    b.r(62, 28, 12, 2, (90, 92, 100))
+    return hd(b.s)
+
+
+def trofeu(gold=True):
+    b = B(12, 14)
+    g = (236, 196, 80) if gold else (200, 204, 212)
+    b.r(2, 10, 8, 4, (80, 60, 40))
+    b.r(4, 7, 4, 3, g)
+    b.r(0, 0, 12, 7, g)
+    b.r(2, 1, 3, 4, sh(g, 40))
+    return hd(b.s, keep=[(236, 196, 80)])
+
+
+def carrinho_ferramentas():
+    b = B(26, 30)
+    b.r(1, 4, 24, 22, (200, 40, 44))
+    b.r(1, 4, 24, 2, (236, 90, 90))
+    for y in (9, 14, 19):
+        b.r(3, y, 20, 4, (170, 30, 36))
+        b.r(11, y + 1, 4, 1, (210, 214, 222))
+    b.circ((4, 28), 2, (30, 30, 34))
+    b.circ((22, 28), 2, (30, 30, 34))
+    b.r(0, 1, 26, 3, (60, 60, 66))
+    b.r(4, 0, 6, 1, (180, 184, 196))
+    b.r(14, 0, 4, 1, (240, 200, 40))
+    return hd(b.s)
+
+
+def pilha_pneus():
+    b = B(24, 26)
+    for i in range(3):
+        y = 18 - i * 7
+        pygame.draw.ellipse(b.s, (28, 28, 32), (1, y, 22, 8))
+        pygame.draw.ellipse(b.s, (50, 50, 56), (1, y, 22, 4))
+        pygame.draw.ellipse(b.s, (14, 14, 18), (7, y + 1, 10, 3))
+    return hd(b.s)
+
+
+def tambor_oleo():
+    b = B(16, 22)
+    b.r(1, 2, 14, 19, (40, 90, 160))
+    b.r(1, 6, 14, 1, (30, 70, 130))
+    b.r(1, 15, 14, 1, (30, 70, 130))
+    b.r(1, 2, 14, 2, (70, 120, 190))
+    b.r(4, 8, 8, 5, (250, 250, 250))
+    b.r(5, 9, 6, 1, (220, 60, 60))
+    b.r(10, 3, 2, 1, (30, 30, 34))
+    return hd(b.s)
+
+
 def main():
     pygame.init()
     OUT.mkdir(parents=True, exist_ok=True)
@@ -1065,6 +1162,12 @@ def main():
     for v in range(3):
         pygame.image.save(arvore(v), str(OUT / f"estrada_arvore_{v}.png"))
     pygame.image.save(poste(), str(OUT / "estrada_poste.png"))
+    for name, fn in (("garagem_painel", painel_ferramentas), ("garagem_estante", estante_trofeus),
+                     ("garagem_carrinho", carrinho_ferramentas), ("garagem_pneus", pilha_pneus),
+                     ("garagem_tambor", tambor_oleo)):
+        pygame.image.save(fn(), str(OUT / f"{name}.png"))
+    pygame.image.save(trofeu(True), str(OUT / "garagem_trofeu_ouro.png"))
+    pygame.image.save(trofeu(False), str(OUT / "garagem_trofeu_prata.png"))
     print("peças em", OUT)
 
 

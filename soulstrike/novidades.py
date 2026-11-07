@@ -12,6 +12,14 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.36.0": [
+        {"title": "GARAGEM CAPRICHADA", "scene": "casa", "lines": [
+            "Lá embaixo, a garagem ganhou piso de epóxi com placas, marcas de pneu e manchas de óleo.",
+            "Parede de bloco com a faixa de aviso, placa de neon GARAGEM DA TURMA e painel de ferramentas.",
+            "Cada vaga tem faixa amarela, batente e o nome do carro pintado no chão.",
+            "Estante com um troféu para cada selo da campanha, carrinho de ferramentas, pneus e tambor.",
+        ]},
+    ],
     "1.35.0": [
         {"title": "OS CARROS DA TURMA", "scene": "casa", "lines": [
             "O City do João agora é o sedã 2026, azul acinzentado, com farol de LED e roda de 5 raios.",

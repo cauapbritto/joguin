@@ -413,6 +413,45 @@ def _lag_garagem(s, rng):
     _vignette(s, (20, 20, 24), 40)
 
 
+def _garagem(s, rng):
+    """Garagem da Casa, lá embaixo: piso de epóxi cinza-azulado em placas, com brilho das luminárias,
+    marcas de pneu, manchas de óleo e o ralo."""
+    w, h = s.get_size()
+    base, seam = (86, 90, 98), (74, 78, 86)
+    s.fill(base)
+    tile = 40                                                         # placas de 80 px na tela
+    for gy in range(0, h, tile):
+        for gx in range(0, w, tile):
+            s.fill(_shade(base, rng.randint(-3, 3)), (gx + 1, gy + 1, tile - 1, tile - 1))
+        s.fill(seam, (0, gy, w, 1))
+    for gx in range(0, w, tile):
+        s.fill(seam, (gx, 0, 1, h))
+    for _ in range(w * h // 5):                                       # granulado do epóxi
+        s.set_at((rng.randrange(w), rng.randrange(h)), _shade(base, rng.choice((-10, -6, 8, 12))))
+    sheen = pygame.Surface((w, h), pygame.SRCALPHA)                    # brilho das luminárias no piso
+    for cx in range(w // 6, w, w // 3):
+        for k in range(10):
+            pygame.draw.ellipse(sheen, (255, 255, 255, 5), (cx - 90 + k * 6, h // 3 + k * 3, 180 - k * 12, 120 - k * 6))
+    s.blit(sheen, (0, 0))
+    for _ in range(8):                                                # marcas de pneu
+        x, y, length = rng.randrange(w), rng.randrange(h // 4, h), rng.randint(40, 120)
+        for dx in (0, 14):
+            for i in range(0, length, 2):
+                s.set_at(((x + dx) % w, min(h - 1, y + i)), (64, 66, 72))
+    for _ in range(12):                                               # manchas de óleo
+        x, y = rng.randrange(w), rng.randrange(h)
+        rw, rh = rng.randint(10, 24), rng.randint(5, 10)
+        pygame.draw.ellipse(s, (58, 60, 68), (x, y, rw, rh))
+        pygame.draw.ellipse(s, (48, 50, 58), (x + rw // 4, y + rh // 4, rw // 2, rh // 2))
+        s.set_at((x + rw // 3, y + 1), (110, 96, 130))                # o arco-íris do óleo
+    for cx in range(w // 4, w, w // 2):                               # ralos
+        cy = h - 30
+        s.fill((50, 52, 58), (cx - 8, cy - 4, 16, 8))
+        for k in range(cx - 6, cx + 6, 3):
+            s.fill((30, 30, 34), (k, cy - 3, 1, 6))
+    _vignette(s, (20, 20, 26), 30)
+
+
 def _lag_cobertura(s, rng):
     """Cobertura: placas de concreto, o H do heliponto no meio e ralos."""
     w, h = s.get_size()
@@ -940,7 +979,7 @@ _PAINTERS = {"floresta": _floresta, "calabouco": _calabouco, "templo_gelado": _t
              "clinica_adm": _clinica_adm, "clinica_calcada": _clinica_calcada,
              "mansao": _mansao, "mansao_arquivo": _mansao_arquivo, "mansao_patio": _mansao_patio,
              "mansao_cpd": _mansao_cpd, "mansao_reuniao": _mansao_reuniao, "mansao_nucleo": _mansao_nucleo,
-             "mansao_jardim": _mansao_jardim, "casa": _casa}
+             "mansao_jardim": _mansao_jardim, "casa": _casa, "garagem": _garagem}
 THEMED_MAPS = tuple(_PAINTERS)
 
 
@@ -1525,13 +1564,36 @@ class CasaWall(_Style):
             s.fill(wood, (0, 0, max(4, w // 3), h))
 
 
+class GarageWall(_Style):
+    """Garagem lá embaixo: bloco de concreto pintado de cinza claro, rodapé com a faixa de aviso
+    amarela e preta e a linha de tinta azul no meio."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((14, 14, 20, 180), (0, 6, w, h))
+        block, joint = (150, 152, 158), (126, 128, 134)
+        s.fill(block, (0, 0, w, h))
+        s.fill((176, 178, 184), (0, 0, w, 3))
+        for row, yy in enumerate(range(4, h, 16)):
+            s.fill(joint, (0, yy, w, 1))
+            for xx in range(-20 if row % 2 else 0, w, 40):
+                s.fill(joint, (max(0, xx), yy, 1, 16))
+        if w >= h:
+            s.fill((70, 110, 170), (0, h // 2 - 2, w, 3))
+            strip = min(14, max(6, h // 4))
+            for xx in range(-strip, w, 24):
+                pygame.draw.polygon(s, (236, 196, 60), [(xx, h), (xx + 12, h - strip), (xx + 24, h - strip), (xx + 12, h)])
+                pygame.draw.polygon(s, (30, 30, 34), [(xx + 12, h), (xx + 24, h - strip), (xx + 36, h - strip), (xx + 24, h)])
+        for _ in range(max(1, w * h // 700)):
+            s.set_at((rng.randrange(w), rng.randrange(h)), _shade(block, rng.choice((-14, 10))))
+
+
 _STYLES = {"floresta": Hedge, "calabouco": DungeonStone, "templo_gelado": IceBlock,
            "lag_escritorio": GlassWall, "lag_datacenter": ServerRack, "lag_garagem": Barrier, "lag_cobertura": Barrier,
            "clinica": ClinicWall, "clinica_spa": SpaWall, "clinica_vip": MirrorWall, "clinica_adm": FileCabinet,
            "clinica_calcada": ClinicWall,
            "mansao": MansionWall, "mansao_arquivo": ShelfWall, "mansao_patio": PatioWall, "mansao_cpd": CellarRack,
            "mansao_reuniao": BoardroomWall, "mansao_nucleo": CoreWall, "mansao_jardim": GardenWall,
-           "casa": CasaWall}
+           "casa": CasaWall, "garagem": GarageWall}
 
 
 def wall_style(key):
