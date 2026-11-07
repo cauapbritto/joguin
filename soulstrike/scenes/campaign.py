@@ -178,42 +178,50 @@ def draw_voice(screen, center, ticks):
 
 
 class StoryScene(_MenuScene):
-    """Páginas de história com retrato, texto aparecendo aos poucos e botão de pular."""
+    """Uma história da campanha tocando como filme (scenes/filme.py): os planos passam sozinhos.
+    ATACAR ou ENTER adiantam (primeiro completam a legenda), ESC ou PAUSA pulam a história."""
 
     phase = "story"
     music = "menu"
-    CHARS_PER_FRAME = 1.4
 
     def __init__(self, game, key, then):
         super().__init__(game)
-        self.heading, map_key, self.pages = STORY[key]
+        from .filme import Film
+        self.film = Film(game, key)
+        self.heading, self.pages = self.film.heading, self.film.pages
         self.then = then
-        self.page = 0
-        self.shown = 0.0
-        self.page_ticks = 0
         self.done = False
-        bg = game.thumbnail(MAPS_BY_KEY[map_key], (config.SCREEN_W, config.SCREEN_H)).copy()
-        darken(bg, 150)
-        self.background = bg
+
+    # a página e a legenda moram no filme (os testes e a sala de cinema mexem por aqui)
+    @property
+    def page(self):
+        return self.film.page
+
+    @page.setter
+    def page(self, value):
+        self.film.page, self.film.age, self.film.title_left = value, 60, 0
+
+    @property
+    def shown(self):
+        return self.film.shown
+
+    @shown.setter
+    def shown(self, value):
+        self.film.shown = min(value, len(self.film.text))
+        self.film.title_left = 0
+
+    @property
+    def text(self):
+        return self.film.text
 
     def enter(self):
         super().enter()
         hub.set_phase("story", mode="campaign", active=self.active_slots(), banner=self.heading)
 
-    @property
-    def text(self):
-        return self.pages[self.page][2]
-
     def _advance(self):
-        if self.shown < len(self.text):
-            self.shown = len(self.text)
-            return
         self.sfx("click", 0.4)
-        if self.page + 1 < len(self.pages):
-            self.page += 1
-            self.shown = 0.0
-            self.page_ticks = 0
-        else:
+        self.film.skip()
+        if self.film.done:
             self._finish()
 
     def _finish(self):
@@ -233,8 +241,10 @@ class StoryScene(_MenuScene):
 
     def update(self):
         super().update()
-        self.page_ticks += 1
-        self.shown = min(len(self.text), self.shown + self.CHARS_PER_FRAME)
+        self.film.update()
+        if self.film.done:
+            self._finish()
+            return
         slots = self.active_slots()
         if self.ticks > 10 and _pressed(self.game, slots, "confirm", "attack"):
             self._advance()
@@ -242,65 +252,7 @@ class StoryScene(_MenuScene):
             self._finish()
 
     def draw(self, screen):
-        W = config.SCREEN_W
-        screen.blit(self.background, (0, 0))
-        self.ui.text(screen, self.heading, theme.S, theme.BRASS, (W // 2, 44))
-        portrait, speaker, text = self.pages[self.page]
-
-        # retrato grande no meio da tela
-        stage_y = 250
-        if portrait in (CRYSTAL, BROKEN):
-            draw_crystal(screen, (W // 2, stage_y - 30), 96, self.page_ticks if portrait == BROKEN else self.ticks,
-                         broken=portrait == BROKEN)
-        elif portrait == FRAGMENT:
-            draw_fragment(screen, (W // 2, stage_y - 20), self.ticks)
-        elif portrait == VOICE:
-            draw_voice(screen, (W // 2, stage_y - 30), self.ticks)
-        else:
-            sprites = (self.assets.shadow_sprites(portrait.split(":", 1)[1]) if portrait.startswith("sombra:")
-                       else self.assets.sheet_sprites(portrait))
-            img = (sprites.frame("frente", self.ticks // 7) if self.page_ticks < 60
-                   else sprites.pose("frente", "parado", (self.ticks // 36) % 2))
-            factor = 3 if img.get_height() > 50 else 4
-            img = pygame.transform.scale(img, (img.get_width() * factor, img.get_height() * factor))
-            pygame.draw.ellipse(screen, theme.SHADOW, (W // 2 - 70, stage_y + 30, 140, 22))
-            rect = img.get_rect(midbottom=(W // 2, stage_y + 42))
-            if portrait.startswith("sombra:"):
-                draw_aura(screen, img, rect, SHADOW_RIM, self.ticks, 3)
-            screen.blit(img, rect)
-
-        # caixa de texto: fala comprida faz a caixa crescer para cima (o retrato fica acima de y 292)
-        lines = self.ui.wrap(text, theme.S, W - 160 - 48)
-        need = 18 + (18 if speaker else 0) + len(lines) * 26 + 6
-        box = pygame.Rect(80, 330, W - 160, 136)
-        if need > box.h:
-            box.top = max(296, box.bottom - need)
-            box.h = 466 - box.top
-        self.ui.panel(screen, box, fill=theme.INK_2)
-        y = box.y + 18
-        if speaker:
-            purple = "CORROMPIDO" in speaker or "SOMBRIO" in speaker or speaker == VOICE_NAME
-            self.ui.text(screen, speaker, theme.XS, (200, 150, 250) if purple else theme.BRASS,
-                         (box.x + 24, y + 4), anchor="midleft")
-            y += 18
-        visible = text[:int(self.shown)]
-        # as linhas saem do texto inteiro (as palavras não pulam de linha enquanto aparecem)
-        left = len(visible)
-        for line in lines:
-            part = line[:max(0, left)]
-            left -= len(line) + 1
-            if part:
-                self.ui.text(screen, part, theme.S, VOICE_TEXT if portrait == VOICE else theme.BONE,
-                             (box.x + 24, y), anchor="topleft")
-            y += 26
-        if self.shown >= len(text) and (self.ticks // 20) % 2:
-            self.ui.arrow(screen, (box.right - 24, box.bottom - 18), "down", 6, theme.BRASS)
-        # páginas
-        n = len(self.pages)
-        for i in range(n):
-            x = W // 2 - (n - 1) * 8 + i * 16
-            screen.fill(theme.BRASS if i == self.page else theme.LINE, (x - 3, box.bottom + 14, 6, 6))
-        self.footer(screen, [("ENTER", "AVANÇAR"), ("ESC", "PULAR")])
+        self.film.draw(screen, self.ui)
 
 
 class UpgradeScene(_MenuScene):
