@@ -12,6 +12,24 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.28.0": [
+        {"title": "O COMPUTADOR NO CELULAR", "scene": "casa", "lines": [
+            "Abriu o PC do Cauanzera ou o notebook do Albeguinio, o celular mostra a tela dele.",
+            "Toque direto nela para clicar. Tocou no terminal, no endereço ou na senha, sobe o teclado.",
+            "O celular mostra só a linha digitada. O que você escreve aparece na TV na hora.",
+            "FECHAR TUDO fica sempre no alto do celular.",
+        ]},
+        {"title": "SETINHA E TECLADO NA TELA", "scene": "casa", "lines": [
+            "No controle ou no teclado, o analógico move uma setinha e ATACAR clica.",
+            "Para digitar, aparece um teclado na tela, com sugestões dos comandos.",
+            "Cada janela tem um X. Segurar ESQUIVA por 1 segundo fecha tudo.",
+        ]},
+        {"title": "COMANDOS DE VERDADE", "scene": "casa", "lines": [
+            "O terminal entende LS, CAT, LIMPAR, EXIT e DESLIGAR, além do AJUDA.",
+            "No navegador dá para digitar o endereço: SOULWIKI, PADARIA, LAGLOBBY e mais.",
+            "Endereço que não existe dá página 404, com o cristal quebrado.",
+        ]},
+    ],
     "1.27.0": [
         {"title": "A GARAGEM ABRIU", "scene": "casa", "lines": [
             "A garagem da Casa agora abre desde o começo. ATACAR na porta escolhe com o que a turma sai.",

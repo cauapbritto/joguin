@@ -148,6 +148,27 @@
   </div>
 </section>
 
+<!-- Computador da Casa: cópia da tela, toque e teclado do celular -->
+<section id="view-pc" class="view">
+  <div class="pc-head">
+    <div class="tag" data-bind="tag">P1</div>
+    <span class="muted" id="pc-title">COMPUTADOR</span>
+    <button class="btn small" id="pc-back">VOLTAR</button>
+    <button class="btn small btn-close-all" id="pc-close">FECHAR TUDO</button>
+  </div>
+  <div class="pc-stage" id="pc-stage">
+    <img id="pc-screen" alt="Tela do computador" draggable="false">
+    <span class="pc-hint" id="pc-hint">TOQUE NA TELA PARA CLICAR</span>
+  </div>
+  <form class="pc-type" id="pc-type" autocomplete="off">
+    <span class="pc-field" id="pc-field">TERMINAL</span>
+    <input id="pc-input" type="text" maxlength="70" autocapitalize="off" autocorrect="off" spellcheck="false"
+           enterkeyhint="send" placeholder="toque aqui para digitar">
+    <button class="btn small btn-buy" id="pc-send" type="submit">ENVIAR</button>
+  </form>
+  <span class="pc-look" id="pc-look">OLHE NA TV</span>
+</section>
+
 <!-- Controle -->
 <section id="view-pad" class="view">
   <div class="pad-top">

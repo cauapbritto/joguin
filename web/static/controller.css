@@ -149,6 +149,29 @@ button {
 #choose-ok.is-ready { background: #2f4a2a; border-color: var(--moss); }
 body.locked .opt { opacity: .55; }
 
+/* ── computador da Casa ── */
+#view-pc { flex-direction: column; gap: 8px; }
+.pc-head { display: flex; align-items: center; gap: 10px; }
+.pc-head #pc-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.btn-close-all { background: #5a1c1c; border-color: var(--blood); }
+.pc-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+#pc-screen {
+  display: block; image-rendering: pixelated; border: 2px solid var(--line-hi); box-shadow: 0 4px 0 #000;
+  background: #101a2e; touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+.pc-hint { flex: none; text-align: center; font-size: 10px; color: var(--muted); pointer-events: none; }
+.pc-type { display: none; align-items: center; gap: 8px; }
+#view-pc.typing .pc-type { display: flex; }
+.pc-field { color: var(--brass); font-size: 11px; }
+#pc-input {
+  flex: 1; min-width: 0; min-height: 40px; padding: 4px 10px; font: inherit; font-size: 16px;
+  color: #7dff9a; background: #0a0f0a; border: 2px solid var(--line-hi); border-radius: 0;
+}
+.pc-look { display: none; text-align: center; color: var(--muted); font-size: 11px; }
+/* com o teclado do celular aberto, só a linha digitada: quem digita olha na TV */
+#view-pc.keyboard .pc-stage { display: none; }
+#view-pc.keyboard .pc-look { display: block; }
+
 /* ── loja no celular ── */
 #view-shop { flex-direction: column; gap: 10px; }
 .shop-head { display: flex; align-items: center; gap: 12px; }

@@ -18,6 +18,7 @@ from .entities import Entity, Particle, Wall
 from .fighter import UNO_HITS
 from .lobbies import CASA_SPLIT, CASA_TOP
 from .matches import Result
+from .net.remote import hub
 
 HUB_MAP = "hub_casa"
 T = TILE_PX
@@ -130,6 +131,7 @@ BUBBLE_ROOM = 300           # largura de um balão: o vizinho mais perto que iss
 WATERED = 8 * config.FPS          # canteiro regado fica com a florzinha por 8 s
 BED_REACH = 46
 BOOK_REACH = 70
+SCREEN_EVERY = 12                     # quadros entre uma cópia da tela do computador e outra
 DOOR_REACH = 96
 FLOWER_COLORS = ((240, 110, 150), (250, 200, 80), (170, 120, 240), (250, 250, 250))
 
@@ -628,6 +630,7 @@ class HubMatch(CoopMatch):
 
     def __init__(self, game, run, story=True):
         self.story = story
+        self._screens = {}                                  # vaga -> versão da tela já mandada ao celular
         cfg = MAPS_BY_KEY[HUB_MAP]
         starts = _spread(cfg.markers["S"], len(run.session.slots))
         super().__init__(game, run, cfg.key, starts, (0.0, 1.0))
@@ -851,6 +854,22 @@ class HubMatch(CoopMatch):
         return f.alive_in_match and math.hypot(f.x - self.book.x, f.y - (self.book.y + 40)) < BOOK_REACH
 
     # ── ciclo ────────────────────────────────
+    def phone_shop(self):
+        """Além da loja: quem está num computador recebe a cópia da tela no celular (PNG), quando
+        ela muda ou a cada SCREEN_EVERY quadros (o cristal do fundo gira)."""
+        super().phone_shop()
+        for f in self.players:
+            if not f.slot:
+                continue
+            menu = self.menus.get(f)
+            if not isinstance(menu, computador.Computer):
+                if self._screens.pop(f.slot, None) is not None:
+                    hub.set_screen(f.slot, None)
+                continue
+            if self._screens.get(f.slot) != menu.version or self.frame % SCREEN_EVERY == 0:
+                self._screens[f.slot] = menu.version
+                hub.set_screen(f.slot, menu.png(self.game.ui))
+
     def update_stage(self):
         if self.frame == 1:
             if self.story:
