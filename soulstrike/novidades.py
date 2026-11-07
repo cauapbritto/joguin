@@ -12,6 +12,21 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.34.0": [
+        {"title": "QUEM ATENDE A LOJA", "scene": "loja", "lines": [
+            "A loja e o ferreiro agora têm gente atrás do balcão, desenhada como os heróis.",
+            "Cap. 1: o mascate de chapéu e o ferreiro ruivo martelando a bigorna.",
+            "Cap. 2: o técnico do lado da máquina de venda e o soldador de máscara.",
+            "Cap. 3: a atendente de jaleco rosa e o técnico dos aparelhos de estética.",
+            "Cap. 4: o mordomo com a bandeja e o ourives de lupa no olho.",
+        ]},
+        {"title": "SALA DE RECOMPENSAS", "scene": "loja", "lines": [
+            "Cada capítulo tem o seu baú: baú de madeira, cofre, maleta de beleza e arca de mogno.",
+            "O armário de armas também muda: madeira, rack de servidor, armário rosa e cristaleira.",
+            "A fogueira vira tambor com fogo na Lag Lobby, difusor de vapor na clínica",
+            "e lareira de mármore na mansão. Todas continuam curando do mesmo jeito.",
+        ]},
+    ],
     "1.33.0": [
         {"title": "CANTOS FECHADOS", "scene": "casa", "lines": [
             "As paredes que se encostam agora são uma peça só, na Casa e em todas as fases.",
