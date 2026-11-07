@@ -33,12 +33,20 @@ def start_campaign(game):
     return StoryScene(game, "prologo", lambda: hub_scene(game, run))
 
 
-def hub_scene(game, run, story=True, walk=False):
+def hub_scene(game, run, story=True, walk=False, arrive=None):
     """A Casa da turma: a campanha (e o CONTINUAR) começa aqui; o City do quintal leva à fase.
-    ``walk``: PASSEAR NA CASA (só andar; o City não sai)."""
+    ``walk``: PASSEAR NA CASA (só andar; o City não sai). ``arrive="garagem"``: voltando da garagem,
+    o grupo aparece na porta dela."""
     from ..casa import HubMatch
     from .play import PlayScene
-    return PlayScene(game, HubMatch(game, run, story, walk=walk))
+    return PlayScene(game, HubMatch(game, run, story, walk=walk, arrive=arrive))
+
+
+def garage_scene(game, run, story=True, walk=False):
+    """A garagem lá embaixo (o hall dos carros e o salão dos corrompidos)."""
+    from ..garagem import GarageMatch
+    from .play import PlayScene
+    return PlayScene(game, GarageMatch(game, run, story, walk=walk))
 
 
 def start_phase(game, run, story=True):

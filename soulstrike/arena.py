@@ -483,7 +483,15 @@ def _casa():
                      theme="casa", void=void, markers=markers)
 
 
+def _garagem():
+    """A garagem da Casa, lá embaixo (lobbies.GARAGEM): o hall dos carros e o salão dos corrompidos."""
+    size, walls, void, markers = lobbies.parse(lobbies.GARAGEM[1])
+    return MapConfig("garagem_casa", lobbies.GARAGEM[0], size, walls=walls, spawns=markers["S"], battle=False,
+                     theme="lag_garagem", void=void, markers=markers)
+
+
 MAPS.append(_casa())
+MAPS.append(_garagem())
 MAPS_BY_KEY = {m.key: m for m in MAPS}
 BATTLE_MAPS = [m for m in MAPS if m.battle]
 

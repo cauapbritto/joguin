@@ -154,14 +154,15 @@ class CasaTest(unittest.TestCase):
         p.x, p.y = r.centerx, r.bottom + 10
         self.assertIsNone(match.speaker_near(p))
 
-    def test_corrompidos_so_depois_de_liberados(self):
+    def test_corrompidos_so_no_salao_da_garagem(self):
+        from soulstrike.garagem import GarageMatch
         reset_progress()
         match, _ = casa_da_turma()
-        keys = {s.key for s in match.speakers}
-        self.assertNotIn("aryel_corrompido", keys)
+        self.assertFalse(any(s.key.endswith("_corrompido") for s in GarageMatch(match.game, match.run).speakers))
         reset_progress(capitulo1_zerado=True)
         match, _ = casa_da_turma()
-        keys = {s.key for s in match.speakers}
+        self.assertNotIn("aryel_corrompido", {s.key for s in match.speakers})     # na casa, não
+        keys = {s.key for s in GarageMatch(match.game, match.run).speakers}
         self.assertIn("aryel_corrompido", keys)
         self.assertNotIn("borba_corrompido", keys)
         reset_progress()
