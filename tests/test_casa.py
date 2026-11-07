@@ -2,9 +2,11 @@
 trancadas e a saída do quintal com a passagem coletiva)."""
 import unittest
 
+import pygame
+
 from apoio import FakeInput, game
 
-from soulstrike import casa, progress
+from soulstrike import casa, config, progress
 from soulstrike.arena import MAPS_BY_KEY, Arena
 from soulstrike.campaign import LEAVE_FRAMES, PASSAGE_FRAMES, CampaignRun
 from soulstrike.casa import FALAS, HUB_MAP, VERSES, HubMatch
@@ -46,7 +48,6 @@ class MapaTest(unittest.TestCase):
         cfg = MAPS_BY_KEY[HUB_MAP]
         self.assertFalse(cfg.battle)
         self.assertEqual(len(cfg.markers["S"]), 4)
-        self.assertEqual(len(cfg.markers["D"]), 6)
         arena = Arena(cfg, game().assets)
         for x, y in cfg.markers["S"]:
             self.assertTrue(arena.is_free(x, y, 12))
@@ -67,26 +68,53 @@ class MapaTest(unittest.TestCase):
 
 
 class SaidaTest(unittest.TestCase):
-    def test_todos_na_saida_levam_para_a_fase(self):
+    def test_todos_no_city_vao_de_carro_para_a_fase(self):
         reset_progress()
         from soulstrike.scenes.campaign import StoryScene
         from soulstrike.scenes.play import PlayScene
+        from soulstrike.scenes.viagem import CarTripScene
         for story, kind in ((True, StoryScene), (False, PlayScene)):
             match, inputs = casa_da_turma(story=story)
             area = match.door_area
             for k, p in enumerate(match.players):
-                p.x, p.y = area.centerx - 20 + 40 * k, area.centery
+                p.x, p.y = area.x + 20 + 40 * k, area.bottom - 10
             passo(match, inputs, PASSAGE_FRAMES + LEAVE_FRAMES + 2)
             self.assertTrue(match.finished)
             self.assertEqual(match.run.frames, 0)              # o tempo na casa não conta
             scene = match.next_scene()
-            self.assertIsInstance(scene, kind)
+            self.assertIsInstance(scene, CarTripScene)
+            self.assertEqual(scene.chapter, 1)
+            self.assertIsInstance(scene.then(), kind)
 
-    def test_ninguem_passa_pela_saida(self):
+    def test_a_saida_e_o_city(self):
         reset_progress()
-        match, inputs = casa_da_turma()
+        match, _ = casa_da_turma()
         r = match.exit_rect
-        self.assertFalse(match.arena.is_free(r.centerx, r.bottom + 10, 12))
+        self.assertTrue(match.door_area.contains(r))
+        self.assertFalse(match.arena.is_free(r.centerx, r.bottom - 6, 12))     # o carro é sólido
+        self.assertNotIn("D", MAPS_BY_KEY[HUB_MAP].markers)                  # o buraco do quintal fechou
+
+    def test_cena_do_carro_quebra_e_segue(self):
+        reset_progress()
+        from soulstrike.scenes import viagem
+        match, _ = casa_da_turma()
+        g = match.game
+        went = []
+        g.change = lambda s: went.append(s)          # o jogo é o mesmo dos outros testes: devolve no fim
+        self.addCleanup(lambda: g.__dict__.pop("change", None))
+        screen = pygame.Surface((config.SCREEN_W, config.SCREEN_H))
+        for chapter in (1, 2, 3, 4):
+            scene = viagem.CarTripScene(g, [p.sprites for p in match.players], chapter, lambda: "fase")
+            speeds = []
+            for _ in range(viagem.END + 2):
+                scene.update()
+                speeds.append(scene.speed)
+                if scene.ticks % 40 == 0:
+                    scene.draw(screen)
+            self.assertTrue(scene.done)
+            self.assertGreater(speeds[100], 0)
+            self.assertEqual(speeds[viagem.PUFF + 5], 0)          # PUFF: parou
+        self.assertEqual(went, ["fase"] * 4)
 
 
 class CasaTest(unittest.TestCase):

@@ -32,7 +32,7 @@ def start_campaign(game):
 
 
 def hub_scene(game, run, story=True):
-    """A Casa da turma: a campanha (e o CONTINUAR) começa aqui; a saída do quintal leva à fase."""
+    """A Casa da turma: a campanha (e o CONTINUAR) começa aqui; o City do quintal leva à fase."""
     from ..casa import HubMatch
     from .play import PlayScene
     return PlayScene(game, HubMatch(game, run, story))

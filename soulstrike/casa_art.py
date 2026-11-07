@@ -871,12 +871,3 @@ def flower(s, x, y, color, big=False):
         pygame.draw.circle(s, color, (x + dx * k, y - 18 * k + dy * k), 3 * k)
     pygame.draw.circle(s, (250, 220, 90), (x, y - 18 * k), 2 * k)
 
-
-def adventure_arch(s, x, y, w):
-    """Pilares e a placa da saída para a aventura no muro de baixo (x, y = canto de cima do vão)."""
-    for px in (x - 18, x + w + 2):
-        box(s, (90, 86, 96), px, y - 30, 16, 70)
-        box(s, (130, 124, 138), px, y - 30, 16, 4)
-        box(s, (60, 56, 66), px + 12, y - 26, 4, 66)
-        pygame.draw.circle(s, theme.BRASS, (px + 8, y - 38), 6)
-        pygame.draw.circle(s, (255, 230, 160), (px + 8, y - 39), 3)
