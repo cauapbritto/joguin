@@ -192,13 +192,13 @@ class CasaTest(unittest.TestCase):
 
     def test_portas_abrem_com_o_progresso(self):
         reset_progress()
-        self.assertFalse(any(casa.door_open(k) for k, _, _ in casa.DOORS))
+        self.assertFalse(any(casa.door_open(k) for k, _, _ in casa.DOORS if k != "garagem"))
+        self.assertTrue(casa.door_open("garagem"))                   # a garagem fica sempre aberta
         reset_progress(capitulo1_zerado=True, capitulo2_zerado=True)
         self.assertTrue(casa.door_open("sotao"))
         self.assertTrue(casa.door_open("oficina"))
-        self.assertFalse(casa.door_open("garagem"))
+        self.assertFalse(casa.door_open("porao"))
         reset_progress(capitulo1_zerado=True, capitulo2_zerado=True, capitulo4_zerado=True, vezes_zerada=1)
-        self.assertTrue(casa.door_open("garagem"))
         self.assertTrue(casa.door_open("porao"))
         match, _ = casa_da_turma()
         self.assertTrue(all(opened for _, opened, _, _ in match.doors))

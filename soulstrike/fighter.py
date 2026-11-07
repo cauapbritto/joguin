@@ -115,6 +115,55 @@ def draw_uniform(surf, rect, direction):
     surf.fill((150, 110, 70), (card.x + 2, card.bottom - 4, card.w - 4, 2))   # o carimbo
 
 
+UNO_HITS = 8                 # armadura de Uno: golpes que ela segura (uma peça cai a cada 2)
+UNO_SLOW = 0.9               # quem veste anda um pouco mais devagar
+UNO_PIECES = ("RETROVISOR", "PORTA", "CAPÔ", "PARA-CHOQUE")     # na ordem em que caem
+UNO_WHITE, UNO_EDGE = (240, 240, 236), (150, 152, 160)
+
+
+def uno_pieces(hits):
+    """Quantas peças da armadura ainda estão no corpo (4 cheia, 0 sem armadura)."""
+    return (max(0, hits) + 1) // 2
+
+
+def draw_uno(surf, rect, direction, hits):
+    """A armadura de Uno branco por cima do herói: para-choque na cintura, capô no peito, a porta
+    de lado e os retrovisores nos ombros. As peças somem conforme a armadura apanha."""
+    left = uno_pieces(hits)
+    if left <= 0:
+        return
+    cx, w, h = rect.centerx, rect.w, rect.h
+    back = direction == "costas"
+    if left >= 1:                                                    # para-choque
+        bumper = pygame.Rect(0, 0, round(w * 0.62), max(3, h // 14))
+        bumper.midtop = (cx, rect.y + round(h * 0.66))
+        surf.fill(UNO_EDGE, bumper.inflate(2, 2))
+        surf.fill((60, 62, 68), bumper)
+    if left >= 2:                                                    # capô no peito
+        hood = pygame.Rect(0, 0, round(w * 0.5), max(5, h // 6))
+        hood.midtop = (cx, rect.y + round(h * 0.44))
+        surf.fill(UNO_EDGE, hood.inflate(2, 2))
+        surf.fill(UNO_WHITE, hood)
+        if not back:
+            surf.fill((250, 240, 190), (hood.x + 1, hood.y + 1, 3, 2))          # faróis
+            surf.fill((250, 240, 190), (hood.right - 4, hood.y + 1, 3, 2))
+    if left >= 3 and direction in ("direita", "esquerda"):          # a porta de lado
+        door = pygame.Rect(0, 0, max(5, w // 5), max(8, h // 4))
+        door.midtop = (cx + (-w // 6 if direction == "direita" else w // 6), rect.y + round(h * 0.42))
+        surf.fill(UNO_EDGE, door.inflate(2, 2))
+        surf.fill(UNO_WHITE, door)
+        surf.fill((90, 130, 170), (door.x + 1, door.y + 1, door.w - 2, max(2, door.h // 3)))
+    elif left >= 3:
+        for dx in (-1, 1):
+            surf.fill(UNO_EDGE, (cx + dx * round(w * 0.3) - 2, rect.y + round(h * 0.47), 4, max(5, h // 7)))
+    if left >= 4:                                                    # retrovisores nos ombros
+        for dx in (-1, 1):
+            m = pygame.Rect(0, 0, 5, 4)
+            m.center = (cx + dx * round(w * 0.32), rect.y + round(h * 0.4))
+            surf.fill((40, 40, 46), m.inflate(2, 2))
+            surf.fill(UNO_WHITE, m)
+
+
 def draw_moto(surf, cx, ground, right, wheelie):
     """Desenha a moto com as rodas no chão, empinando ``wheelie`` graus (a roda da frente sobe)."""
     img = _moto_image()
@@ -269,6 +318,7 @@ class Fighter(Entity):
         self.knock_resist = 0.0         # 1 = não é empurrado por golpes (golem, chefão)
         self.aura = None                # brilho em volta (almas corrompidas)
         self.uniform = False            # crachá da Mansão do Carimbo (UNIFORME, depois do capítulo 4)
+        self.uno_hits = 0               # armadura de Uno do capítulo 1: golpes que ainda segura
         self.windup = 0                 # preparando um golpe (inimigos brilham antes de atacar)
         self.windup_total = 1
         self.windup_color = (255, 255, 255)
@@ -530,6 +580,8 @@ class Fighter(Entity):
             base *= HASTE_MULT
         if self.rush_timer > 0:
             base *= RUSH_MULT
+        if self.uno_hits > 0:
+            base *= UNO_SLOW
         return base * (2 if self.speed_timer > 0 else 1) * self.speed_mult
 
     def slow(self, frames):
@@ -914,6 +966,9 @@ class Fighter(Entity):
                     and self.invulnerable_timer <= 0):
                 self.perfect_dodge(match)
             return False
+        if self.uno_hits > 0 and amount > 0:
+            self._uno_hit(match)                                 # a armadura de Uno segura o golpe inteiro
+            return True
         if self.vulnerability != 1.0:
             amount = max(1, round(amount * self.vulnerability))
         if self.exo_timer > 0:
@@ -956,6 +1011,23 @@ class Fighter(Entity):
             match.hit_feedback(self, amount)
             match.assets.play("hit", 0.4)
         return True
+
+    def _uno_hit(self, match):
+        before = uno_pieces(self.uno_hits)
+        self.uno_hits -= 1
+        self.hit_flash = 3
+        if match is None:
+            return
+        after = uno_pieces(self.uno_hits)
+        match.burst(self.x, self.y - 16, UNO_WHITE, 6, speed=3)
+        match.assets.play("hit", 0.3)
+        if after < before:
+            for _ in range(10):                                  # a peça caindo, em pedacinhos
+                match.particles.append(Particle(self.x + random.uniform(-10, 10), self.y - 22,
+                                                random.uniform(-2.2, 2.2), random.uniform(-3.4, -1.2), UNO_WHITE,
+                                                random.randint(18, 30), 3, gravity=0.25))
+            text = "PERDA TOTAL" if after == 0 else f"CAIU O {UNO_PIECES[4 - before]}"
+            match.popup(self.x, self.y - 52 * self.draw_scale, text, theme.BLOOD if after == 0 else theme.BONE)
 
     # ── simulação ────────────────────────────
     def _move(self, match, dx, dy):
@@ -1345,6 +1417,8 @@ class Fighter(Entity):
         surf.blit(img, rect)
         if self.uniform and self.cloak < 0.5 and not self.spin:
             draw_uniform(surf, rect, direction)
+        if self.uno_hits > 0 and self.cloak < 0.5 and not self.spin:
+            draw_uno(surf, rect, direction, self.uno_hits)
         if riding:                                     # a moto na frente das pernas (ele vai sentado)
             if dodging_moto:
                 t = 1 - self.dash_timer / max(1, self.dash_len)

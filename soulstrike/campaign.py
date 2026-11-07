@@ -345,6 +345,8 @@ class CampaignRun:
         self.curse = None                                 # desafio da fase (maldição do altar): market.CURSES
         self.start_chapter = 1                            # 2: começou direto no capítulo 2 (sem recorde de tempo)
         self.rack = []                                    # armário do acampamento: armas guardadas (armario.token_of)
+        self.armor = {}                                   # armadura de Uno (capítulo 1): slot -> golpes que segura
+        self.vehicle = "city"                             # com o que o grupo sai da Casa (garagem)
         self.rush = bool(getattr(session, "rush", False))   # Reunião dos Corrompidos (só os chefes)
         self._snapshot = None
 
@@ -425,7 +427,7 @@ class CampaignRun:
         return {k: copy.deepcopy(getattr(self, k))
                 for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames",
                           "stage", "chest_open", "relics", "held", "loadouts", "souls", "forge", "rerolls",
-                          "fused_phase", "curse", "start_chapter", "rack")}
+                          "fused_phase", "curse", "start_chapter", "rack", "armor")}
 
     # ── almas ────────────────────────────────
     def wallet(self, slot):
@@ -467,6 +469,8 @@ class CampaignRun:
             fighter.give_relic(relic)
         fighter.weapon_index = min(self.held.get(fighter.slot, 0), len(fighter.weapons) - 1)
         fighter.hp = max(1, round(fighter.max_hp * self.hp_ratio.get(fighter.slot, 1.0)))
+        # armadura de Uno: só vale no capítulo 1 (ficou na floresta)
+        fighter.uno_hits = self.armor.get(fighter.slot, 0) if self.chapter == 1 else 0
         # energia: a barra começa cheia em cada etapa (enche no acampamento, antes de cada masmorra)
         fighter.energy_max = energia.ENERGY_MAX + fighter.energy_bonus
         fighter.energy = fighter.energy_max
@@ -480,6 +484,10 @@ class CampaignRun:
             self.held[f.slot] = f.weapon_index
             self.relics[f.slot] = relic_key(f.relic)
             self.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
+            if f.uno_hits > 0 and self.chapter == 1:
+                self.armor[f.slot] = f.uno_hits
+            else:
+                self.armor.pop(f.slot, None)
         self.frames += match.frame
 
     def finish_phase(self, match):

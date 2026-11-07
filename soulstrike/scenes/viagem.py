@@ -34,10 +34,22 @@ def _mix(a, b, t):
     return tuple(round(x + (y - x) * t) for x, y in zip(a, b))
 
 
-def _car_image():
+# vidro de cada carro na imagem de 200 x 80 (antes de ampliar) e onde fica a coluna do meio
+GLASS = {"city": ((62, 22, 82, 16), 99), "uno": ((46, 18, 80, 20), 85)}
+BREAK_LINE = {"uno": "O UNO PERDEU A PORTA. DAQUI É A PÉ.",
+              "moto": "O CITY QUEBROU. A MOTO ESPEROU."}
+
+
+def _car_image(vehicle="city"):
     surf = pygame.Surface((200, 80), pygame.SRCALPHA)
-    casa_art.city_car(surf, 100, 74)
+    (casa_art.uno_car if vehicle == "uno" else casa_art.city_car)(surf, 100, 74)
     return pygame.transform.scale(surf, (200 * CAR_SCALE, 80 * CAR_SCALE))
+
+
+def _moto_image():
+    surf = pygame.Surface((160, 100), pygame.SRCALPHA)
+    casa_art.moto(surf, 80, 92)
+    return pygame.transform.scale(surf, (160 * CAR_SCALE, 100 * CAR_SCALE))
 
 
 def _head(sprites, tick):
@@ -53,13 +65,19 @@ class CarTripScene(Scene):
     phase = "story"
     music = None
 
-    def __init__(self, game, sprites, chapter, then):
+    def __init__(self, game, sprites, chapter, then, vehicle="city"):
         super().__init__(game)
+        self.vehicle = vehicle if vehicle in ("city", "uno", "moto") else "city"
         self.heads = [_head(s, 0) for s in sprites[:4]]
+        self.rider = None
+        if self.vehicle == "moto" and self.heads:
+            self.rider = self.heads.pop(0)            # o P1 vai de moto na frente, empinando
         self.chapter = chapter if chapter in CHAPTERS else 1
         self.then = then
         self.done = False
-        self.car = _car_image()
+        self.car = _car_image("uno" if self.vehicle == "uno" else "city")
+        self.moto = _moto_image() if self.vehicle == "moto" else None
+        self.door = None                              # a porta do Uno caindo: [x, y, vy, giro]
         self.smoke = []                       # [x, y, raio, vida]
         self.scroll = 0.0
         rng = random.Random(self.chapter)
@@ -82,7 +100,8 @@ class CarTripScene(Scene):
     @property
     def car_x(self):
         W = config.SCREEN_W
-        start, mid = -self.car.get_width(), W // 2 - self.car.get_width() // 2
+        width = self.car.get_width() + (10 + self.moto.get_width() if self.moto is not None else 0)
+        start, mid = -width, W // 2 - width // 2
         if self.ticks < DRIVE_IN:
             k = self.ticks / DRIVE_IN
             return start + (mid - start) * (1 - (1 - k) ** 2)
@@ -110,6 +129,14 @@ class CarTripScene(Scene):
             # fumaça saindo do capô (frente do carro, à direita)
             self.smoke.append([cx + self.car.get_width() - 40 + random.uniform(-10, 10),
                                ground - 60 * CAR_SCALE // 2 + random.uniform(-6, 6), random.uniform(6, 12), 60])
+        if self.ticks == PUFF and self.vehicle == "uno":
+            self.door = [cx + 150, ground - 70, -5.0, 0.0]
+        if self.door is not None:
+            self.door[2] += 0.5
+            self.door[1] = min(ground + 30, self.door[1] + self.door[2])
+            if self.door[1] >= ground + 30:
+                self.door[2] = -self.door[2] * 0.4 if abs(self.door[2]) > 1 else 0
+            self.door[3] = min(90.0, self.door[3] + 4)
         if self.ticks == PUFF:
             self.sfx("explosion" if "explosion" in self.assets.sounds else "hit", 0.5)
             for _ in range(18):
@@ -168,6 +195,15 @@ class CarTripScene(Scene):
         cx, cy = round(self.car_x), gy + 46 - self.car.get_height() + shake
         screen.blit(self.car, (cx, cy))
         self._heads(screen, cx, cy)
+        if self.moto is not None:
+            self._moto(screen, cx + self.car.get_width() + 10, gy + 46)
+        if self.door is not None:
+            door = pygame.Surface((40, 52), pygame.SRCALPHA)
+            door.fill((244, 244, 240))
+            door.fill((90, 130, 170), (4, 4, 32, 20))
+            door.fill((190, 192, 198), (24, 30, 8, 3))
+            door = pygame.transform.rotate(door, self.door[3])
+            screen.blit(door, door.get_rect(center=(round(self.door[0]), round(self.door[1]))))
         self._wheels(screen, cx, cy)
         for x, y, r, life in self.smoke:
             a = max(0, min(200, life * 4))
@@ -180,14 +216,15 @@ class CarTripScene(Scene):
         if PUFF <= self.ticks < PUFF + 50:
             self.ui.text(screen, "PUFF!", theme.XL, theme.BONE, (cx + self.car.get_width() - 60, cy - 30))
         if self.ticks >= PUFF + 20:
-            self.ui.text(screen, line, theme.M, theme.BRASS, (W // 2, 70))
+            self.ui.text(screen, BREAK_LINE.get(self.vehicle, line), theme.M, theme.BRASS, (W // 2, 70))
         if (self.ticks // 30) % 2:
             self.ui.text(screen, "ESQUIVA: PULAR", theme.XS, theme.LINE, (W - 90, H - 20))
 
     def _heads(self, screen, cx, cy):
         """Os quatro nas janelas: cada cabeça cortada no vidro, balançando com a estrada."""
         s = CAR_SCALE
-        glass = pygame.Rect(cx + 62 * s, cy + 22 * s, 82 * s, 16 * s)       # as duas janelas juntas
+        (gx, gy, gw, gh), pillar = GLASS["uno" if self.vehicle == "uno" else "city"]
+        glass = pygame.Rect(cx + gx * s, cy + gy * s, gw * s, gh * s)        # as duas janelas juntas
         bob = (self.ticks // 8) % 2 if self.speed > 0 else 0
         old = screen.get_clip()
         screen.set_clip(glass)
@@ -197,7 +234,20 @@ class CarTripScene(Scene):
             y = glass.bottom + 4 + (bob if i % 2 else -bob)
             screen.blit(head, head.get_rect(midbottom=(round(x), y)))
         screen.set_clip(old)
-        pygame.draw.rect(screen, (62, 65, 72), (cx + 99 * s, glass.y, 3 * s, glass.h))   # a coluna do meio
+        pillar_color = (244, 244, 240) if self.vehicle == "uno" else (62, 65, 72)
+        pygame.draw.rect(screen, pillar_color, (cx + pillar * s, glass.y, 3 * s, glass.h))   # a coluna do meio
+
+    def _moto(self, screen, x, ground):
+        """A moto na frente do carro, com o P1 e empinando enquanto o carro anda."""
+        wheelie = 0 if self.speed <= 0 else 12 + 6 * math.sin(self.ticks * 0.15)
+        bike = self.moto
+        if self.rider is not None:                     # o P1 sentado no banco (gira junto quando empina)
+            bike = self.moto.copy()
+            head = pygame.transform.scale(self.rider, (self.rider.get_width() * 2, self.rider.get_height() * 2))
+            bike.blit(head, head.get_rect(midbottom=(132, 104)))
+        img = pygame.transform.rotate(bike, wheelie)
+        rect = img.get_rect(midbottom=(x + self.moto.get_width() // 2, ground + 4))
+        screen.blit(img, rect)
 
     def _wheels(self, screen, cx, cy):
         s = CAR_SCALE

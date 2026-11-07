@@ -12,6 +12,19 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.27.0": [
+        {"title": "A GARAGEM ABRIU", "scene": "casa", "lines": [
+            "A garagem da Casa agora abre desde o começo. ATACAR na porta escolhe com o que a turma sai.",
+            "City do João sempre. Uno branco depois do capítulo 1. Moto do Aryel depois do capítulo 2.",
+            "O Uno perde a porta no caminho. De moto, o P1 vai na frente empinando.",
+            "Lá dentro ficam os troféus de cada dificuldade e quantos corrompidos já foram liberados.",
+        ]},
+        {"title": "ARMADURA DE UNO", "scene": "casa", "lines": [
+            "No capítulo 1, a armadura de Uno do canto do Cauanzera dá para vestir. Só um jogador veste.",
+            "Ela segura 8 golpes inteiros. A cada 2, cai uma peça: retrovisor, porta, capô e para-choque.",
+            "Quem veste anda um pouco mais devagar. No capítulo 2 ela fica para trás: PERDA TOTAL.",
+        ]},
+    ],
     "1.26.0": [
         {"title": "TODOS NO CITY", "scene": "casa", "lines": [
             "A saída da Casa agora é o City do João, estacionado no quintal.",

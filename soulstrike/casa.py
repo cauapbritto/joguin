@@ -15,6 +15,7 @@ from . import computador, config, crt, progress, theme
 from .arena import MAPS_BY_KEY
 from .campaign import TILE_PX, CoopMatch, Passage, _spread
 from .entities import Entity, Particle, Wall
+from .fighter import UNO_HITS
 from .lobbies import CASA_SPLIT, CASA_TOP
 from .matches import Result
 
@@ -104,9 +105,19 @@ CORROMPIDOS = (("aryel_corrompido", 1, 44 * T + 20, 6 * T + 30), ("borba_corromp
 DOORS = (
     ("sotao", "SÓTÃO", "ZERE O CAPÍTULO 1 PARA ABRIR"),
     ("oficina", "OFICINA", "ZERE O CAPÍTULO 2 PARA ABRIR"),
-    ("garagem", "GARAGEM", "ZERE O CAPÍTULO 4 PARA ABRIR"),
+    ("garagem", "GARAGEM", ""),                    # sempre aberta: é onde se escolhe o carro
     ("porao", "PORÃO", "ZERE A CAMPANHA PARA ABRIR"),
 )
+
+# garagem: com o que o grupo sai da Casa (chave, nome, capítulo que precisa zerar para liberar)
+VEHICLES = (("city", "CITY DO JOÃO", 0), ("uno", "UNO BRANCO", 1), ("moto", "MOTO DO ARYEL", 2))
+UNO_STAND = (9 * T + 10, OY + 6 * T)        # o suporte da armadura de Uno no canto do Cauanzera
+
+
+def vehicle_ready(key):
+    chapter = next(c for k, _, c in VEHICLES if k == key)
+    return chapter == 0 or computador.freed() or progress.chapter_cleared(chapter)
+
 
 FREE_FRAMES = 110          # tela branca do LIBERANDO... antes da casa voltar
 GRAU_FRAMES = 100          # moto do Aryel empinada
@@ -132,7 +143,7 @@ def door_open(key):
     if key == "oficina":
         return progress.chapter_cleared(2)
     if key == "garagem":
-        return progress.chapter_cleared(progress.LAST_CHAPTER)
+        return True
     if key == "porao":
         return int(progress.load().get("vezes_zerada", 0) or 0) > 0
     return False
@@ -526,6 +537,85 @@ class BookMenu:
                 shadow=False)
 
 
+class GarageMenu:
+    """A garagem aberta: escolher com o que o grupo sai (City, Uno ou moto), os troféus da campanha e
+    os corrompidos liberados. Analógico escolhe, ATACAR troca de carro, ESQUIVA fecha."""
+
+    def __init__(self, match, fighter):
+        self.match = match
+        self.fighter = fighter
+        self.index = next(i for i, v in enumerate(VEHICLES) if v[0] == match.run.vehicle)
+        self.age = 0
+        self._last = 0
+
+    def handle(self, inp):
+        self.age += 1
+        if self.age <= 1:
+            return True                         # o ATACAR que abriu não escolhe
+        if any(inp.pressed(a) for a in ("dodge", "special", "cancel")):
+            self.match.assets.play("cancel", 0.3)
+            return False
+        _, y = inp.axis()
+        sy = 1 if y > 0.5 else -1 if y < -0.5 else 0
+        if sy and sy != self._last:
+            self.index = (self.index + sy) % len(VEHICLES)
+            self.match.assets.play("click", 0.25)
+        self._last = sy
+        if inp.pressed("attack") or inp.pressed("confirm"):
+            key = VEHICLES[self.index][0]
+            if vehicle_ready(key):
+                self.match.choose_vehicle(key)
+            else:
+                self.match.assets.play("cancel", 0.3)
+        return True
+
+    def pick(self, item):
+        return False
+
+    def snapshot(self):
+        return None
+
+    def draw(self, screen, ui, anchor):
+        w, h = 360, 236
+        x = max(8, min(config.SCREEN_W - w - 8, round(anchor[0]) - w // 2))
+        y = max(56, min(config.SCREEN_H - h - 70, round(anchor[1]) - h - 70))
+        rect = pygame.Rect(x, y, w, h)
+        pygame.draw.rect(screen, theme.SHADOW, rect.move(3, 3))
+        pygame.draw.rect(screen, (34, 32, 40), rect)
+        pygame.draw.rect(screen, (120, 116, 130), rect, 2)
+        ui.text(screen, "GARAGEM", theme.S, theme.BRASS, (rect.centerx, y + 18))
+        ui.text(screen, "COM O QUE A TURMA SAI?", theme.XS, theme.BONE, (rect.centerx, y + 38))
+        chosen = self.match.run.vehicle
+        for i, (key, name, chapter) in enumerate(VEHICLES):
+            row = pygame.Rect(x + 14, y + 52 + i * 26, w - 28, 22)
+            ready = vehicle_ready(key)
+            if i == self.index:
+                pygame.draw.rect(screen, (70, 60, 40), row)
+                pygame.draw.rect(screen, theme.BRASS, row, 1)
+            color = theme.BONE if ready else (110, 108, 120)
+            ui.text(screen, name, theme.XS, color, (row.x + 10, row.centery), anchor="midleft")
+            state = ("ESCOLHIDO" if key == chosen else "LIBERADO") if ready else f"ZERE O CAPÍTULO {chapter}"
+            ui.text(screen, state, theme.XS, theme.MOSS if key == chosen else color,
+                    (row.right - 10, row.centery), anchor="midright")
+        # troféus: os selos de cada dificuldade e o melhor tempo
+        from .ai import CAMPAIGN_ORDER
+        from .scenes.campaign import draw_seal
+        ty = y + 146
+        ui.text(screen, "TROFÉUS", theme.XS, theme.BRASS, (rect.centerx, ty))
+        earned = progress.seals()
+        n = len(CAMPAIGN_ORDER)
+        for i, key in enumerate(CAMPAIGN_ORDER):
+            draw_seal(screen, ui, (rect.centerx - (n - 1) * 30 + i * 60, ty + 30), key, key in earned, size=18)
+        best = [t for t in (progress.best_time(k) for k in CAMPAIGN_ORDER) if t is not None]
+        freed = sum(1 for _, ch, _, _ in CORROMPIDOS if progress.chapter_cleared(ch))
+        info = f"CORROMPIDOS LIBERADOS: {freed}/{len(CORROMPIDOS)}"
+        if best:
+            m = int(min(best))
+            info += f" · MELHOR TEMPO {m // 60}:{m % 60:02d}"
+        ui.text(screen, info, theme.XS, (190, 186, 200), (rect.centerx, ty + 62))
+        ui.text(screen, "ATACAR: ESCOLHER · ESQUIVA: FECHAR", theme.XS, (130, 126, 140), (rect.centerx, rect.bottom - 10))
+
+
 # ─────────────────────────────────────────────
 #  A partida da casa
 # ─────────────────────────────────────────────
@@ -601,7 +691,10 @@ class HubMatch(CoopMatch):
         put(art.pc_desk, 4 * T, OY + 2 * T, foot=((0, 20, 140, 18), (52, 66, 24, 16)))
         self.computers.append(("pc", pygame.Rect(4 * T, OY + 2 * T + 20, 140, 18), (4 * T + 70, OY + 2 * T - 40)))
         self.book = put(art.lectern_book, 2 * T + 10, OY + 5 * T + 20, foot=((-14, 30, 28, 12),))
-        put(art.uno_armor, 9 * T + 10, OY + 6 * T, foot=((-30, -10, 60, 14),))
+        self.uno_stand = put(art.uno_stand if self.run.armor else art.uno_armor, *UNO_STAND,
+                             foot=((-30, -10, 60, 14),))
+        # a armadura de Uno ainda no suporte, e só vale no capítulo 1 (depois é enfeite)
+        self.armor_free = not self.run.armor and self.run.chapter == 1
         put(art.shelf, 9 * T + 10, OY + T - 20, 70, foot=((0, 50, 70, 20),))
         # canto do Aryel (alto à direita): retrato, pôster, moto, capacetes e a roleta
         put(art.frame_portrait, 44 * T, OY + T - 18, "aryel", flat=True)
@@ -643,7 +736,9 @@ class HubMatch(CoopMatch):
         put(art.sign, 7 * T + 20, QY + 7 * T, "HORTA", foot=((-4, 12, 8, 10),))
         put(art.watering_can, 11 * T, QY + 7 * T)
         self._door("garagem", art.locked_door, 39 * T, QY + 5 * T - 20, w=100, inside=art.inside_garagem)
-        put(art.city_car, *CITY_AT, foot=((-86, -24, 172, 26),))
+        self.parked = put(art.city_car, *CITY_AT, foot=((-86, -24, 172, 26),))
+        self.parked_moto = None
+        self._park(self.run.vehicle)
         self._door("porao", art.cellar_door, 14 * T, QY + 5 * T)
         for i, key in enumerate(CRAQUES):
             self._hero(key, 34 * T + 20 + i * 80, QY + 2 * T + 20)
@@ -676,10 +771,52 @@ class HubMatch(CoopMatch):
     # ── consultas ────────────────────────────
     @property
     def objective_text(self):
-        return "CASA DA TURMA · TODOS NO CITY DO QUINTAL PARA A AVENTURA"
+        return f"CASA DA TURMA · TODOS NO {self.car_name} DO QUINTAL PARA A AVENTURA"
+
+    @property
+    def car_name(self):
+        return "UNO" if self.run.vehicle == "uno" else "CITY"
 
     def objective(self):
         return self.exit_rect.centerx, self.exit_rect.y
+
+    def _park(self, key):
+        """O carro escolhido na garagem fica estacionado no quintal (a moto encosta do lado do City)."""
+        self.parked.baked = _bake(art.uno_car if key == "uno" else art.city_car)
+        if key == "moto" and self.parked_moto is None:
+            self.parked_moto = Decor(CITY_AT[0] + 150, CITY_AT[1] + 6, _bake(art.moto))
+            self.props.append(self.parked_moto)
+        elif key != "moto" and self.parked_moto is not None:
+            self.props.remove(self.parked_moto)
+            self.parked_moto = None
+
+    def choose_vehicle(self, key):
+        if self.run.vehicle == key:
+            return
+        self.run.vehicle = key
+        self._park(key)
+        name = next(n for k, n, _ in VEHICLES if k == key)
+        self.popup(CITY_AT[0], CITY_AT[1] - 90, f"{name} NO QUINTAL", theme.BRASS)
+        self.assets.play("confirm", 0.45)
+
+    def garage_near(self, f):
+        if not f.alive_in_match:
+            return False
+        _, _, (x, y), _ = next(d for d in self.doors if d[0] == "garagem")
+        return math.hypot(f.x - x, f.y - y) < DOOR_REACH
+
+    def armor_near(self, f):
+        x, y = UNO_STAND
+        return self.armor_free and _near_rect(f, pygame.Rect(x - 30, y - 100, 60, 100))
+
+    def wear_armor(self, f):
+        self.armor_free = False
+        f.uno_hits = UNO_HITS
+        self.run.armor[f.slot] = UNO_HITS
+        self.uno_stand.baked = _bake(art.uno_stand)
+        self.burst(f.x, f.y - 20, (240, 240, 236), 18, speed=3)
+        self.popup(f.x, f.y - 60, "ARMADURA DE UNO!", theme.BRASS)
+        self.assets.play("confirm", 0.5)
 
     def speaker_near(self, f):
         """Quem da vitrine ``f`` pode chamar para conversar: o mais perto, e só se não tem outra
@@ -690,7 +827,7 @@ class HubMatch(CoopMatch):
         return min(near, key=lambda s: math.hypot(f.x - s.x, f.y - s.y)) if near else None
 
     def _usable_near(self, f):
-        return (self.book_near(f) or self.computer_near(f) is not None
+        return (self.book_near(f) or self.computer_near(f) is not None or self.armor_near(f) or self.garage_near(f)
                 or any(_near_rect(f, t.rect) for t in (self.moto, self.roulette, self.bakery))
                 or any(b.can_water(f) for b in self.beds))
 
@@ -754,6 +891,13 @@ class HubMatch(CoopMatch):
             self.menus[f] = BookMenu(self, f, next_verse())
             self.assets.play("click", 0.45)
             return True
+        if self.armor_near(f):
+            self.wear_armor(f)
+            return True
+        if self.garage_near(f):
+            self.menus[f] = GarageMenu(self, f)
+            self.assets.play("select", 0.45)
+            return True
         spot = self.computer_near(f)
         if spot is not None:
             kind, _, anchor = spot
@@ -788,7 +932,7 @@ class HubMatch(CoopMatch):
         if self.reload:                          # LIBERAR TUDO: a casa volta com tudo aberto
             return hub_scene(self.game, self.run, story=self.story)
         return CarTripScene(self.game, [p.sprites for p in self.players], self.run.chapter,
-                            lambda: start_phase(self.game, self.run, story=self.story))
+                            lambda: start_phase(self.game, self.run, story=self.story), vehicle=self.run.vehicle)
 
     def restart_scene(self):
         from .scenes.campaign import hub_scene
@@ -816,6 +960,13 @@ class HubMatch(CoopMatch):
             if not busy and any(_near_rect(p, thing.rect) for p in free):
                 sx, sy = cam.to_screen(thing.rect.centerx, thing.rect.y - (100 if thing is self.bakery else 50))
                 ui.text(screen, text, theme.XS, blink, (round(sx), round(sy)))
+        if any(self.armor_near(p) for p in free):
+            sx, sy = cam.to_screen(UNO_STAND[0], UNO_STAND[1] - 120)
+            ui.text(screen, "ATACAR: VESTIR A ARMADURA", theme.XS, blink, (round(sx), round(sy)))
+        if any(self.garage_near(p) for p in free):
+            _, _, (gx, gy), _ = next(d for d in self.doors if d[0] == "garagem")
+            sx, sy = cam.to_screen(gx, gy - 96)
+            ui.text(screen, "ATACAR: ABRIR A GARAGEM", theme.XS, blink, (round(sx), round(sy)))
         for b in self.beds:
             if any(b.can_water(p) for p in free) and b.watered <= 0:
                 sx, sy = cam.to_screen(b.rect.centerx, b.rect.y - 14)
@@ -836,7 +987,7 @@ class HubMatch(CoopMatch):
             crt.panel(screen, ("livro", f.slot), lambda s, menu=menu, at=at: menu.draw(s, ui, at))
         top = self.door_area.y
         sx, sy = cam.to_screen(self.exit_rect.centerx, top)
-        ui.text(screen, "TODOS NO CITY PARA A AVENTURA", theme.XS, theme.BRASS, (round(sx), round(sy) - 14))
+        ui.text(screen, f"TODOS NO {self.car_name} PARA A AVENTURA", theme.XS, theme.BRASS, (round(sx), round(sy) - 14))
         self.draw_passage(screen, ui, self.passage, self.door_area, (self.exit_rect.centerx, top - 4))
 
     def draw(self, screen, ui):
