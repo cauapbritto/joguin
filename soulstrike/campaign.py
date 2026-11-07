@@ -1659,7 +1659,11 @@ class CampaignMatch(CoopMatch):
         self.drop_weapon(e, weapon, at=(e.x + random.uniform(-30, 30), e.y + 20), start=(e.x, e.y - 20))
 
     def last_breath(self, fighter):
-        """Jogando sozinho não tem quem levante: o primeiro golpe fatal da masmorra deixa com 1 de vida."""
+        """Jogando sozinho não tem quem levante: o primeiro golpe fatal da masmorra deixa com 1 de vida.
+        Também segura o chefe que só cai de um jeito (o Cauanzera só cai tirando da tomada)."""
+        brain = self.controllers.get(fighter)
+        if brain is not None and getattr(brain, "unkillable", False):
+            return True
         if self.run.players != 1 or self.breath_used or fighter not in self.players:
             return False
         self.breath_used = True
