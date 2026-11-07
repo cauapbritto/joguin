@@ -769,6 +769,53 @@ class CharSelectScene(_MenuScene):
                 screen.blit(digit, digit.get_rect(center=(pip.centerx + 1, pip.centery)))
                 x += size + gap
 
+    MAX_SHRINK = 14              # quanto o palco do boneco pode encolher para o texto caber
+    WEAPON_LINE = 290            # altura (dentro do cartão) da linha da ARMA nos duelos
+
+    def _card_blocks(self, stats):
+        """Os textos do cartão abaixo das barras: [(título, cor, descrição)]."""
+        if self.soccer:
+            basket = self.game.session.basket
+            power = (BASKET_POWERS if basket else SOCCER_POWERS)[stats.key]
+            blocks = [("SUPER: " + power.name, theme.BRASS, power.description)]
+            if basket and power.passive:
+                blocks.append(("SEMPRE:", theme.MOSS, power.passive))
+            elif not basket and stats.soccer_only:
+                # craque: além do SUPER, uma habilidade que vale o jogo todo
+                blocks.append(("SEMPRE: " + stats.ability_name.upper(), theme.MOSS, stats.ability_desc))
+            return blocks
+        return [(stats.ability_name.upper(), theme.BRASS, stats.ability_desc)]
+
+    def _blocks_height(self, blocks, width, line_h, sep):
+        h = 0
+        for i, (_, _, text) in enumerate(blocks):
+            h += (sep if i else 0) + len(self.ui.wrap(text, theme.XS, width)) * line_h
+        return h
+
+    def _card_title(self, title, width):
+        """Título do bloco que cabe na largura: em cartão estreito o "SUPER: " sai e fica só o nome."""
+        tw = self.assets.text_width
+        if tw(title, theme.XS) > width and title.startswith("SUPER: "):
+            title = title[len("SUPER: "):]
+        while tw(title, theme.XS) > width and len(title) > 4:
+            title = title[:-4].rstrip() + "..."
+        return title
+
+    def _draw_blocks(self, screen, blocks, x, y, width, limit, line_h, sep):
+        """Desenha título + linhas de cada bloco sem passar de `limit` (corta com reticências se faltar)."""
+        ui = self.ui
+        for i, (title, color, text) in enumerate(blocks):
+            if i:
+                y += sep
+            if y > limit:
+                break
+            ui.text(screen, self._card_title(title, width), theme.XS, color, (x, y), anchor="midleft")
+            lines = ui.wrap(text, theme.XS, width)
+            room = max(1, (limit - y) // line_h)
+            for line in ui.clamp_lines(lines, theme.XS, width, room):
+                y += line_h
+                ui.text(screen, line, theme.XS, theme.MUTED, (x, y), anchor="midleft", shadow=False)
+
     def _draw_card(self, screen, card, rect):
         setup = card.setup
         stats = CHARACTERS[setup.char]
@@ -789,8 +836,20 @@ class CharSelectScene(_MenuScene):
             source = self.game.device_of(setup.slot)
         ui.text(screen, source, theme.XS, mix(setup.color, theme.BONE, 0.5), (head.right - 8, head.centery), anchor="midright")
 
+        # o texto do cartão é medido antes: se não couber, o palco do boneco encolhe um pouco
+        blocks, wrap_w = self._card_blocks(stats), rect.w - 26
+        bars_n = 1 if self.soccer else 3
+        limit = rect.bottom - 36 if self.soccer else rect.y + self.WEAPON_LINE - 18
+        # (entrelinha, espaço entre blocos, altura da barra, nome→barras): o normal e o apertado
+        for line_h, sep, bar_h, name_gap in ((11, 15, 14, 22), (10, 13, 12, 20)):
+            text_top = head.bottom + 138 + 14 + name_gap + bars_n * bar_h + 4
+            deficit = text_top + self._blocks_height(blocks, wrap_w, line_h, sep) - limit
+            if deficit <= self.MAX_SHRINK:
+                break
+        shrink = max(0, min(self.MAX_SHRINK, deficit))
+
         # sprite andando no lugar
-        stage = pygame.Rect(rect.x + 2, head.bottom, rect.w - 4, 138)
+        stage = pygame.Rect(rect.x + 2, head.bottom, rect.w - 4, 138 - shrink)
         screen.blit(_card_stage(stage.size, setup.color), stage)
         sprites = self.assets.sprites[stats.key]
         if self.soccer:                                  # no futebol o card já mostra o uniforme do time
@@ -800,7 +859,7 @@ class CharSelectScene(_MenuScene):
         else:
             img = sprites.frame("frente", self.ticks // 5)
         img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
-        ground = stage.bottom - 10
+        ground = stage.bottom - max(4, 10 - shrink)
         pygame.draw.ellipse(screen, theme.SHADOW, (stage.centerx - 30, ground - 6, 60, 12))
         screen.blit(img, img.get_rect(midbottom=(stage.centerx, ground + 2)))
         if self.teams:
@@ -819,8 +878,9 @@ class CharSelectScene(_MenuScene):
             ui.arrow(screen, (stage.right - 16 + nudge, stage.centery), "right", 7, setup.color)
 
         y = stage.bottom + 14
-        ui.text(screen, stats.name.upper(), theme.S, theme.BONE, (rect.centerx, y))
-        y += 22
+        name = stats.name.upper()
+        ui.text(screen, name, ui.fit_size(name, rect.w - 16, (theme.S, theme.XS)), theme.BONE, (rect.centerx, y))
+        y += name_gap
         bars = [("VELOCIDADE", stats.speed / MAX_SPEED)]
         if not self.soccer:
             dmg = max(w.damage for w in stats.weapons)
@@ -829,47 +889,39 @@ class CharSelectScene(_MenuScene):
         for label, ratio in bars:
             ui.text(screen, label, theme.XS, theme.MUTED, (rect.x + 14, y), anchor="midleft", shadow=False)
             ui.bar(screen, (rect.x + 14 + label_w, y - 4, rect.w - 28 - label_w, 8), ratio, setup.color, ticks=5)
-            y += 14
-        if self.soccer:
-            basket = self.game.session.basket
-            power = (BASKET_POWERS if basket else SOCCER_POWERS)[stats.key]
-            extra = power.passive if basket else (stats.ability_desc if stats.soccer_only else "")
-            y += 4
-            ui.text(screen, "SUPER: " + power.name, theme.XS, theme.BRASS, (rect.x + 14, y), anchor="midleft")
-            for line in ui.wrap(power.description, theme.XS, rect.w - 28)[:2 if extra else 3]:
-                y += 12
-                ui.text(screen, line, theme.XS, theme.MUTED, (rect.x + 14, y), anchor="midleft", shadow=False)
-            if basket and extra:
-                y += 15
-                ui.text(screen, "SEMPRE:", theme.XS, theme.MOSS, (rect.x + 14, y), anchor="midleft")
-                for line in ui.wrap(extra, theme.XS, rect.w - 28)[:2]:
-                    y += 12
-                    ui.text(screen, line, theme.XS, theme.MUTED, (rect.x + 14, y), anchor="midleft", shadow=False)
-            elif stats.soccer_only:
-                # craque: além do SUPER, uma habilidade que vale o jogo todo
-                y += 15
-                ui.text(screen, "SEMPRE: " + stats.ability_name.upper(), theme.XS, theme.MOSS,
-                        (rect.x + 14, y), anchor="midleft")
-                for line in ui.wrap(stats.ability_desc, theme.XS, rect.w - 28)[:2]:
-                    y += 12
-                    ui.text(screen, line, theme.XS, theme.MUTED, (rect.x + 14, y), anchor="midleft", shadow=False)
-        else:
-            y += 4
-            ui.text(screen, stats.ability_name.upper(), theme.XS, theme.BRASS, (rect.x + 14, y), anchor="midleft")
-            for line in ui.wrap(stats.ability_desc, theme.XS, rect.w - 28)[:2]:
-                y += 12
-                ui.text(screen, line, theme.XS, theme.MUTED, (rect.x + 14, y), anchor="midleft", shadow=False)
-            y = rect.y + 284
+            y += bar_h
+        self._draw_blocks(screen, blocks, rect.x + 14, y + 4, wrap_w, limit, line_h, sep)
+        if not self.soccer:
+            y = rect.y + self.WEAPON_LINE
             screen.fill(theme.LINE, (rect.x + 14, y - 12, rect.w - 28, 1))
             weapon = stats.weapons[setup.weapon]
             if weapon.is_melee:
                 kind = "CORPO" if rect.w < 260 else "CORPO A CORPO"     # cartão estreito: rótulo curto
             else:
                 kind = f"{weapon.mag} TIROS" if weapon.mag else "À DISTÂNCIA"
-            ui.text(screen, "ARMA", theme.XS, theme.MUTED, (rect.x + 14, y), anchor="midleft", shadow=False)
-            name_rect = ui.text(screen, weapon.name.upper(), theme.XS, theme.BONE, (rect.x + 60, y), anchor="midleft")
-            kind_rect = ui.text(screen, kind, theme.XS, theme.FAINT, (rect.right - 14, y), anchor="midright", shadow=False)
+            # ARMA  NOME  ícone  TIPO; nome comprido em cartão estreito: some o rótulo, depois o ícone,
+            # depois o tipo encurta (nada encosta em nada)
             art = weapon_art.icon(weapon.name)
+            wname = weapon.name.upper()
+            tw = self.assets.text_width
+            label = True
+            for step in range(4):
+                if step >= 1:
+                    label = False
+                if step >= 2:
+                    art = None
+                if step >= 3 and weapon.mag:
+                    kind = f"x{weapon.mag}"
+                width = (46 if label else 0) + tw(wname, theme.XS) + tw(kind, theme.XS) + \
+                    (art.get_width() + 16 if art is not None else 10)
+                if width <= rect.w - 28:
+                    break
+            x = rect.x + 14
+            if label:
+                ui.text(screen, "ARMA", theme.XS, theme.MUTED, (x, y), anchor="midleft", shadow=False)
+                x += 46
+            name_rect = ui.text(screen, wname, theme.XS, theme.BONE, (x, y), anchor="midleft")
+            kind_rect = ui.text(screen, kind, theme.XS, theme.FAINT, (rect.right - 14, y), anchor="midright", shadow=False)
             if art is not None:
                 screen.blit(art, art.get_rect(center=((name_rect.right + kind_rect.left) // 2, y)))
 

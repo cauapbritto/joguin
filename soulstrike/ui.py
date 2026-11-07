@@ -50,10 +50,42 @@ class UI:
             lines.append(line)
         return lines
 
-    def paragraph(self, surf, text, size, color, topleft, width, spacing=None):
+    def fit_size(self, text, width, sizes=(theme.L, theme.M, theme.S, theme.XS)):
+        """O maior tamanho de fonte (da lista, do maior para o menor) em que o texto cabe na largura."""
+        for size in sizes:
+            if self.assets.text_width(text, size) <= width:
+                return size
+        return sizes[-1]
+
+    def fit_spacing(self, lines, size, spacing, height, minimum=None):
+        """Entrelinha que faz `lines` linhas caberem na altura: aperta até `minimum` (padrão: fonte + 3)."""
+        minimum = minimum or size + 3
+        if lines <= 1 or lines * spacing <= height:
+            return spacing
+        return max(minimum, min(spacing, height // lines))
+
+    def clamp_lines(self, lines, size, width, limit):
+        """Corta a lista em `limit` linhas; se sobrou texto, a última termina em reticências."""
+        if len(lines) <= limit:
+            return lines
+        if limit <= 0:
+            return []
+        last = lines[limit - 1]
+        while last and self.assets.text_width(last + "...", size) > width:
+            last = last[:-1].rstrip()
+        return lines[:limit - 1] + [last.rstrip(" ,.;:") + "..."]
+
+    def paragraph(self, surf, text, size, color, topleft, width, spacing=None, max_height=None):
+        """Texto quebrado na largura. Com `max_height` ele nunca passa da altura: primeiro aperta a
+        entrelinha e, se ainda não couber, corta com reticências."""
         x, y = topleft
         spacing = spacing or size + size // 2
-        for line in self.wrap(text, size, width):
+        lines = self.wrap(text, size, width)
+        if max_height is not None:
+            room = max_height + spacing - (size + 2)          # a última linha só ocupa a altura da fonte
+            spacing = self.fit_spacing(len(lines), size, spacing, room)
+            lines = self.clamp_lines(lines, size, width, max(1, room // spacing))
+        for line in lines:
             self.text(surf, line, size, color, (x, y), anchor="topleft", shadow=False)
             y += spacing
         return y
@@ -132,13 +164,25 @@ class UI:
         self.text(surf, label, theme.XS, color, rect.center, shadow=False)
         return rect
 
-    def hints(self, surf, items, pos, anchor="center", gap=18):
-        """Linha de dicas: [(tecla, ação), ...] desenhada como teclas + texto."""
+    def hints(self, surf, items, pos, anchor="center", gap=18, max_width=None):
+        """Linha de dicas: [(tecla, ação), ...] desenhada como teclas + texto. Se não couber na
+        largura (a tela, por padrão), aperta o espaço entre as dicas e, se precisar, vira duas linhas."""
         widths = []
         for key, action in items:
             kw = max(self.assets.text_width(key, theme.XS) + 10, 18)
             widths.append(kw + 6 + self.assets.text_width(action, theme.XS))
+        if max_width is None:
+            max_width = config.SCREEN_W - 32
         total = sum(widths) + gap * (len(items) - 1)
+        if total > max_width and len(items) > 1:
+            gap = max(8, (max_width - sum(widths)) // (len(items) - 1))
+            total = sum(widths) + gap * (len(items) - 1)
+        if total > max_width and len(items) > 1:
+            half = (len(items) + 1) // 2
+            x, y = pos
+            self.hints(surf, items[:half], (x, y - 10), anchor, gap, max_width)
+            self.hints(surf, items[half:], (x, y + 10), anchor, gap, max_width)
+            return
         x, y = pos
         if anchor == "center":
             x -= total // 2
