@@ -26,7 +26,16 @@ NEWS = {
         ]},
         {"title": "OS CHEFES FALAM", "scene": "mansao", "lines": [
             "Cada chefe solta três falas na luta: ao entrar, quando cansa e quando a vida está acabando.",
-            "O cinema ganhou a abertura e o epílogo.",
+        ]},
+        {"title": "A HISTÓRIA VIROU FILME", "scene": "casa", "lines": [
+            "Cada cena da campanha agora é animada: câmera andando, gente entrando, clarão e chuva.",
+            "As cenas passam sozinhas, com legenda. ATACAR adianta, ESC pula.",
+        ]},
+        {"title": "SALA DE CINEMA", "scene": "casa", "lines": [
+            "No CINEMA, a turma entra, senta nas poltronas e a luz apaga.",
+            "O telão vem chegando até ocupar a tela inteira, e o filme passa sozinho.",
+            "FILME COMPLETO vai da abertura ao epílogo, com a plateia reagindo e aplaudindo no fim.",
+            "Segure ESC para sair no meio.",
         ]},
     ],
     "1.28.0": [

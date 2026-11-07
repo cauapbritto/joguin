@@ -104,6 +104,7 @@ class Film:
         self.title_left = TITLE
         self.shown = 0.0
         self.done = False
+        self.hold_title = False          # a sala de cinema segura o título aceso enquanto a luz apaga
         self.rng = random.Random(key)
         self.drops = [(self.rng.randrange(config.SCREEN_W), self.rng.randrange(config.SCREEN_H),
                        self.rng.uniform(7, 12)) for _ in range(90)]
@@ -244,7 +245,7 @@ class Film:
     def _draw_title(self, screen, ui):
         W, H = screen.get_size()
         k = self.title_left
-        alpha = min(1.0, (TITLE - k) / 16, k / 16)
+        alpha = 1.0 if self.hold_title else min(1.0, (TITLE - k) / 16, k / 16)
         color = tuple(round(c * alpha) for c in theme.BRASS)
         size = ui.fit_size(self.heading, W - 120) if hasattr(ui, "fit_size") else theme.L
         ui.text(screen, self.heading, size, color, (W // 2, H // 2 - 10), shadow=False)

@@ -5,7 +5,7 @@ import unittest
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
-from apoio import game  # noqa: E402
+from apoio import FakeInput, game  # noqa: E402
 
 from soulstrike.campaign import STORY, VOICE  # noqa: E402
 from soulstrike.session import Session, SlotSetup  # noqa: E402
@@ -82,3 +82,80 @@ class HistoriaTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CinemaTest(unittest.TestCase):
+    def setUp(self):
+        from soulstrike.scenes.campaign import CinemaScene
+        self.g = game()
+        self.g.session = Session("campaign", [SlotSetup(1, char=0)])
+        self._inputs = dict(self.g.inputs)
+        self.g.inputs.update({slot: FakeInput() for slot in (1, 2, 3, 4)})     # ninguém apertando nada
+        self.scene = CinemaScene(self.g)
+
+    def tearDown(self):
+        self.g.inputs.update(self._inputs)
+
+    def test_filme_completo_vai_da_abertura_ao_epilogo(self):
+        from soulstrike.scenes.cinema_sala import FULL
+        label, keys = FULL
+        self.assertEqual(keys[0], "abertura")
+        self.assertEqual(keys[-2:], ("creditos", "epilogo"))
+        self.assertNotIn("reuniao_corrompidos", keys)
+        self.assertEqual(self.scene.items[0], FULL)
+
+    def test_sala_entra_apaga_abre_e_passa_sozinho(self):
+        s = self.scene
+        s._choose("1")                                   # capítulo 1 sozinho
+        estados, paginas = [], set()
+        for _ in range(900):
+            s.update()
+            estados.append(s.state)
+            if s.film is not None:
+                paginas.add((s.film.key, s.film.page))
+        for etapa in ("entrada", "apaga", "abre", "filme"):
+            self.assertIn(etapa, estados)
+        self.assertIn(("abertura", 1), paginas)          # passou de página sem ninguém apertar
+        s.draw(self.g.screen)
+
+    def test_plateia_reage_entre_capitulos_e_aplaude_no_fim(self):
+        s = self.scene
+        s._choose("0")                                   # filme completo
+        estados = set()
+        for _ in range(20000):
+            if s.state == "filme":
+                s.film.skip()
+            s.update()
+            estados.add(s.state)
+            if s.state == "menu":
+                break
+        self.assertIn("plateia", estados)               # fim do capítulo 1 tem reação
+        self.assertIn("aplauso", estados)
+        self.assertEqual(s.state, "menu")
+
+    def test_segurar_esc_sai(self):
+        from soulstrike.scenes.cinema_sala import HOLD_EXIT
+
+        class Segura:
+            def held(self, action):
+                return action == "pause"
+
+            def pressed(self, action):
+                return False
+        s = self.scene
+        s._choose("0")
+        for slot in (1, 2, 3, 4):
+            self.g.inputs[slot] = Segura()
+        for _ in range(HOLD_EXIT):
+            s.update()
+        self.assertEqual(s.state, "menu")
+        self.assertIsNone(s.film)
+
+    def test_planos_desenham_todas_as_historias(self):
+        from soulstrike.scenes.filme import Film
+        for key in STORY:
+            film = Film(self.g, key)
+            film.title_left = 0
+            for page in range(len(film.pages)):
+                film.page, film.age = page, 30
+                film.draw(self.g.screen, self.scene.ui)

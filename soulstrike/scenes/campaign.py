@@ -578,38 +578,6 @@ def _play_stories(game, keys, then):
     return StoryScene(game, keys[0], lambda: _play_stories(game, keys[1:], then))
 
 
-class CinemaScene(_RunMenuScene):
-    """Cinema (liberado ao zerar a campanha): escolhe uma história e assiste de novo."""
-
-    phase = "story"
-    music = "menu"
-
-    def __init__(self, game, index=0):
-        super().__init__(game)
-        self.menu = MenuList([(label, str(i)) for i, (label, _) in enumerate(CINEMA)] + [("VOLTAR", "back")],
-                             topleft=(64, 96), width=380)
-        self.menu.index = min(index, len(CINEMA))
-
-    def _choose(self, choice):
-        self.sfx("confirm")
-        index = self.menu.index
-        if choice == "back":
-            from .menus import ModeScene
-            self.game.change(ModeScene(self.game, "campanha"))
-        else:
-            keys = CINEMA[int(choice)][1]
-            self.game.change(_play_stories(self.game, keys, lambda: CinemaScene(self.game, index)))
-
-    def draw(self, screen):
-        W = config.SCREEN_W
-        self.draw_background(screen)
-        self.title(screen, "CINEMA", y=48)
-        self.menu.draw(screen, self.ui, self.ticks)
-        box = pygame.Rect(W - 420, 96, 356, 160)
-        draw_seals(self, screen, box, progress.seals(), "SELOS DE ZERADO")
-        self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "ASSISTIR")])
-
-
 # créditos do fim da campanha: (sprite, nome de verdade, personagem)
 CAST = (("cauanzera", "Cauã Pedrozo Brito", "CAUANZERA"),
         ("aryel", "Adryel Assunção Rocha", "ARYEL"),
@@ -856,3 +824,7 @@ class CampaignEndScene(_RunMenuScene):
         self._stats_panel(screen, pygame.Rect(W - 400, 300, 340, 44 + 22 * (1 + len(self.run.slots))), self.run)
         self.menu.draw(screen, self.ui, self.ticks)
         self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR")])
+
+
+# a sala de cinema mora no próprio arquivo (importada aqui para menus.py continuar achando)
+from .cinema_sala import CinemaScene  # noqa: E402,F401
