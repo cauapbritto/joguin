@@ -14,7 +14,7 @@ import random
 
 import pygame
 
-from . import config, crt, enfeites, hud, theme
+from . import config, crt, enfeites, hud, mascotes, theme
 from .armario import RACK_SIZE, Armario
 from .campaign import CampaignMatch, CoopMatch, _center, _spread
 from .data import PHASE_RELICS, RARE_WEAPONS
@@ -77,6 +77,7 @@ class PhaseMatch(CampaignMatch):
         self.arena.walls.append(self.armario.wall)
         self.props.append(self.armario)
         enfeites.furnish(self, self.layout.rows, run.phase.chapter, joke=True)
+        mascotes.join(self)                 # os bichos adotados na Casa vêm junto com os donos
         if chapter_cleared(4) and self.players:    # recompensa do capítulo 4: a IARA mascote
             from .mansao import IaraMascot
             self.add_effect(IaraMascot(self.players[0], self.assets.sprites.get("iara_nucleo")))

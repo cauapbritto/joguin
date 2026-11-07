@@ -249,6 +249,10 @@ def sofa(s, x, y, w=150, c=(70, 90, 140)):
     box(s, (236, 206, 120), x + 20, y + 10, 18, 12)              # almofadas soltas
     box(s, (250, 230, 160), x + 21, y + 10, 16, 2)
     box(s, shade(c, 60), x + w - 40, y + 10, 18, 12)
+    for k in range(0, 30, 6):                                    # manta xadrez no braço
+        box(s, (170, 50, 50), x + w - 14, y + 8 + k, 14, 4)
+        box(s, (230, 210, 180), x + w - 14, y + 12 + k, 14, 2)
+    box(s, (170, 50, 50), x + w - 12, y + 38, 10, 8)
 
 
 def shelf(s, x, y, w=80, seed=0):
@@ -331,6 +335,8 @@ def lamp(s, x, y):
 
 
 def window_wall(s, x, y, w=120):
+    """Janela com cortina (x, y = canto de cima do vidro). A luz que entra muda com a hora do dia e é
+    desenhada por cima (soulstrike/luz_casa.py)."""
     box(s, (40, 26, 16), x - 4, y - 4, w + 8, 60)
     box(s, (120, 170, 210), x, y, w, 52)
     box(s, (170, 210, 236), x, y, w, 18)
@@ -340,9 +346,8 @@ def window_wall(s, x, y, w=120):
     for cx in (x - 10, x + w - 6):                      # cortinas
         box(s, (150, 60, 60), cx, y - 6, 16, 66)
         box(s, (120, 44, 44), cx + 10, y - 6, 3, 66)
-    light = pygame.Surface((w + 60, 160), pygame.SRCALPHA)
-    pygame.draw.polygon(light, (255, 240, 200, 26), [(30, 0), (w + 30, 0), (w + 60, 160), (0, 160)])
-    s.blit(light, (x - 30, y + 56))
+    box(s, (120, 80, 50), x - 6, y + 52, w + 12, 5)               # parapeito
+    box(s, (156, 108, 66), x - 6, y + 52, w + 12, 1)
 
 
 def frame_portrait(s, x, y, key=None, covered=False):
@@ -788,17 +793,35 @@ def bakery(s, x, y):
     box(s, WOOD_D, x + 4, y + 56, 212, 4)                        # rodapé
     box(s, WOOD_L, x, y + 18, 220, 4)
     box(s, (230, 220, 190), x + 10, y + 8, 180, 22)
-    for i in range(12):                                          # pães, sonhos e pão de queijo
-        px, py = x + 16 + i * 14, y + 14 + (i % 2) * 6
-        kind = i % 3
-        if kind == 0:
-            pygame.draw.ellipse(s, (200, 140, 70), (px, py, 14, 8))
-            box(s, (230, 180, 110), px + 4, py + 2, 6, 1)
-        elif kind == 1:
-            pygame.draw.circle(s, (220, 170, 90), (px + 6, py + 4), 5)
-            box(s, (250, 250, 250), px + 3, py, 6, 2)
+    crust, crust_d, crumb = (196, 128, 60), (150, 90, 40), (236, 196, 130)
+    for i, kind in enumerate(("francês", "sonho", "baguete", "queijo", "francês", "sonho", "croissant")):
+        px, py = x + 16 + i * 25, y + 12 + (i % 2) * 5          # pães grandes na vitrine
+        if kind == "francês":
+            pygame.draw.ellipse(s, crust_d, (px, py + 2, 22, 13))
+            pygame.draw.ellipse(s, crust, (px, py, 22, 12))
+            pygame.draw.line(s, crumb, (px + 5, py + 4), (px + 16, py + 6), 2)    # a pestana aberta
+        elif kind == "sonho":
+            pygame.draw.circle(s, (210, 150, 80), (px + 10, py + 7), 8)
+            pygame.draw.circle(s, (250, 248, 240), (px + 10, py + 4), 5)          # açúcar
+            box(s, (236, 200, 120), px + 14, py + 6, 4, 3)                        # creme saindo
+        elif kind == "baguete":
+            pygame.draw.ellipse(s, crust_d, (px - 4, py + 4, 30, 10))
+            pygame.draw.ellipse(s, crust, (px - 4, py + 3, 30, 9))
+            for k in range(3):
+                pygame.draw.line(s, crumb, (px + 2 + k * 8, py + 6), (px + 6 + k * 8, py + 8), 2)
+        elif kind == "queijo":
+            for k, (qx, qy) in enumerate(((3, 8), (11, 8), (19, 8), (7, 3), (15, 3))):
+                pygame.draw.circle(s, (226, 176, 90), (px + qx, py + qy), 5)
+                box(s, (250, 220, 150), px + qx - 2, py + qy - 3, 3, 2)
         else:
-            pygame.draw.circle(s, (236, 200, 110), (px + 6, py + 4), 4)
+            pygame.draw.arc(s, crust, (px, py, 22, 16), 0.2, math.pi - 0.2, 7)
+            pygame.draw.arc(s, crust_d, (px + 2, py + 2, 18, 12), 0.4, math.pi - 0.4, 2)
+    for k in range(4):                                           # cesto de baguetes em pé
+        box(s, crust, x - 12 + k * 5, y - 18 + (k % 2) * 3, 5, 30)
+        box(s, crumb, x - 11 + k * 5, y - 14 + (k % 2) * 3, 2, 3)
+    box(s, (150, 100, 50), x - 16, y + 4, 26, 16)
+    for k in range(x - 14, x + 8, 4):
+        box(s, (120, 76, 36), k, y + 6, 2, 12)
     glass = pygame.Surface((180, 30), pygame.SRCALPHA)
     glass.fill((200, 230, 240, 90))
     s.blit(glass, (x + 10, y))
@@ -825,22 +848,45 @@ def oven(s, x, y):
 
 
 def exo_stand(s, x, y):
-    """Exoesqueleto do Borba Jr no suporte (x, y = base)."""
-    shadow(s, x, y + 2, 60)
-    box(s, METAL_D, x - 24, y - 6, 48, 8)
-    box(s, METAL, x - 3, y - 20, 6, 16)
-    for lx in (x - 16, x + 6):
-        box(s, (70, 70, 80), lx, y - 50, 10, 32)
-        box(s, BORBA, lx, y - 42, 10, 6)
-    box(s, (70, 70, 80), x - 20, y - 86, 40, 38)
-    box(s, BORBA, x - 16, y - 82, 32, 14)
-    pygame.draw.circle(s, (120, 220, 255), (x, y - 62), 5)
-    for ax in (x - 32, x + 20):
-        box(s, (70, 70, 80), ax, y - 84, 12, 30)
-        box(s, BORBA, ax, y - 84, 12, 8)
-    box(s, (90, 90, 100), x + 22, y - 56, 10, 10)                # canhão de pulso
-    box(s, (60, 60, 70), x - 10, y - 104, 20, 18)
-    box(s, (120, 220, 255), x - 7, y - 98, 14, 5)
+    """Exoesqueleto do Borba Jr no suporte (x, y = base): pernas com pistão, peito blindado com o
+    núcleo azul aceso, ombreiras, o canhão de pulso, o capacete com a viseira e a plaquinha."""
+    shadow(s, x, y + 2, 70)
+    box(s, METAL_D, x - 28, y - 8, 56, 10)                       # base com a plaquinha
+    box(s, METAL, x - 28, y - 8, 56, 2)
+    box(s, (40, 70, 150), x - 14, y - 6, 28, 6)
+    box(s, (230, 230, 240), x - 10, y - 4, 20, 1)
+    box(s, METAL, x - 3, y - 22, 6, 16)
+    for lx in (x - 17, x + 5):                                   # pernas: coxa, joelho e pistão
+        box(s, (64, 64, 74), lx, y - 52, 12, 34)
+        box(s, (96, 96, 108), lx, y - 52, 12, 2)
+        box(s, BORBA, lx, y - 44, 12, 6)
+        box(s, (150, 154, 166), lx + 4, y - 36, 4, 14)
+        box(s, (210, 214, 222), lx + 5, y - 36, 1, 14)
+        box(s, (44, 44, 52), lx - 1, y - 22, 14, 4)
+    box(s, (64, 64, 74), x - 22, y - 90, 44, 40)                 # peito
+    box(s, (96, 96, 108), x - 22, y - 90, 44, 2)
+    box(s, BORBA, x - 18, y - 86, 36, 14)
+    box(s, shade(BORBA, 30), x - 18, y - 86, 36, 2)
+    for vx in range(x - 16, x + 16, 6):                          # respiros
+        box(s, (44, 44, 52), vx, y - 64, 3, 8)
+    g = pygame.Surface((30, 30), pygame.SRCALPHA)                # núcleo aceso
+    for r in range(15, 0, -3):
+        pygame.draw.circle(g, (120, 220, 255, 22), (15, 15), r)
+    s.blit(g, (x - 15, y - 81))
+    pygame.draw.circle(s, (60, 140, 200), (x, y - 66), 6)
+    pygame.draw.circle(s, (160, 236, 255), (x, y - 66), 3)
+    for ax in (x - 36, x + 22):                                  # braços com ombreira
+        box(s, (64, 64, 74), ax, y - 86, 14, 34)
+        box(s, BORBA, ax - 2, y - 90, 18, 10)
+        box(s, shade(BORBA, 30), ax - 2, y - 90, 18, 2)
+        box(s, (150, 154, 166), ax + 5, y - 74, 4, 14)
+    box(s, (90, 90, 100), x + 24, y - 54, 12, 10)                # canhão de pulso
+    box(s, (120, 220, 255), x + 34, y - 51, 3, 4)
+    box(s, (52, 52, 62), x - 12, y - 110, 24, 20)                # capacete e viseira
+    box(s, (90, 90, 102), x - 12, y - 110, 24, 2)
+    box(s, (120, 220, 255), x - 9, y - 103, 18, 5)
+    box(s, (220, 250, 255), x - 8, y - 103, 6, 1)
+    box(s, BORBA, x - 2, y - 114, 4, 5)                          # antena
 
 
 def city_car(s, x, y):
@@ -960,6 +1006,40 @@ def parking_bay(s, x, y, w, h, label):
     for k in range(0, stop.w, 24):
         box(s, yellow, stop.x + k, stop.y + 3, 12, stop.h - 6)
     _text(s, label, theme.XS, (176, 150, 70), (x + w // 2, stop.bottom + 12))
+
+
+# ── mascotes ─────────────────────────────────
+def doghouse(s, x, y):
+    """Casinha do cachorro caramelo (x, y = pé no chão, meio): tábuas, telhado vermelho, a porta em
+    arco, a plaquinha CARAMELO e a vasilha de ração do lado."""
+    shadow(s, x, y + 2, 84)
+    wood, wd, wl = (176, 120, 70), (128, 84, 46), (206, 152, 96)
+    box(s, wood, x - 30, y - 40, 60, 40)
+    for yy in range(y - 36, y, 7):
+        box(s, wd, x - 30, yy, 60, 1)
+    box(s, wl, x - 30, y - 40, 60, 2)
+    pygame.draw.polygon(s, (170, 50, 44), [(x - 38, y - 38), (x, y - 66), (x + 38, y - 38)])
+    pygame.draw.polygon(s, (206, 80, 64), [(x - 30, y - 40), (x, y - 62), (x - 2, y - 56), (x - 26, y - 40)])
+    box(s, (120, 34, 30), x - 38, y - 40, 76, 3)
+    pygame.draw.ellipse(s, (34, 22, 16), (x - 14, y - 32, 28, 26))
+    box(s, (34, 22, 16), x - 14, y - 19, 28, 19)
+    box(s, (240, 230, 200), x - 27, y - 52, 54, 9)                # plaquinha
+    _text(s, "CARAMELO", 6, (120, 60, 30), (x, y - 47))
+    pygame.draw.ellipse(s, (60, 110, 190), (x + 34, y - 8, 20, 9))   # vasilha de ração
+    pygame.draw.ellipse(s, (150, 96, 50), (x + 37, y - 7, 14, 4))
+
+
+def perch(s, x, y):
+    """Poleiro do papagaio (x, y = pé no chão, meio): base, haste, o pau de pousar e a vasilha."""
+    shadow(s, x, y + 2, 40)
+    box(s, WOOD_D, x - 16, y - 6, 32, 6)
+    box(s, WOOD_L, x - 16, y - 6, 32, 2)
+    box(s, WOOD, x - 2, y - 48, 4, 42)
+    box(s, WOOD_L, x - 2, y - 48, 1, 42)
+    box(s, WOOD_D, x - 22, y - 50, 44, 5)
+    box(s, WOOD_L, x - 22, y - 50, 44, 1)
+    box(s, (230, 230, 236), x + 14, y - 46, 8, 6)                  # vasilha de semente
+    box(s, (220, 190, 90), x + 15, y - 46, 6, 2)
 
 
 # ── portas trancadas ─────────────────────────
