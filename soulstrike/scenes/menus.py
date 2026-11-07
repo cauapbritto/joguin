@@ -464,6 +464,7 @@ class ModeScene(_MenuScene):
 
     menu_keys = True
     CARD_W, CARD_H, CARD_GAP, CARD_Y = 196, 300, 20, 112
+    PANEL_BOTTOM = 498                  # o painel de descrição cresce até aqui (o rodapé fica livre)
 
     def __init__(self, game, category=None):
         super().__init__(game)
@@ -710,9 +711,11 @@ class ModeScene(_MenuScene):
         self.menu.draw(screen, self.ui, self.ticks)
 
         key = self.menu.value
-        panel = pygame.Rect(420, 120, 484, 330)
-        self.ui.panel(screen, panel)
         desc, players = MODE_TEXT[key] if key != "continue" else self._continue_text()
+        # texto comprido: o painel cresce para baixo (até perto do rodapé) em vez de o texto vazar
+        lines = len(self.ui.wrap(desc, theme.XS, 484 - 48))
+        panel = pygame.Rect(420, 120, 484, max(330, min(self.PANEL_BOTTOM - 120, 250 + lines * 16)))
+        self.ui.panel(screen, panel)
         self._illustration(screen, key, pygame.Rect(panel.x + 2, panel.y + 2, panel.w - 4, 170))
         title = ({"continue": "CONTINUAR CAMPANHA", "campaign2": "CAMPANHA: CAPÍTULO 2",
                   "campaign3": "CAMPANHA: CAPÍTULO 3", "campaign4": "CAMPANHA: CAPÍTULO 4",
@@ -726,7 +729,8 @@ class ModeScene(_MenuScene):
             y += 10
         else:
             self.ui.text(screen, players, theme.XS, theme.MUTED, (panel.right - 24, panel.y + 200), anchor="topright")
-        self.ui.paragraph(screen, desc, theme.XS, theme.BONE, (panel.x + 24, y), panel.w - 48, spacing=16)
+        self.ui.paragraph(screen, desc, theme.XS, theme.BONE, (panel.x + 24, y), panel.w - 48, spacing=16,
+                          max_height=panel.bottom - 14 - y)
         self.footer(screen, [("↑↓", "ESCOLHER"), ("LB RB", "MODALIDADE"), ("A", "JOGAR"), ("B", "VOLTAR")])
 
     def _continue_text(self):
@@ -951,15 +955,24 @@ class ControlsScene(_InfoScene):
         y += 12
         screen.fill(theme.LINE, (panel.x + 16, y, panel.w - 32, 2))
         y += 18
-        for label, k1, k2 in self.rows():
+        rows = list(self.rows())
+        # linhas de teclas, dicas e o DUPLO TOQUE dentro do painel: aperta os espaços se precisar
+        row_h, tip_h = 21, 15
+        room = panel.bottom - 16 - y
+        while len(rows) * row_h + 2 + len(self.TIPS) * tip_h + 10 > room and (row_h > 18 or tip_h > 12):
+            if row_h > 18:
+                row_h -= 1
+            else:
+                tip_h -= 1
+        for label, k1, k2 in rows:
             self.ui.text(screen, label, theme.XS, theme.BONE, (cols[0], y), anchor="midleft", shadow=False)
             self.ui.keycap(screen, k1, (cols[1], y))
             self.ui.keycap(screen, k2, (cols[2], y))
-            y += 21
+            y += row_h
         y += 2
         for tip in self.TIPS:
             self.ui.text(screen, tip, theme.XS, theme.MUTED, (cols[0], y), anchor="midleft", shadow=False)
-            y += 15
+            y += tip_h
         state = "LIGADO" if PlayerInput.double_tap_enabled else "DESLIGADO"
         self.toggle_rect = self.ui.keycap(screen, "T", (cols[0], y + 6))
         self.ui.text(screen, f"DUPLO TOQUE NAS SETAS = ESQUIVA/CORTE: {state}", theme.XS,
