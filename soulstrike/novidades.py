@@ -12,6 +12,18 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.35.0": [
+        {"title": "OS CARROS DA TURMA", "scene": "casa", "lines": [
+            "O City do João agora é o sedã 2026, azul acinzentado, com farol de LED e roda de 5 raios.",
+            "O Uno Mille branco ficou quadradinho de verdade, com a calota de 4 furos.",
+            "A moto do Aryel ganhou carenagem laranja, garfo dourado e escapamento cromado.",
+        ]},
+        {"title": "A ESTRADA DA VIAGEM", "scene": "casa", "lines": [
+            "Céu em degradê com nuvens, morros em duas camadas e o bairro com casinhas e árvores.",
+            "Calçada com postes e asfalto granulado. Depois vem o cenário do capítulo.",
+            "Dá para ver a turma pelo vidro do carro, e as rodas giram de verdade.",
+        ]},
+    ],
     "1.34.0": [
         {"title": "QUEM ATENDE A LOJA", "scene": "loja", "lines": [
             "A loja e o ferreiro agora têm gente atrás do balcão, desenhada como os heróis.",

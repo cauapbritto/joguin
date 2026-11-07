@@ -9,7 +9,7 @@ import random
 
 import pygame
 
-from . import config, theme
+from . import config, pecas, theme
 from .data import CHARACTERS
 
 WOOD, WOOD_D, WOOD_L = (122, 80, 48), (84, 54, 32), (156, 108, 66)
@@ -68,6 +68,8 @@ def finish(s, seed=0):
     """Acabamento no padrão dos personagens: contorno escuro de 1 pixel em volta da peça, luz na
     beirada de cima, sombra na de baixo e um grão fino para tirar o chapado. Brilhos e sombras
     no chão (translúcidos) ficam de fora."""
+    if seed in _HD_DRAWN:                   # peça que já veio pronta de assets/pecas (com contorno e volume)
+        return
     size = s.get_size()
     solid = pygame.mask.from_surface(s, 200)
     if not solid.count():
@@ -97,6 +99,22 @@ def finish(s, seed=0):
             cr, cg, cb, a = get((x, y))
             k = 9 if rng.random() < 0.5 else -10
             put((x, y), (max(0, min(255, cr + k)), max(0, min(255, cg + k)), max(0, min(255, cb + k)), a))
+
+
+_HD_DRAWN = set()        # funções que desenharam a peça pronta (o finish não passa por cima)
+
+
+def _piece(s, fn_name, name, x, y, wheels_x, wheel_bottom, ground_w=None):
+    """Cola a peça pronta ``name`` (assets/pecas) com o meio das rodas em ``x`` e o pé delas em ``y``.
+    Devolve False se não tem a imagem (aí a função desenha do jeito antigo)."""
+    img = pecas.image(name)
+    if img is None:
+        return False
+    _HD_DRAWN.add(fn_name)
+    if ground_w:
+        pygame.draw.ellipse(s, (0, 0, 0, 70), (x - ground_w // 2, y - 8, ground_w, 16))
+    s.blit(img, (x - wheels_x, y - wheel_bottom))
+    return True
 
 
 def bake(fn, *args, **kw):
@@ -518,6 +536,8 @@ def uno_stand(s, x, y):
 
 def uno_car(s, x, y):
     """O Uno branco de lado, quadradinho (x, y = chão no meio do carro). Hatch: a traseira reta."""
+    if _piece(s, "uno_car", "carro_uno", x, y + 10, 63, 70, 140):
+        return
     W, W2, D = (244, 244, 240), (210, 210, 206), (26, 26, 30)
     shadow(s, x, y + 2, 150)
     pygame.draw.ellipse(s, (0, 0, 0, 60), (x - 78, y - 8, 156, 18))
@@ -619,6 +639,8 @@ def uno_armor(s, x, y):
 def moto(s, x, y, ground=True):
     """Moto esportiva do Aryel, de lado (x, y = chão entre as rodas), na cor dele. ``ground``: com a
     sombra no chão (sem ela, para empinar)."""
+    if _piece(s, "moto", "moto", x, y + 2, 62, 77, 120 if ground else None):
+        return
     m = pygame.Surface((132, 84), pygame.SRCALPHA)
     D, D2 = (26, 24, 30), (54, 52, 60)
     dark, light = shade(ARYEL, -46), shade(ARYEL, 40)
@@ -822,7 +844,9 @@ def exo_stand(s, x, y):
 
 
 def city_car(s, x, y):
-    """O Honda City cinza-escuro do João estacionado no quintal, de lado (x, y = chão no meio do carro)."""
+    """O Honda City azul acinzentado do João estacionado no quintal, de lado (x, y = chão no meio do carro)."""
+    if _piece(s, "city_car", "carro_city", x, y + 10, 94, 71, 190):
+        return
     W, W2, D = (84, 88, 96), (62, 65, 72), (24, 24, 28)
     shadow(s, x, y + 2, 176)
     pygame.draw.ellipse(s, (0, 0, 0, 60), (x - 92, y - 8, 184, 18))
