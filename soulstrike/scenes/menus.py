@@ -1010,7 +1010,7 @@ class OptionsScene(_InfoScene):
         if key == "novidades":
             from .. import novidades
             self.sfx("confirm", 0.4)
-            self.game.change(NewsScene(self.game, novidades.history(), back=OptionsScene))
+            self.game.change(ArchiveScene(self.game))
             return
         value = settings.get(key)
         if key in settings.VOLUME_KEYS:
@@ -2181,106 +2181,4 @@ NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "n
                "corredores": _scene_corredores, "mapa_fase": _scene_mapa_fase}
 
 
-class NewsScene(_InfoScene):
-    """Novidades em páginas, cada uma com uma cena animada. Abre sozinha uma vez quando o jogo
-    é atualizado, e em OPÇÕES > NOVIDADES quando quiser."""
-    heading = "NOVIDADES"
-    phase = "news"
-    PANEL = pygame.Rect(56, 92, config.SCREEN_W - 112, 360)
-
-    def __init__(self, game, news, back=None):
-        from .. import novidades
-        super().__init__(game)
-        self.news = news if back is not None else news[:2]     # sozinha: só as duas versões mais novas
-        self.back = back
-        self.pages = [p for version, entry in self.news for p in novidades.pages_of(version, entry)]
-        self.page = 0
-        self.age = 0
-        self.summary = [line for _, entry in self.news[:1] for line in novidades.summary(entry)]
-
-    def enter(self):
-        from ..net.remote import hub
-        hub.news = self.summary
-        super().enter()
-        if self.news:
-            hub.set_phase("news", banner=f"NOVIDADES DA {self.news[0][0]}")
-
-    def leave(self):
-        self.sfx("confirm", 0.4)
-        self.game.change(self.back(self.game) if self.back else TitleScene(self.game))
-
-    def turn(self, step):
-        page = max(0, min(len(self.pages) - 1, self.page + step))
-        if page != self.page:
-            self.page, self.age = page, 0
-            self.sfx("pagina", 0.5)
-
-    def update(self):
-        super().update()
-        self.age += 1
-
-    def handle(self, event):
-        if self.is_back(event) or not self.pages:
-            if self.is_back(event) or event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                self.leave()
-            return
-        if event.type == pygame.KEYDOWN:
-            if event.key in (pygame.K_LEFT, pygame.K_a):
-                self.turn(-1)
-            elif event.key in (pygame.K_RIGHT, pygame.K_d):
-                self.turn(1)
-            elif event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
-                if self.page >= len(self.pages) - 1:
-                    self.leave()
-                else:
-                    self.turn(1)
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 3:
-                self.turn(-1)
-            elif self.page >= len(self.pages) - 1:
-                self.leave()
-            else:
-                self.turn(1)
-
-    def draw_body(self, screen):
-        panel = self.PANEL
-        self.ui.panel(screen, panel)
-        if not self.pages:
-            self.footer(screen, [("ENTER", "CONTINUAR")])
-            return
-        version, title, scene, lines = self.pages[self.page]
-        n = len(self.pages)
-        self.ui.text(screen, f"VERSÃO {version}", theme.XS, theme.MUTED, (panel.right - 20, panel.y + 18),
-                     anchor="midright", shadow=False)
-        draw = NEWS_SCENES.get(scene)
-        x = panel.x + 24
-        if draw is not None:
-            stage = pygame.Rect(panel.x + 20, panel.y + 40, 340, 250)
-            screen.fill(theme.INK, stage)
-            pygame.draw.rect(screen, theme.LINE, stage, 1)
-            clip = screen.get_clip()
-            screen.set_clip(stage)
-            draw(screen, self.ui, stage, self.ticks)
-            screen.set_clip(clip)
-            x = stage.right + 28
-        width = panel.right - 24 - x
-        slide = max(0, 12 - self.age) * 3                        # o texto entra deslizando ao virar a página
-        y = panel.y + 52
-        self.ui.text(screen, title, theme.S, theme.BRASS, (x + slide, y), anchor="midleft")
-        y += 28
-        for line in lines:
-            if y > panel.bottom - 40:
-                break
-            screen.fill(theme.MOSS, (x + 2 + slide, y + 2, 5, 5))
-            y = self.ui.paragraph(screen, line.upper(), theme.XS, theme.BONE, (x + 16 + slide, y),
-                                  width - 16, spacing=15) + 10
-        # bolinhas das páginas
-        if n > 1:
-            gap = 14
-            left = panel.centerx - (n - 1) * gap // 2
-            for i in range(min(n, 40)):
-                color = theme.BRASS if i == self.page else theme.LINE_HI
-                size = 6 if i == self.page else 4
-                screen.fill(color, (left + i * gap - size // 2, panel.bottom - 18 - size // 2, size, size))
-        last = self.page >= n - 1
-        self.footer(screen, [("←→", "PÁGINAS"), ("ENTER", "SAIR" if last else "PRÓXIMA"), ("ESC", "SAIR")])
+from .plantao import ArchiveScene, NewsScene  # noqa: E402  (o plantão usa as cenas daqui)

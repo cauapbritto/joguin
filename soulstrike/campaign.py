@@ -37,6 +37,7 @@ LEASH_X, LEASH_Y = 1500, 700  # quão longe os jogadores podem ficar uns dos out
 LEASH_PULL_FRAMES = 3 * config.FPS  # forçando o limite por tanto tempo: aparece ao lado do grupo
 INTRO_FRAMES = 150
 BETWEEN_FRAMES = 110
+BANNER_FRAMES = 100             # quanto tempo uma faixa de luta (VALENDO!) fica na tela
 CLEAR_FRAMES = 200
 DOWN_FRAMES = 150
 GAMEOVER_FRAMES = 220
@@ -1718,6 +1719,8 @@ class CampaignMatch(CoopMatch):
             return
         if state == "ready":
             return
+        if state in ("fight", "between") and self.banner and self.banner[3] > BANNER_FRAMES:
+            self.banner = None             # "VALENDO!" (e o resto) sai sozinho depois de um tempo
         if state in ("fight", "between") and not self.alive_players:
             self.state, self.state_timer = "down", DOWN_FRAMES
             self._set_banner("TODOS CAÍRAM", None, theme.BLOOD)

@@ -174,6 +174,17 @@ class OndasTest(unittest.TestCase):
         self.assertAlmostEqual(match.run.hp_ratio[1], 30 / p1.max_hp, places=3)
         self.assertIsInstance(match.next_scene().match, PhaseMatch)     # a sala avulsa volta para a fase
 
+    def test_faixa_valendo_some_depois_de_iniciar_a_batalha(self):
+        from soulstrike.campaign import BANNER_FRAMES, INTRO_FRAMES
+        match, _ = campanha()
+        passo(match, INTRO_FRAMES + 5)
+        self.assertEqual(match.state, "ready")
+        self.assertTrue(match.start_battle())
+        self.assertEqual(match.banner[0], "VALENDO!")
+        passo(match, BANNER_FRAMES + 5)
+        self.assertIn(match.state, ("fight", "between"))
+        self.assertIsNone(match.banner)
+
     def test_portal_leva_para_a_proxima_fase(self):
         match, inputs = campanha(dungeon=1)
         pular_intro(match)

@@ -96,6 +96,8 @@ class RemoteHub:
         self._banner = ""
         self.roster_size = 0       # quantos personagens o celular deve mostrar (muda ao liberar um)
         self.news = []             # resumo das novidades (o celular mostra com a tela de novidades aberta)
+        self.news_page = None      # notícia aberta no plantão: {"index", "total", "title"}
+        self._news_taps = []       # botões < PULAR > do celular na tela de novidades
         self.hud = "battle"         # disposição de botões do celular (battle, soccer, basket)
         self._orders = []          # pedidos da loja vindos do celular: (vaga, id do item, comprar?)
 
@@ -137,6 +139,22 @@ class RemoteHub:
                 return False                  # a banca já fechou
             self._orders = (self._orders + [(slot, str(item)[:64], bool(buy))])[-16:]
             return True
+
+    def news_tap(self, slot, go):
+        """Botão do celular na tela de novidades: "prev", "next" ou "skip". O jogo aplica no quadro."""
+        if slot not in self._slots or go not in ("prev", "next", "skip"):
+            return False
+        with self._lock:
+            if self._phase != "news":
+                return False
+            self._news_taps = (self._news_taps + [go])[-8:]
+            return True
+
+    def news_taps(self):
+        """Toques do celular na tela de novidades desde o último quadro (e esvazia a fila)."""
+        with self._lock:
+            out, self._news_taps = self._news_taps, []
+        return out
 
     def orders(self):
         """Pedidos da loja desde o último quadro (e esvazia a fila)."""
@@ -295,6 +313,7 @@ class RemoteHub:
                 "roster": self.roster_size,
                 "hud": self.hud,
                 "news": self.news if self._phase == "news" else [],
+                "news_page": self.news_page if self._phase == "news" else None,
                 "slots": {
                     str(s): {"claimed": i.claimed, "connected": i.connected(now)}
                     for s, i in self._slots.items()
