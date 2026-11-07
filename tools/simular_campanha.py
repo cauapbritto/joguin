@@ -102,7 +102,8 @@ class Robo:
 
 def masmorra(difficulty, players, phase, stage, seed):
     from apoio import FakeInput, game
-    from soulstrike.campaign import DUNGEON_1, DUNGEON_2, PHASE_RELICS, PHASES, CampaignMatch, CampaignRun
+    from soulstrike.campaign import DUNGEON_1, DUNGEON_2, PHASES, CampaignMatch, CampaignRun
+    from soulstrike.data import PHASE_RELICS
     from soulstrike.data import CHARACTERS
     from soulstrike.session import Session, SlotSetup
     random.seed(seed)

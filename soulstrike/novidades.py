@@ -10,6 +10,22 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.24.0": [
+        {"title": "A FASE É UM MAPA SÓ", "scene": "mapa_fase", "lines": [
+            "Cada fase agora é um mapa inteiro, a pé, com as salas ligadas por corredores.",
+            "Saindo da Casa pelo portal, o grupo chega na abertura, com a lojinha e o altar.",
+            "No fim da fase, um portal leva para a próxima. Na 3ª de cada capítulo, depois do chefe.",
+        ]},
+        {"title": "SALAS QUE TRANCAM", "scene": "mapa_fase", "lines": [
+            "Entrou numa sala de luta, as portas fecham até a última onda cair.",
+            "Cada fase tem uma sala de luta nova no meio do caminho e uma sala de recompensa.",
+            "A sala do chefe só abre depois que as outras duas salas de luta forem limpas.",
+        ]},
+        {"title": "O MINI MAPA", "scene": "mapa_fase", "lines": [
+            "No canto da tela, um mapinha mostra onde o grupo está, em dourado.",
+            "As salas já visitadas ficam cinza. As que faltam aparecem com um ?.",
+        ]},
+    ],
     "1.22.0": [
         {"title": "CORREDORES DECORADOS", "scene": "corredores", "lines": [
             "A sala inicial e o corredor de cada capítulo ganharam enfeites nos cantos, sem fechar o caminho.",

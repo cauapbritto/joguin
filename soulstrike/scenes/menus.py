@@ -268,8 +268,8 @@ MODE_TEXT = {
     "desafio_goleiro": ("Defenda 3 seguidas contra a CPU para passar de rodada. A CPU fica mais difícil a cada "
                         "rodada, e 3 gols tomados acabam o desafio.",
                         "1 JOGADOR"),
-    "campaign": ("Juntos contra as sombras, em 4 capítulos, saindo da Casa da turma: cada fase vai em frente, sem voltar, da sala inicial "
-                 "para duas masmorras, com um corredor no meio (baú de armas raras, loja e ferreiro). O capítulo 1 acaba no Aryel Corrompido, o 2 "
+    "campaign": ("Juntos contra as sombras, em 4 capítulos, saindo da Casa da turma: cada fase é um mapa só, a pé, com salas "
+                 "ligadas por corredores: três salas de luta, que trancam até ser limpas, e uma de recompensa (baú de armas raras, loja e ferreiro). O capítulo 1 acaba no Aryel Corrompido, o 2 "
                  "no Borba Jr Corrompido (Lag Lobby), o 3 no Albeguinio Corrompido (Clínica Clepalovers) e o 4 "
                  "no Cauanzera Corrompido (Mansão do Carimbo). Quem cair pode ser levantado.",
                  "1 A 4 JOGADORES"),
@@ -1242,8 +1242,8 @@ ABOUT = [
      "armas (Arrow, Grenade, ChainBall...) herdam de Projectile, que herda de Bullet. ShadowBomb herda "
      "de GroundMark: é o mesmo aviso no chão, só que explode no fim. BattleMatch, SoccerMatch e "
      "CampaignMatch herdam de Match, que já cuida de câmera, tiros, partículas e desenho. Na campanha, "
-     "CampaignMatch (a masmorra) e LobbyMatch (a sala inicial e o corredor) herdam de CoopMatch, que junta o que as duas "
-     "têm em comum (levantar quem caiu, a mira, os itens, o escurecer entre as etapas). TeamBattleMatch "
+     "CampaignMatch (a sala de luta) e HubMatch (a Casa da turma) herdam de CoopMatch, que junta o que elas "
+     "têm em comum, e PhaseMatch (a fase inteira, num mapa só) herda de CampaignMatch (levantar quem caiu, a mira, os itens, o escurecer entre as etapas). TeamBattleMatch "
      "(o duelo 2 x 2) herda de BattleMatch e só troca o que é um \"lado\": em vez de um lutador, um time "
      "inteiro, que precisa cair todo para perder o round. Os inimigos da "
      "campanha são Fighters do time das sombras. Todas as telas herdam de Scene."),
@@ -2124,6 +2124,26 @@ def _scene_cantos(screen, ui, rect, t):
             (rect.x + 290, by - 40))
 
 
+def _scene_mapa_fase(screen, ui, rect, t):
+    """O mini mapa da fase em tamanho grande: o grupo passa de sala em sala e as salas acendem."""
+    from .. import mapa_fase
+    from ..campaign import PHASES
+    layout = mapa_fase.PhaseLayout.of(PHASES[0])
+    route = ("abertura", "luta1", "abertura", "luta2", "recompensa", "luta2", "abertura", "final")
+    step = (t // 70) % (len(route) + 1)
+    here = route[min(step, len(route) - 1)]
+    visited = set(route[:step + 1])
+    mini = pygame.Surface((mapa_fase.MINI_W, mapa_fase.MINI_H), pygame.SRCALPHA)
+    mapa_fase.draw_minimap(mini, ui, layout, visited, here, mini.get_rect(), portal=step >= len(route))
+    screen.fill((14, 14, 22), rect)
+    k = min((rect.w - 40) / mini.get_width(), (rect.h - 50) / mini.get_height())
+    big = pygame.transform.scale(mini, (round(mini.get_width() * k), round(mini.get_height() * k)))
+    screen.blit(big, big.get_rect(center=(rect.centerx, rect.centery - 10)))
+    names = {"abertura": "ABERTURA", "luta1": "MASMORRA 1", "luta2": "MASMORRA 2",
+             "recompensa": "RECOMPENSA", "final": "ÚLTIMA SALA"}
+    ui.text(screen, names[here], theme.XS, theme.BRASS, (rect.centerx, rect.bottom - 14))
+
+
 def _scene_corredores(screen, ui, rect, t):
     """Os enfeites de cada capítulo, um capítulo por vez, com a placa da piada."""
     from .. import casa, casa_art, enfeites
@@ -2158,7 +2178,7 @@ NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "n
                "clepalovers": _scene_clepalovers, "clinica": _scene_clinica, "oi_sumido": _scene_oi_sumido,
                "mansao": _scene_mansao, "iara": _scene_iara,
                "casa": _scene_casa, "computador": _scene_computador, "cantos": _scene_cantos,
-               "corredores": _scene_corredores}
+               "corredores": _scene_corredores, "mapa_fase": _scene_mapa_fase}
 
 
 class NewsScene(_InfoScene):

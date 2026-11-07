@@ -4,9 +4,11 @@ import unittest
 from unittest import mock
 
 from apoio import FakeInput, game
+from test_fase_mapa import no_portal
 
 from soulstrike import rumble, settings
-from soulstrike.campaign import CALL_EVERY, PASSAGE_FRAMES, LobbyMatch, CampaignRun
+from soulstrike.campaign import CALL_EVERY, PASSAGE_FRAMES, CampaignRun
+from soulstrike.fase import PhaseMatch
 from soulstrike.data import CHARACTERS
 from soulstrike.net import remote
 from soulstrike.net.remote import hub
@@ -93,18 +95,20 @@ class PassagemTest(unittest.TestCase):
                                          for i, c in enumerate(("guerreiro", "atirador", "ninja"))])
         run = CampaignRun(g.session)
         run.begin_phase()
-        match = LobbyMatch(g, run)
+        match = PhaseMatch(g, run)
         inputs = {}
         for f in match.players:
             inputs[f.slot] = match.controllers[f] = _Input()
-        for _ in range(5):
-            match.update()
+        no_portal(match, inputs)
+        for p in match.players:
+            p.x, p.y = match.exit.x + 500, match.exit.y
         return match
 
     def _porta(self, match, who):
-        area = match._gate_area()
+        """No portal do fim da fase (a passagem coletiva)."""
+        portal = match.exit
         for k, p in enumerate(who):
-            p.x, p.y = area.centerx - 30 + 40 * (k % 2), area.bottom - 60 + 30 * (k // 2)
+            p.x, p.y = portal.x - 15 + 30 * (k % 2), portal.y + 20 * (k // 2)
 
     def test_quem_falta_na_porta_e_convocado(self):
         with Celular(3) as cel:
@@ -126,7 +130,7 @@ class PassagemTest(unittest.TestCase):
             self.assertEqual(cel.buzz, [n + 1, "tick"])
             for _ in range(PASSAGE_FRAMES + 2):
                 match.update()
-            self.assertTrue(match.leaving)
+            self.assertEqual(match.state, "teleport")
             self.assertEqual(cel.buzz[1], "go")
 
 

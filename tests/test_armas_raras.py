@@ -8,8 +8,9 @@ from apoio import FakeInput, game
 from soulstrike import projectiles as P
 from soulstrike import weapon_art
 from soulstrike.boss import ARMOR, BOSS_STATS, BossAI
-from soulstrike.campaign import (CHAPTER_START, DUNGEON_1, DUNGEON_2, PHASES, CampaignMatch, CampaignRun, LobbyMatch,
+from soulstrike.campaign import (CHAPTER_START, DUNGEON_1, DUNGEON_2, PHASES, CampaignMatch, CampaignRun,
                                  LOBBY_BACK)
+from soulstrike.fase import PhaseMatch
 from soulstrike.data import CHARACTERS, PHASE_RELICS, RARE_WEAPONS
 from soulstrike.session import Session, SlotSetup
 
@@ -72,7 +73,7 @@ class BauPorFaseTest(unittest.TestCase):
     def test_bau_sorteia_da_fase(self):
         for i, ph in enumerate(PHASES):
             g, run = corrida(chars=("guerreiro", "atirador", "ninja", "geada"), phase=i, stage=LOBBY_BACK)
-            match = LobbyMatch(g, run)
+            match = PhaseMatch(g, run)
             match.launch_relics(match.chest)
             dados = [d.weapon for d in match.props if d.__class__.__name__ == "RelicDrop"]
             self.assertEqual(len(dados), 4)

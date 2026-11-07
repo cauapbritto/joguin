@@ -486,16 +486,16 @@ class RecompensasTest(ProgressoTest):
             settings.change("uniforme", False)
 
     def test_iara_mascote_nos_acampamentos(self):
-        from soulstrike.campaign import LobbyMatch
+        from soulstrike.fase import PhaseMatch
         from soulstrike.mansao import IaraMascot
         g = game()
         g.session = Session("campaign", [SlotSetup(1, char=0)])
         run = CampaignRun(g.session)
         run.begin_phase()
-        match = LobbyMatch(g, run)
+        match = PhaseMatch(g, run)
         self.assertFalse(any(isinstance(e, IaraMascot) for e in match.effects))
         progress.record_campaign(900, "normal", 1)
-        match = LobbyMatch(g, run)
+        match = PhaseMatch(g, run)
         mascot = [e for e in match.effects if isinstance(e, IaraMascot)]
         self.assertEqual(len(mascot), 1)
         self.assertTrue(mascot[0].frames)
