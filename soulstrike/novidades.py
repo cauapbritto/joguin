@@ -12,7 +12,7 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
-    "1.29.0": [
+    "1.32.0": [
         {"title": "A HISTÓRIA COSTURADA", "scene": "iara", "lines": [
             "Uma voz roxa sai do cristal e tenta cada amigo: o Aryel, o Borba Jr, o Albeguinio.",
             "No capítulo 4 ela entra no servidor e ganha nome: é a IARA.",
