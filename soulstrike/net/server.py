@@ -112,6 +112,16 @@ def handle_shop(data):
     return 204 if hub.order(slot, item, bool(data.get("buy"))) else 409
 
 
+def handle_news(data):
+    """Botão do celular na tela de novidades: {slot, token, go}. Devolve o código HTTP."""
+    if not isinstance(data, dict):
+        data = {}
+    slot = _slot_arg(data)
+    if not hub.touch(slot, data.get("token")):
+        return 403
+    return 204 if hub.news_tap(slot, data.get("go")) else 409
+
+
 def status_payload(slot, token):
     hub.touch(slot, token)
     return hub.status(slot, token)
@@ -127,6 +137,12 @@ def input_state():
 def shop():
     """Loja no celular: marcar ou comprar um item da banca aberta."""
     return "", handle_shop(request.get_json(silent=True) or {})
+
+
+@app.post("/api/news")
+def news():
+    """Tela de novidades: o celular volta, avança ou pula as notícias."""
+    return "", handle_news(request.get_json(silent=True) or {})
 
 
 # Rotas antigas (páginas abertas antes da atualização ainda funcionam)
