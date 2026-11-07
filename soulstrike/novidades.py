@@ -12,6 +12,17 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.25.0": [
+        {"title": "CONVERSA NO BOTÃO", "scene": "casa", "lines": [
+            "Na Casa da turma, ninguém fala mais sozinho quando você passa perto.",
+            "Chegou perto de alguém da vitrine ou de um retrato, aparece um balão com ... em cima dele.",
+            "ATACAR conversa: uma frase por toque. Apertou de novo, vem a próxima.",
+        ]},
+        {"title": "UM DE CADA VEZ", "scene": "casa", "lines": [
+            "Perto da mesa, da moto, da roleta ou da padaria, o ATACAR continua usando essas coisas.",
+            "Com dois por perto, conversa quem estiver mais perto. O balão do vizinho some.",
+        ]},
+    ],
     "1.24.0": [
         {"title": "A FASE É UM MAPA SÓ", "scene": "mapa_fase", "lines": [
             "Cada fase agora é um mapa inteiro, a pé, com as salas ligadas por corredores.",

@@ -1,7 +1,7 @@
 """Hub da campanha: a Casa da turma, onde a aventura começa (e onde o CONTINUAR volta).
 
 A casa tem os cantos da turma (Cauanzera, Aryel, Albeguinio e Borba Jr), a vitrine com os heróis
-(cada um fala quando alguém chega perto), o livro do Cauanzera com um versículo por vez, as portas
+(cada um fala quando alguém chega perto e aperta ATACAR), o livro do Cauanzera com um versículo por vez, as portas
 trancadas (abrem conforme a campanha avança) e o quintal com a horta, o City do João e a saída para
 a aventura. A saída só leva o grupo com a passagem coletiva (todos dentro, contagem de 2 s) e vai
 para a sala inicial da fase salva. Ninguém volta para a casa no meio da campanha."""
@@ -114,8 +114,7 @@ BREAD_FRAMES = 70          # da senha ao pão saindo
 USE_REACH = 44             # perto da mesa, da moto, da roleta ou do balcão
 TALK_REACH = 86
 TALK_FRAMES = 170
-TALK_GAP = 70
-BUBBLE_ROOM = 300           # largura de um balão: vizinhos mais perto que isso esperam a vez
+BUBBLE_ROOM = 300           # largura de um balão: o vizinho mais perto que isso para de falar
 WATERED = 8 * config.FPS          # canteiro regado fica com a florzinha por 8 s
 BED_REACH = 46
 BOOK_REACH = 70
@@ -186,8 +185,9 @@ class Decor(Entity):
 
 
 class Speaker:
-    """Alguém da vitrine (ou o retrato de um amigo) que fala quando um jogador chega perto, uma
-    frase por vez, na ordem, e volta ao começo depois da última."""
+    """Alguém da vitrine (ou o retrato de um amigo) que fala quando um jogador chega perto e aperta
+    ATACAR: uma frase por toque, na ordem, e volta ao começo depois da última. Perto, sem falar,
+    mostra um balãozinho com "..." para avisar que dá para conversar."""
 
     def __init__(self, key, x, y, head_y=None):
         self.key = key
@@ -196,31 +196,36 @@ class Speaker:
         self.lines = FALAS[key]
         self.index = 0
         self.talk = 0
-        self.gap = 0
         self.line = None
+        self.waiting = False            # alguém perto e livre: mostra o "..."
 
     def near(self, p):
         return p.alive_in_match and math.hypot(p.x - self.x, p.y - self.y) < TALK_REACH
 
+    def say(self, match):
+        """ATACAR perto: a próxima frase (mesmo que a anterior ainda esteja no balão)."""
+        self.line = self.lines[self.index % len(self.lines)]
+        self.index += 1
+        self.talk = TALK_FRAMES
+        for o in match.speakers:              # um balão por vez ali perto
+            if o is not self and o.talk > 0 and abs(o.x - self.x) < BUBBLE_ROOM \
+                    and abs(o.head_y - self.head_y) < 40:
+                o.talk = 0
+        match.assets.play("click", 0.35)
+
     def update(self, match):
         if self.talk > 0:
             self.talk -= 1
-            if self.talk == 0:
-                self.gap = TALK_GAP
-            return
-        if self.gap > 0:
-            self.gap -= 1
-            return
-        if any(self.near(p) for p in match.alive_players) and not match.crowded(self):
-            self.line = self.lines[self.index % len(self.lines)]
-            self.index += 1
-            self.talk = TALK_FRAMES
 
-    def draw(self, screen, cam, ui, assets):
-        if self.talk <= 0 or not self.line:
-            return
+    def draw(self, screen, cam, ui, assets, frame=0):
         sx, sy = cam.to_screen(self.x, self.head_y)
-        draw_bubble(screen, ui, assets, self.line, round(sx), round(sy))
+        if self.talk > 0 and self.line:
+            draw_bubble(screen, ui, assets, self.line, round(sx), round(sy))
+        elif self.waiting:
+            dots = "." * (1 + (frame // 12) % 3)
+            draw_bubble(screen, ui, assets, dots.ljust(3), round(sx), round(sy))
+            color = theme.BRASS if (frame // 15) % 2 else theme.BONE
+            ui.text(screen, "ATACAR: FALAR", theme.XS, color, (round(sx), round(sy) - 40))
 
 
 def draw_bubble(screen, ui, assets, text, x, y):
@@ -676,10 +681,18 @@ class HubMatch(CoopMatch):
     def objective(self):
         return self.exit_rect.centerx, self.exit_rect.y
 
-    def crowded(self, speaker):
-        """Outro da vitrine ali do lado já está falando (um balão por vez, senão um cobre o outro)."""
-        return any(o is not speaker and o.talk > 0 and abs(o.x - speaker.x) < BUBBLE_ROOM
-                   and abs(o.head_y - speaker.head_y) < 40 for o in self.speakers)
+    def speaker_near(self, f):
+        """Quem da vitrine ``f`` pode chamar para conversar: o mais perto, e só se não tem outra
+        coisa para usar ali (mesa, moto, roleta...), que ganha do ATACAR."""
+        if not f.alive_in_match or self._usable_near(f):
+            return None
+        near = [s for s in self.speakers if s.near(f)]
+        return min(near, key=lambda s: math.hypot(f.x - s.x, f.y - s.y)) if near else None
+
+    def _usable_near(self, f):
+        return (self.book_near(f) or self.computer_near(f) is not None
+                or any(_near_rect(f, t.rect) for t in (self.moto, self.roulette, self.bakery))
+                or any(b.can_water(f) for b in self.beds))
 
     def computer_near(self, f):
         """A mesa de computador ao alcance de ``f`` que ninguém está usando (ou None)."""
@@ -709,11 +722,10 @@ class HubMatch(CoopMatch):
                 self._set_banner("CASA DA TURMA", f"CONTINUANDO DA FASE {self.run.phase_index + 1}", theme.BRASS)
         if self.banner and self.banner[3] > 130:
             self.banner = None
-        players = self.alive_players
-        if players:                         # quem está mais perto de alguém fala primeiro
-            self.speakers.sort(key=lambda s: min(math.hypot(p.x - s.x, p.y - s.y) for p in players))
+        waiting = {self.speaker_near(p) for p in self.alive_players if p not in self.menus}
         for s in self.speakers:
             s.update(self)
+            s.waiting = s in waiting
         self.bakery.update(self)
         if self.freeing:
             self.freeing += 1
@@ -758,6 +770,10 @@ class HubMatch(CoopMatch):
         if bed is not None:
             bed.water(self)
             return True
+        speaker = self.speaker_near(f)
+        if speaker is not None:
+            speaker.say(self)
+            return True
         return self.pick_ground(f)
 
     def _finish(self, won):
@@ -780,7 +796,7 @@ class HubMatch(CoopMatch):
     def draw_screen_layer(self, screen, ui):
         cam = self.camera
         for s in self.speakers:
-            s.draw(screen, cam, ui, self.assets)
+            s.draw(screen, cam, ui, self.assets, self.frame)
         free = [p for p in self.alive_players if p not in self.menus]
         if any(self.book_near(p) for p in free):
             sx, sy = cam.to_screen(self.book.x, self.book.y - 40)
