@@ -24,9 +24,10 @@ class Beam:
     BURN = 24
     HALF = 9                      # metade da grossura de quem queima
 
-    def __init__(self, axis, pos, length, delay=0):
+    def __init__(self, axis, pos, length, delay=0, start=0):
         self.axis = axis
         self.pos = pos
+        self.start = start            # o feixe vai de ``start`` a ``start + length`` (a parede da sala)
         self.length = length
         self.age = -delay
         self.hit = set()
@@ -41,7 +42,8 @@ class Beam:
 
     def touches(self, f):
         d = abs((f.y if self.axis == "h" else f.x) - self.pos)
-        return d < self.HALF + f.radius * 0.5
+        along = f.x if self.axis == "h" else f.y
+        return d < self.HALF + f.radius * 0.5 and self.start <= along <= self.start + self.length
 
     def update(self, match, damage):
         self.age += 1
@@ -60,18 +62,21 @@ class Beam:
         if self.age < 0:
             return
         w, h = view.get_size()
+        end = self.start + self.length
         if self.axis == "h":
             y = round(self.pos - cam.y)
             if not -20 < y < h + 20:
                 return
-            a, b = (0, y), (w, y)
-            emitters = ((round(-cam.x) + 6, y), (round(self.length - cam.x) - 6, y))
+            x0, x1 = max(0, round(self.start - cam.x)), min(w, round(end - cam.x))
+            a, b = (x0, y), (x1, y)
+            emitters = ((round(self.start - cam.x) + 6, y), (round(end - cam.x) - 6, y))
         else:
             x = round(self.pos - cam.x)
             if not -20 < x < w + 20:
                 return
-            a, b = (x, 0), (x, h)
-            emitters = ((x, round(-cam.y) + 6), (x, round(self.length - cam.y) - 6))
+            y0, y1 = max(0, round(self.start - cam.y)), min(h, round(end - cam.y))
+            a, b = (x, y0), (x, y1)
+            emitters = ((x, round(self.start - cam.y) + 6), (x, round(end - cam.y) - 6))
         if self.burning:
             t = (self.age - self.WARN) / self.BURN
             width = round(self.HALF * 2 * (1 - 0.5 * t))
@@ -85,11 +90,11 @@ class Beam:
             on = (frame // 4) % 2 == 0 or t > 0.75
             color = LASER_RED if on else (130, 30, 40)
             if self.axis == "h":
-                for x in range(-((frame * 2) % (dash + gap)), w, dash + gap):
-                    view.fill(color, (x, a[1] - 1, dash, 2))
+                for x in range(a[0] - ((frame * 2) % (dash + gap)), b[0], dash + gap):
+                    view.fill(color, (max(a[0], x), a[1] - 1, dash, 2))
             else:
-                for y in range(-((frame * 2) % (dash + gap)), h, dash + gap):
-                    view.fill(color, (a[0] - 1, y, 2, dash))
+                for y in range(a[1] - ((frame * 2) % (dash + gap)), b[1], dash + gap):
+                    view.fill(color, (a[0] - 1, max(a[1], y), 2, dash))
         for ex, ey in emitters:
             lit = self.burning or (frame // 5) % 2 == 0
             view.fill((40, 44, 56), (ex - 6, ey - 6, 12, 12))
@@ -110,19 +115,21 @@ class LaserGrid:
 
     def _free_line(self, axis):
         """Uma altura (ou coluna) onde o feixe passa por chão livre na maior parte do caminho."""
-        arena = self.arena
+        arena, room = self.arena, self.arena.room
         for _ in range(20):
             if axis == "h":
-                pos = self.rng.uniform(120, arena.height - 120)
-                free = sum(arena.is_free(x, pos, 4) for x in range(40, arena.width, 80))
-                total = len(range(40, arena.width, 80))
+                pos = self.rng.uniform(room.y + 120, room.bottom - 120)
+                xs = range(room.x + 40, room.right, 80)
+                free = sum(arena.is_free(x, pos, 4) for x in xs)
+                total = len(xs)
             else:
-                pos = self.rng.uniform(120, arena.width - 120)
-                free = sum(arena.is_free(pos, y, 4) for y in range(40, arena.height, 80))
-                total = len(range(40, arena.height, 80))
+                pos = self.rng.uniform(room.x + 120, room.right - 120)
+                ys = range(room.y + 40, room.bottom, 80)
+                free = sum(arena.is_free(pos, y, 4) for y in ys)
+                total = len(ys)
             if free >= total * 0.6:
                 return pos
-        return (arena.height if axis == "h" else arena.width) / 2
+        return room.centery if axis == "h" else room.centerx
 
     def update(self, match):
         self.timer -= 1
@@ -131,8 +138,9 @@ class LaserGrid:
             count = 2 if self.rng.random() < 0.35 else 1
             for k in range(count):
                 axis = "v" if self.rng.random() < 0.55 else "h"
-                length = self.arena.width if axis == "h" else self.arena.height
-                self.beams.append(Beam(axis, self._free_line(axis), length, delay=k * 20))
+                room = self.arena.room
+                length, start = (room.w, room.x) if axis == "h" else (room.h, room.y)
+                self.beams.append(Beam(axis, self._free_line(axis), length, delay=k * 20, start=start))
         for beam in self.beams:
             beam.update(match, round(self.DAMAGE * match.enemy_dmg))
         self.beams = [b for b in self.beams if not b.done]
@@ -333,9 +341,10 @@ class LaserTiles:
     def __init__(self, arena, rng=random):
         self.arena = arena
         self.rng = rng
-        cols, rows = arena.width // self.CELL, arena.height // self.CELL
+        self.ox, self.oy = arena.room.topleft          # ladrilhos contados do canto da sala
+        cols, rows = arena.room.w // self.CELL, arena.room.h // self.CELL
         self.cells = [(c, r) for c in range(cols) for r in range(rows)
-                      if arena.is_free(c * self.CELL + self.CELL / 2, r * self.CELL + self.CELL / 2, 20)]
+                      if arena.is_free(self.ox + c * self.CELL + self.CELL / 2, self.oy + r * self.CELL + self.CELL / 2, 20)]
         self.lit = []                # ladrilhos da vez
         self.age = 0
         self.timer = 120
@@ -346,7 +355,7 @@ class LaserTiles:
         return bool(self.lit) and self.WARN <= self.age < self.WARN + self.BURN
 
     def cell_of(self, f):
-        return int(f.x // self.CELL), int(f.y // self.CELL)
+        return int((f.x - self.ox) // self.CELL), int((f.y - self.oy) // self.CELL)
 
     def update(self, match):
         if self.lit:
@@ -378,7 +387,7 @@ class LaserTiles:
         if not self.lit:
             return
         for c, r in self.lit:
-            rect = pygame.Rect(round(c * self.CELL - cam.x) + 4, round(r * self.CELL - cam.y) + 4,
+            rect = pygame.Rect(round(self.ox + c * self.CELL - cam.x) + 4, round(self.oy + r * self.CELL - cam.y) + 4,
                                self.CELL - 8, self.CELL - 8)
             if self.burning:
                 t = (self.age - self.WARN) / self.BURN
@@ -424,7 +433,7 @@ class Steam:
 
     def __init__(self, arena, rng=random):
         self.arena = arena
-        self.valves = [Valve(*arena.free_spot(x, y, 24)) for x, y in self.SPOTS]
+        self.valves = [Valve(*arena.free_spot(*arena.at(x, y), 24)) for x, y in self.SPOTS]
         self.density = 1.0
         self.match = None
         self._veil = None

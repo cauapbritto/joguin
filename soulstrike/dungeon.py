@@ -1,5 +1,5 @@
-"""Coisas do caminho da campanha: entradas com grade, a fogueira e o baú (com as armas raras)
-do corredor, a porta da masmorra 1 para o corredor, o portal da fase e o botão INICIAR BATALHA."""
+"""Coisas do caminho da campanha: a fogueira e o baú (com as armas raras) da sala de recompensa,
+a porta de saída da sala avulsa, o portal da fase e o botão INICIAR BATALHA."""
 import math
 import random
 
@@ -9,7 +9,6 @@ from . import theme, weapon_art
 from .data import rarity_color
 from .entities import Entity, Particle, Wall
 
-GATE_LIFT = 26               # quadros da grade subindo (ou descendo)
 
 
 def _glow(radius, color, strength=1.0):
@@ -28,109 +27,6 @@ def glow(radius, color, strength=1.0):
     if key not in _GLOWS:
         _GLOWS[key] = _glow(radius, color, strength)
     return _GLOWS[key]
-
-
-# ─────────────────────────────────────────────
-#  Entrada de masmorra (acampamento)
-# ─────────────────────────────────────────────
-class Gate(Entity):
-    """Entrada de uma masmorra na parede da sala inicial ou do corredor.
-
-    Estados: "open" (dá para entrar, brilha por dentro), "locked" (grade fechada) e
-    "done" (grade fechada com um OK: essa masmorra já foi). A grade sobe e desce animada;
-    fechada, ela vira parede (ninguém passa)."""
-
-    flat = True                  # desenhada junto do chão, por cima das paredes
-
-    def __init__(self, number, rect, state="locked"):
-        r = pygame.Rect(rect)
-        super().__init__(r.centerx, r.centery)
-        self.number = number
-        self.rect = r
-        self.state = state
-        self.bars = 0.0 if state == "open" else 1.0      # 1 = grade toda abaixada
-        self.wall = Wall(r.x, r.y, r.w, r.h, visible=False)
-        self.age = 0
-
-    @property
-    def closed(self):
-        return self.state != "open"
-
-    @property
-    def entrance(self):
-        """Ponto logo na frente da entrada (onde o grupo se junta para entrar)."""
-        return self.rect.centerx, self.rect.bottom + 40
-
-    def open(self):
-        self.state = "open"
-
-    def sync_wall(self, arena):
-        """Grade fechada é parede; aberta não."""
-        blocking = self.bars > 0.5
-        present = self.wall in arena.walls
-        if blocking and not present:
-            arena.walls.append(self.wall)
-        elif not blocking and present:
-            arena.walls.remove(self.wall)
-
-    def update(self, match):
-        self.age += 1
-        target = 0.0 if self.state == "open" else 1.0
-        if self.bars != target:
-            step = 1 / GATE_LIFT
-            self.bars = max(target, self.bars - step) if target < self.bars else min(target, self.bars + step)
-            if self.age % 6 == 0:
-                match.dust(self.rect.centerx + random.uniform(-20, 20), self.rect.bottom - 18, 1)
-        self.sync_wall(match.arena)
-        if self.state == "open" and self.age % 5 == 0:
-            # luz sendo puxada para dentro da masmorra
-            x = self.rect.centerx + random.uniform(-self.rect.w / 2, self.rect.w / 2)
-            match.particles.append(Particle(x, self.rect.bottom + 30, random.uniform(-0.2, 0.2),
-                                            random.uniform(-1.4, -0.8), (180, 150, 250), 26, 3))
-
-    def draw(self, surf, camera):
-        r = self.rect.move(-round(camera.x), -round(camera.y))
-        # vão escuro
-        for i in range(r.h):
-            k = i / max(1, r.h - 1)
-            surf.fill((round(6 + 16 * k), round(4 + 12 * k), round(10 + 18 * k)), (r.x, r.y + i, r.w, 1))
-        if self.state == "open":
-            pulse = 0.65 + 0.35 * math.sin(self.age * 0.09)
-            g = glow(48, (150, 110, 240), pulse)
-            surf.blit(g, g.get_rect(center=(r.centerx, r.bottom - 6)), special_flags=pygame.BLEND_ADD)
-        # moldura de pedra (pilares e verga)
-        stone, edge, light = (96, 90, 104), (40, 36, 48), (140, 134, 150)
-        for x in (r.x - 8, r.right):
-            surf.fill(edge, (x - 1, r.y - 2, 10, r.h + 8))
-            surf.fill(stone, (x, r.y, 8, r.h + 5))
-            surf.fill(light, (x, r.y, 2, r.h + 5))
-        surf.fill(edge, (r.x - 9, r.y - 3, r.w + 18, 7))
-        surf.fill(stone, (r.x - 8, r.y - 2, r.w + 16, 5))
-        # grade
-        if self.bars > 0:
-            drop = round(r.h * self.bars)
-            clip = surf.get_clip()
-            surf.set_clip(pygame.Rect(r.x, r.y, r.w, r.h + 4).clip(clip))
-            top = r.y + r.h - drop
-            for x in range(r.x + 3, r.right - 2, 8):
-                surf.fill((24, 22, 30), (x - 1, top - 2, 5, drop + 2))
-                surf.fill((122, 118, 132), (x, top - 2, 3, drop + 2))
-                surf.fill((180, 176, 190), (x, top - 2, 1, drop + 2))
-            for y in (top + drop // 3, top + 2 * drop // 3):
-                surf.fill((24, 22, 30), (r.x, y - 1, r.w, 4))
-                surf.fill((100, 96, 110), (r.x, y, r.w, 2))
-            surf.set_clip(clip)
-
-    def draw_label(self, screen, camera, ui, frame):
-        sx, sy = camera.to_screen(self.rect.centerx, self.rect.bottom + 16)
-        if self.state == "done":
-            text, color = f"MASMORRA {self.number} · OK", theme.MOSS
-        elif self.state == "locked":
-            text, color = f"MASMORRA {self.number}", theme.MUTED
-        else:
-            text = f"MASMORRA {self.number}"
-            color = theme.BRASS if (frame // 20) % 2 else theme.BONE
-        ui.text(screen, text, theme.XS, color, (round(sx), round(sy)))
 
 
 # ─────────────────────────────────────────────

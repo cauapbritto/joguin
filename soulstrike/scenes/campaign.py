@@ -10,7 +10,7 @@ from ..arena import MAPS_BY_KEY
 from ..enemies import SHADOW_RIM
 from ..fighter import draw_aura
 from ..campaign import (BROKEN, CRYSTAL, DUNGEON_2, FRAGMENT, PHASE_HEAL, PHASES, STORY, CampaignMatch,
-                        CampaignRun, LobbyMatch)
+                        CampaignRun)
 from ..net.remote import hub
 from ..ui import MenuList, darken, mix
 from ..upgrades import ICONS, UPGRADES, choices
@@ -39,7 +39,7 @@ def hub_scene(game, run, story=True):
 
 
 def start_phase(game, run, story=True):
-    """Começa a fase na sala inicial (depois da história dela)."""
+    """Começa a fase na abertura (depois da história dela)."""
     if run.rush:
         # Reunião dos Corrompidos: direto na sala do chefe (sem acampamento, história nem save)
         run.begin_phase()
@@ -55,9 +55,11 @@ def start_phase(game, run, story=True):
 
 
 def stage_scene(game, run):
-    """A etapa atual da fase: sala inicial, masmorra ou corredor."""
+    """A fase: o mapa inteiro, a pé da abertura até o portal (na Reunião dos Corrompidos, só a sala
+    do chefe)."""
+    from ..fase import PhaseMatch
     from .play import PlayScene
-    match = LobbyMatch(game, run) if run.in_lobby else CampaignMatch(game, run)
+    match = CampaignMatch(game, run) if run.rush else PhaseMatch(game, run)
     return PlayScene(game, match)
 
 

@@ -11,21 +11,18 @@ from dataclasses import dataclass
 
 import pygame
 
-from . import config, crt, energia, hud, rumble, theme
-from .progress import chapter_cleared
+from . import config, energia, hud, rumble, theme
 from .ai import FighterAI
-from .entities import Particle, Pickup, Wall
+from .entities import Particle, Pickup
 from .enemies import BIG_KINDS, CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_enemy
-from .arena import MAPS_BY_KEY
 from .matches import Match, Result, _separate
 from .net.remote import hub
 from .ui import darken
-from .data import PHASE_RELICS, RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
-from .armario import RACK_SIZE, Armario, token_of, weapon_of
-from .dungeon import Campfire, Chest, ExitDoor, Gate, GroundWeapon, PhasePortal, RelicDrop, StartButton
+from .data import RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
+from .armario import RACK_SIZE, token_of, weapon_of
+from .dungeon import ExitDoor, GroundWeapon, PhasePortal, StartButton
 from .hazards import make_hazard
-from .lobbies import cells_rect
-from .market import CURSE_HP, CURSE_SPEED, CURSES, ENCHANTS, MAX_LEVEL, MAX_REROLLS, SOUL_COLOR, MarketMenu, Stall, soul_split
+from .market import CURSE_HP, CURSE_SPEED, CURSES, ENCHANTS, MAX_LEVEL, MAX_REROLLS, SOUL_COLOR, soul_split
 from .upgrades import apply_all
 
 PLAYERS, ENEMIES = 0, 1
@@ -109,23 +106,20 @@ class Dungeon:
 
 @dataclass(frozen=True)
 class Phase:
-    """Uma fase: a sala inicial, duas masmorras e o corredor entre elas (no tema da fase).
+    """Uma fase: um mapa só (mapa_fase), com a abertura, três salas de luta e a sala de recompensas
+    ligadas por corredores, tudo a pé, como no Soul Knight.
 
-    Caminho, sem voltar: sala inicial (lojinha e altar) → masmorra 1 → corredor (baú, fogueira,
-    loja, ferreiro e armário) → masmorra 2 → portal para a próxima fase."""
+    ``dungeons``: a masmorra 1 (em cima da abertura) e a final (portal da próxima fase ou o chefe);
+    ``middle``: a sala de luta do meio, que leva à sala de recompensas."""
     key: str
     name: str
-    theme: str                # tema do acampamento (floresta, calabouco, templo_gelado, lag_...)
+    theme: str                # cenário do acampamento (abertura, recompensa e corredores)
     dungeons: tuple
     chapter: int = 1          # capítulo 1: Templo Gelado; capítulo 2: Lag Lobby
 
     @property
-    def start_room(self):
-        return f"inicio_{self.theme}"
-
-    @property
-    def corridor(self):
-        return f"corredor_{self.theme}"
+    def middle(self):
+        return MIDDLE[self.key]
 
 
 LEFT = ((180, 640), (180, 760), (260, 640), (260, 760))
@@ -253,13 +247,53 @@ PHASES = (
                 exit_spot=(800, 460), boss_spot=(800, 360), boss="cauanzera"),
     ), chapter=4),
 )
+# a sala de luta do meio de cada fase (arena.SALAS): duas ondas menores, com os inimigos da fase
+_MID = ((160, 380), (160, 500), (240, 380), (240, 500))
+
+
+def _middle(key, name, waves, hazard=None):
+    return Dungeon(f"sala_{key}", name, _MID, (1.0, 0.0), waves, exit_spot=(600, 120), hazard=hazard)
+
+
+MIDDLE = {
+    "floresta": _middle("floresta", "BOSQUE FECHADO",
+                        ((("diabrete", 4), ("esqueleto", 1)), (("esqueleto", 3), ("diabrete", 2)))),
+    "calabouco": _middle("calabouco", "GALERIA DAS CORRENTES",
+                         ((("esqueleto", 3), ("diabrete", 2)), (("golem", 1), ("diabrete", 3)))),
+    "templo": _middle("templo", "CLAUSTRO DE GELO",
+                      ((("diabrete", 3), ("esqueleto", 3)), (("golem", 1), ("esqueleto", 2), ("diabrete", 2)))),
+    "recepcao": _middle("recepcao", "SALA DE TREINAMENTO",
+                        ((("drone", 3), ("miliciano", 1)), (("miliciano", 2), ("drone", 3)))),
+    "datacenter": _middle("datacenter", "SALA DE CABOS",
+                          ((("torreta", 1), ("drone", 3)), (("miliciano", 2), ("miliciano_exo", 1), ("drone", 2)))),
+    "cobertura": _middle("cobertura", "TERRAÇO",
+                         ((("drone", 4), ("torreta", 1)), (("miliciano_exo", 1), ("miliciano", 2), ("drone", 2)))),
+    "clinica_recepcao": _middle("clinica_recepcao", "SALA DE AVALIAÇÃO",
+                                ((("mascara_argila", 3), ("rolinho_jade", 2)),
+                                 (("seringuinha", 2), ("mascara_argila", 3)))),
+    "procedimentos": _middle("procedimentos", "SALA DE MASSAGEM",
+                             ((("toalha_fantasma", 3), ("rolinho_jade", 2)),
+                              (("esteti_bot", 1), ("toalha_fantasma", 2), ("seringuinha", 2)))),
+    "suite_vip": _middle("suite_vip", "CLOSET VIP",
+                         ((("grampeador", 2), ("seringuinha", 2)),
+                          (("espelho_vivo", 1), ("cadeira", 1), ("grampeador", 2)))),
+    "mansao_sede": _middle("mansao_sede", "PROTOCOLO GERAL",
+                           ((("processo", 3), ("carimbador", 1)), (("impressora", 1), ("processo", 3), ("carimbador", 1)))),
+    "mansao_patio": _middle("mansao_patio", "ESTACIONAMENTO",
+                            ((("tuiuiu_drone", 3), ("garrafa_termica", 1)),
+                             (("garrafa_termica", 2), ("tuiuiu_drone", 2), ("ponto_eletronico", 1)))),
+    "mansao_gabinete": _middle("mansao_gabinete", "ANTESSALA DO GABINETE",
+                               ((("popup_iara", 3), ("projetor", 1)),
+                                (("arquivo_aco", 1), ("impressora", 1), ("popup_iara", 2)))),
+}
 CHAPTER_START = {ch: next(i for i, p in enumerate(PHASES) if p.chapter == ch) for ch in (1, 2, 3, 4)}
 RUSH_PHASES = tuple(i for i, p in enumerate(PHASES) if p.dungeons[-1].boss_spot)   # salas dos 4 chefes
 RUSH_UPGRADES = 4             # Reunião dos Corrompidos: melhorias sorteadas antes do primeiro chefe
 CHAPTER2_SOULS = 120          # começando do capítulo 2: almas para a loja da primeira fase
 CHAPTER2_UPGRADES = 2         # ... e melhorias sorteadas (mais a escolhida antes de entrar)
 
-# etapas de uma fase (CampaignRun.stage): sala inicial, masmorra 1, corredor (LOBBY_BACK) e masmorra 2
+# etapas de uma fase (CampaignRun.stage). A fase normal é um mapa só (fase.PhaseMatch) e não troca de
+# etapa; a sala avulsa (CampaignMatch, na Reunião dos Corrompidos) ainda usa a etapa da masmorra
 LOBBY_START, DUNGEON_1, LOBBY_BACK, DUNGEON_2 = range(4)
 STAGE_REVIVE = 0.3
             # quem estava caído ao fim de uma masmorra volta com essa vida
@@ -409,7 +443,7 @@ class CampaignRun:
         return True
 
     def begin_phase(self):
-        """Começa a fase na sala inicial e guarda como tudo estava (para TENTAR DE NOVO)."""
+        """Começa a fase na abertura e guarda como tudo estava (para TENTAR DE NOVO)."""
         self.stage = LOBBY_START
         self.chest_open = False
         self._snapshot = self._state()
@@ -591,7 +625,7 @@ TILE_PX = 40
 
 
 class Passage:
-    """Passagem coletiva: porta da sala inicial, do corredor, saída da masmorra 1 e portal.
+    """Passagem coletiva: o portal da fase (e a saída da sala avulsa).
 
     A contagem só começa com todos os jogadores ATIVOS dentro da área, zera se alguém sair e
     dispara uma vez só. Ativo = em pé e com controle presente (as vagas 1 e 2 têm teclado e
@@ -663,16 +697,16 @@ class Passage:
 
 
 class CoopMatch(Match):
-    """Base das etapas da campanha (sala inicial, corredor e masmorra): os jogadores do mesmo time,
+    """Base das partidas da campanha (a fase inteira, a sala avulsa e a Casa): os jogadores do mesmo time,
     a mira, levantar quem caiu, os itens, o escurecer entre uma etapa e outra e o HUD."""
 
     min_zoom = 0.5            # bem de longe, a pixel art fica no tamanho original (2 por 1)
     lobby = False
 
-    def __init__(self, game, run, map_key, starts, facing):
+    def __init__(self, game, run, map_key, starts, facing, arena=None):
         self.run = run
         self.phase = run.phase
-        super().__init__(game, run.session, map_key)
+        super().__init__(game, run.session, map_key, arena)
         for setup, pos in zip(run.session.slots, starts):
             f = self._add_fighter(setup, pos, team=PLAYERS)
             f.full_name = setup.name
@@ -1302,30 +1336,41 @@ _edge_arrow = hud.edge_arrow
 
 
 class CampaignMatch(CoopMatch):
-    """Uma masmorra: o grupo entra, se arruma e aperta o botão INICIAR BATALHA; aí as ondas de
-    inimigos saem dos portais. Limpou a 1ª, abre a porta para o corredor; limpou a 2ª, aparece o
-    portal da fase. Nos dois casos o grupo vai junto (passagem coletiva: todos dentro, 2 s)."""
+    """Uma sala de luta: as ondas de inimigos saem dos portais e, limpa a última sala, aparece o
+    portal da fase (passagem coletiva: todos dentro, 2 s). Sozinha, é a sala avulsa da Reunião dos
+    Corrompidos; a fase normal (fase.PhaseMatch) herda daqui e liga as salas num mapa só."""
 
     def __init__(self, game, run):
         self.dungeon_index = run.dungeon_index
         self.dungeon = run.dungeon
         super().__init__(game, run, self.dungeon.map_key, self.dungeon.starts, self.dungeon.facing)
-        self.enemy_hp, self.enemy_dmg = DIFFICULTY.get(run.session.difficulty, (1.0, 1.0))
-        if run.players == 1:
-            self.enemy_dmg *= SOLO_DAMAGE         # sozinho não tem quem levante: inimigos batem menos
-        self.corpses = {}
-        self.breath_used = False        # último fôlego (campanha solo): uma vez por masmorra
-        self.revived_once = set()       # Borba: quem já foi levantado nesta masmorra
+        self._setup_combat()
         self.state = "intro"
         self.state_timer = INTRO_FRAMES
+        self.hazard = make_hazard(self.dungeon.hazard, self.arena)   # laser no chão, vento...
+
+    def _setup_combat(self):
+        """O que vale para a partida inteira: a força dos inimigos e os corpos."""
+        self.enemy_hp, self.enemy_dmg = DIFFICULTY.get(self.run.session.difficulty, (1.0, 1.0))
+        if self.run.players == 1:
+            self.enemy_dmg *= SOLO_DAMAGE         # sozinho não tem quem levante: inimigos batem menos
+        self.corpses = {}
+        self.notices = []               # balões do "oi sumido" (capítulo 3), na tela
+        self._vanished = []
+        self.state_timer = 0
+        self._reset_room()
+
+    def _reset_room(self):
+        """O que vale por sala de luta (masmorra)."""
+        self.breath_used = False        # último fôlego (campanha solo): uma vez por masmorra
+        self.revived_once = set()       # Borba: quem já foi levantado nesta masmorra
         self.slain_boss = False
         self.exit = None                # porta para o corredor (masmorra 1) ou portal da fase (masmorra 2)
         self.passage = None             # passagem coletiva da porta ou do portal
         self.start_button = None        # INICIAR BATALHA (aparece depois da apresentação)
-        self.hazard = make_hazard(self.dungeon.hazard, self.arena)   # laser no chão, vento...
-        self.notices = []               # balões do "oi sumido" (capítulo 3), na tela
         self.daiwone_at = None          # quadro em que a Daiwone chega (None = não vem / já veio)
-        self._vanished = []
+        self.hazard = None
+        self.wave = -1
 
     @property
     def last(self):
@@ -1396,7 +1441,7 @@ class CampaignMatch(CoopMatch):
 
     def _spawn_spot(self, kind):
         if kind == "chefe" and self.dungeon.boss_spot:
-            return self.dungeon.boss_spot
+            return self.arena.at(*self.dungeon.boss_spot)
         radius = 30 if kind in BIG_KINDS else config.PLAYER_RADIUS + 6
         players = self.alive_players or self.players
         best, best_score = None, -1
@@ -1777,7 +1822,7 @@ class CampaignMatch(CoopMatch):
         return True
 
     def _open_exit(self):
-        x, y = self.arena.free_spot(*self.dungeon.exit_spot, 40)
+        x, y = self.arena.free_spot(*self.arena.at(*self.dungeon.exit_spot), 40)
         if self.last:                      # o portal da fase: todos dentro e o grupo vai junto
             self.exit = PhasePortal(x, y)
             self.state = "portal"
@@ -1913,188 +1958,6 @@ class CampaignMatch(CoopMatch):
             big = e is self.boss
             color = SHADOW_AURA if big or getattr(e, "aura", None) else theme.BLOOD
             _edge_arrow(screen, sx, sy, color, 11 if big else 7)
-
-
-class LobbyMatch(CoopMatch):
-    """Trecho sem batalha da fase (progressão contínua, ninguém volta para trás):
-
-    - SALA INICIAL (``back`` falso): pequena, com a lojinha e o altar das maldições; a porta 1
-      leva à masmorra 1.
-    - CORREDOR (``back`` verdadeiro, depois da masmorra 1): o grupo chega pela porta 1 (de onde
-      saiu) e encontra o baú, a fogueira, a loja, o ferreiro e o armário; a porta 2 leva à
-      masmorra 2.
-
-    A porta só leva o grupo com a passagem coletiva (todos dentro, contagem de 2 s)."""
-
-    lobby = True
-    music = "camp"
-
-    def __init__(self, game, run):
-        self.back = run.stage == LOBBY_BACK
-        cfg = MAPS_BY_KEY[run.phase.corridor if self.back else run.phase.start_room]
-        markers = cfg.markers
-        self.style = "lag" if run.phase.chapter == 2 else None     # cofre e bancas da Lag Lobby
-        starts = markers["a"] if self.back else markers["S"]
-        starts = _spread(starts, len(run.session.slots))
-        super().__init__(game, run, cfg.key, starts, (0.0, -1.0))
-        self.state = "explore"
-        self.gates = {}
-        numbers = (1, 2) if self.back else (1,)
-        for number in numbers:
-            rect = cells_rect(markers[str(number)])
-            if number == 1:
-                state = "done" if self.back else "open"
-            else:
-                state = "locked"
-            gate = Gate(number, rect, state)
-            self.gates[number] = gate
-            r = gate.rect                    # ninguém passa da porta para o escuro de trás
-            self.arena.walls.append(Wall(r.x - 8, r.y - TILE_PX, r.w + 16, TILE_PX, visible=False))
-        for gate in self.gates.values():
-            gate.sync_wall(self.arena)
-        self.props += list(self.gates.values())
-        self.target_gate = 2 if self.back else 1
-        self.passage = Passage(lambda p: self._gate_area().collidepoint(p.x, p.y))
-        self.campfire = None
-        self.chest = None
-        self.armario = None
-        self.stalls = []
-        if self.back:
-            fx, fy = _center(markers["F"])
-            self.campfire = Campfire(fx, fy)
-            self.arena.walls.append(self.campfire.wall)
-            self.props.append(self.campfire)
-            if not run.chest_open:
-                cx, cy = markers["C"][0]
-                self.chest = Chest(cx, cy, self.style)
-                self.arena.walls.append(self.chest.wall)
-                self.props.append(self.chest)
-            x, y = markers["K"][0]
-            self.armario = Armario(x, y, run, self.style)
-            self.arena.walls.append(self.armario.wall)
-            self.props.append(self.armario)
-            self._stall("loja", markers["L"][0])
-            self._stall("ferreiro", markers["R"][0])
-        else:
-            self._stall("loja", markers["L"][0], mini=True)      # a lojinha: só o básico
-            self._stall("altar", markers["X"][0])                # desafio opcional da fase
-        from . import enfeites, lobbies                          # enfeites do capítulo nos cantos
-        rows = (lobbies.corredor_rows(run.phase.theme) if self.back else lobbies.INICIO)[1]
-        enfeites.furnish(self, rows, run.phase.chapter, joke=self.back)
-        if chapter_cleared(4) and self.players:    # recompensa do capítulo 4: a IARA mascote
-            from .mansao import IaraMascot
-            self.add_effect(IaraMascot(self.players[0], self.assets.sprites.get("iara_nucleo")))
-        for p in self.players:              # chegando (portal da fase anterior ou saindo da masmorra)
-            self.burst(p.x, p.y - 20, (200, 180, 255), 14, speed=3)
-
-    def _stall(self, kind, at, mini=False):
-        stall = Stall(kind, *at, self.style, mini=mini)
-        self.stalls.append(stall)
-        self.arena.walls.append(stall.wall)
-        self.props.append(stall)
-        return stall
-
-    def _gate_area(self):
-        """Onde o grupo se junta para entrar: o vão da porta e um pedaço do chão na frente dela."""
-        r = self.gates[self.target_gate].rect
-        return pygame.Rect(r.x - 20, r.y, r.w + 40, r.h + 110)
-
-    @property
-    def objective_text(self):
-        if self.back and self.gates[2].state != "open":
-            return "CORREDOR · A MASMORRA 2 ESTÁ ABRINDO..."
-        if self.back and self.chest is not None and self.chest.state == "closed":
-            hidden = "O COFRE" if self.style == "lag" else "O BAÚ"
-            return f"ABRAM {hidden} · DEPOIS, TODOS NA PORTA DA MASMORRA 2"
-        if self.back:
-            return "CORREDOR · TODOS NA PORTA DA MASMORRA 2"
-        return "SALA INICIAL · TODOS NA PORTA DA MASMORRA 1"
-
-    def objective(self):
-        gate = self.gates[self.target_gate]
-        return gate.entrance
-
-    def update_stage(self):
-        if self.back and self.frame == 50:
-            self.gates[2].open()
-            self.assets.play("barrier", 0.5)
-            self.camera.shake(3)
-        if self.frame == 1:
-            name = self.arena.cfg.name.upper()
-            if self.back:
-                self._set_banner("CORREDOR", f"{self.phase.name} · {name}", theme.BRASS)
-            else:
-                self._set_banner(f"FASE {self.run.phase_index + 1}", self.phase.name, theme.BRASS)
-        if self.banner and self.banner[3] > 110:
-            self.banner = None
-        if self.leaving:
-            return
-        gate = self.gates[self.target_gate]
-        if gate.state == "open" and gate.bars <= 0 and self.passage.update(self):
-            self.leave()
-
-    def rack_near(self, f):
-        return self.armario if self.armario is not None and self.armario.can_use(f) else None
-
-    def interact(self, f):
-        if self.passage.try_force(self, f):
-            return True
-        if self.chest is not None and self.chest.can_open(f):
-            self.chest.open(self)
-            self.run.chest_open = True
-            return True
-        if self.armario is not None and self.armario.can_use(f):
-            if self.droppable(f) and len(self.run.rack) < RACK_SIZE:
-                return self.store_in_rack(f)
-            return self.take_from_rack(f) or True
-        stall = next((s for s in self.stalls if s.can_use(f)), None)
-        if stall is not None:
-            self.menus[f] = MarketMenu(self, f, stall)
-            self.assets.play("loja", 0.45)
-            return True
-        return self.pick_ground(f)
-
-    def launch_relics(self, chest):
-        """O baú solta uma arma rara para cada jogador: armas diferentes entre si e, se der, que
-        ninguém do grupo já tenha (a que cada um tinha fica no chão)."""
-        held = {p.relic for p in self.players if p.relic is not None}
-        # quem tem forjada também ganha uma rara do baú, e escolhe com qual fica (a outra fica no chão)
-        phase = [RARE_WEAPONS[k] for k in PHASE_RELICS.get(self.run.phase.key, RARE_WEAPONS)]
-        pool = [w for w in phase if w not in held]
-        random.shuffle(pool)
-        for p in self.players:
-            choices = [w for w in pool if w is not p.relic] or \
-                [w for w in phase if w is not p.relic] or \
-                [w for w in RARE_WEAPONS.values() if w is not p.relic and not w.forjada]
-            weapon = choices[0]
-            if weapon in pool:
-                pool.remove(weapon)
-            self.props.append(RelicDrop(chest, p, weapon))
-
-    def next_scene(self):
-        from .scenes.campaign import next_stage
-        return next_stage(self.game, self.run, DUNGEON_2 if self.back else DUNGEON_1)
-
-    def draw_screen_layer(self, screen, ui):
-        cam = self.camera
-        for gate in self.gates.values():
-            gate.draw_label(screen, cam, ui, self.frame)
-        if self.chest is not None:
-            near = any(self.chest.can_open(p) for p in self.alive_players)
-            self.chest.draw_prompt(screen, cam, ui, self.frame, near)
-        self.draw_ground(screen, cam, ui)
-        if self.armario is not None:
-            near = [p for p in self.alive_players if self.armario.can_use(p) and p not in self.menus]
-            self.armario.draw_prompt(screen, cam, ui, self.frame, self.rack_prompt(near[0]) if near else "")
-        for stall in self.stalls:
-            near = any(stall.can_use(p) and p not in self.menus for p in self.alive_players)
-            stall.draw_prompt(screen, cam, ui, self.frame, near)
-        for f, menu in self.menus.items():
-            at = cam.to_screen(f.x, f.y)
-            crt.panel(screen, ("loja", f.slot), lambda s, menu=menu, at=at: menu.draw(s, ui, at))
-        gate = self.gates[self.target_gate]
-        if gate.state == "open":
-            self.draw_passage(screen, ui, self.passage, self._gate_area(), gate.entrance)
 
 
 def _center(points):

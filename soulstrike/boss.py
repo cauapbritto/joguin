@@ -291,7 +291,8 @@ class BossAI(EnemyAI):
         dx, dy = self.dash_dir
         for k in range(1, 12):
             x, y = me.x + dx * k * 60, me.y + dy * k * 60
-            if not (30 < x < match.arena.width - 30 and 30 < y < match.arena.height - 30):
+            room = match.arena.room
+            if not (room.x + 30 < x < room.right - 30 and room.y + 30 < y < room.bottom - 30):
                 break
             match.add_effect(GroundMark(x, y, 44, frames, (150, 60, 230)))
 
@@ -306,9 +307,10 @@ class BossAI(EnemyAI):
         me.x += dx * self.DASH_SPEED
         me.y += dy * self.DASH_SPEED
         margin = me.radius + 40
-        hit_wall = not (margin < me.x < arena.width - margin and margin < me.y < arena.height - margin)
-        me.x = min(max(me.x, margin), arena.width - margin)
-        me.y = min(max(me.y, margin), arena.height - margin)
+        room = arena.room
+        hit_wall = not (room.x + margin < me.x < room.right - margin and room.y + margin < me.y < room.bottom - margin)
+        me.x = min(max(me.x, room.x + margin), room.right - margin)
+        me.y = min(max(me.y, room.y + margin), room.bottom - margin)
         me.pull_timer = 0
         me.ghost_walk = True
         if self.timer % 5 == 0:
@@ -566,7 +568,7 @@ class AlbeguinioBossAI(BossAI):
     def _on_half(self, me, match):
         self.cables = []
         for x, y in CABLE_SPOTS:
-            x, y = match.arena.free_spot(x, y, 20)
+            x, y = match.arena.free_spot(*match.arena.at(x, y), 20)
             cable = match.spawn_now("cabo", x, y)
             self.cables.append(cable)
             match.add_effect(CableLink(cable, me))
@@ -856,12 +858,12 @@ class CauanzeraBossAI(BossAI):
     def _on_half(self, me, match):
         """Etapa 2: FIREWALL nele e a IARA no meio da sala, presa por 4 cabos."""
         self.stage = 2
-        x, y = match.arena.free_spot(*IARA_SPOT, 34)
+        x, y = match.arena.free_spot(*match.arena.at(*IARA_SPOT), 34)
         self.iara = match.spawn_now("iara_nucleo", x, y)
         brain = match.controllers.get(self.iara)
         self.cables = []
         for cx, cy in IARA_CABLES:
-            cx, cy = match.arena.free_spot(cx, cy, 20)
+            cx, cy = match.arena.free_spot(*match.arena.at(cx, cy), 20)
             cable = match.spawn_now("cabo", cx, cy)
             self.cables.append(cable)
             match.add_effect(CableLink(cable, self.iara))
@@ -898,7 +900,7 @@ class CauanzeraBossAI(BossAI):
         me.phase_label = "AGUENTEM FIRME: A TURMA CHEGOU!"
         me.lift = 0
         match.burst(me.x, me.y - 30, IARA_C, 24, speed=5)
-        me.x, me.y = match.arena.free_spot(800, 600, me.radius)     # a lasca puxa ele para o meio do núcleo
+        me.x, me.y = match.arena.free_spot(*match.arena.at(800, 600), me.radius)     # a lasca puxa ele para o meio do núcleo
         match.burst(me.x, me.y - 30, IARA_C, 24, speed=5)
         match.bullets.clear()
         match.add_effect(_TurnDirector(self, me))      # anda mesmo com o chefe atordoado
@@ -937,7 +939,8 @@ class CauanzeraBossAI(BossAI):
         k = self.turn // ALLY_GAP
         if self.turn % ALLY_GAP == 30 and k < len(ALLIES):
             key, name, line = ALLIES[k]
-            starts = ((60, me.y), (me.x, 1130), (1540, me.y))
+            room = match.arena.room
+            starts = ((room.x + 60, me.y), (me.x, room.y + 1130), (room.x + 1540, me.y))
             spots = ((me.x - 170, me.y), (me.x, me.y + 140), (me.x + 170, me.y))
             start = starts[k]
             spot = match.arena.free_spot(*spots[k], 16)
@@ -947,7 +950,7 @@ class CauanzeraBossAI(BossAI):
             match.add_effect(ally)
             match.popup(start[0], start[1] - 80, name, theme.BRASS)
         if self.turn == ALLY_GAP * len(ALLIES) + 40 and self.plug is None:
-            x, y = match.arena.free_spot(800, 210, 20)
+            x, y = match.arena.free_spot(*match.arena.at(800, 210), 20)
             self.plug = PowerPlug(x, y, me)
             match.add_effect(self.plug)
             me.phase_label = "TIREM A IARA DA TOMADA! (ATACAR PERTO)"

@@ -150,7 +150,7 @@ class OndasTest(unittest.TestCase):
         self.assertTrue(all(e.team == 1 for e in match.enemies))
 
     def test_limpar_a_masmorra_1_abre_a_porta_do_corredor(self):
-        from soulstrike.campaign import LobbyMatch
+        from soulstrike.fase import PhaseMatch
         from soulstrike.dungeon import ExitDoor
         match, _ = campanha()
         pular_intro(match)
@@ -172,9 +172,7 @@ class OndasTest(unittest.TestCase):
         passo(match, PASSAGE_FRAMES + LEAVE_FRAMES + 4)
         self.assertTrue(match.finished and match.won)
         self.assertAlmostEqual(match.run.hp_ratio[1], 30 / p1.max_hp, places=3)
-        scene = match.next_scene()
-        self.assertIsInstance(scene.match, LobbyMatch)
-        self.assertTrue(scene.match.back)
+        self.assertIsInstance(match.next_scene().match, PhaseMatch)     # a sala avulsa volta para a fase
 
     def test_faixa_valendo_some_depois_de_iniciar_a_batalha(self):
         from soulstrike.campaign import BANNER_FRAMES, INTRO_FRAMES
