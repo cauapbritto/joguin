@@ -18,6 +18,7 @@ from .entities import Barrier, Bullet, Entity, Explosion, FloatingText, Particle
 from .fighter import Fighter
 from .market import enchant_hit
 from .progress import uniform_on
+from .skins import dress
 from .net.remote import hub
 from .projectiles import projectile_class
 from .soccer_assist import (ASSIST_LEVELS, closest_approach, pick_receiver, segment_contact, shot_assist,
@@ -66,6 +67,8 @@ class Match(ABC):
                           weapon_index=setup.weapon, is_cpu=setup.cpu)
         fighter.facing = (1.0, 0.0) if x < self.arena.width / 2 else (-1.0, 0.0)
         fighter.uniform = uniform_on()
+        if not self.session.soccer and stats.key not in SHADOW_CHARACTERS:
+            dress(fighter, self.assets)         # skin da loja de CACOS (no esporte vale o uniforme do time)
         if self.session.soccer:                 # futebol e basquete: o lento não fica para trás
             fighter.speed = config.ball_mode_speed(stats.speed)
         if stats.key in SHADOW_CHARACTERS:

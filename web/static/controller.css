@@ -566,3 +566,15 @@ body.editing #btn-zone, body.editing #stick-zone { background: rgba(255, 255, 25
 .pen-wait { display: none; color: var(--muted); }
 #view-penalty.espera .pen-wait { display: block; }
 #view-penalty.espera .pen-goal { opacity: .35; }
+
+/* loja de CACOS (Casa da turma): skins e cupom */
+#view-shop[data-kind="cacos"] .shop-souls .gem { background: #78c8ff; transform: rotate(45deg) scale(.8, 1.2); }
+#view-shop[data-kind="cacos"] .shop-detail .foot strong { color: #78c8ff; }
+.skin-thumb img { max-height: 26px; max-width: 30px; }
+.shop-detail .skin-pic { justify-content: center; min-height: 0;
+  background: radial-gradient(circle, color-mix(in srgb, var(--r) 30%, transparent), transparent 70%); }
+.skin-big { image-rendering: pixelated; max-height: 120px; max-width: 100%; object-fit: contain;
+  filter: drop-shadow(0 0 4px var(--r)); pointer-events: none; }
+.cupom-input { font: inherit; font-size: 13px; padding: 8px; text-transform: uppercase; letter-spacing: 1px;
+  background: #f0f0ec; color: #1e1e28; border: 2px solid var(--r, #78c8ff); width: 100%; box-sizing: border-box; }
+.shop-detail .cupom-note { color: var(--r, #78c8ff); }

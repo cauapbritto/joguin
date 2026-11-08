@@ -12,6 +12,25 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.43.0": [
+        {"title": "LOJA DE CACOS", "scene": "casa", "lines": [
+            "Tem banca nova no quintal da Casa: a LOJA DE CACOS. Chegue perto e ATACAR abre.",
+            "Cacos são os caquinhos do cristal da IARA. Ficam salvos no computador, num pote só da turma.",
+            "Zerar a campanha inteira paga uns cacos, mais na dificuldade alta, e o dobro na primeira vez.",
+            "Na loja só tem enfeite: skin não muda dano, vida, energia nem arma.",
+        ]},
+        {"title": "SKINS NOVAS", "scene": "loja", "lines": [
+            "Por 300 cacos: Fantasma Lençol da Vó, Atirador Cangaceiro, Tanque de Obsidiana e Titã Rei Momo.",
+            "Cada skin vem com um efeito em volta do herói: poeira, confete, brasa de obsidiana...",
+            "Comprou, já veste. Na mesma banca dá para tirar e vestir de novo sem pagar.",
+            "Vale na Casa e na campanha. No futebol e no basquete fica o uniforme do time.",
+        ]},
+        {"title": "CUPONS", "scene": "casa", "lines": [
+            "Na loja tem INSERIR CUPOM: digite pelo teclado da TV ou direto no celular.",
+            "Cada cupom vale uma vez por save e pode dar cacos e até uma skin rara que não se compra.",
+            "As quatro raras são da turma original: Albeguinio, Cauanzera, Aryel e Borba Jr.",
+        ]},
+    ],
     "1.42.0": [
         {"title": "O BAÚ NÃO ESCOLHE POR VOCÊ", "scene": "corredores", "lines": [
             "Abrindo o baú, as armas raras saltam para o chão, na frente dele: uma por jogador e mais uma.",

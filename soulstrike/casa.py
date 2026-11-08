@@ -11,7 +11,8 @@ import random
 import pygame
 
 from . import casa_art as art
-from . import computador, config, crt, luz_casa, mascotes, progress, theme
+from . import computador, config, crt, luz_casa, mascotes, progress, skins, theme
+from .loja import ShopMenu, ShopStand
 from .arena import MAPS_BY_KEY
 from .campaign import TILE_PX, CoopMatch, Passage, _spread
 from .entities import Entity, Particle, Wall
@@ -114,7 +115,8 @@ DOORS = (
 
 # garagem: com o que o grupo sai da Casa (chave, nome, capítulo que precisa zerar para liberar)
 VEHICLES = (("city", "CITY DO JOÃO", 0), ("uno", "UNO BRANCO", 1), ("moto", "MOTO DO ARYEL", 2))
-UNO_STAND = (9 * T + 10, OY + 6 * T)        # o suporte da armadura de Uno no canto do Cauanzera
+UNO_STAND = (9 * T + 10, OY + 6 * T)
+SHOP_AT = (12 * T + 30, QY + 3 * T)          # o balcão da loja de CACOS (pé no chão)        # o suporte da armadura de Uno no canto do Cauanzera
 
 
 def vehicle_ready(key):
@@ -749,12 +751,17 @@ class HubMatch(CoopMatch):
         put(art.sign, 7 * T + 20, QY + 7 * T, "HORTA", foot=((-4, 12, 8, 10),))
         put(art.watering_can, 11 * T, QY + 7 * T)
         put(art.scarecrow, T + 30, QY + 3 * T + 10, foot=((-4, -8, 8, 10),))
-        put(art.hose, 12 * T + 10, QY + 2 * T)
+        put(art.hose, 15 * T + 10, QY + 2 * T + 10)
         self._door("garagem", art.garage_front, 39 * T, QY + 5 * T - 20, w=100, inside=art.inside_garagem)
         self.parked = put(art.city_car, *CITY_AT, foot=((-86, -24, 172, 26),))
         self.parked_moto = None
         self._park(self.run.vehicle)
         self._door("porao", art.cellar_door, 14 * T, QY + 5 * T)
+        # a LOJA DE CACOS: o balcão no quintal, entre a horta e o porão
+        self.shop = ShopStand(*SHOP_AT)
+        self.shop.bake_label(self.game.ui)
+        self.props.append(self.shop)
+        self.arena.walls.append(self.shop.wall)
         for i, key in enumerate(CRAQUES):
             self._hero(key, 34 * T + 20 + i * 80, QY + 2 * T + 20, base="pedra")
         for i, (x, y) in enumerate(((17 * T, QY + 2 * T), (33 * T, QY + 7 * T), (45 * T, QY + 2 * T))):
@@ -864,6 +871,7 @@ class HubMatch(CoopMatch):
 
     def _usable_near(self, f):
         return (self.book_near(f) or self.computer_near(f) is not None or self.armor_near(f) or self.garage_near(f)
+                or self.shop.near(f)
                 or any(_near_rect(f, t.rect) for t in (self.moto, self.roulette, self.bakery))
                 or any(b.can_water(f) for b in self.beds))
 
@@ -882,6 +890,15 @@ class HubMatch(CoopMatch):
             del self.menus[f]
         self.freeing = 1
         self.assets.play("confirm", 0.7)
+
+    def redress(self):
+        """Depois de vestir/tirar uma skin na loja: todo mundo na casa já aparece com a roupa escolhida."""
+        for p in self.players:
+            if p.exo_base is not None:
+                continue
+            if not skins.dress(p, self.assets) and p.skin is not None:
+                p.sprites = self.assets.sprites[p.stats.key]
+                p.skin = None
 
     def book_near(self, f):
         return f.alive_in_match and math.hypot(f.x - self.book.x, f.y - (self.book.y + 40)) < BOOK_REACH
@@ -949,6 +966,10 @@ class HubMatch(CoopMatch):
             return True
         if self.armor_near(f):
             self.wear_armor(f)
+            return True
+        if self.shop.near(f):
+            self.menus[f] = ShopMenu(self, f)
+            self.assets.play("loja", 0.45)
             return True
         if self.car_near(f):
             self.menus[f] = ChapterPickMenu(self, f, self.pick_chapter, self.run.chapter)
@@ -1026,6 +1047,9 @@ class HubMatch(CoopMatch):
             if not busy and any(_near_rect(p, thing.rect) for p in free):
                 sx, sy = cam.to_screen(thing.rect.centerx, thing.rect.y - (100 if thing is self.bakery else 50))
                 ui.text(screen, text, theme.XS, blink, (round(sx), round(sy)))
+        if any(self.shop.near(p) for p in free):
+            sx, sy = cam.to_screen(self.shop.x, self.shop.y - 160)
+            ui.text(screen, "ATACAR: LOJA DE CACOS", theme.XS, blink, (round(sx), round(sy)))
         if any(self.armor_near(p) for p in free):
             sx, sy = cam.to_screen(UNO_STAND[0], UNO_STAND[1] - 120)
             ui.text(screen, "ATACAR: VESTIR A ARMADURA", theme.XS, blink, (round(sx), round(sy)))
@@ -1042,7 +1066,7 @@ class HubMatch(CoopMatch):
             if opened:
                 continue
             if any(math.hypot(p.x - x, p.y - y) < DOOR_REACH for p in free):
-                sx, sy = cam.to_screen(x, y + 40)
+                sx, sy = cam.to_screen(x, y + (58 if key == "porao" else 40))  # o porão tem nome pintado embaixo
                 ui.text(screen, hint, theme.XS, theme.BONE, (round(sx), round(sy)))
         self.draw_ground(screen, cam, ui)
         self.draw_car_labels(screen, ui, free, blink)

@@ -773,6 +773,7 @@ class CampaignEndScene(_RunMenuScene):
         self.full = run.start_chapter == 1
         self.rush = run.rush
         self.seal_new = False
+        self.cacos = 0                      # cacos ganhos (só a campanha inteira paga)
         if self.rush:
             # Reunião dos Corrompidos: não mexe na campanha salva nem nos capítulos, só no selo dela
             self.record, self.unlocked = False, False
@@ -783,6 +784,9 @@ class CampaignEndScene(_RunMenuScene):
             self.record, self.unlocked = progress.record_campaign(secs, run.session.difficulty, run.players,
                                                                   full=self.full)
             self.seal_new = not had
+            if self.full:
+                from .. import cacos
+                self.cacos = cacos.pay_campaign(run.session.difficulty)
             progress.clear_campaign()
             self.banner = "CAMPANHA CONCLUÍDA"
         self.menu = MenuList([("MENU PRINCIPAL", "menu"), ("JOGAR DE NOVO", "again")],
@@ -821,6 +825,11 @@ class CampaignEndScene(_RunMenuScene):
             line, color = f"RECORDE: {best // 60}:{best % 60:02d}", theme.MUTED
         self.ui.text(screen, f"TEMPO {secs // 60}:{secs % 60:02d}", theme.S, theme.BONE, (64, 150), anchor="midleft")
         self.ui.text(screen, line, theme.XS, color, (64, 172), anchor="midleft")
+        if self.cacos:
+            from ..skins import CACO_COLOR, draw_caco
+            draw_caco(screen, 70, 216, self.ticks)
+            self.ui.text(screen, f"+{self.cacos} CACOS PARA A LOJA DA CASA", theme.XS, CACO_COLOR, (84, 216),
+                         anchor="midleft")
 
         # heróis comemorando
         from ..data import CHARACTERS
