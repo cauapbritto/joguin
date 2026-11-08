@@ -64,6 +64,7 @@ class Session:
     soccer_length: str = "3"       # futebol: "3", "5" ou "7" gols, ou "tempo" (config.SOCCER_LENGTHS)
     chapter: int = 1               # campanha: capítulo onde começa (2 só depois de zerar o 1)
     rush: bool = False             # Reunião dos Corrompidos: só as salas dos chefes, um atrás do outro
+    walk: bool = False             # PASSEAR NA CASA: só a Casa da turma, sem fase, tempo nem save
 
     @property
     def soccer(self):

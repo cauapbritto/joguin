@@ -13,7 +13,7 @@ from soulstrike.campaign import (FORCE_WAIT, PASSAGE_FRAMES, PHASES, TELEPORT_FR
 from soulstrike.data import CHARACTERS
 from soulstrike.fase import ROOM_INTRO, PhaseMatch
 from soulstrike.lobbies import LOBBY_SCENERY
-from soulstrike.mapa_fase import MINI_H, MINI_W, PhaseLayout
+from soulstrike.mapa_fase import MINI_H, MINI_W, T, PhaseLayout, cells_px
 from soulstrike.session import Session, SlotSetup
 
 KEYS = [c.key for c in CHARACTERS]
@@ -97,12 +97,6 @@ class DesenhoTest(unittest.TestCase):
             layout = PhaseLayout.of(phase)
             rooms = layout.rooms
             self.assertEqual(list(rooms), ["abertura", "luta1", "luta2", "recompensa", "final"])
-            a, l1, l2, rew, fin = (rooms[k].rect for k in rooms)
-            self.assertLess(l1.bottom, a.top, phase.key)                   # masmorra 1 em cima
-            self.assertGreater(l2.left, a.right, phase.key)                # a do meio à direita
-            self.assertGreater(rew.top, l2.bottom, phase.key)              # recompensa embaixo dela
-            self.assertLess(fin.right, a.left, phase.key)                  # a final embaixo à esquerda
-            self.assertGreater(fin.bottom, a.bottom, phase.key)
             boxes = [r.rect for r in rooms.values()]
             for i, r in enumerate(boxes):
                 self.assertEqual(r.collidelist(boxes[:i] + boxes[i + 1:]), -1, phase.key)
@@ -110,7 +104,81 @@ class DesenhoTest(unittest.TestCase):
             self.assertEqual(layout.fight_rooms[0].dungeon, phase.dungeons[0])
             self.assertEqual(layout.fight_rooms[1].dungeon, phase.middle)
             self.assertEqual(layout.fight_rooms[2].dungeon, phase.dungeons[1])
-            self.assertEqual([side for side, _ in rooms["final"].doors], ["direita"])
+            for room in layout.fight_rooms:                 # cada porta fica na borda da própria sala
+                self.assertTrue(room.doors, (phase.key, room.key))
+                for side, rect in room.doors:
+                    edge = {"cima": rect.top == room.rect.top, "baixo": rect.bottom == room.rect.bottom,
+                            "esquerda": rect.left == room.rect.left, "direita": rect.right == room.rect.right}
+                    self.assertTrue(edge[side], (phase.key, room.key, side))
+                    self.assertTrue(room.rect.contains(rect), (phase.key, room.key, side))
+
+    def test_cruz_do_capitulo_1(self):
+        """A 1ª fase do capítulo 1 continua o desenho do Cauã."""
+        rooms = PhaseLayout.of(PHASES[0]).rooms
+        a, l1, l2, rew, fin = (rooms[k].rect for k in rooms)
+        self.assertLess(l1.bottom, a.top)                   # masmorra 1 em cima
+        self.assertGreater(l2.left, a.right)                # a do meio à direita
+        self.assertGreater(rew.top, l2.bottom)              # recompensa embaixo dela
+        self.assertLess(fin.right, a.left)                  # a final embaixo à esquerda
+        self.assertGreater(fin.bottom, a.bottom)
+        self.assertEqual([side for side, _ in rooms["final"].doors], ["direita"])
+
+    def test_um_formato_por_capitulo_espelhado(self):
+        shapes = {1: "cruz", 2: "torre", 3: "corredor", 4: "patio"}
+        for chapter, shape in shapes.items():
+            layouts = [PhaseLayout.of(p) for p in PHASES if p.chapter == chapter]
+            self.assertEqual(len(layouts), 3)
+            self.assertEqual({lay.shape for lay in layouts}, {shape})
+            self.assertEqual(layouts[0].flip, (False, False))
+            self.assertEqual(layouts[1].flip, (True, False))       # a 2ª fase, espelhada de lado
+            if shape != "torre":                                     # alguma sala trocou de lado
+                side = [{k: r.rect.centerx < lay.rooms["abertura"].rect.centerx for k, r in lay.rooms.items()}
+                        for lay in layouts[:2]]
+                self.assertNotEqual(side[0], side[1], chapter)
+
+    def test_torre_sobe_em_linha_reta(self):
+        for phase in PHASES:
+            if phase.chapter != 2:
+                continue
+            rooms = PhaseLayout.of(phase).rooms
+            floors = [rooms[k].rect for k in ("abertura", "luta1", "recompensa", "luta2", "final")]
+            for low, high in zip(floors, floors[1:]):
+                self.assertLess(high.bottom, low.top, phase.key)       # cada andar em cima do outro
+            self.assertEqual(sorted(s for s, _ in rooms["luta1"].doors), ["baixo", "cima"])
+            self.assertEqual([s for s, _ in rooms["final"].doors], ["baixo"])
+
+    def test_corredor_da_clinica_com_a_farmacia_de_lado(self):
+        for phase in PHASES:
+            if phase.chapter != 3:
+                continue
+            layout = PhaseLayout.of(phase)
+            rooms = layout.rooms
+            line = [rooms[k].rect for k in ("abertura", "luta1", "luta2", "final")]
+            xs = [r.centerx for r in line]
+            self.assertIn(xs, (sorted(xs), sorted(xs, reverse=True)), phase.key)   # tudo numa linha
+            ys = {r.centery // T for r in line}
+            self.assertLessEqual(max(ys) - min(ys), 1, phase.key)
+            pharmacy = rooms["recompensa"].rect
+            l1, l2 = rooms["luta1"].rect, rooms["luta2"].rect
+            self.assertTrue(min(l1.centerx, l2.centerx) < pharmacy.centerx < max(l1.centerx, l2.centerx))
+            self.assertFalse(l1.top < pharmacy.centery < l1.bottom, phase.key)    # de lado, fora da linha
+
+    def test_patio_da_mansao_com_o_chefe_no_fundo(self):
+        for phase in PHASES:
+            if phase.chapter != 4:
+                continue
+            layout = PhaseLayout.of(phase)
+            rooms = layout.rooms
+            patio = cells_px(*layout.corridors[0])
+            self.assertGreater(patio.w, 10 * T)
+            for k in ("luta1", "luta2", "final", "abertura"):
+                self.assertFalse(rooms[k].rect.colliderect(patio), (phase.key, k))
+            l1, l2 = rooms["luta1"].rect, rooms["luta2"].rect
+            self.assertLess(min(l1.right, l2.right), patio.centerx)              # uma de cada lado
+            self.assertGreater(max(l1.left, l2.left), patio.centerx)
+            gate, boss = rooms["abertura"].rect, rooms["final"].rect
+            self.assertTrue(gate.top > patio.bottom > boss.bottom or gate.bottom < patio.top < boss.top,
+                            phase.key)                                           # portão e salão opostos
 
     def test_tudo_se_alcanca_a_pe(self):
         for k, phase in enumerate(PHASES):
