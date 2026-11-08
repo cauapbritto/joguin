@@ -12,6 +12,14 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.38.0": [
+        {"title": "SALAS MOBILIADAS", "scene": "mapa_fase", "lines": [
+            "As salas de luta ganharam móveis do capítulo, desenhados no mesmo capricho dos heróis.",
+            "Na floresta: árvores, tronco caído, pedras e moitas. No Lag Lobby: rack, mesa com PC e caixas.",
+            "Na clínica: cadeiras de espera, biombo e carrinho de spa. Na Mansão: relógio, poltronas e busto.",
+            "Poças de luz no chão de cada sala, e nenhum móvel fecha porta ou caminho.",
+        ]},
+    ],
     "1.37.0": [
         {"title": "MASCOTES DA CASA", "scene": "casa", "lines": [
             "O gato laranja dorme no sofá, o Caramelo mora na casinha do quintal e o papagaio no poleiro.",

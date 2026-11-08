@@ -77,6 +77,7 @@ class PhaseMatch(CampaignMatch):
         self.arena.walls.append(self.armario.wall)
         self.props.append(self.armario)
         enfeites.furnish(self, self.layout.rows, run.phase.chapter, joke=True)
+        enfeites.furnish_rooms(self, self.layout, run.phase.chapter)     # móveis e luz nas salas de luta
         mascotes.join(self)                 # os bichos adotados na Casa vêm junto com os donos
         if chapter_cleared(4) and self.players:    # recompensa do capítulo 4: a IARA mascote
             from .mansao import IaraMascot
