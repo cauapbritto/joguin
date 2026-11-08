@@ -12,6 +12,8 @@ o mesmo caminho dos heróis), no tamanho em que aparece na tela: o jogo não amp
   bau_<cap>_fechado.png / _aberto.png
   armario_<cap>.png           o móvel vazio (as armas da campanha são desenhadas por cima no jogo)
   fogueira_<cap>.png          a base (o fogo ou o vapor é desenhado no jogo, mexendo)
+  carro_city.png, carro_uno.png, moto.png   os carros da turma de lado (os _vidro: vidro translúcido)
+  estrada_*.png               casinhas, árvores e poste da beira da estrada na viagem
 """
 import math
 import os
@@ -843,6 +845,200 @@ def fogueira(cap):
     return hd(b.s, keep=[(255, 150, 50), (220, 180, 80)])
 
 
+# ═════════════════════════════════════════════
+#  Carros da turma (de lado, virados para a direita) e a beira da estrada da viagem
+# ═════════════════════════════════════════════
+def _bez(p0, p1, p2, n=10):
+    return [((1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * p1[0] + t * t * p2[0],
+             (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t * t * p2[1]) for t in [i / n for i in range(n + 1)]]
+
+
+def _wheel(out, cx, cy, r, rim=(200, 204, 212), spokes=4, hub=(120, 124, 134)):
+    pygame.draw.circle(out, (18, 18, 22), (cx, cy), r + 1)
+    pygame.draw.circle(out, (40, 40, 46), (cx, cy), r)
+    pygame.draw.arc(out, (72, 72, 80), (cx - r + 2, cy - r + 2, 2 * r - 4, 2 * r - 4), 0.6, 2.4, 2)
+    pygame.draw.circle(out, sh(rim, -40), (cx, cy), r - 5)
+    pygame.draw.circle(out, rim, (cx, cy), r - 6)
+    for k in range(spokes):
+        a = k * 2 * math.pi / spokes + 0.4
+        pygame.draw.line(out, sh(rim, -70), (cx, cy), (cx + math.cos(a) * (r - 7), cy + math.sin(a) * (r - 7)), 2)
+    pygame.draw.circle(out, hub, (cx, cy), 3)
+
+
+CITY_AZUL = ((80, 102, 130), (52, 66, 86), (132, 154, 182))      # azul acinzentado do City do João
+GLASS_MARK = ((200, 20, 200), (240, 60, 240))                    # cor de marcar o vidro (vira translúcido)
+CITY_WHEELS = (44, 144)
+UNO_WHEELS = (28, 98)
+MOTO_WHEELS = (20, 112)
+
+
+def city(glass=(40, 50, 62), glass_l=(150, 172, 190)):
+    """Honda City sedã 2026 do João, azul acinzentado: teto em arco, farol de LED fino, coluna B
+    preta, vinco lateral e aro de 5 raios."""
+    b = B(92, 36)
+    M, D, L = CITY_AZUL
+    chrome = (206, 210, 218)
+    top = (_bez((4, 16), (10, 13.5), (20, 13)) + _bez((20, 13), (27, 4), (40, 3.5))
+           + _bez((40, 3.5), (52, 3.5), (63, 15)) + _bez((63, 15), (78, 16.5), (88, 20)))
+    body = [(round(x), round(y)) for x, y in top] + [(89, 25), (88, 29), (3, 29), (2, 22)]
+    b.poly(body, M)
+    b.poly([(2, 24), (89, 25), (88, 29), (3, 29)], D)
+    win = ([(round(x), round(y)) for x, y in _bez((23, 14), (29, 6), (40, 5.5))]
+           + [(round(x), round(y)) for x, y in _bez((40, 5.5), (51, 5.5), (60, 15))])
+    b.poly(win + [(60, 15.5), (23, 14.5)], glass)
+    b.line((23, 14.8), (61, 15.8), chrome)
+    b.r(44, 5, 2, 11, (26, 26, 30))
+    b.line((29, 8), (31, 14), M, 2)
+    b.line((49, 14), (53, 7), glass_l)
+    b.line((35, 14), (38, 8), glass_l)
+    b.line((5, 17), (86, 21), L)
+    b.line((10, 25), (80, 25), sh(D, -8))
+    b.r(45, 16, 1, 9, D)
+    b.r(61, 16, 1, 9, D)
+    b.r(29, 15, 1, 10, D)
+    b.r(39, 18, 3, 1, chrome)
+    b.r(55, 18, 3, 1, chrome)
+    b.poly([(59, 13), (63, 13), (62, 16), (59, 16)], D)
+    b.poly([(82, 19), (88, 20), (89, 22), (83, 21)], (236, 240, 246))
+    b.r(84, 21, 4, 1, (250, 250, 255))
+    b.poly([(3, 16), (7, 16), (7, 18), (3, 18)], (168, 36, 44))
+    b.r(84, 26, 5, 2, (40, 40, 46))
+    b.r(2, 26, 5, 2, (40, 40, 46))
+    for cx in (22, 72):
+        b.circ((cx, 28), 9, (24, 24, 28))
+    out = hd(b.s, keep=[(250, 250, 255), *GLASS_MARK])
+    for cx in CITY_WHEELS:
+        cy = 56
+        pygame.draw.circle(out, (18, 18, 22), (cx, cy), 15)
+        pygame.draw.circle(out, (40, 40, 46), (cx, cy), 14)
+        pygame.draw.arc(out, (70, 70, 78), (cx - 13, cy - 13, 26, 26), 0.6, 2.4, 2)
+        pygame.draw.circle(out, (150, 154, 164), (cx, cy), 10)
+        pygame.draw.circle(out, (204, 208, 216), (cx, cy), 9)
+        for k in range(5):
+            a0 = k * 2 * math.pi / 5 - math.pi / 2 + 0.63
+            pts = [(cx + math.cos(a0 - 0.32) * 3, cy + math.sin(a0 - 0.32) * 3),
+                   (cx + math.cos(a0 - 0.42) * 8.5, cy + math.sin(a0 - 0.42) * 8.5),
+                   (cx + math.cos(a0 + 0.42) * 8.5, cy + math.sin(a0 + 0.42) * 8.5),
+                   (cx + math.cos(a0 + 0.32) * 3, cy + math.sin(a0 + 0.32) * 3)]
+            pygame.draw.polygon(out, (44, 46, 54), pts)
+        pygame.draw.circle(out, (120, 124, 134), (cx, cy), 3)
+        pygame.draw.circle(out, (220, 40, 50), (cx, cy), 1)
+    return out
+
+
+def uno(glass=(44, 56, 70), glass_l=(150, 172, 190)):
+    """Fiat Uno Mille branco: caixote alto, traseira reta em pé, para-choque preto grosso, faixinha
+    lateral e calota de 4 furos."""
+    b = B(74, 36)
+    W_, D, L = (238, 238, 232), (196, 196, 190), (252, 252, 248)
+    b.poly([(2, 27), (2, 12), (4, 6), (7, 5), (44, 5), (57, 15), (70, 17), (72, 27)], W_)
+    b.r(2, 22, 70, 5, D)
+    b.poly([(19, 14), (19, 7), (33, 7), (33, 14)], glass)
+    b.poly([(35, 14), (35, 7), (44, 7), (52, 14)], glass)
+    b.poly([(4, 14), (6, 7), (14, 7), (14, 14)], glass)
+    b.r(14, 6, 5, 9, W_)
+    b.r(33, 6, 2, 9, (30, 30, 34))
+    b.line((23, 13), (26, 8), glass_l)
+    b.line((39, 13), (42, 8), glass_l)
+    b.r(7, 4, 37, 1, L)
+    b.r(3, 19, 68, 1, (40, 40, 44))
+    b.r(34, 15, 1, 8, D)
+    b.r(18, 15, 1, 8, D)
+    b.r(31, 17, 3, 1, (150, 150, 156))
+    b.r(68, 17, 4, 3, (250, 244, 200))
+    b.r(2, 15, 2, 6, (200, 40, 44))
+    b.r(2, 20, 2, 1, (240, 150, 40))
+    b.r(1, 24, 72, 4, (34, 34, 38))
+    b.r(51, 12, 4, 3, D)
+    base = pygame.transform.scale(b.s, (62, 36))                   # o Uno é curtinho
+    for cx in (14, 49):
+        pygame.draw.circle(base, (24, 24, 28), (cx, 28), 8)
+    out = hd(base, keep=[(250, 244, 200), *GLASS_MARK])
+    for cx in UNO_WHEELS:
+        _wheel(out, cx, 56, 13, rim=(180, 184, 190), spokes=4)
+    return out
+
+
+def moto():
+    """Moto esportiva do Aryel, laranja: carenagem, tanque com faixa, banco preto, escapamento
+    cromado, garfo dourado e rodas de 5 raios."""
+    b = B(66, 40)
+    O, Ol, K = (236, 120, 40), (252, 170, 90), (30, 30, 36)
+    b.line((50, 14), (56, 30), (210, 170, 60), 2)
+    b.poly([(14, 18), (30, 14), (44, 12), (52, 8), (58, 12), (52, 20), (40, 24), (22, 24)], O)
+    b.poly([(28, 14), (40, 10), (46, 12), (34, 16)], Ol)
+    b.r(30, 16, 12, 1, (250, 250, 250))
+    b.poly([(12, 16), (28, 14), (26, 12), (10, 13)], K)
+    b.poly([(2, 12), (12, 13), (12, 16), (4, 16)], O)
+    b.r(2, 12, 3, 2, (220, 50, 50))
+    b.poly([(52, 8), (58, 4), (60, 6), (56, 11)], (120, 160, 200))
+    b.r(56, 11, 3, 2, (250, 244, 200))
+    b.poly([(22, 24), (40, 24), (38, 30), (26, 30)], (70, 70, 80))
+    b.r(26, 26, 10, 2, (120, 120, 130))
+    b.line((26, 30), (8, 28), (210, 214, 222), 3)
+    b.line((14, 22), (10, 30), K, 2)
+    for cx in (10, 56):
+        b.circ((cx, 31), 8, (24, 24, 28))
+    out = hd(b.s, keep=[(250, 244, 200), (250, 250, 250)])
+    for cx in MOTO_WHEELS:
+        _wheel(out, cx, 62, 14, rim=(60, 60, 66), spokes=5, hub=(210, 170, 60))
+    return out
+
+
+def com_vidro(fn):
+    """O carro com o vidro meio transparente (na viagem dá para ver a turma lá dentro): desenha de
+    novo com o vidro numa cor de marcar e deixa translúcido o que mudou."""
+    car, marked = fn(), fn(*GLASS_MARK)
+    w, h = car.get_size()
+    for y in range(h):
+        for x in range(w):
+            c = car.get_at((x, y))
+            if c.a and c != marked.get_at((x, y)):
+                car.set_at((x, y), (c.r, c.g, c.b, 85))
+    return car
+
+
+def casinha(v):
+    b = B(52, 46)
+    walls = ((222, 196, 150), (176, 200, 214), (236, 214, 170), (200, 170, 190))[v % 4]
+    roof = ((168, 74, 58), (120, 70, 60), (150, 90, 60))[v % 3]
+    b.r(4, 18, 44, 28, walls)
+    for y in range(20, 46, 4):
+        b.r(4, y, 44, 1, sh(walls, -10))
+    b.poly([(0, 19), (26, 3), (52, 19)], roof)
+    for x in range(4, 50, 6):
+        b.line((x, 19), (min(26, x + 10), max(3, 19 - (x + 10) * 16 // 26)), sh(roof, -20))
+    b.r(38, 4, 5, 9, (150, 110, 90))
+    b.r(9, 24, 12, 10, (96, 140, 180))
+    b.r(9, 24, 12, 1, (220, 230, 240))
+    b.r(14, 24, 1, 10, walls)
+    b.r(8, 34, 14, 2, sh(walls, -30))
+    for k in range(4):
+        b.r(9 + k * 3, 32, 2, 2, ((230, 80, 90), (250, 200, 80))[k % 2])
+    b.r(30, 28, 10, 18, (120, 82, 54))
+    b.p(38, 37, (220, 190, 90))
+    b.r(28, 44, 14, 2, (170, 170, 170))
+    return hd(b.s)
+
+
+def arvore(v):
+    b = B(28, 44)
+    b.r(12, 28, 4, 16, (96, 66, 44))
+    g = ((60, 120, 64), (70, 136, 70), (52, 110, 60))[v % 3]
+    for cx, cy, r in ((14, 14, 10), (7, 22, 7), (21, 22, 7), (14, 25, 8)):
+        b.circ((cx, cy), r, g)
+    b.circ((10, 11), 3, sh(g, 30))
+    return hd(b.s)
+
+
+def poste():
+    b = B(14, 60)
+    b.r(6, 6, 2, 54, (120, 124, 132))
+    b.r(6, 6, 8, 2, (120, 124, 132))
+    b.r(10, 8, 4, 3, (250, 230, 160))
+    return hd(b.s, keep=[(250, 230, 160)])
+
+
 def main():
     pygame.init()
     OUT.mkdir(parents=True, exist_ok=True)
@@ -859,6 +1055,16 @@ def main():
             pygame.image.save(bau(cap, aberto), str(OUT / f"bau_{cap}_{'aberto' if aberto else 'fechado'}.png"))
         pygame.image.save(armario(cap), str(OUT / f"armario_{cap}.png"))
         pygame.image.save(fogueira(cap), str(OUT / f"fogueira_{cap}.png"))
+    pygame.image.save(city(), str(OUT / "carro_city.png"))
+    pygame.image.save(com_vidro(city), str(OUT / "carro_city_vidro.png"))
+    pygame.image.save(uno(), str(OUT / "carro_uno.png"))
+    pygame.image.save(com_vidro(uno), str(OUT / "carro_uno_vidro.png"))
+    pygame.image.save(moto(), str(OUT / "moto.png"))
+    for v in range(4):
+        pygame.image.save(casinha(v), str(OUT / f"estrada_casa_{v}.png"))
+    for v in range(3):
+        pygame.image.save(arvore(v), str(OUT / f"estrada_arvore_{v}.png"))
+    pygame.image.save(poste(), str(OUT / "estrada_poste.png"))
     print("peças em", OUT)
 
 
