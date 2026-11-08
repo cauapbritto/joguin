@@ -15,6 +15,7 @@ o mesmo caminho dos heróis), no tamanho em que aparece na tela: o jogo não amp
   carro_city.png, carro_uno.png, moto.png   os carros da turma de lado (os _vidro: vidro translúcido)
   estrada_*.png               casinhas, árvores e poste da beira da estrada na viagem
   garagem_*.png               painel de ferramentas, estante, troféus, carrinho, pneus e tambor
+  mascote_<bicho>_<pose>.png  gato, cachorro e papagaio (sentado; andando/voando virado para a direita)
 """
 import math
 import os
@@ -1136,6 +1137,128 @@ def tambor_oleo():
     return hd(b.s)
 
 
+
+# ═════════════════════════════════════════════
+#  Mascotes da Casa (do tamanho certo perto de um herói)
+# ═════════════════════════════════════════════
+def gato(pose="sentado"):
+    """Gato laranja de peito branco: sentado de frente ou andando de lado (virado para a direita)."""
+    b = B(20, 18)
+    o, od, w = (226, 140, 60), (184, 100, 40), (250, 244, 236)
+    eye, glint = (90, 170, 80), (250, 250, 220)
+    if pose == "sentado":
+        b.r(5, 8, 10, 9, o)
+        b.r(7, 12, 6, 5, w)
+        b.r(5, 2, 10, 7, o)
+        b.poly([(5, 3), (6, 0), (8, 2)], o)
+        b.poly([(12, 2), (14, 0), (15, 3)], o)
+        b.p(6, 1, (240, 160, 160))
+        b.p(13, 1, (240, 160, 160))
+        b.r(6, 4, 2, 1, od)
+        b.r(12, 4, 2, 1, od)
+        b.r(7, 5, 2, 2, eye)
+        b.r(11, 5, 2, 2, eye)
+        b.p(7, 5, glint)
+        b.p(11, 5, glint)
+        b.p(10, 7, (230, 120, 130))
+        b.r(9, 8, 3, 1, w)
+        b.r(15, 12, 3, 2, o)
+        b.r(17, 9, 2, 4, o)
+        b.p(17, 9, od)
+        b.r(6, 16, 3, 1, w)
+        b.r(11, 16, 3, 1, w)
+    else:
+        b.r(4, 7, 12, 6, o)
+        b.r(4, 12, 2, 5, o)
+        b.r(8, 12, 2, 5, od)
+        b.r(12, 12, 2, 5, o)
+        b.r(14, 12, 2, 4, od)
+        for x in (6, 10):
+            b.r(x, 7, 1, 5, od)
+        b.r(13, 2, 6, 6, o)
+        b.poly([(13, 3), (14, 0), (16, 2)], o)
+        b.poly([(17, 2), (18, 0), (19, 3)], o)
+        b.r(16, 4, 2, 2, eye)
+        b.p(19, 6, (230, 120, 130))
+        b.r(16, 7, 3, 1, w)
+        b.r(1, 4, 3, 2, o)
+        b.r(0, 2, 2, 3, o)
+    return hd(b.s, keep=[eye, glint])
+
+
+def cachorro(pose="sentado"):
+    """Vira-lata caramelo de coleira vermelha: sentado de frente ou andando de lado."""
+    b = B(24, 20)
+    c, cd, cl, w = (198, 140, 70), (150, 96, 46), (226, 178, 110), (240, 224, 196)
+    if pose == "sentado":
+        b.r(6, 9, 12, 10, c)
+        b.r(9, 12, 6, 7, w)
+        b.r(6, 1, 12, 9, c)
+        b.r(4, 2, 3, 7, cd)
+        b.r(17, 2, 3, 7, cd)
+        b.r(9, 6, 6, 4, cl)
+        b.r(11, 6, 2, 2, (30, 26, 28))
+        b.r(8, 4, 2, 2, (40, 30, 26))
+        b.r(14, 4, 2, 2, (40, 30, 26))
+        b.p(8, 4, (250, 250, 250))
+        b.p(14, 4, (250, 250, 250))
+        b.r(11, 9, 2, 2, (230, 100, 110))
+        b.r(9, 10, 6, 1, (200, 50, 50))
+        b.p(12, 11, (240, 200, 80))
+        b.r(7, 18, 3, 1, cl)
+        b.r(14, 18, 3, 1, cl)
+        b.r(18, 14, 4, 2, c)
+        b.r(20, 11, 2, 4, c)
+    else:
+        b.r(4, 7, 14, 7, c)
+        b.r(5, 13, 2, 6, c)
+        b.r(9, 13, 2, 6, cd)
+        b.r(13, 13, 2, 6, c)
+        b.r(16, 13, 2, 5, cd)
+        b.r(8, 12, 6, 2, w)
+        b.r(16, 2, 7, 7, c)
+        b.r(21, 5, 3, 3, cl)
+        b.p(23, 5, (30, 26, 28))
+        b.r(15, 3, 2, 6, cd)
+        b.r(19, 4, 2, 2, (40, 30, 26))
+        b.p(19, 4, (250, 250, 250))
+        b.r(16, 8, 3, 1, (200, 50, 50))
+        b.r(1, 4, 3, 2, c)
+        b.r(0, 2, 2, 3, c)
+    return hd(b.s, keep=[(250, 250, 250)])
+
+
+def papagaio(pose="pousado"):
+    """Papagaio verde de testa azul e rosto amarelo: pousado (sem o poleiro) ou voando."""
+    b = B(18, 20)
+    g, gd, gl, y, r, bl = (60, 170, 70), (34, 120, 50), (120, 210, 100), (250, 210, 60), (220, 60, 50), (60, 120, 220)
+    if pose == "pousado":
+        b.r(8, 2, 6, 6, g)
+        b.r(9, 3, 4, 2, y)
+        b.r(8, 1, 4, 2, bl)
+        b.r(12, 4, 3, 3, (60, 60, 64))
+        b.p(14, 6, (40, 40, 44))
+        b.r(10, 4, 1, 1, (30, 30, 30))
+        b.p(10, 3, (250, 250, 250))
+        b.r(6, 8, 8, 10, g)
+        b.r(5, 9, 3, 8, gd)
+        b.r(6, 15, 3, 3, r)
+        b.r(7, 17, 4, 3, gd)
+        b.r(8, 17, 2, 3, bl)
+        b.r(8, 17, 1, 2, (110, 110, 120))
+        b.r(11, 17, 1, 2, (110, 110, 120))
+    else:
+        b.r(6, 10, 8, 6, g)
+        b.r(13, 10, 3, 3, g)
+        b.r(15, 11, 2, 2, (60, 60, 64))
+        b.r(13, 10, 2, 1, y)
+        b.poly([(7, 10), (2, 2), (12, 9)], gd)
+        b.poly([(8, 10), (5, 3), (11, 9)], gl)
+        b.r(3, 4, 3, 2, r)
+        b.r(1, 13, 6, 2, bl)
+    return hd(b.s, keep=[(250, 250, 250)])
+
+
 def main():
     pygame.init()
     OUT.mkdir(parents=True, exist_ok=True)
@@ -1168,6 +1291,10 @@ def main():
         pygame.image.save(fn(), str(OUT / f"{name}.png"))
     pygame.image.save(trofeu(True), str(OUT / "garagem_trofeu_ouro.png"))
     pygame.image.save(trofeu(False), str(OUT / "garagem_trofeu_prata.png"))
+    for name, img in (("mascote_gato_sentado", gato()), ("mascote_gato_andando", gato("andando")),
+                      ("mascote_cachorro_sentado", cachorro()), ("mascote_cachorro_andando", cachorro("andando")),
+                      ("mascote_papagaio_sentado", papagaio()), ("mascote_papagaio_andando", papagaio("voando"))):
+        pygame.image.save(img, str(OUT / f"{name}.png"))
     print("peças em", OUT)
 
 

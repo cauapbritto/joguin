@@ -11,7 +11,7 @@ import random
 import pygame
 
 from . import casa_art as art
-from . import computador, config, crt, progress, theme
+from . import computador, config, crt, luz_casa, mascotes, progress, theme
 from .arena import MAPS_BY_KEY
 from .campaign import TILE_PX, CoopMatch, Passage, _spread
 from .entities import Entity, Particle, Wall
@@ -659,6 +659,10 @@ class HubMatch(CoopMatch):
         if progress.chapter_cleared(4) and self.players:     # recompensa do capítulo 4: a IARA mascote
             from .mansao import IaraMascot
             self.add_effect(IaraMascot(self.players[0], self.assets.sprites.get("iara_nucleo")))
+        # a luz das janelas pela hora do dia, a fumaça do forno e os mascotes (gato, cachorro, papagaio)
+        self.add_effect(luz_casa.CasaLight([(13 * T, OY + 4, 120, 52), (32 * T, OY + 4, 120, 52)],
+                                           self.bakery.chimney))
+        mascotes.furnish(self, T, OY, QY, self._put, art)
 
     # ── montagem ─────────────────────────────
     def _floor(self, fn, x, y, *args, **kw):
@@ -922,6 +926,8 @@ class HubMatch(CoopMatch):
             return True
         if self.freeing:
             return True
+        if mascotes.interact(self, f):
+            return True
         if self.book_near(f):
             self.menus[f] = BookMenu(self, f, next_verse())
             self.assets.play("click", 0.45)
@@ -984,6 +990,7 @@ class HubMatch(CoopMatch):
         for s in self.speakers:
             s.draw(screen, cam, ui, self.assets, self.frame)
         free = [p for p in self.alive_players if p not in self.menus]
+        mascotes.draw_prompts(self, screen, ui, free, self.frame)
         if any(self.book_near(p) for p in free):
             sx, sy = cam.to_screen(self.book.x, self.book.y - 40)
             color = theme.BRASS if (self.frame // 15) % 2 else theme.BONE

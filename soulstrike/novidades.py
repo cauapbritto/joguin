@@ -12,6 +12,20 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.37.0": [
+        {"title": "MASCOTES DA CASA", "scene": "casa", "lines": [
+            "O gato laranja dorme no sofá, o Caramelo mora na casinha do quintal e o papagaio no poleiro.",
+            "Chegue perto do cantinho e aperte ATACAR para adotar. Ele passa a te seguir, nas fases também.",
+            "Cada bicho tem um dono só, e fica guardado de uma vez para a outra.",
+            "Para devolver, leve o bicho até o cantinho dele e aperte ATACAR.",
+        ]},
+        {"title": "CASA ACONCHEGANTE", "scene": "casa", "lines": [
+            "A luz das janelas segue o relógio: dourada de manhã, alaranjada à tarde e luar de noite.",
+            "De noite o vidro escurece e aparecem a lua e as estrelas.",
+            "Padaria com pão francês, sonho, baguete, pão de queijo e croissant, e o forno soltando fumaça.",
+            "O exoesqueleto do Borba Jr ganhou pistões, núcleo aceso e capacete com viseira.",
+        ]},
+    ],
     "1.36.0": [
         {"title": "GARAGEM CAPRICHADA", "scene": "casa", "lines": [
             "Lá embaixo, a garagem ganhou piso de epóxi com placas, marcas de pneu e manchas de óleo.",
