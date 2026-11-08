@@ -25,6 +25,7 @@ T = TILE_PX
 OY = CASA_TOP * T            # a casa começa abaixo das linhas escuras de cima
 QY = CASA_SPLIT              # e o quintal logo abaixo da casa
 CITY_AT = (31 * T, QY + 5 * T)  # o City do João no quintal (chão no meio do carro): a saída
+GARAGE_DOOR = (39 * T + 50, QY + 5 * T + 44)   # frente da porta da garagem (onde o ATACAR desce)
 
 # ── livro do Cauanzera (Almeida Revista e Corrigida) ──
 VERSES = (
@@ -98,7 +99,7 @@ VITRINE = (("guerreiro", 12 * T + 20, 7 * T + 10), ("atirador", 13 * T + 30, 7 *
            ("fantasma", 33 * T + 20, 7 * T + 10), ("tita", 34 * T + 30, 7 * T + 10),
            ("pirata", 35 * T + 40, 7 * T + 10), ("geada", 34 * T + 30, 10 * T + 20))
 CRAQUES = ("faisca", "trovao", "ginga", "matador", "paredao")
-# corrompido liberado: fica no canto do amigo (capítulo que libera, posição na casa)
+# corrompidos: (chave, capítulo que libera, x, y antigos no canto do amigo). Hoje ficam no salão da garagem.
 CORROMPIDOS = (("aryel_corrompido", 1, 44 * T + 20, 6 * T + 30), ("borba_corrompido", 2, 37 * T, 9 * T + 20),
                ("albeguinio_corrompido", 3, 8 * T + 20, 13 * T), ("cauanzera_corrompido", 4, 6 * T, 5 * T + 20))
 
@@ -628,11 +629,16 @@ class HubMatch(CoopMatch):
     lobby = True
     music = "camp"
 
-    def __init__(self, game, run, story=True):
+    def __init__(self, game, run, story=True, walk=False, arrive=None):
         self.story = story
+        self.walk = walk                                    # PASSEAR NA CASA: o City não sai
+        self.going_down = False                             # ATACAR na garagem: o grupo desce
         self._screens = {}                                  # vaga -> versão da tela já mandada ao celular
         cfg = MAPS_BY_KEY[HUB_MAP]
-        starts = _spread(cfg.markers["S"], len(run.session.slots))
+        if arrive == "garagem":                             # voltando da garagem: na porta dela
+            starts = [(GARAGE_DOOR[0] - 60 + 40 * i, GARAGE_DOOR[1] + 40) for i in range(len(run.session.slots))]
+        else:
+            starts = _spread(cfg.markers["S"], len(run.session.slots))
         super().__init__(game, run, cfg.key, starts, (0.0, 1.0))
         art.use(self.assets)
         self.arena.floor = self.arena.floor.copy()          # o chão pintado é compartilhado: os tapetes vão na cópia
@@ -649,7 +655,7 @@ class HubMatch(CoopMatch):
         cx, cy = CITY_AT
         self.exit_rect = pygame.Rect(cx - 86, cy - 58, 172, 60)
         self.door_area = self.exit_rect.inflate(110, 96)
-        self.passage = Passage(lambda p: self.door_area.collidepoint(p.x, p.y))
+        self.passage = Passage(lambda p: not self.walk and self.door_area.collidepoint(p.x, p.y))
         if progress.chapter_cleared(4) and self.players:     # recompensa do capítulo 4: a IARA mascote
             from .mansao import IaraMascot
             self.add_effect(IaraMascot(self.players[0], self.assets.sprites.get("iara_nucleo")))
@@ -702,7 +708,7 @@ class HubMatch(CoopMatch):
         self.uno_stand = put(art.uno_stand if self.run.armor else art.uno_armor, *UNO_STAND,
                              foot=((-30, -10, 60, 14),))
         # a armadura de Uno ainda no suporte, e só vale no capítulo 1 (depois é enfeite)
-        self.armor_free = not self.run.armor and self.run.chapter == 1
+        self.armor_free = not self.run.armor and (self.run.chapter == 1 or self.walk)
         put(art.shelf, 9 * T + 10, OY + T - 20, 70, foot=((0, 50, 70, 20),))
         # canto do Aryel (alto à direita): retrato, pôster, moto, capacetes e a roleta
         put(art.frame_portrait, 44 * T, OY + T - 18, "aryel", flat=True)
@@ -729,10 +735,7 @@ class HubMatch(CoopMatch):
         put(art.oven, 43 * T + 30, OY + 10 * T + 20, foot=((0, 38, 80, 32),))
         self.bakery = Bakery(pygame.Rect(38 * T, OY + 11 * T, 220, 64), (43 * T + 70, OY + 10 * T - 12))
         put(art.exo_stand, 35 * T + 30, OY + 13 * T + 10, foot=((-24, -10, 48, 14),))
-        # corrompidos liberados: cada um no canto do amigo
-        for key, chapter, x, y in CORROMPIDOS:
-            if progress.chapter_cleared(chapter):
-                self._hero(key, x, OY + y)
+        # os corrompidos liberados ficam lá embaixo, no salão da garagem (garagem.py)
         # quintal: a horta, a garagem, o City do João, o porão, os craques e a saída
         for i, (x, y, crops) in enumerate(((3 * T, QY + T, "sprout"), (8 * T + 20, QY + T, "tomate"),
                                            (3 * T, QY + 4 * T + 20, "tomate"), (8 * T + 20, QY + 4 * T + 20, "sprout"))):
@@ -780,7 +783,13 @@ class HubMatch(CoopMatch):
 
     # ── consultas ────────────────────────────
     @property
+    def hud_title(self):
+        return "PASSEIO" if self.walk else None
+
+    @property
     def objective_text(self):
+        if self.walk:
+            return "CASA DA TURMA · PAUSE PARA VOLTAR AO MENU"
         return f"CASA DA TURMA · TODOS NO {self.car_name} DO QUINTAL PARA A AVENTURA"
 
     @property
@@ -788,6 +797,8 @@ class HubMatch(CoopMatch):
         return "UNO" if self.run.vehicle == "uno" else "CITY"
 
     def objective(self):
+        if self.walk:
+            return None
         return self.exit_rect.centerx, self.exit_rect.y
 
     def _park(self, key):
@@ -879,7 +890,9 @@ class HubMatch(CoopMatch):
 
     def update_stage(self):
         if self.frame == 1:
-            if self.story:
+            if self.walk:
+                self._set_banner("CASA DA TURMA", "PASSEIO: ANDEM E MEXAM EM TUDO", theme.BRASS)
+            elif self.story:
                 self._set_banner("CASA DA TURMA", "A AVENTURA COMEÇA NO QUINTAL", theme.BRASS)
             else:
                 self._set_banner("CASA DA TURMA", f"CONTINUANDO DA FASE {self.run.phase_index + 1}", theme.BRASS)
@@ -923,8 +936,9 @@ class HubMatch(CoopMatch):
             self.wear_armor(f)
             return True
         if self.garage_near(f):
-            self.menus[f] = GarageMenu(self, f)
+            self.going_down = True                    # o grupo inteiro desce para a garagem
             self.assets.play("select", 0.45)
+            self._finish(won=True)
             return True
         spot = self.computer_near(f)
         if spot is not None:
@@ -958,13 +972,17 @@ class HubMatch(CoopMatch):
         from .scenes.campaign import hub_scene, start_phase
         from .scenes.viagem import CarTripScene
         if self.reload:                          # LIBERAR TUDO: a casa volta com tudo aberto
-            return hub_scene(self.game, self.run, story=self.story)
+            return hub_scene(self.game, self.run, story=self.story, walk=self.walk)
+        if self.going_down:
+            from .scenes.campaign import garage_scene
+            from .scenes.garagem import GarageTripScene
+            return GarageTripScene(self.game, lambda: garage_scene(self.game, self.run, self.story, walk=self.walk))
         return CarTripScene(self.game, [p.sprites for p in self.players], self.run.chapter,
                             lambda: start_phase(self.game, self.run, story=self.story), vehicle=self.run.vehicle)
 
     def restart_scene(self):
         from .scenes.campaign import hub_scene
-        return hub_scene(self.game, self.run, story=self.story)
+        return hub_scene(self.game, self.run, story=self.story, walk=self.walk)
 
     # ── desenho ──────────────────────────────
     def draw_screen_layer(self, screen, ui):
@@ -995,7 +1013,7 @@ class HubMatch(CoopMatch):
         if any(self.garage_near(p) for p in free):
             _, _, (gx, gy), _ = next(d for d in self.doors if d[0] == "garagem")
             sx, sy = cam.to_screen(gx, gy - 96)
-            ui.text(screen, "ATACAR: ABRIR A GARAGEM", theme.XS, blink, (round(sx), round(sy)))
+            ui.text(screen, "ATACAR: DESCER PARA A GARAGEM", theme.XS, blink, (round(sx), round(sy)))
         for b in self.beds:
             if any(b.can_water(p) for p in free) and b.watered <= 0:
                 sx, sy = cam.to_screen(b.rect.centerx, b.rect.y - 14)
@@ -1016,6 +1034,9 @@ class HubMatch(CoopMatch):
             crt.panel(screen, ("livro", f.slot), lambda s, menu=menu, at=at: menu.draw(s, ui, at))
         top = self.door_area.y
         sx, sy = cam.to_screen(self.exit_rect.centerx, top)
+        if self.walk:
+            ui.text(screen, "SÓ PASSEANDO", theme.XS, theme.MUTED, (round(sx), round(sy) - 14))
+            return
         ui.text(screen, f"TODOS NO {self.car_name} PARA A AVENTURA", theme.XS, theme.BRASS, (round(sx), round(sy) - 14))
         self.draw_passage(screen, ui, self.passage, self.door_area, (self.exit_rect.centerx, top - 4))
 
@@ -1023,6 +1044,72 @@ class HubMatch(CoopMatch):
         super().draw(screen, ui)
         if self.freeing:
             draw_freeing(screen, ui, self.freeing)
+
+    # ── minimapa ─────────────────────────────
+    def minimap_rect(self):
+        w, h = self.arena.size
+        k = MINI_W / w
+        return pygame.Rect(config.SCREEN_W - 12 - MINI_W, MINI_TOP, MINI_W, round((h - OY - 2 * T) * k) + 4)
+
+    def draw_hud(self, screen, ui):
+        super().draw_hud(screen, ui)
+        draw_minimap(screen, ui, self, self.minimap_rect())
+
+    def hud_regions(self):
+        return super().hud_regions() + [self.minimap_rect().inflate(4, 4)]
+
+
+MINI_W = 200                 # o mapinha da Casa (largura na tela)
+MINI_TOP = 44                # embaixo dos CONTINUES, como o da fase
+# cantos da casa no mapinha: (nome, coluna, linha, largura, altura) em quadrados, linha 0 = topo da casa
+MINI_ZONES = (("CAU", 1, 0, 11, 8), ("ARYEL", 36, 0, 11, 8), ("SALA", 12, 0, 24, 14),
+              ("ALBE", 1, 8, 11, 6), ("BORBA", 36, 8, 11, 6))
+
+
+def draw_minimap(screen, ui, match, rect):
+    """O mapinha da Casa: a casa e o quintal, os cantos de cada um, as portas (trancadas em cinza),
+    o que dá para usar (ícones pequenos) e um ponto por jogador, na cor dele."""
+    w, _ = match.arena.size
+    k = (rect.w - 4) / w
+    bg = pygame.Surface(rect.size, pygame.SRCALPHA)
+    bg.fill((8, 8, 14, 175))
+    screen.blit(bg, rect.topleft)
+    pygame.draw.rect(screen, (90, 90, 110), rect, 1)
+
+    def at(x, y):
+        return round(rect.x + 2 + x * k), round(rect.y + 2 + (y - OY) * k)
+
+    def cells(c, r, cw, ch):
+        x, y = at(c * T, OY + r * T)
+        return pygame.Rect(x, y, max(1, round(cw * T * k)), max(1, round(ch * T * k)))
+
+    house = cells(0, 0, 48, 15)
+    yard = pygame.Rect(house.x, house.bottom, house.w, round(9 * T * k))
+    screen.fill((74, 58, 44), house)
+    screen.fill((44, 70, 40), yard)
+    for name, c, r, cw, ch in MINI_ZONES:
+        z = cells(c, r + 1, cw, ch)
+        if name != "SALA":
+            screen.fill((92, 72, 54), z)
+        ui.text(screen, name, theme.XS, (200, 186, 160), (z.centerx, z.centery), shadow=False)
+    pygame.draw.rect(screen, (140, 120, 96), house, 1)
+    pygame.draw.rect(screen, (90, 130, 80), yard, 1)
+    for key, opened, (x, y), _ in match.doors:
+        dx, dy = at(x, y)
+        color = (230, 190, 90) if opened else (90, 90, 100)
+        screen.fill(color, (dx - 3, dy - 2, 6, 4))
+    icons = [((80, 160, 240), match.computers[0][1].center), ((240, 240, 240), UNO_STAND),
+             ((200, 60, 60), match.roulette.rect.center), ((230, 200, 120), match.bakery.rect.center),
+             ((110, 110, 124), match.exit_rect.center)]
+    icons += [((90, 200, 90), b.rect.center) for b in match.beds]
+    for color, (x, y) in icons:
+        pygame.draw.circle(screen, color, at(x, y), 2)
+    for p in match.players:
+        if not p.alive_in_match:
+            continue
+        x, y = at(p.x, p.y)
+        pygame.draw.circle(screen, (250, 250, 250), (x, y), 5)
+        pygame.draw.circle(screen, p.color, (x, y), 4)
 
 
 def draw_freeing(screen, ui, frame):

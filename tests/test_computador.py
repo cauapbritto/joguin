@@ -190,7 +190,9 @@ class ComputadorTest(unittest.TestCase):
         scene = match.next_scene()
         self.assertIsInstance(scene.match, HubMatch)              # a casa volta, com tudo aberto
         self.assertTrue(all(opened for _, opened, _, _ in scene.match.doors))
-        self.assertIn("cauanzera_corrompido", {s.key for s in scene.match.speakers})
+        from soulstrike.garagem import GarageMatch
+        below = GarageMatch(match.game, match.run)                # e os 4 corrompidos no salão da garagem
+        self.assertIn("cauanzera_corrompido", {s.key for s in below.speakers})
 
     def test_responder_nao_deixa_tudo_como_estava(self):
         match, inputs, _, menu = self.abre()

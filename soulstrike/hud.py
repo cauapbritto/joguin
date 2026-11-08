@@ -452,7 +452,8 @@ def draw_campaign(screen, ui, match):
         if getattr(boss, "phase_label", ""):
             ui.text(screen, boss.phase_label, theme.XS, theme.BLOOD, (W // 2, bar.bottom + 14))
     elif match.lobby:
-        ui.text(screen, f"FASE {run.phase_index + 1} · {match.phase.name}", theme.XS, theme.BONE, (W // 2, 18))
+        top = getattr(match, "hud_title", None) or f"FASE {run.phase_index + 1} · {match.phase.name}"
+        ui.text(screen, top, theme.XS, theme.BONE, (W // 2, 18))
         ui.text(screen, match.objective_text, theme.XS, theme.BRASS, (W // 2, 36))
     else:
         title = f"FASE {run.phase_index + 1} · MASMORRA {match.dungeon_index + 1} · {match.dungeon.name}"
