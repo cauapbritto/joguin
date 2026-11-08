@@ -873,6 +873,95 @@ def city_car(s, x, y):
     box(s, (40, 40, 120), x + 64, y - 18, 14, 2)
 
 
+# ── garagem lá embaixo ───────────────────────
+def _hd_piece(s, fn_name, name, x, y, shadow_w=None):
+    """Peça pronta de assets/pecas com o meio de baixo em x, y (o pé no chão)."""
+    img = pecas.image(name)
+    if img is None:
+        return None
+    _HD_DRAWN.add(fn_name)
+    if shadow_w:
+        pygame.draw.ellipse(s, (0, 0, 0, 80), (x - shadow_w // 2, y - 7, shadow_w, 12))
+    s.blit(img, img.get_rect(midbottom=(x, y)))
+    return img
+
+
+def tool_board(s, x, y):
+    """Painel de furos com as ferramentas penduradas, preso na parede (x = meio, y = em cima)."""
+    if _hd_piece(s, "tool_board", "garagem_painel", x, y + 80) is None:
+        box(s, (150, 110, 70), x - 70, y, 140, 80)
+
+
+def trophy_shelf(s, x, y, trophies=4):
+    """Estante dos troféus (x, y = pé no chão, meio): um troféu por selo da campanha na prateleira de
+    cima (até 4, ouro e prata alternados) e as lembranças da turma na de baixo."""
+    img = _hd_piece(s, "trophy_shelf", "garagem_estante", x, y, 170)
+    if img is None:
+        box(s, WOOD_D, x - 80, y - 88, 160, 88)
+        return
+    top = y - img.get_height()
+    n = max(0, min(4, trophies))
+    for i in range(n):
+        cup = pecas.image("garagem_trofeu_prata" if i % 3 == 2 else "garagem_trofeu_ouro")
+        if cup is not None:
+            s.blit(cup, cup.get_rect(midbottom=(x - 54 + i * 36, top + 44)))
+    if n == 0:
+        _text(s, "ZERE A CAMPANHA", theme.XS, (150, 130, 110), (x, top + 28))
+
+
+def tool_cart(s, x, y):
+    """Carrinho de ferramentas vermelho de gavetas (x, y = pé no chão, meio)."""
+    _hd_piece(s, "tool_cart", "garagem_carrinho", x, y, 50)
+
+
+def tire_stack(s, x, y):
+    """Pilha de três pneus (x, y = pé no chão, meio)."""
+    _hd_piece(s, "tire_stack", "garagem_pneus", x, y, 48)
+
+
+def oil_drum(s, x, y):
+    """Tambor de óleo azul (x, y = pé no chão, meio)."""
+    _hd_piece(s, "oil_drum", "garagem_tambor", x, y, 32)
+
+
+def neon_sign(s, x, y, text="GARAGEM DA TURMA"):
+    """Placa de neon rosa na parede (x = meio, y = meio da placa): moldura escura, o tubo e o brilho."""
+    _HD_DRAWN.add("neon_sign")
+    w, h = len(text) * 16 + 36, 40
+    halo = pygame.Surface((w + 60, h + 40), pygame.SRCALPHA)
+    for k in range(10, 0, -1):
+        pygame.draw.ellipse(halo, (255, 90, 190, 7), (30 - k * 3, 20 - k * 2, w + k * 6, h + k * 4))
+    s.blit(halo, (x - w // 2 - 30, y - h // 2 - 20))
+    rect = pygame.Rect(x - w // 2, y - h // 2, w, h)
+    pygame.draw.rect(s, (18, 12, 22), rect.inflate(4, 4), border_radius=8)
+    pygame.draw.rect(s, (36, 22, 44), rect, border_radius=7)
+    pygame.draw.rect(s, (255, 120, 200), rect.inflate(-6, -6), 2, border_radius=6)
+    pygame.draw.rect(s, (255, 210, 240), rect.inflate(-6, -6), 1, border_radius=6)
+    for bx in (rect.x + 10, rect.right - 12):                    # parafusos
+        box(s, (120, 110, 130), bx, rect.y + 4, 2, 2)
+    _text(s, text, theme.S, (255, 150, 214), (x, y + 1))
+    _text(s, text, theme.S, (255, 236, 250), (x, y))
+
+
+def parking_bay(s, x, y, w, h, label):
+    """A vaga pintada no chão (x, y = canto de cima): faixas amarelas dos lados com a borda gasta,
+    o batente de concreto no fundo e o nome do carro pintado logo abaixo dele."""
+    yellow, worn = (236, 196, 60), (190, 160, 60)
+    for bx in (x, x + w - 6):
+        box(s, yellow, bx, y, 6, h)
+        box(s, worn, bx, y + h - 20, 6, 20)
+        for k in range(4):
+            box(s, (110, 112, 118), bx + (k % 2) * 3, y + 14 + k * 37, 2, 2)
+    box(s, yellow, x, y + h - 6, w, 6)
+    stop = pygame.Rect(x + w // 2 - 60, y + 14, 120, 14)           # batente
+    box(s, (40, 40, 46), stop.x, stop.y + 3, stop.w, stop.h)
+    box(s, (120, 122, 128), stop.x, stop.y, stop.w, stop.h - 2)
+    box(s, (150, 152, 158), stop.x, stop.y, stop.w, 2)
+    for k in range(0, stop.w, 24):
+        box(s, yellow, stop.x + k, stop.y + 3, 12, stop.h - 6)
+    _text(s, label, theme.XS, (176, 150, 70), (x + w // 2, stop.bottom + 12))
+
+
 # ── portas trancadas ─────────────────────────
 def locked_door(s, x, y, label, w=80, opened=False, inside=None):
     """Porta de madeira com grade e cadeado (x, y = canto de cima). Aberta: a folha encostada de lado
