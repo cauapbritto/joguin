@@ -12,6 +12,20 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.33.0": [
+        {"title": "CANTOS FECHADOS", "scene": "casa", "lines": [
+            "As paredes que se encostam agora são uma peça só, na Casa e em todas as fases.",
+            "Em cima aparece o topo da parede, embaixo a frente, com um contorno só em volta.",
+            "Cada sala virou um quadrado fechado de verdade, sem emenda nos cantos.",
+        ]},
+        {"title": "CASA MAIS BONITA", "scene": "casa", "lines": [
+            "Chão de carvalho claro e tapete persa vinho com franja na sala.",
+            "Vasos diferentes, placa GREEN! com moldura, roleta vermelha e creme.",
+            "Os craques do quintal ganharam pódio de pedra com plaquinha e holofote.",
+            "Horta com espantalho e mangueira, alçapão do porão com corrente e cadeado.",
+            "A garagem do quintal tem telhado de telha, portão de enrolar e placa.",
+        ]},
+    ],
     "1.31.0": [
         {"title": "UM MAPA POR CAPÍTULO", "scene": "casa", "lines": [
             "Cada capítulo tem o seu formato de mapa.",

@@ -689,8 +689,9 @@ class HubMatch(CoopMatch):
         put(art.sofa, 27 * T, OY + 11 * T + 30, 150, (120, 70, 90), foot=((0, 6, 150, 38),))
         for x, y in ((16 * T + 20, OY + 4 * T + 20), (32 * T, OY + 4 * T + 20)):
             put(art.lamp, x, y, foot=((-8, 22, 16, 10),), foot_y=y + 30)
-        for x, y in ((12 * T, OY + 3 * T), (36 * T, OY + 3 * T), (16 * T, OY + 13 * T + 20), (32 * T, OY + 13 * T + 20)):
-            put(art.plant, x, y, foot=((-10, -10, 20, 14),))
+        for i, (x, y) in enumerate(((12 * T, OY + 3 * T), (36 * T, OY + 3 * T), (16 * T, OY + 13 * T + 20),
+                                    (32 * T, OY + 13 * T + 20))):
+            put(art.plant, x, y, art.PLANTS[i], foot=((-10, -10, 20, 14),))
         # a vitrine: cada herói fala quando alguém chega perto
         for key, x, y in VITRINE:
             self._hero(key, x, OY + y)
@@ -708,7 +709,7 @@ class HubMatch(CoopMatch):
         # canto do Aryel (alto à direita): retrato, pôster, moto, capacetes e a roleta
         put(art.frame_portrait, 44 * T, OY + T - 18, "aryel", flat=True)
         self.speakers.append(Speaker("aryel", 44 * T + 24, OY + 2 * T + 10, head_y=OY + T - 24))
-        put(art.poster, 39 * T, OY + T - 14, 60, 34, (40, 150, 70), "GREEN!", flat=True)
+        put(art.poster, 39 * T, OY + T - 14, 60, 34, (24, 84, 48), "GREEN!", (236, 220, 170), flat=True)
         self.moto = Moto(41 * T, OY + 4 * T + 10)
         self.props.append(self.moto)
         self.arena.walls.append(Wall(41 * T - 56, OY + 4 * T, 112, 14, visible=False))
@@ -741,18 +742,20 @@ class HubMatch(CoopMatch):
         self.flower_at = (6 * T + 24, QY + 3 * T + 40)
         put(art.sign, 7 * T + 20, QY + 7 * T, "HORTA", foot=((-4, 12, 8, 10),))
         put(art.watering_can, 11 * T, QY + 7 * T)
-        self._door("garagem", art.locked_door, 39 * T, QY + 5 * T - 20, w=100, inside=art.inside_garagem)
+        put(art.scarecrow, T + 30, QY + 3 * T + 10, foot=((-4, -8, 8, 10),))
+        put(art.hose, 12 * T + 10, QY + 2 * T)
+        self._door("garagem", art.garage_front, 39 * T, QY + 5 * T - 20, w=100, inside=art.inside_garagem)
         self.parked = put(art.city_car, *CITY_AT, foot=((-86, -24, 172, 26),))
         self.parked_moto = None
         self._park(self.run.vehicle)
         self._door("porao", art.cellar_door, 14 * T, QY + 5 * T)
         for i, key in enumerate(CRAQUES):
-            self._hero(key, 34 * T + 20 + i * 80, QY + 2 * T + 20)
-        for x, y in ((17 * T, QY + 2 * T), (33 * T, QY + 7 * T), (45 * T, QY + 2 * T)):
-            put(art.plant, x, y, foot=((-10, -10, 20, 14),))
+            self._hero(key, 34 * T + 20 + i * 80, QY + 2 * T + 20, base="pedra")
+        for i, (x, y) in enumerate(((17 * T, QY + 2 * T), (33 * T, QY + 7 * T), (45 * T, QY + 2 * T))):
+            put(art.plant, x, y, art.PLANTS[(i + 1) % 4], foot=((-10, -10, 20, 14),))
 
-    def _hero(self, key, x, y):
-        self._put(art.mannequin, x, y, key, foot=((-20, -10, 40, 14),))
+    def _hero(self, key, x, y, base="madeira"):
+        self._put(art.mannequin, x, y, key, base=base, foot=((-20, -10, 40, 14),))
         self.speakers.append(Speaker(key, x, y))
 
     def _door(self, key, fn, x, y, w=None, inside=None):

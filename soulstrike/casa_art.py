@@ -127,14 +127,29 @@ def glow(s, center, size, color, alpha):
 
 
 # ── sala ─────────────────────────────────────
-def rug(s, x, y, w, h, c1=(120, 40, 40), c2=(200, 150, 70)):
-    box(s, c2, x, y, w, h)
-    box(s, c1, x + 4, y + 4, w - 8, h - 8)
-    for i in range(x + 12, x + w - 12, 16):
-        box(s, c2, i, y + 10, 8, 2)
-        box(s, c2, i, y + h - 12, 8, 2)
-    box(s, (150, 60, 50), x + 20, y + 20, w - 40, h - 40)
-    pygame.draw.rect(s, c2, (x + 20, y + 20, w - 40, h - 40), 2)
+def rug(s, x, y, w, h, c1=(118, 38, 48), c2=(196, 150, 80)):
+    """Tapete persa vinho (x, y = canto de cima): franja creme, borda com losangos, medalhão no meio
+    e a trama do tecido."""
+    wine, wine_d, wine_l = c1, shade(c1, -30), shade(c1, 26)
+    cream, gold = (226, 206, 166), c2
+    for i in range(x + 4, x + w - 4, 6):                         # franja
+        box(s, cream, i, y - 6, 2, 6)
+        box(s, cream, i, y + h, 2, 6)
+    box(s, wine_d, x, y, w, h)
+    box(s, wine, x + 6, y + 6, w - 12, h - 12)
+    pygame.draw.rect(s, gold, (x + 10, y + 10, w - 20, h - 20), 2)
+    for i in range(x + 18, x + w - 18, 24):                      # losangos da borda
+        for yy in (y + 16, y + h - 20):
+            pygame.draw.polygon(s, cream, [(i, yy + 2), (i + 4, yy - 2), (i + 8, yy + 2), (i + 4, yy + 6)])
+    cx, cy = x + w // 2, y + h // 2
+    box(s, wine_l, x + 30, y + 30, w - 60, h - 60)
+    pygame.draw.rect(s, gold, (x + 30, y + 30, w - 60, h - 60), 2)
+    rx, ry = min(120, w // 2 - 40), min(60, h // 2 - 40)
+    pygame.draw.polygon(s, wine_d, [(cx, cy - ry), (cx + rx, cy), (cx, cy + ry), (cx - rx, cy)])
+    pygame.draw.polygon(s, gold, [(cx, cy - ry), (cx + rx, cy), (cx, cy + ry), (cx - rx, cy)], 2)
+    pygame.draw.polygon(s, cream, [(cx, cy - ry // 3), (cx + rx // 3, cy), (cx, cy + ry // 3), (cx - rx // 3, cy)])
+    for k in range(0, w - 60, 10):                               # trama
+        box(s, shade(wine_l, -12), x + 30 + k, y + 32, 1, h - 64)
 
 
 def table(s, x, y, w=120, h=56):
@@ -234,13 +249,50 @@ def shelf(s, x, y, w=80, seed=0):
         box(s, WOOD, x + 2, sy + 18, w - 4, 3)
 
 
-def plant(s, x, y):
+PLANTS = ("costela", "espada", "samambaia", "flor")
+
+
+def plant(s, x, y, kind="costela"):
+    """Vaso com planta (x, y = pé do vaso): costela-de-adão, espada-de-são-jorge, samambaia ou o vaso
+    de barro com flor. Cada canto da casa usa um."""
     shadow(s, x, y + 4, 26)
-    box(s, (160, 90, 60), x - 10, y - 16, 20, 18)
-    box(s, (190, 110, 74), x - 10, y - 16, 20, 3)
-    for dx, dy in ((-10, -30), (0, -38), (9, -30), (-5, -24), (5, -24)):
-        pygame.draw.ellipse(s, (60, 130, 60), (x + dx - 7, y + dy - 7, 14, 16))
-        pygame.draw.ellipse(s, (90, 160, 80), (x + dx - 4, y + dy - 6, 6, 6))
+    if kind == "espada":
+        box(s, (44, 44, 52), x - 9, y - 14, 18, 16)
+        box(s, (70, 70, 80), x - 10, y - 16, 20, 4)
+        for dx, h in ((-6, 26), (-2, 34), (2, 38), (6, 30), (9, 22)):
+            box(s, (60, 118, 58), x + dx - 1, y - 14 - h, 3, h)
+            box(s, (200, 196, 90), x + dx - 1, y - 12 - h, 1, h - 6)
+            box(s, (40, 90, 44), x + dx + 1, y - 10 - h, 1, h - 8)
+        return
+    if kind == "samambaia":
+        box(s, (176, 96, 60), x - 10, y - 16, 20, 18)
+        box(s, (206, 120, 80), x - 11, y - 18, 22, 4)
+        for a in range(-3, 4):
+            ex, ey = x + a * 6, y - 18 - (7 - abs(a)) * 4
+            pygame.draw.line(s, (70, 140, 60), (x, y - 18), (ex, ey), 3)
+            pygame.draw.line(s, (52, 112, 46), (x, y - 18), (ex + (4 if a > 0 else -4), ey + 14), 3)
+            box(s, (110, 180, 90), ex - 1, ey - 1, 3, 2)
+        return
+    if kind == "flor":
+        box(s, (186, 100, 64), x - 9, y - 14, 18, 16)
+        box(s, (212, 126, 86), x - 10, y - 16, 20, 3)
+        box(s, (150, 76, 46), x - 9, y - 6, 18, 2)
+        for dx, dy, c in ((-7, -30, (230, 80, 100)), (0, -38, (250, 210, 90)), (7, -30, (240, 140, 190)),
+                          (-3, -24, (230, 80, 100)), (4, -24, (250, 240, 240))):
+            pygame.draw.line(s, (70, 140, 60), (x, y - 16), (x + dx, y + dy), 2)
+            pygame.draw.circle(s, c, (x + dx, y + dy), 4)
+            box(s, (250, 230, 120), x + dx - 1, y + dy - 1, 2, 2)
+        pygame.draw.ellipse(s, (70, 140, 60), (x - 12, y - 22, 10, 6))
+        pygame.draw.ellipse(s, (70, 140, 60), (x + 2, y - 22, 10, 6))
+        return
+    box(s, (226, 210, 180), x - 10, y - 16, 20, 18)              # costela-de-adão no vaso de cerâmica
+    box(s, (180, 164, 136), x - 11, y - 18, 22, 4)
+    for dx, dy in ((-10, -30), (0, -40), (10, -32), (-6, -22), (6, -22)):
+        pygame.draw.ellipse(s, (54, 130, 70), (x + dx - 8, y + dy - 7, 16, 16))
+        pygame.draw.ellipse(s, (84, 162, 96), (x + dx - 5, y + dy - 6, 6, 6))
+        pygame.draw.line(s, (34, 92, 50), (x + dx, y + dy), (x, y - 18), 1)
+        box(s, (0, 0, 0, 0), x + dx - 4, y + dy, 2, 2)                 # os furos da folha
+        box(s, (0, 0, 0, 0), x + dx + 3, y + dy + 2, 2, 2)
 
 
 def lamp(s, x, y):
@@ -307,11 +359,24 @@ def easel_portrait(s, x, y, key):
     frame_portrait(s, x - 24, y - 26, key)
 
 
-def mannequin(s, x, y, key):
-    """Herói da vitrine em cima do pedestal (x, y = pé do pedestal)."""
-    shadow(s, x, y + 2, 46)
-    box(s, (60, 54, 70), x - 22, y - 8, 44, 10)
-    box(s, (90, 82, 104), x - 22, y - 8, 44, 3)
+def mannequin(s, x, y, key, base="madeira"):
+    """Herói da vitrine em cima do pedestal (x, y = pé do pedestal). ``base``: madeira escura (dentro de
+    casa) ou pódio de pedra com plaquinha e holofote (os craques no quintal)."""
+    if base == "pedra":
+        glow(s, (x, y - 6), (70, 26), (255, 240, 200), 40)            # luz do holofote no pódio
+        shadow(s, x, y + 4, 56)
+        box(s, (120, 118, 112), x - 26, y - 14, 52, 18)
+        box(s, (150, 148, 140), x - 26, y - 14, 52, 3)
+        box(s, (96, 94, 90), x - 26, y + 2, 52, 2)
+        for k in range(x - 22, x + 22, 9):
+            box(s, (132, 130, 124), k, y - 8, 6, 1)
+        box(s, (200, 170, 90), x - 12, y - 7, 24, 7)                  # plaquinha dourada
+        box(s, (150, 120, 60), x - 10, y - 4, 20, 1)
+    else:
+        shadow(s, x, y + 2, 46)
+        box(s, (70, 44, 28), x - 22, y - 8, 44, 10)
+        box(s, (104, 68, 42), x - 22, y - 8, 44, 3)
+        box(s, (200, 170, 90), x - 8, y - 4, 16, 3)
     sprite = _sprite(key)
     if sprite is None:
         return
@@ -322,8 +387,10 @@ def mannequin(s, x, y, key):
 
 
 def poster(s, x, y, w, h, bg, text, fg=(255, 255, 255)):
-    box(s, (20, 14, 10), x - 2, y - 2, w + 4, h + 4)
+    box(s, (20, 14, 10), x - 3, y - 3, w + 6, h + 6)
+    box(s, (176, 136, 70), x - 1, y - 1, w + 2, h + 2)           # moldura
     box(s, bg, x, y, w, h)
+    box(s, shade(bg, 18), x, y, w, 2)
     _text(s, text, theme.XS, fg, (x + w // 2, y + h // 2))
 
 
@@ -600,11 +667,12 @@ def roulette_table(s, x, y):
     for k in range(12):
         a0 = k * math.tau / 12
         a1 = a0 + math.tau / 12
-        c = (50, 170, 80) if k % 2 == 0 else (200, 50, 50)
+        c = (236, 222, 190) if k % 2 == 0 else (186, 40, 48)       # vermelho e creme
         pygame.draw.polygon(s, c, [(cx, cy), (cx + math.cos(a0) * 22, cy + math.sin(a0) * 10),
                                    (cx + math.cos(a1) * 22, cy + math.sin(a1) * 10)])
     pygame.draw.ellipse(s, (210, 170, 70), (cx - 23, cy - 11, 46, 22), 2)
-    box(s, (240, 240, 240), cx - 2, cy - 2, 4, 4)
+    box(s, (60, 140, 70), cx - 3, cy - 2, 6, 4)                  # o zero verde no meio
+    box(s, (240, 240, 236), cx + 6, cy - 4, 3, 3)                # a bolinha
 
 
 def helmet_rack(s, x, y):
@@ -825,6 +893,41 @@ def inside_oficina(s, x, y, w):
     pygame.draw.circle(s, (220, 60, 50), (x + w - 28, y + 22), 2)
 
 
+def garage_front(s, x, y, label, w=100, opened=False, inside=None):
+    """Fachada da garagem no quintal (x, y = canto de cima do portão): telhado de telha, a luz em
+    cima, a placa GARAGEM DA TURMA e o portão de enrolar com frisos (aberto: a rampa descendo)."""
+    box(s, (150, 146, 140), x - 12, y - 6, w + 24, 76)            # paredinha de alvenaria
+    for k in range(y - 2, y + 70, 10):
+        box(s, (134, 130, 124), x - 12, k, w + 24, 1)
+    for i in range(6):                                            # telhado de telha
+        ty = y - 24 + i * 3
+        box(s, (176, 76, 48) if i % 2 else (156, 64, 40), x - 18 - (5 - i) * 0, ty, w + 36, 4)
+    for k in range(x - 18, x + w + 18, 8):
+        box(s, (130, 52, 32), k, y - 24, 1, 18)
+    box(s, (24, 22, 28), x - 4, y - 7, w + 8, 14)                 # placa
+    box(s, (236, 196, 80), x - 4, y - 7, w + 8, 1)
+    _text(s, "GARAGEM DA TURMA", theme.XS, (236, 196, 80), (x + w // 2, y))
+    glow(s, (x + w // 2, y + 18), (110, 40), (255, 236, 170), 40)
+    box(s, (240, 230, 190), x + w // 2 - 6, y + 4, 12, 3)         # luz em cima do portão
+    if opened:
+        box(s, (14, 12, 18), x, y + 8, w, 56)
+        for k in range(5):                                        # a rampa descendo
+            c = 96 - k * 14
+            box(s, (c, c, c + 6), x + 4, y + 14 + k * 10, w - 8, 9)
+        box(s, (90, 90, 100), x, y + 8, w, 6)                     # o portão enrolado em cima
+        if inside is not None:
+            inside(s, x, y + 8, w)
+        _text(s, label, theme.XS, theme.MOSS, (x + w // 2, y + 80))
+        return
+    box(s, (176, 178, 186), x, y + 8, w, 56)
+    for k in range(y + 10, y + 64, 5):                            # frisos do portão de enrolar
+        box(s, (140, 142, 150), x, k, w, 2)
+        box(s, (206, 208, 214), x, k + 2, w, 1)
+    box(s, (90, 92, 100), x + w // 2 - 10, y + 56, 20, 4)         # alça
+    box(s, (210, 170, 60), x + w // 2 - 6, y + 46, 12, 10)        # cadeado
+    _text(s, label, theme.XS, theme.BRASS, (x + w // 2, y + 80))
+
+
 def inside_garagem(s, x, y, w):
     """Garagem aberta: a frente do Uno branco lá dentro."""
     W = (240, 240, 236)
@@ -849,35 +952,90 @@ def cellar_door(s, x, y, label, opened=False):
         pygame.draw.rect(s, (120, 60, 180), (x + 6, y + 6, w - 12, h - 12), 2)
         _text(s, label, theme.XS, theme.MOSS, (x + w // 2, y + h + 14))
         return
+    box(s, (16, 12, 18), x, y, w, h)                             # a fresta escura no meio
+    for k in range(3):                                           # degraus aparecendo pela fresta
+        box(s, (60, 56, 60), x + w // 2 - 3, y + 10 + k * 14, 6, 3)
     for k in range(2):
-        box(s, WOOD_D, x + k * (w // 2) + 1, y, w // 2 - 2, h)
+        lx = x + k * (w // 2 + 2) + 1
+        box(s, WOOD_D, lx, y, w // 2 - 4, h)
         for j in range(4):
-            box(s, WOOD, x + k * (w // 2) + 3, y + 4 + j * 13, w // 2 - 6, 9)
-    box(s, (90, 90, 100), x, y + 14, w, 4)
-    box(s, (90, 90, 100), x, y + h - 18, w, 4)
-    box(s, (210, 170, 60), x + w // 2 - 7, y + h // 2 - 7, 14, 14)
-    box(s, (150, 110, 30), x + w // 2 - 2, y + h // 2 - 1, 4, 5)
+            box(s, WOOD, lx + 2, y + 4 + j * 13, w // 2 - 8, 9)
+            box(s, WOOD_L, lx + 2, y + 4 + j * 13, w // 2 - 8, 1)
+        for hy in (y + 8, y + h - 14):                           # dobradiças
+            box(s, (70, 70, 80), lx + (0 if k == 0 else w // 2 - 12), hy, 8, 6)
+    for i in range(9):                                           # corrente atravessando
+        cx = x + 8 + i * 8
+        cy = y + h // 2 - 4 + abs(4 - i)
+        pygame.draw.ellipse(s, (150, 150, 160), (cx, cy, 8, 5), 2)
+    box(s, (210, 170, 60), x + w // 2 - 8, y + h // 2 + 2, 16, 14)  # cadeado
+    box(s, (240, 210, 110), x + w // 2 - 8, y + h // 2 + 2, 16, 2)
+    box(s, (120, 90, 30), x + w // 2 - 1, y + h // 2 + 7, 3, 5)
+    pygame.draw.arc(s, (190, 190, 200), (x + w // 2 - 6, y + h // 2 - 7, 12, 14), 0, math.pi, 3)
     _text(s, label, theme.XS, theme.BRASS, (x + w // 2, y + h + 14))
 
 
 # ── quintal ──────────────────────────────────
 def bed(s, x, y, w=100, rows=3, crops="sprout", seed=0):
-    """Canteiro da horta (x, y = canto de cima)."""
+    """Canteiro elevado da horta (x, y = canto de cima): moldura de tábua, terra fofa com torrões,
+    as plantas em três tamanhos e a plaquinha do que foi plantado."""
     rng = random.Random(seed or x * 7 + y)
-    box(s, WOOD_D, x - 4, y - 4, w + 8, rows * 8 + 8)
-    box(s, (78, 50, 30), x, y, w, rows * 8)
+    box(s, WOOD_D, x - 4, y - 4, w + 8, rows * 8 + 12)            # tábuas da moldura
+    box(s, WOOD_L, x - 4, y - 4, w + 8, 2)
+    box(s, WOOD, x - 4, y + rows * 8 + 2, w + 8, 6)
+    for k in range(x, x + w, 25):
+        box(s, shade(WOOD, -20), k, y + rows * 8 + 2, 1, 6)
+    box(s, (78, 50, 30), x, y, w, rows * 8 + 2)
+    for _ in range(w * rows // 6):                                # torrões
+        box(s, rng.choice(((96, 64, 40), (62, 40, 24))), rng.randrange(x, x + w - 2), rng.randrange(y, y + rows * 8), 2, 1)
     for row in range(rows):
         ry = y + 4 + row * 8
         box(s, (60, 38, 22), x, ry + 5, w, 2)
-        for cx in range(x + 6, x + w - 6, 14):
-            if crops == "sprout":
-                box(s, (90, 170, 70), cx, ry, 2, 4)
-                box(s, (120, 200, 90), cx - 2, ry - 1, 2, 2)
-                box(s, (120, 200, 90), cx + 2, ry - 1, 2, 2)
-            else:
-                pygame.draw.circle(s, (60, 140, 60), (cx + 1, ry + 1), 4)
-                if rng.random() < 0.4:
+        for i, cx in enumerate(range(x + 6, x + w - 6, 14)):
+            stage = (i + row + seed) % 3                          # três tamanhos
+            if crops == "sprout":                                 # alface
+                r = 2 + stage
+                pygame.draw.circle(s, (90, 170, 70), (cx + 1, ry + 1), r)
+                box(s, (140, 210, 110), cx, ry - 1, 2, 2)
+                if stage == 2:
+                    box(s, (60, 130, 50), cx - 2, ry + 1, 2, 1)
+            else:                                                 # tomate
+                pygame.draw.circle(s, (60, 140, 60), (cx + 1, ry + 1), 3 + stage)
+                if stage and rng.random() < 0.6:
                     box(s, (220, 70, 50), cx, ry - 1, 3, 3)
+                    box(s, (250, 150, 120), cx, ry - 1, 1, 1)
+    box(s, (210, 190, 150), x + w - 14, y - 12, 12, 8)          # plaquinha
+    box(s, WOOD_D, x + w - 9, y - 4, 2, 6)
+    box(s, (120, 60, 40) if crops != "sprout" else (60, 120, 60), x + w - 12, y - 9, 8, 2)
+
+
+def scarecrow(s, x, y):
+    """Espantalho da horta (x, y = pé do poste): chapéu de palha, camisa xadrez e palha saindo."""
+    shadow(s, x, y + 2, 30)
+    box(s, WOOD_D, x - 2, y - 60, 4, 60)
+    box(s, WOOD_D, x - 24, y - 46, 48, 4)
+    box(s, (180, 60, 50), x - 12, y - 50, 24, 22)                 # camisa xadrez
+    for k in range(x - 12, x + 12, 6):
+        box(s, (140, 40, 36), k, y - 50, 2, 22)
+    box(s, (180, 60, 50), x - 22, y - 48, 10, 8)
+    box(s, (180, 60, 50), x + 12, y - 48, 10, 8)
+    for dx in (-24, 22):                                          # palha das mãos
+        box(s, (230, 200, 110), x + dx, y - 46, 3, 6)
+    box(s, (226, 196, 140), x - 8, y - 66, 16, 16)                # cabeça de saco
+    box(s, (40, 30, 24), x - 5, y - 61, 3, 3)
+    box(s, (40, 30, 24), x + 2, y - 61, 3, 3)
+    box(s, (40, 30, 24), x - 4, y - 55, 8, 1)
+    box(s, (220, 190, 100), x - 16, y - 70, 32, 4)                # chapéu de palha
+    box(s, (230, 200, 110), x - 8, y - 78, 16, 8)
+    box(s, (180, 60, 50), x - 8, y - 72, 16, 2)
+
+
+def hose(s, x, y):
+    """Mangueira verde enrolada com o esguicho (x, y = meio do rolo)."""
+    shadow(s, x, y + 10, 40)
+    for r in (14, 10, 6):
+        pygame.draw.ellipse(s, (50, 140, 70), (x - r - 4, y - r // 2, 2 * r + 8, r + 4), 3)
+    pygame.draw.line(s, (50, 140, 70), (x + 16, y + 2), (x + 30, y + 8), 3)
+    box(s, (220, 190, 60), x + 28, y + 6, 6, 4)
 
 
 def sign(s, x, y, text):
