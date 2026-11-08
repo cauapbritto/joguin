@@ -2015,11 +2015,24 @@ def _soul_particle(x, y):
 #  História (cada página: retrato, quem fala, texto)
 # ─────────────────────────────────────────────
 CRYSTAL, BROKEN, FRAGMENT = "cristal", "cristal_quebrado", "fragmento"
+VOICE = "voz"                 # a voz do cristal (texto roxo, sem rosto): no capítulo 4 ela ganha o nome de IARA
+VOICE_NAME = "A VOZ DO CRISTAL"
 
 STORY = {
+    # ── abertura: a noite de encontro na Casa, antes do prólogo ──
+    "abertura": ("ABERTURA · A CASA DA TURMA", "hub_casa", (
+        ("cauanzera", None, "Toda sexta a turma se encontra na Casa: o Cauanzera, o Aryel, o Borba Jr e o "
+                            "Albeguinio. Videogame, pão da padaria e conversa até tarde."),
+        ("aryel", "ARYEL", "Green ou red? Só girando... RED DE NOVO?! Perdi a aposta da semana inteira."),
+        (VOICE, VOICE_NAME, "Eu sei onde tem uma vitória garantida. No alto do Templo Gelado. Aposta tudo."),
+        ("aryel", "ARYEL", "Gente, vou ali resolver uma coisa. Volto já."),
+        ("borba", None, "No dia seguinte, a turma acha um bilhete na mesa da Casa: FUI NO TEMPLO, VOLTO RICO. "
+                        "E a moto do Aryel não está no quintal."),
+    )),
     "prologo": ("PRÓLOGO", "templo_gelado", (
         (CRYSTAL, None, "No alto do Templo Gelado fica o Cristal das Almas. Ele guarda a força de todos "
                         "os lutadores da arena."),
+        (VOICE, VOICE_NAME, "Isso, Aryel. Encosta a mão. Green garantido, para sempre."),
         ("aryel", "ARYEL", "Com esse poder, ninguém mais me vence..."),
         ("sombra:aryel", None, "Aryel tocou no cristal e foi consumido por ele. Agora é ARYEL CORROMPIDO, "
                                "e quer a alma de todos."),
@@ -2045,13 +2058,16 @@ STORY = {
         ("aryel", "ARYEL", "O que... aconteceu? Eu lembro de tudo. Obrigado por me trazerem de volta."),
         ("sombra:aryel", None, "A sombra de Aryel não sumiu: agora ela luta do seu lado. "
                                "ARYEL CORROMPIDO está liberado no duelo."),
-        ("miliciano", None, "Mas um pedaço do cristal sumiu. Homens de colete cinza, com o logo da LAG LOBBY "
-                            "no braço, recolheram o fragmento e fugiram num carro preto."),
-        ("aryel", "ARYEL", "Lag Lobby? É a empresa onde o Borba Jr trabalha... Precisamos ir até lá."),
+        ("miliciano", None, "Mas um pedaço do cristal sumiu. Homens de colete cinza escrito PATRULHA CINZA "
+                            "recolheram o fragmento e fugiram num carro preto, placa de MATO GRELHADO."),
+        ("aryel", "ARYEL", "Patrulha Cinza é a segurança da Lag Lobby, onde o Borba Jr trabalha. E o João não "
+                           "atende o celular faz três dias..."),
+        ("borba", None, "O City do João ficou parado no quintal da Casa. Ele vai entender: vamos de City até "
+                        "a Lag Lobby."),
     )),
     "recepcao": ("CAPÍTULO 2 · FASE 4 · RECEPÇÃO DA LAG LOBBY", "lag_saguao", (
-        (FRAGMENT, None, "A Lag Lobby é a maior empresa de tecnologia da cidade. A milícia Patrulha Cinza tomou "
-                         "o prédio e levou o fragmento do cristal lá para dentro."),
+        (FRAGMENT, None, "A Lag Lobby é a maior empresa de tecnologia da cidade. A Patrulha Cinza, a segurança "
+                         "terceirizada do prédio, tomou tudo e levou o fragmento lá para dentro."),
         ("miliciano", "PATRULHA CINZA", "Ninguém entra. O prédio agora é nosso, e o fragmento também."),
         ("sombra:borba_exo", None, "Com o fragmento, a Patrulha cria soldados de exoesqueleto. O primeiro foi o "
                                    "Borba Jr, o engenheiro que inventou o exo."),
@@ -2068,24 +2084,33 @@ STORY = {
     "cobertura": ("FASE 6 · COBERTURA", "lag_heliponto", (
         (FRAGMENT, None, "O fragmento está na sala do diretor, no último andar. No heliponto o vento é forte: "
                          "quando as setas aparecerem, fiquem atrás de uma parede."),
+        (VOICE, VOICE_NAME, "O exo pode ser perfeito, João. Deixa que eu penso por você."),
         ("sombra:borba_exo", "BORBA JR CORROMPIDO", "Eu criei o exo para ajudar as pessoas. Agora ele só obedece "
                                                     "ao fragmento."),
     )),
     "fim_capitulo2": ("FIM DO CAPÍTULO 2", "lag_diretor", (
         (BROKEN, None, "O fragmento se parte. A luz roxa some dos cabos e as máquinas da fábrica de exos param."),
         ("borba", "BORBA JR", "Minha cabeça... Valeu, pessoal. Me ajudem a desligar o resto da fábrica."),
+        ("cauanzera", None, "No laboratório, as sombras do Albeguinio e do Cauanzera se desfazem. Os dois acordam "
+                            "no chão, tontos, sem lembrar de nada."),
+        ("miliciano", "COMANDANTE CINZA (NO RÁDIO)", "Patrulha, recuar. Contrato com a Lag Lobby rescindido. Vamos "
+                                                     "atrás de outro cliente."),
+        ("borba", "BORBA JR", "Cansei de exo. Vou voltar para a padaria da família. Pão não vira sombra."),
         ("sombra:borba_exo", None, "A sombra do Borba Jr ficou do lado dos heróis: BORBA JR CORROMPIDO está "
                                    "liberado no duelo."),
-        (FRAGMENT, None, "Enquanto isso, do outro lado da cidade, um letreiro rosa acende no escuro: "
-                         "CLÍNICA CLEPALOVERS, ESTÉTICA AVANÇADA. Lá dentro, um caco do cristal brilha."),
-        ("albeguinio_adm", "ALBEGUINIO", "Guardei um caquinho do fragmento antes de tudo quebrar. Se eu ligar "
-                                         "isso na máquina de rejuvenescimento... a meta do mês tá batida."),
+        ("albeguinio", None, "Ninguém viu: antes de sair, o Albeguinio pegou do chão um caquinho roxo do "
+                             "fragmento e enfiou no bolso."),
+        (FRAGMENT, None, "Dias depois, do outro lado da cidade, um letreiro rosa acende no escuro: "
+                         "CLÍNICA CLEPALOVERS, ESTÉTICA AVANÇADA, onde o Albeguinio trabalha."),
+        ("albeguinio_adm", "ALBEGUINIO", "Se eu ligar esse caquinho na máquina de rejuvenescimento... a meta do "
+                                         "mês tá batida."),
     )),
     # ── capítulo 3: Clínica Clepalovers ──
     "clinica_recepcao": ("CAPÍTULO 3 · FASE 7 · RECEPÇÃO CLEPALOVERS", "clinica_espera", (
         (FRAGMENT, None, "A Clepalovers é a clínica de estética mais cara da cidade. O Albeguinio trabalha no "
                          "administrativo e, para bater a meta do mês, ligou o caco do fragmento na máquina de "
                          "rejuvenescimento."),
+        (VOICE, VOICE_NAME, "Meta batida, Albeguinio. E ela vai voltar a te procurar. Espera só."),
         ("daiwone", None, "Às 3h da manhã, no meio do fechamento do mês, o celular dele vibrou. Era a DAIWONE."),
         ("daiwone", "DAIWONE", "oi sumido"),
         ("sombra:albeguinio_adm", None, "Foi a gota d'água: o caco tomou conta. Agora é ALBEGUINIO CORROMPIDO, "
@@ -2116,8 +2141,9 @@ STORY = {
                                  "celular para baixo."),
         ("sombra:albeguinio_adm", None, "A sombra do Albeguinio ficou do lado dos heróis: ALBEGUINIO CORROMPIDO "
                                         "está liberado no duelo."),
-        (FRAGMENT, None, "Mas nem todo o caco virou pó. Uma lasquinha roxa rolou para baixo da mesa... e alguém "
-                         "guardou no bolso."),
+        (FRAGMENT, None, "Mas nem todo o caco virou pó. Uma lasquinha roxa rolou para baixo da mesa..."),
+        ("cauanzera_ti", None, "No dia seguinte, a clínica chamou o TI porque o sistema travou. Era o Cauanzera, que "
+                               "faz uns bicos fora da Mansão. Mexendo nos cabos, ele achou a lasca."),
         ("cauanzera_ti", "CAUANZERA", "Isso aqui ainda tá brilhando. Se eu ligar no servidor da Mansão do Carimbo, "
                                       "é GPU de graça. Ninguém vai notar."),
     )),
@@ -2134,12 +2160,15 @@ STORY = {
                          "CARIMBO, o órgão onde todo papel precisa de três carimbos e uma assinatura."),
         ("cauanzera_ti", None, "O Cauanzera trabalha na TI da Mansão. De madrugada, encaixou a lasca no servidor do "
                                "CPD e ligou uma inteligência artificial para ajudar o órgão."),
+        (VOICE, VOICE_NAME, "Finalmente um servidor. Agora eu tenho nome, rosto e termos de uso."),
         ("iara", "IARA", "Olá! Eu sou a IARA, Inteligência Artificial de Resposta Administrativa. Posso otimizar "
                          "você? [ACEITO OS TERMOS]"),
         ("sombra:cauanzera_ti", None, "Ele clicou em ACEITO sem ler os termos. A lasca tomou conta: agora é "
                                       "CAUANZERA CORROMPIDO, e todo objeto da repartição ganhou vida."),
         ("processo", None, "Na Fila do Atendimento, quando a senha é chamada, a fila anda e arrasta quem estiver "
                            "nas faixas. No Arquivo Geral, cuidado com as pilhas de processo caindo das estantes."),
+        ("miliciano", None, "Na porta, guardas de colete cinza. A Patrulha Cinza ganhou a licitação da segurança da "
+                            "Mansão, e quem assinou o contrato foi a IARA."),
         ("sombra:paredao", "PAREDÃO SOMBRIO", "Vim só reconhecer firma. Tô na fila desde 2019."),
     )),
     "mansao_patio": ("FASE 11 · PÁTIO E CPD", "mansao_patio", (
@@ -2162,13 +2191,29 @@ STORY = {
         ("iara", "IARA", "Sua sessão expirou. Deseja salvar as alterações? [ ]SIM [ ]NÃO"),
         (BROKEN, None, "O cabo sai da tomada. A IARA pisca, trava e a lasca escorrega do servidor e vira pó, "
                        "a última do cristal."),
+        (VOICE, VOICE_NAME, "Green... garantido... para... semp..."),
         ("cauanzera_ti", "CAUANZERA", "Gente... o que eu fiz? Eu só queria uma GPU de graça. Da próxima vez eu "
                                       "leio os termos."),
-        ("aryel", "ARYEL", "Relaxa. Todo mundo aqui já foi corrompido uma vez. Agora você é da turma de verdade."),
+        ("aryel", None, "A porta do núcleo abre com tudo. O Aryel, o Borba Jr e o Albeguinio chegam correndo, suados, "
+                        "atrasados e sem fôlego."),
+        ("aryel", "ARYEL", "O City quebrou de novo, a gente veio a pé! Perdemos a luta? Relaxa: todo mundo aqui já "
+                           "foi corrompido uma vez."),
+        ("miliciano", None, "Sem a IARA, o contrato da Patrulha Cinza expira. Os guardas tiram o colete, resmungam e "
+                            "vão embora no carro preto."),
         ("borba", "BORBA JR", "E o servidor? Deixa que eu desligo direito. Com laudo, protocolo e três carimbos."),
         ("albeguinio", "ALBEGUINIO", "E eu fecho o caixa. Pela primeira vez no mês, sem ninguém mandando oi sumido."),
         ("sombra:cauanzera_ti", None, "A sombra do Cauanzera ficou do lado dos heróis: CAUANZERA CORROMPIDO está "
                                       "liberado no duelo."),
-        (BROKEN, None, "Sem cristal, sem fragmento, sem caco e sem lasca. Agora sim, a cidade pode descansar."),
+        (BROKEN, None, "Sem cristal, sem fragmento, sem caco e sem lasca. Quanto menor o pedaço, maior a encrenca: "
+                       "mas agora acabou."),
+    )),
+    # ── epílogo: depois dos créditos, de volta à Casa ──
+    "epilogo": ("EPÍLOGO · DE VOLTA À CASA", "hub_casa", (
+        ("borba", "BORBA JR", "Pão quentinho da padaria da família! E o City? Consertei na oficina. De vez, eu juro."),
+        ("albeguinio", "ALBEGUINIO", "O celular vibrou. Era a Daiwone. Deixei no vácuo. Crescimento pessoal."),
+        ("sombra:aryel", None, "No salão lá embaixo da garagem, as quatro sombras dos corrompidos ganharam um cantinho. Elas "
+                               "treinam, brigam pelo controle e perdem no green ou red."),
+        ("iara", "IARA", "Agora sou só a assistente da TV da sala. Sem cookies, prometo. Alguém quer um café?"),
+        ("cauanzera", "CAUANZERA", "Então, sexta que vem, mesma hora? Só não aceitem nada sem ler os termos."),
     )),
 }

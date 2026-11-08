@@ -12,6 +12,32 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.39.0": [
+        {"title": "A HISTÓRIA COSTURADA", "scene": "iara", "lines": [
+            "Uma voz roxa sai do cristal e tenta cada amigo: o Aryel, o Borba Jr, o Albeguinio.",
+            "No capítulo 4 ela entra no servidor e ganha nome: é a IARA.",
+            "A Patrulha Cinza volta na Mansão do Carimbo, com contrato assinado pela IARA.",
+            "Albeguinio e Cauanzera agora acordam no fim do capítulo 2, e dá para ver quem pega o caco.",
+        ]},
+        {"title": "COMEÇA E TERMINA NA CASA", "scene": "casa", "lines": [
+            "A campanha abre numa noite de encontro na Casa, com o Aryel saindo de moto.",
+            "Depois dos créditos vem o epílogo: pão da padaria da família, City consertado e café com a IARA.",
+            "No final, a turma chega a pé depois da luta. O City quebrou de novo.",
+        ]},
+        {"title": "OS CHEFES FALAM", "scene": "mansao", "lines": [
+            "Cada chefe solta três falas na luta: ao entrar, quando cansa e quando a vida está acabando.",
+        ]},
+        {"title": "A HISTÓRIA VIROU FILME", "scene": "casa", "lines": [
+            "Cada cena da campanha agora é animada: câmera andando, gente entrando, clarão e chuva.",
+            "As cenas passam sozinhas, com legenda. ATACAR adianta, ESC pula.",
+        ]},
+        {"title": "SALA DE CINEMA", "scene": "casa", "lines": [
+            "No CINEMA, a turma entra, senta nas poltronas e a luz apaga.",
+            "O telão vem chegando até ocupar a tela inteira, e o filme passa sozinho.",
+            "FILME COMPLETO vai da abertura ao epílogo, com a plateia reagindo e aplaudindo no fim.",
+            "Segure ESC para sair no meio.",
+        ]},
+    ],
     "1.38.0": [
         {"title": "SALAS MOBILIADAS", "scene": "mapa_fase", "lines": [
             "As salas de luta ganharam móveis do capítulo, desenhados no mesmo capricho dos heróis.",
