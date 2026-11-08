@@ -12,13 +12,35 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
-    "1.37.0": [
+    "1.40.0": [
         {"title": "PARA ONDE?", "scene": "casa", "lines": [
             "No começo da campanha, ATACAR no carro do quintal abre o PARA ONDE?.",
             "Escolha o capítulo da viagem: só aparecem liberados os que vocês já alcançaram.",
             "Começar mais adiante dá almas e melhorias, como no menu da campanha.",
             "Mudou de ideia? Escolha de novo: o bônus não soma duas vezes.",
             "Enquanto alguém escolhe, o carro espera. No CONTINUAR e no passeio não tem.",
+        ]},
+    ],
+    "1.38.0": [
+        {"title": "SALAS MOBILIADAS", "scene": "mapa_fase", "lines": [
+            "As salas de luta ganharam móveis do capítulo, desenhados no mesmo capricho dos heróis.",
+            "Na floresta: árvores, tronco caído, pedras e moitas. No Lag Lobby: rack, mesa com PC e caixas.",
+            "Na clínica: cadeiras de espera, biombo e carrinho de spa. Na Mansão: relógio, poltronas e busto.",
+            "Poças de luz no chão de cada sala, e nenhum móvel fecha porta ou caminho.",
+        ]},
+    ],
+    "1.37.0": [
+        {"title": "MASCOTES DA CASA", "scene": "casa", "lines": [
+            "O gato laranja dorme no sofá, o Caramelo mora na casinha do quintal e o papagaio no poleiro.",
+            "Chegue perto do cantinho e aperte ATACAR para adotar. Ele passa a te seguir, nas fases também.",
+            "Cada bicho tem um dono só, e fica guardado de uma vez para a outra.",
+            "Para devolver, leve o bicho até o cantinho dele e aperte ATACAR.",
+        ]},
+        {"title": "CASA ACONCHEGANTE", "scene": "casa", "lines": [
+            "A luz das janelas segue o relógio: dourada de manhã, alaranjada à tarde e luar de noite.",
+            "De noite o vidro escurece e aparecem a lua e as estrelas.",
+            "Padaria com pão francês, sonho, baguete, pão de queijo e croissant, e o forno soltando fumaça.",
+            "O exoesqueleto do Borba Jr ganhou pistões, núcleo aceso e capacete com viseira.",
         ]},
     ],
     "1.36.0": [

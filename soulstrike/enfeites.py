@@ -365,3 +365,144 @@ def furnish(match, rows, chapter, joke=True):
         if on_floor:
             dx, dy, w, h = FOOT[fn]
             match.arena.walls.append(Wall(x + dx, y + dy, w, h, visible=False))
+
+
+# ─────────────────────────────────────────────
+#  Salas de luta: móveis no nível dos heróis e poças de luz
+# ─────────────────────────────────────────────
+ROOM_MAX = 6             # móveis por sala de luta
+ROOM_GAP = 4             # quadrados entre dois móveis
+ROOM_DOOR = 3            # quadrados livres em volta das portas
+# por capítulo: (peça, bloqueia o chão?), a cor da luz e a força dela
+ROOM_SETS = {
+    1: ((("sala_arvore_0", True), ("sala_pedras", False), ("sala_arvore_1", True), ("sala_moita", False),
+         ("sala_tronco", True), ("sala_arvore_2", True)), (90, 104, 44), 70),
+    2: ((("sala_rack", True), ("sala_mesa_pc", True), ("sala_vaso_costela", False), ("sala_caixas", True),
+         ("sala_bebedouro", False), ("sala_vaso_espada", False)), (60, 80, 120), 60),
+    3: ((("sala_cadeiras", True), ("sala_vaso_orquidea", False), ("sala_biombo", True), ("sala_carrinho", False),
+         ("sala_cadeiras", True), ("sala_vaso_orquidea", False)), (110, 50, 90), 55),
+    4: ((("sala_relogio", True), ("sala_poltrona", True), ("sala_vaso_samambaia", False), ("sala_aparador", True),
+         ("sala_busto", True), ("sala_poltrona", True)), (110, 80, 36), 60),
+}
+
+
+def room_spots(room_rect, walls, doors, avoid=()):
+    """Lugares para os móveis numa sala de luta: quadrados livres encostados numa parede, longe das
+    portas, dos pontos ``avoid`` e uns dos outros, e com o caminho do outro lado livre (pixels do
+    mapa, o pé no meio do quadrado)."""
+    def blocked(r):
+        return any(r.colliderect(w) for w in walls)
+
+    cols, rows = room_rect.w // T, room_rect.h // T
+    out = []
+    for r in range(rows):
+        for c in range(cols):
+            cell = pygame.Rect(room_rect.x + c * T, room_rect.y + r * T, T, T)
+            if blocked(cell.inflate(-4, -4)):
+                continue
+            if any(cell.inflate(2 * ROOM_DOOR * T, 2 * ROOM_DOOR * T).colliderect(d) for d in doors):
+                continue
+            if any(cell.inflate(4 * T, 4 * T).collidepoint(p) for p in avoid):
+                continue
+            touch = [(dx, dy) for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0)) if blocked(cell.move(dx * T, dy * T).inflate(-4, -4))]
+            if len(touch) != 1:
+                continue                                  # só encostado numa parede (canto fecha passagem)
+            dx, dy = touch[0]
+            ahead = [cell.move(-dx * T * k, -dy * T * k) for k in (1, 2)]
+            if any(blocked(a.inflate(-4, -4)) or not room_rect.contains(a) for a in ahead):
+                continue
+            if all(max(abs(cell.centerx - x) // T, abs(cell.bottom - 8 - y) // T) >= ROOM_GAP for x, y in out):
+                out.append((cell.centerx, cell.bottom - 8))
+            if len(out) >= ROOM_MAX:
+                return out
+    return out
+
+
+class LightPool:
+    """Poça de luz no chão da sala (somada à cor do chão, por baixo de todo mundo)."""
+
+    flat = True
+    alive = True
+
+    def __init__(self, x, y, rx, ry, color, strength):
+        self.x, self.y = x, y
+        self.img = _pool(rx, ry, color, strength)
+
+    @property
+    def sort_y(self):
+        return self.y
+
+    def update(self, match):
+        pass
+
+    def draw(self, surf, cam):
+        surf.blit(self.img, (round(self.x - cam.x - self.img.get_width() // 2),
+                             round(self.y - cam.y - self.img.get_height() // 2)), special_flags=pygame.BLEND_RGB_ADD)
+
+
+_POOLS = {}
+
+
+def _pool(rx, ry, color, strength):
+    key = (rx, ry, color, strength)
+    if key not in _POOLS:
+        s = pygame.Surface((rx * 2, ry * 2))
+        s.fill((0, 0, 0))
+        n = 14
+        for k in range(n, 0, -1):
+            f = (1 - k / n) ** 1.5 * strength / 100
+            c = tuple(min(255, int(v * f)) for v in color)
+            one = pygame.Surface((rx * 2, ry * 2))
+            one.fill((0, 0, 0))
+            pygame.draw.ellipse(one, c, (rx - rx * k / n, ry - ry * k / n, 2 * rx * k / n, 2 * ry * k / n))
+            s.blit(one, (0, 0), special_flags=pygame.BLEND_RGB_MAX)
+        _POOLS[key] = s
+    return _POOLS[key]
+
+
+def furnish_rooms(match, layout, chapter):
+    """Mobília das salas de luta do capítulo (peças prontas de assets/pecas) e as poças de luz.
+    As peças grandes ganham um pé que ninguém atravessa; as pequenas (vaso, pedra, moita) não."""
+    from . import pecas
+    from .entities import Wall
+    pieces, color, strength = ROOM_SETS.get(chapter, ROOM_SETS[1])
+    if pecas.image(pieces[0][0]) is None:
+        return
+    for i, room in enumerate(layout.fight_rooms):
+        rect = room.rect
+        walls = [w.rect for w in match.arena.walls if w.rect.colliderect(rect.inflate(2 * T, 2 * T))]
+        avoid = [(rect.centerx, rect.centery)]
+        for k, (x, y) in enumerate(room_spots(rect, walls, [d for _, d in room.doors], avoid)):
+            name, solid = pieces[(k + i) % len(pieces)]
+            img = pecas.image(name)
+            match.props.append(_Piece(x, y, img))
+            if solid:
+                w = max(20, img.get_width() - 20)
+                match.arena.walls.append(Wall(x - w // 2, y - 14, w, 16, visible=False))
+        for k, (fx, fy) in enumerate(((0.3, 0.35), (0.72, 0.62), (0.45, 0.8))):
+            match.props.append(LightPool(rect.x + rect.w * fx, rect.y + rect.h * fy, 130 - k * 15, 70 - k * 8,
+                                         color, strength))
+
+
+class _Piece:
+    """Um móvel pronto parado no chão (x, y = o pé, no meio), com a sombra."""
+
+    alive = True
+
+    def __init__(self, x, y, img):
+        self.x, self.y = x, y
+        self.img = img
+
+    @property
+    def sort_y(self):
+        return self.y
+
+    def update(self, match):
+        pass
+
+    def draw(self, surf, cam):
+        from . import pecas
+        sx, sy = round(self.x - cam.x), round(self.y - cam.y)
+        w = int(self.img.get_width() * 0.8)
+        surf.blit(pecas.shadow(w, max(8, w // 4), 80), (sx - w // 2, sy - max(8, w // 4) // 2 - 2))
+        surf.blit(self.img, self.img.get_rect(midbottom=(sx, sy)))

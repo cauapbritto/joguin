@@ -15,6 +15,8 @@ o mesmo caminho dos heróis), no tamanho em que aparece na tela: o jogo não amp
   carro_city.png, carro_uno.png, moto.png   os carros da turma de lado (os _vidro: vidro translúcido)
   estrada_*.png               casinhas, árvores e poste da beira da estrada na viagem
   garagem_*.png               painel de ferramentas, estante, troféus, carrinho, pneus e tambor
+  mascote_<bicho>_<pose>.png  gato, cachorro e papagaio (sentado; andando/voando virado para a direita)
+  sala_*.png                  móveis e plantas das salas de luta de cada capítulo
 """
 import math
 import os
@@ -1136,6 +1138,365 @@ def tambor_oleo():
     return hd(b.s)
 
 
+
+# ═════════════════════════════════════════════
+#  Mascotes da Casa (do tamanho certo perto de um herói)
+# ═════════════════════════════════════════════
+def gato(pose="sentado"):
+    """Gato laranja de peito branco: sentado de frente ou andando de lado (virado para a direita)."""
+    b = B(20, 18)
+    o, od, w = (226, 140, 60), (184, 100, 40), (250, 244, 236)
+    eye, glint = (90, 170, 80), (250, 250, 220)
+    if pose == "sentado":
+        b.r(5, 8, 10, 9, o)
+        b.r(7, 12, 6, 5, w)
+        b.r(5, 2, 10, 7, o)
+        b.poly([(5, 3), (6, 0), (8, 2)], o)
+        b.poly([(12, 2), (14, 0), (15, 3)], o)
+        b.p(6, 1, (240, 160, 160))
+        b.p(13, 1, (240, 160, 160))
+        b.r(6, 4, 2, 1, od)
+        b.r(12, 4, 2, 1, od)
+        b.r(7, 5, 2, 2, eye)
+        b.r(11, 5, 2, 2, eye)
+        b.p(7, 5, glint)
+        b.p(11, 5, glint)
+        b.p(10, 7, (230, 120, 130))
+        b.r(9, 8, 3, 1, w)
+        b.r(15, 12, 3, 2, o)
+        b.r(17, 9, 2, 4, o)
+        b.p(17, 9, od)
+        b.r(6, 16, 3, 1, w)
+        b.r(11, 16, 3, 1, w)
+    else:
+        b.r(4, 7, 12, 6, o)
+        b.r(4, 12, 2, 5, o)
+        b.r(8, 12, 2, 5, od)
+        b.r(12, 12, 2, 5, o)
+        b.r(14, 12, 2, 4, od)
+        for x in (6, 10):
+            b.r(x, 7, 1, 5, od)
+        b.r(13, 2, 6, 6, o)
+        b.poly([(13, 3), (14, 0), (16, 2)], o)
+        b.poly([(17, 2), (18, 0), (19, 3)], o)
+        b.r(16, 4, 2, 2, eye)
+        b.p(19, 6, (230, 120, 130))
+        b.r(16, 7, 3, 1, w)
+        b.r(1, 4, 3, 2, o)
+        b.r(0, 2, 2, 3, o)
+    return hd(b.s, keep=[eye, glint])
+
+
+def cachorro(pose="sentado"):
+    """Vira-lata caramelo de coleira vermelha: sentado de frente ou andando de lado."""
+    b = B(24, 20)
+    c, cd, cl, w = (198, 140, 70), (150, 96, 46), (226, 178, 110), (240, 224, 196)
+    if pose == "sentado":
+        b.r(6, 9, 12, 10, c)
+        b.r(9, 12, 6, 7, w)
+        b.r(6, 1, 12, 9, c)
+        b.r(4, 2, 3, 7, cd)
+        b.r(17, 2, 3, 7, cd)
+        b.r(9, 6, 6, 4, cl)
+        b.r(11, 6, 2, 2, (30, 26, 28))
+        b.r(8, 4, 2, 2, (40, 30, 26))
+        b.r(14, 4, 2, 2, (40, 30, 26))
+        b.p(8, 4, (250, 250, 250))
+        b.p(14, 4, (250, 250, 250))
+        b.r(11, 9, 2, 2, (230, 100, 110))
+        b.r(9, 10, 6, 1, (200, 50, 50))
+        b.p(12, 11, (240, 200, 80))
+        b.r(7, 18, 3, 1, cl)
+        b.r(14, 18, 3, 1, cl)
+        b.r(18, 14, 4, 2, c)
+        b.r(20, 11, 2, 4, c)
+    else:
+        b.r(4, 7, 14, 7, c)
+        b.r(5, 13, 2, 6, c)
+        b.r(9, 13, 2, 6, cd)
+        b.r(13, 13, 2, 6, c)
+        b.r(16, 13, 2, 5, cd)
+        b.r(8, 12, 6, 2, w)
+        b.r(16, 2, 7, 7, c)
+        b.r(21, 5, 3, 3, cl)
+        b.p(23, 5, (30, 26, 28))
+        b.r(15, 3, 2, 6, cd)
+        b.r(19, 4, 2, 2, (40, 30, 26))
+        b.p(19, 4, (250, 250, 250))
+        b.r(16, 8, 3, 1, (200, 50, 50))
+        b.r(1, 4, 3, 2, c)
+        b.r(0, 2, 2, 3, c)
+    return hd(b.s, keep=[(250, 250, 250)])
+
+
+def papagaio(pose="pousado"):
+    """Papagaio verde de testa azul e rosto amarelo: pousado (sem o poleiro) ou voando."""
+    b = B(18, 20)
+    g, gd, gl, y, r, bl = (60, 170, 70), (34, 120, 50), (120, 210, 100), (250, 210, 60), (220, 60, 50), (60, 120, 220)
+    if pose == "pousado":
+        b.r(8, 2, 6, 6, g)
+        b.r(9, 3, 4, 2, y)
+        b.r(8, 1, 4, 2, bl)
+        b.r(12, 4, 3, 3, (60, 60, 64))
+        b.p(14, 6, (40, 40, 44))
+        b.r(10, 4, 1, 1, (30, 30, 30))
+        b.p(10, 3, (250, 250, 250))
+        b.r(6, 8, 8, 10, g)
+        b.r(5, 9, 3, 8, gd)
+        b.r(6, 15, 3, 3, r)
+        b.r(7, 17, 4, 3, gd)
+        b.r(8, 17, 2, 3, bl)
+        b.r(8, 17, 1, 2, (110, 110, 120))
+        b.r(11, 17, 1, 2, (110, 110, 120))
+    else:
+        b.r(6, 10, 8, 6, g)
+        b.r(13, 10, 3, 3, g)
+        b.r(15, 11, 2, 2, (60, 60, 64))
+        b.r(13, 10, 2, 1, y)
+        b.poly([(7, 10), (2, 2), (12, 9)], gd)
+        b.poly([(8, 10), (5, 3), (11, 9)], gl)
+        b.r(3, 4, 3, 2, r)
+        b.r(1, 13, 6, 2, bl)
+    return hd(b.s, keep=[(250, 250, 250)])
+
+
+
+# ═════════════════════════════════════════════
+#  Salas de luta de cada capítulo
+# ═════════════════════════════════════════════
+def vaso(kind):
+    b = B(22, 30)
+    if kind == "costela":
+        b.r(5, 20, 12, 9, (226, 210, 180))
+        b.r(4, 19, 14, 2, (180, 164, 136))
+        for cx, cy, r in ((6, 10, 5), (15, 9, 5), (11, 4, 4), (10, 14, 4)):
+            b.circ((cx, cy), r, (54, 130, 70))
+        for cx, cy in ((6, 10), (15, 9), (11, 4)):
+            b.line((cx, cy), (11, 19), (34, 92, 50))
+            b.p(cx - 2, cy, (0, 0, 0, 0))
+            b.p(cx + 2, cy + 1, (0, 0, 0, 0))
+    elif kind == "espada":
+        b.r(6, 21, 10, 8, (44, 44, 52))
+        b.r(5, 20, 12, 2, (70, 70, 80))
+        for x, h in ((7, 14), (9, 18), (11, 20), (13, 16), (15, 12)):
+            b.r(x, 20 - h, 2, h, (64, 120, 60))
+            b.r(x, 20 - h + 2, 1, h - 4, (200, 196, 90))
+    elif kind == "samambaia":
+        b.r(6, 20, 10, 9, (176, 96, 60))
+        b.r(5, 19, 12, 2, sh((176, 96, 60), 20))
+        for a in range(-3, 4):
+            ex, ey = 11 + a * 3, 19 - (6 - abs(a)) * 2
+            b.line((11, 19), (ex, ey), (70, 140, 60), 2)
+            b.line((11, 19), (ex + (1 if a > 0 else -1) * 2, ey + 6), (52, 112, 46), 2)
+    else:                                                          # orquídea
+        b.r(7, 21, 8, 8, (236, 236, 232))
+        b.r(6, 20, 10, 2, (210, 210, 206))
+        b.r(5, 17, 6, 3, (60, 120, 60))
+        b.r(11, 18, 6, 3, (50, 108, 54))
+        b.line((11, 18), (12, 4), (90, 120, 60))
+        for fx, fy in ((13, 4), (15, 7), (12, 9)):
+            b.r(fx - 1, fy - 1, 3, 3, (220, 120, 200))
+            b.p(fx, fy, (250, 230, 120))
+    return hd(b.s)
+
+
+def arvore_sala(v=0):
+    b = B(46, 60)
+    b.r(20, 38, 7, 20, (92, 62, 40))
+    b.r(21, 38, 2, 20, (120, 84, 54))
+    b.poly([(17, 58), (20, 52), (27, 52), (30, 58)], (82, 54, 36))
+    g = [(44, 92, 46), (52, 108, 52), (38, 80, 42)][v % 3]
+    for cx, cy, r in ((23, 18, 15), (11, 28, 10), (35, 28, 10), (23, 32, 12), (15, 14, 8), (32, 13, 8)):
+        b.circ((cx, cy), r, g)
+    for cx, cy, r in ((18, 10, 4), (28, 9, 3), (9, 24, 3)):
+        b.circ((cx, cy), r, sh(g, 26))
+    for cx, cy in ((26, 36), (14, 34), (34, 33)):
+        b.circ((cx, cy), 3, sh(g, -18))
+    return hd(b.s)
+
+
+def tronco():
+    b = B(40, 14)
+    b.r(4, 4, 32, 8, (104, 70, 44))
+    b.r(4, 4, 32, 2, (132, 92, 58))
+    b.circ((36, 8), 4, (150, 112, 74))
+    b.circ((36, 8), 2, (112, 80, 50))
+    b.r(14, 2, 6, 3, (60, 120, 60))
+    b.r(24, 3, 3, 2, (70, 132, 64))
+    b.r(9, 1, 2, 3, (220, 60, 60))
+    b.p(9, 1, (250, 240, 240))
+    return hd(b.s)
+
+
+def pedras():
+    b = B(26, 14)
+    for cx, cy, r, c in ((8, 9, 5, (112, 116, 112)), (17, 8, 6, (96, 100, 98)), (22, 11, 3, (124, 128, 122))):
+        b.circ((cx, cy), r, c)
+        b.circ((cx - 1, cy - 2), max(1, r - 3), sh(c, 26))
+    b.r(12, 3, 4, 2, (70, 130, 64))
+    return hd(b.s)
+
+
+def moita():
+    b = B(26, 18)
+    for cx, cy, r in ((8, 11, 6), (17, 10, 7), (13, 6, 5)):
+        b.circ((cx, cy), r, (48, 98, 48))
+    for x, y in ((7, 7), (15, 4), (20, 8), (11, 12)):
+        b.r(x, y, 2, 2, (200, 70, 80))
+    return hd(b.s, keep=[(200, 70, 80)])
+
+
+def mesa_pc():
+    b = B(44, 30)
+    b.r(2, 14, 40, 5, (196, 188, 172))
+    b.r(2, 14, 40, 1, (224, 218, 204))
+    b.r(4, 19, 2, 10, (90, 92, 100))
+    b.r(38, 19, 2, 10, (90, 92, 100))
+    b.r(8, 2, 16, 11, (40, 42, 50))
+    b.r(9, 3, 14, 8, (60, 120, 200))
+    b.r(10, 4, 6, 1, (230, 240, 250))
+    b.r(10, 6, 9, 1, (150, 200, 240))
+    b.r(15, 12, 2, 2, (40, 42, 50))
+    b.r(26, 11, 10, 2, (60, 62, 70))
+    b.r(37, 10, 3, 4, (240, 240, 236))
+    b.r(14, 22, 12, 6, (50, 52, 60))
+    b.r(16, 20, 8, 3, (70, 72, 82))
+    return hd(b.s, keep=[(230, 240, 250)])
+
+
+def rack_sala():
+    b = B(22, 40)
+    b.r(2, 2, 18, 36, (36, 38, 46))
+    b.r(2, 2, 18, 2, (64, 66, 78))
+    for y in range(6, 36, 5):
+        b.r(4, y, 14, 3, (54, 56, 66))
+        b.p(5, y + 1, (60, 230, 120))
+        b.p(7, y + 1, (60, 230, 120) if y % 10 else (240, 180, 40))
+    return hd(b.s, keep=[(60, 230, 120), (240, 180, 40)])
+
+
+def bebedouro():
+    b = B(14, 30)
+    b.r(3, 12, 8, 17, (220, 222, 226))
+    b.r(4, 2, 6, 10, (130, 190, 230))
+    b.r(5, 3, 2, 7, (190, 230, 250))
+    b.r(5, 15, 2, 2, (60, 120, 220))
+    b.r(7, 15, 2, 2, (220, 60, 60))
+    return hd(b.s)
+
+
+def caixas():
+    b = B(28, 24)
+    for x, y, w, h in ((2, 10, 14, 12), (13, 12, 13, 10), (6, 2, 12, 9)):
+        b.r(x, y, w, h, (184, 140, 90))
+        b.r(x, y, w, 2, (210, 170, 116))
+        b.r(x + w // 2 - 1, y, 2, h, (160, 120, 76))
+    return hd(b.s)
+
+
+def cadeiras():
+    b = B(48, 22)
+    for i in range(3):
+        x = 2 + i * 15
+        b.r(x, 2, 13, 10, (232, 120, 170))
+        b.r(x + 1, 3, 11, 2, (246, 160, 200))
+        b.r(x, 12, 13, 4, (214, 98, 150))
+        b.r(x + 1, 16, 2, 5, (180, 180, 190))
+        b.r(x + 10, 16, 2, 5, (180, 180, 190))
+    return hd(b.s)
+
+
+def carrinho_spa():
+    b = B(24, 26)
+    b.r(2, 8, 20, 2, (200, 204, 212))
+    b.r(2, 17, 20, 2, (200, 204, 212))
+    b.r(3, 8, 2, 14, (170, 174, 184))
+    b.r(19, 8, 2, 14, (170, 174, 184))
+    b.r(5, 3, 14, 5, (250, 250, 250))
+    b.r(5, 5, 14, 1, (232, 140, 180))
+    b.r(6, 13, 4, 4, (180, 120, 220))
+    b.r(12, 13, 5, 4, (120, 200, 210))
+    b.circ((4, 23), 2, (60, 60, 70))
+    b.circ((20, 23), 2, (60, 60, 70))
+    return hd(b.s)
+
+
+def biombo():
+    b = B(36, 34)
+    for i in range(3):
+        x = 2 + i * 11
+        b.r(x, 2, 10, 28, (250, 236, 242))
+        b.r(x, 2, 10, 2, (236, 190, 210))
+        b.r(x + 4, 8, 2, 16, (246, 210, 226))
+        b.r(x + 1, 30, 2, 3, (200, 170, 120))
+        b.r(x + 7, 30, 2, 3, (200, 170, 120))
+    return hd(b.s)
+
+
+def relogio():
+    b = B(16, 46)
+    b.r(2, 4, 12, 40, (96, 54, 34))
+    b.r(1, 2, 14, 4, (124, 72, 44))
+    b.circ((8, 12), 5, (232, 220, 180))
+    b.line((8, 12), (8, 9), (40, 30, 30))
+    b.line((8, 12), (10, 13), (40, 30, 30))
+    b.r(5, 20, 6, 18, (60, 34, 22))
+    b.circ((8, 32), 2, (220, 180, 70))
+    b.line((8, 22), (8, 30), (200, 160, 60))
+    return hd(b.s)
+
+
+def aparador():
+    b = B(40, 34)
+    b.r(2, 16, 36, 14, (110, 64, 40))
+    b.r(2, 16, 36, 2, (150, 94, 58))
+    b.r(5, 20, 14, 8, (92, 52, 32))
+    b.r(21, 20, 14, 8, (92, 52, 32))
+    b.p(18, 24, (220, 180, 70))
+    b.p(22, 24, (220, 180, 70))
+    b.r(4, 30, 2, 3, (80, 46, 28))
+    b.r(34, 30, 2, 3, (80, 46, 28))
+    b.r(8, 6, 6, 10, (40, 70, 140))
+    b.r(9, 4, 4, 2, (40, 70, 140))
+    b.r(9, 8, 1, 6, (220, 180, 70))
+    b.r(24, 10, 10, 6, (220, 180, 70))
+    b.r(25, 8, 8, 2, (240, 210, 110))
+    return hd(b.s, keep=[(220, 180, 70)])
+
+
+def poltrona():
+    b = B(30, 28)
+    b.r(4, 2, 22, 14, (130, 30, 44))
+    b.r(6, 4, 18, 2, (168, 54, 66))
+    b.r(1, 10, 6, 12, (116, 26, 40))
+    b.r(23, 10, 6, 12, (116, 26, 40))
+    b.r(6, 14, 18, 8, (146, 38, 52))
+    b.r(3, 22, 2, 4, (200, 160, 70))
+    b.r(25, 22, 2, 4, (200, 160, 70))
+    return hd(b.s)
+
+
+def busto():
+    b = B(18, 40)
+    b.r(4, 22, 10, 16, (220, 214, 200))
+    b.r(3, 20, 12, 3, (236, 232, 222))
+    b.r(3, 36, 12, 3, (200, 194, 182))
+    b.circ((9, 10), 5, (200, 196, 186))
+    b.r(5, 15, 8, 5, (200, 196, 186))
+    return hd(b.s)
+
+
+SALA = {
+    "sala_arvore_0": lambda: arvore_sala(0), "sala_arvore_1": lambda: arvore_sala(1),
+    "sala_arvore_2": lambda: arvore_sala(2), "sala_tronco": tronco, "sala_pedras": pedras, "sala_moita": moita,
+    "sala_mesa_pc": mesa_pc, "sala_rack": rack_sala, "sala_bebedouro": bebedouro, "sala_caixas": caixas,
+    "sala_cadeiras": cadeiras, "sala_carrinho": carrinho_spa, "sala_biombo": biombo,
+    "sala_relogio": relogio, "sala_aparador": aparador, "sala_poltrona": poltrona, "sala_busto": busto,
+    "sala_vaso_costela": lambda: vaso("costela"), "sala_vaso_espada": lambda: vaso("espada"),
+    "sala_vaso_samambaia": lambda: vaso("samambaia"), "sala_vaso_orquidea": lambda: vaso("orquidea"),
+}
+
+
 def main():
     pygame.init()
     OUT.mkdir(parents=True, exist_ok=True)
@@ -1168,6 +1529,12 @@ def main():
         pygame.image.save(fn(), str(OUT / f"{name}.png"))
     pygame.image.save(trofeu(True), str(OUT / "garagem_trofeu_ouro.png"))
     pygame.image.save(trofeu(False), str(OUT / "garagem_trofeu_prata.png"))
+    for name, img in (("mascote_gato_sentado", gato()), ("mascote_gato_andando", gato("andando")),
+                      ("mascote_cachorro_sentado", cachorro()), ("mascote_cachorro_andando", cachorro("andando")),
+                      ("mascote_papagaio_sentado", papagaio()), ("mascote_papagaio_andando", papagaio("voando"))):
+        pygame.image.save(img, str(OUT / f"{name}.png"))
+    for name, fn in SALA.items():
+        pygame.image.save(fn(), str(OUT / f"{name}.png"))
     print("peças em", OUT)
 
 
