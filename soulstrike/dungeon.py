@@ -203,8 +203,8 @@ def _safe_surface(open_):
 
 
 class Chest(Entity):
-    """Baú escondido: perto dele, ATACAR abre. Treme, a tampa pula, sobe um feixe de luz e
-    sai uma arma rara para cada jogador."""
+    """Baú escondido: perto dele, ATACAR abre. Treme, a tampa pula, sobe um feixe de luz e as
+    armas raras saltam para o chão (uma por jogador e mais uma): cada um escolhe e pega a sua."""
 
     REACH = 64
 
@@ -310,41 +310,6 @@ def _beam(alpha):
         img.fill((v, v, v), special_flags=pygame.BLEND_MULT)
         _BEAMS[level] = img
     return _BEAMS[level]
-
-
-class RelicDrop(Entity):
-    """Arma rara voando do baú até um jogador (em arco)."""
-
-    FLIGHT = 40
-    sort_y = 1e9                 # voa por cima de tudo
-
-    def __init__(self, chest, fighter, weapon):
-        super().__init__(chest.x, chest.y - 20)
-        self.start = (chest.x, chest.y - 20)
-        self.fighter = fighter
-        self.weapon = weapon
-        self.t = 0
-
-    def update(self, match):
-        self.t += 1
-        k = min(1.0, self.t / self.FLIGHT)
-        x0, y0 = self.start
-        x1, y1 = self.fighter.x, self.fighter.y - 20
-        self.x, self.y = x0 + (x1 - x0) * k, y0 + (y1 - y0) * k
-        self.z = 90 * 4 * k * (1 - k)
-        if self.t % 2 == 0:
-            match.particles.append(Particle(self.x, self.y - self.z, 0, 0, GOLD_L, 14, 3))
-        if k >= 1:
-            self.alive = False
-            match.give_relic(self.fighter, self.weapon)
-
-    def draw(self, surf, camera):
-        sx, sy = round(self.x - camera.x), round(self.y - camera.y - getattr(self, "z", 0))
-        g = glow(22, (255, 210, 120), 0.7)
-        surf.blit(g, g.get_rect(center=(sx, sy)), special_flags=pygame.BLEND_ADD)
-        img = weapon_art.rotated(self.weapon.name, self.t * 18)
-        if img is not None:
-            surf.blit(img, img.get_rect(center=(sx, sy)))
 
 
 class GroundWeapon(Entity):

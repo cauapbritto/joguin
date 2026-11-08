@@ -46,7 +46,7 @@ CORPSE_FADE = 32              # últimos quadros do corpo: vai sumindo
 SOLO_DAMAGE = 0.85
 WEAPON_DROP = 0.04             # chance de um inimigo comum derrubar a arma de outro herói
 ELITE_WEAPON_DROP = 0.4       # ... e de um elite (golem, sombra)
-MAX_GROUND = 6                # armas no chão ao mesmo tempo (a mais velha some)
+MAX_GROUND = 8                # armas no chão ao mesmo tempo (a mais velha some)
 
 @dataclass(frozen=True)
 class Level:
@@ -884,7 +884,8 @@ class CoopMatch(Match):
     # ── armas no chão ────────────────────────
     def pick_ground(self, f):
         """Pega a arma do chão mais perto. A rara troca com a rara; a comum troca com a arma do
-        herói do mesmo tipo (de tiro ou de perto). A que ele tinha fica no lugar."""
+        herói do mesmo tipo (de tiro ou de perto). A que ele tinha fica no lugar (a do próprio
+        herói, não: essa volta para a mochila)."""
         near = [g for g in self.ground if g.alive and g.can_pick(f)]
         if not near:
             return False
@@ -918,7 +919,10 @@ class CoopMatch(Match):
         fighter.weapon_index = i
         fighter.bow_draw = 0
         self.run.loadouts[fighter.slot] = [w.name for w in fighter.loadout] if fighter.loadout else None
-        self.drop_weapon(fighter, old, drop_at)
+        # a arma do próprio herói não vai para o chão: volta para a mochila (LARGAR ARMA traz ela de
+        # volta). Se fosse para o chão, largando a outra ela voltava para a mão E continuava no chão.
+        if old is not weapon and old not in fighter.stats.weapons:
+            self.drop_weapon(fighter, old, drop_at)
         self._got_weapon(fighter, weapon)
 
     def _got_weapon(self, fighter, weapon):
@@ -937,7 +941,9 @@ class CoopMatch(Match):
         self.ground.append(item)
         self.props.append(item)
         while len(self.ground) > MAX_GROUND:
-            old = self.ground.pop(0)
+            # some a mais velha, mas as comuns antes das raras (as do baú não somem por causa delas)
+            old = next((g for g in self.ground if not g.weapon.rare), self.ground[0])
+            self.ground.remove(old)
             old.alive = False
             if old in self.props:
                 self.props.remove(old)

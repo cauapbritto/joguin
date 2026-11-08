@@ -436,7 +436,8 @@ class MarketMenu:
         return out
 
     def _buy_weapon(self, weapon):
-        """Arma da vitrine: vai direto para a mão; a que ela troca fica no chão, na frente da banca."""
+        """Arma da vitrine: vai direto para a mão; a que ela troca (se for de outro herói) fica no chão,
+        na frente da banca. A do próprio herói volta para a mochila."""
         s = self.stall
         s.sold.add(weapon.name)
         self.match.give_common(self.fighter, weapon, drop_at=(s.x, s.y + 56))

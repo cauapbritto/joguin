@@ -60,7 +60,7 @@ class TrocaTest(unittest.TestCase):
         self.assertEqual([w.name for w in p1.base_weapons], ["Arco", "Katana"])
         self.assertIs(p1.weapon, katana)
         self.assertNotIn(item, match.ground)
-        self.assertEqual([g.weapon.name for g in match.ground], ["Espada"])     # a dele ficou no chão
+        self.assertEqual(match.ground, [])               # a dele volta para a mochila (não duplica)
         self.assertEqual(match.run.loadouts[1], ["Arco", "Katana"])
 
     def test_pegar_rara_vai_na_vaga_rara(self):

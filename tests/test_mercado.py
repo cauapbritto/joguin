@@ -179,11 +179,24 @@ class MercadoTest(unittest.TestCase):
         apertar(match, inputs[1], "attack")
         self.assertIs(p.weapon, perto)
         self.assertNotIn(espada, p.weapons)
-        self.assertEqual([g.weapon for g in match.ground], [espada])      # a que ela trocou fica no chão
+        self.assertEqual(match.ground, [])                # a espada do herói volta para a mochila
         self.assertEqual(match.run.souls[1], 1000 - M.VITRINE_COST)
         e = next(e for e in menu.entries() if e.key == f"vitrine:{perto.name}")
         self.assertFalse(e.ok)                            # vendida: ninguém compra de novo
         self.assertEqual(e.info["sub"], "VENDIDA")
+
+    def test_largar_a_da_vitrine_nao_duplica_arma(self):
+        match, inputs = acampamento(souls=1000)
+        p, menu = abrir(match, inputs[1], "loja")
+        perto = menu.stock()[1]
+        espada = p.base_weapons[1]
+        menu.pick(f"vitrine:{perto.name}")
+        apertar(match, inputs[1], "attack")
+        apertar(match, inputs[1], "dodge")                # fecha a loja
+        p.weapon_index = p.base_weapons.index(perto)
+        apertar(match, inputs[1], "drop")
+        self.assertIs(p.base_weapons[1], espada)          # a espada voltou para a mão
+        self.assertEqual([g.weapon for g in match.ground], [perto])    # e só a outra ficou no chão
 
     def test_ferreiro_sobe_ate_o_encanto(self):
         match, inputs = acampamento(souls=1000)

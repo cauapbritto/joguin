@@ -429,6 +429,12 @@ class PhaseArena(Arena):
             wall.prepare()
         self.floor = None
         self.room = pygame.Rect(0, 0, self.width, self.height)
+        # onde dá para pisar: as salas e os corredores (o resto do mapa é o vazio de fora)
+        self.walkable = [r.rect for r in layout.rooms.values()] + [cells_px(*c) for c in layout.corridors]
+
+    def is_free(self, x, y, radius):
+        """Livre e dentro de uma sala ou de um corredor: nada cai (ou nasce) no vazio de fora."""
+        return Arena.is_free(self, x, y, radius) and any(r.collidepoint(x, y) for r in self.walkable)
 
     def _wall(self, rect, style):
         x, y, w, h = rect

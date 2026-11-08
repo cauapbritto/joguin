@@ -366,6 +366,46 @@ class PerigosNaSalaTest(unittest.TestCase):
             self.assertTrue(room.rect.collidepoint(valve.x, valve.y))
 
 
+class InimigoPresoForaTest(unittest.TestCase):
+    """Os drones do chefe do capítulo 2 nasciam no corredor, atrás da grade: ninguém alcançava e a
+    sala nunca ficava limpa."""
+
+    def _sala(self, phase=0):
+        match, inputs = fase(phase)
+        room = entrar(match, inputs, "luta1")
+        passo(match, inputs, ROOM_INTRO + 2)
+        return match, inputs, room
+
+    def test_chamado_do_chefe_abre_portais_dentro_da_sala(self):
+        match, inputs, room = self._sala()
+        match.portals.clear()
+        for x, y in (room.rect.topleft, room.rect.bottomright, (room.rect.right - 20, room.rect.centery)):
+            near = type("P", (), {"x": x, "y": y})()
+            match.summon(("drone",) * 4, near)
+        self.assertTrue(match.portals)
+        for portal in match.portals:
+            self.assertTrue(room.rect.inflate(-20, -20).collidepoint(portal.x, portal.y), (portal.x, portal.y))
+
+    def test_ponto_livre_nao_sai_da_sala(self):
+        match, inputs, room = self._sala()
+        for x, y in ((room.rect.left - 200, room.rect.top - 200), (room.rect.right + 150, room.rect.centery)):
+            fx, fy = match.arena.free_spot(x, y, 20)
+            self.assertTrue(room.rect.collidepoint(fx, fy))
+        for x, y in ((room.rect.left - 300, room.rect.top - 300), (-500, -500)):   # nem no vazio de fora
+            match.arena.reset_room()
+            fx, fy = match.arena.free_spot(x, y, 20)
+            if match.arena.is_free(fx, fy, 20):
+                self.assertIsNotNone(next((r for r in match.arena.walkable if r.collidepoint(fx, fy)), None))
+
+    def test_inimigo_que_escapa_volta_para_dentro(self):
+        match, inputs, room = self._sala()
+        match.portals.clear()
+        e = match.spawn_now("drone", *room.rect.center)
+        e.x, e.y = room.rect.right + 120, room.rect.centery      # foi parar no corredor
+        passo(match, inputs, 2)
+        self.assertTrue(room.rect.collidepoint(e.x, e.y))
+
+
 class MiniMapaTest(unittest.TestCase):
     def test_pequeno_no_canto_e_marca_onde_foi(self):
         match, inputs = fase()
@@ -403,7 +443,11 @@ class FluxoTest(unittest.TestCase):
                 juntar(m, m.chest.x - 40, m.chest.y + 30)
                 passo(m, ins, 2)
                 ins[1].tap("attack")
-                passo(m, ins, 80)
+                passo(m, ins, 120)
+                for f, item in zip(m.players, list(m.ground)):    # cada um pega uma arma do chão
+                    f.x, f.y = item.x + 10, item.y
+                    ins[f.slot].tap("attack")
+                    passo(m, ins, 1)
                 portal = no_portal(m, ins)
                 juntar(m, portal.x, portal.y)
                 passo(m, ins, PASSAGE_FRAMES + TELEPORT_FRAMES + 10)
