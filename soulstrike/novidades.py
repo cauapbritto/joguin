@@ -12,6 +12,35 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.31.0": [
+        {"title": "UM MAPA POR CAPÍTULO", "scene": "casa", "lines": [
+            "Cada capítulo tem o seu formato de mapa.",
+            "Capítulo 1: a cruz de sempre, com a abertura no meio.",
+            "Capítulo 2: a torre da Lag Lobby, subindo andar por andar até a cobertura.",
+            "Capítulo 3: o corredor da clínica, da recepção até o fim, com a farmácia de lado.",
+            "Capítulo 4: o pátio da mansão, com as salas em volta e o chefe no salão do fundo.",
+        ]},
+        {"title": "FASES ESPELHADAS", "scene": "casa", "lines": [
+            "As três fases do capítulo usam o mesmo formato, mas espelhado.",
+            "A segunda vira de lado, e a terceira vira também de cima para baixo (a torre sempre sobe).",
+            "O mapinha do canto acompanha o formato novo.",
+        ]},
+    ],
+    "1.30.0": [
+        {"title": "GARAGEM LÁ EMBAIXO", "scene": "casa", "lines": [
+            "A garagem virou um lugar de verdade: ATACAR no portão e a turma desce a rampa.",
+            "Lá embaixo ficam três vagas: o City, o Uno e a moto.",
+            "Ande até um carro e aperte ATACAR para ir com ele. O menu da lista continua na estante.",
+            "Carro que ainda não foi liberado fica coberto com a lona.",
+            "Para voltar, é só subir a rampa: vocês saem na porta da garagem.",
+        ]},
+        {"title": "SALÃO DOS CORROMPIDOS", "scene": "casa", "lines": [
+            "Descendo a escada no fundo da garagem tem o salão dos corrompidos.",
+            "Zerou o capítulo, o corrompido dele ganha um lugar lá, e dá para conversar com ele.",
+            "Pedestal vazio mostra qual capítulo falta zerar.",
+            "A estante de troféus fica do lado das vagas.",
+        ]},
+    ],
     "1.29.0": [
         {"title": "PASSEAR NA CASA", "scene": "casa", "lines": [
             "Modo novo na campanha, em EXTRAS: PASSEAR NA CASA.",

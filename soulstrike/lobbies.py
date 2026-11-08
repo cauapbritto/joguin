@@ -156,3 +156,30 @@ def casa_parse():
             if ch in "SD":
                 markers.setdefault(ch, []).append((x * TILE + TILE // 2, y * TILE + TILE // 2))
     return size, walls, void, markers
+
+
+# ─────────────────────────────────────────────
+#  Garagem da Casa (lá embaixo): o hall dos carros e, descendo a escada, o salão dos corrompidos
+# ─────────────────────────────────────────────
+# Em cima, a rampa (canto de cima à esquerda) volta ao quintal; as três vagas ficam no meio e os
+# troféus na parede da direita. O vão no muro do meio é a escada para o salão de baixo.
+GARAGEM = ("GARAGEM DA TURMA", (
+    "##############################",
+    "#............................#",
+    "#............................#",
+    "#............................#",
+    "#............................#",
+    "#............................#",
+    "#............................#",
+    "#..SSSS......................#",
+    "#............................#",
+    "############......############",
+    "#............................#",
+    "#............................#",
+    "#............................#",
+    "#............................#",
+    "#............................#",
+    "##############################",
+    "                              ",
+    "                              ",
+))

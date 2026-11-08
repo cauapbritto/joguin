@@ -25,6 +25,7 @@ T = TILE_PX
 OY = CASA_TOP * T            # a casa começa abaixo das linhas escuras de cima
 QY = CASA_SPLIT              # e o quintal logo abaixo da casa
 CITY_AT = (31 * T, QY + 5 * T)  # o City do João no quintal (chão no meio do carro): a saída
+GARAGE_DOOR = (39 * T + 50, QY + 5 * T + 44)   # frente da porta da garagem (onde o ATACAR desce)
 
 # ── livro do Cauanzera (Almeida Revista e Corrigida) ──
 VERSES = (
@@ -98,7 +99,7 @@ VITRINE = (("guerreiro", 12 * T + 20, 7 * T + 10), ("atirador", 13 * T + 30, 7 *
            ("fantasma", 33 * T + 20, 7 * T + 10), ("tita", 34 * T + 30, 7 * T + 10),
            ("pirata", 35 * T + 40, 7 * T + 10), ("geada", 34 * T + 30, 10 * T + 20))
 CRAQUES = ("faisca", "trovao", "ginga", "matador", "paredao")
-# corrompido liberado: fica no canto do amigo (capítulo que libera, posição na casa)
+# corrompidos: (chave, capítulo que libera, x, y antigos no canto do amigo). Hoje ficam no salão da garagem.
 CORROMPIDOS = (("aryel_corrompido", 1, 44 * T + 20, 6 * T + 30), ("borba_corrompido", 2, 37 * T, 9 * T + 20),
                ("albeguinio_corrompido", 3, 8 * T + 20, 13 * T), ("cauanzera_corrompido", 4, 6 * T, 5 * T + 20))
 
@@ -628,12 +629,16 @@ class HubMatch(CoopMatch):
     lobby = True
     music = "camp"
 
-    def __init__(self, game, run, story=True, walk=False):
+    def __init__(self, game, run, story=True, walk=False, arrive=None):
         self.story = story
         self.walk = walk                                    # PASSEAR NA CASA: o City não sai
+        self.going_down = False                             # ATACAR na garagem: o grupo desce
         self._screens = {}                                  # vaga -> versão da tela já mandada ao celular
         cfg = MAPS_BY_KEY[HUB_MAP]
-        starts = _spread(cfg.markers["S"], len(run.session.slots))
+        if arrive == "garagem":                             # voltando da garagem: na porta dela
+            starts = [(GARAGE_DOOR[0] - 60 + 40 * i, GARAGE_DOOR[1] + 40) for i in range(len(run.session.slots))]
+        else:
+            starts = _spread(cfg.markers["S"], len(run.session.slots))
         super().__init__(game, run, cfg.key, starts, (0.0, 1.0))
         art.use(self.assets)
         self.arena.floor = self.arena.floor.copy()          # o chão pintado é compartilhado: os tapetes vão na cópia
@@ -725,10 +730,7 @@ class HubMatch(CoopMatch):
         put(art.oven, 43 * T + 30, OY + 10 * T + 20, foot=((0, 38, 80, 32),))
         self.bakery = Bakery(pygame.Rect(38 * T, OY + 11 * T, 220, 64), (43 * T + 70, OY + 10 * T - 12))
         put(art.exo_stand, 35 * T + 30, OY + 13 * T + 10, foot=((-24, -10, 48, 14),))
-        # corrompidos liberados: cada um no canto do amigo
-        for key, chapter, x, y in CORROMPIDOS:
-            if progress.chapter_cleared(chapter):
-                self._hero(key, x, OY + y)
+        # os corrompidos liberados ficam lá embaixo, no salão da garagem (garagem.py)
         # quintal: a horta, a garagem, o City do João, o porão, os craques e a saída
         for i, (x, y, crops) in enumerate(((3 * T, QY + T, "sprout"), (8 * T + 20, QY + T, "tomate"),
                                            (3 * T, QY + 4 * T + 20, "tomate"), (8 * T + 20, QY + 4 * T + 20, "sprout"))):
@@ -773,6 +775,10 @@ class HubMatch(CoopMatch):
         self.doors.append((key, opened, spot, hint))
 
     # ── consultas ────────────────────────────
+    @property
+    def hud_title(self):
+        return "PASSEIO" if self.walk else None
+
     @property
     def objective_text(self):
         if self.walk:
@@ -921,8 +927,9 @@ class HubMatch(CoopMatch):
             self.wear_armor(f)
             return True
         if self.garage_near(f):
-            self.menus[f] = GarageMenu(self, f)
+            self.going_down = True                    # o grupo inteiro desce para a garagem
             self.assets.play("select", 0.45)
+            self._finish(won=True)
             return True
         spot = self.computer_near(f)
         if spot is not None:
@@ -957,6 +964,10 @@ class HubMatch(CoopMatch):
         from .scenes.viagem import CarTripScene
         if self.reload:                          # LIBERAR TUDO: a casa volta com tudo aberto
             return hub_scene(self.game, self.run, story=self.story, walk=self.walk)
+        if self.going_down:
+            from .scenes.campaign import garage_scene
+            from .scenes.garagem import GarageTripScene
+            return GarageTripScene(self.game, lambda: garage_scene(self.game, self.run, self.story, walk=self.walk))
         return CarTripScene(self.game, [p.sprites for p in self.players], self.run.chapter,
                             lambda: start_phase(self.game, self.run, story=self.story), vehicle=self.run.vehicle)
 
@@ -992,7 +1003,7 @@ class HubMatch(CoopMatch):
         if any(self.garage_near(p) for p in free):
             _, _, (gx, gy), _ = next(d for d in self.doors if d[0] == "garagem")
             sx, sy = cam.to_screen(gx, gy - 96)
-            ui.text(screen, "ATACAR: ABRIR A GARAGEM", theme.XS, blink, (round(sx), round(sy)))
+            ui.text(screen, "ATACAR: DESCER PARA A GARAGEM", theme.XS, blink, (round(sx), round(sy)))
         for b in self.beds:
             if any(b.can_water(p) for p in free) and b.watered <= 0:
                 sx, sy = cam.to_screen(b.rect.centerx, b.rect.y - 14)
