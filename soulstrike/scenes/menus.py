@@ -282,6 +282,10 @@ MODE_TEXT = {
                   "administrativo. Cada um começa com mais almas e 5 melhorias (4 sorteadas e 1 escolhida). "
                   "Sem recorde de tempo.",
                   "1 A 4 JOGADORES"),
+    "passeio": ("Só a Casa da turma, para andar e mexer em tudo: o computador, a roleta, a horta, a padaria, "
+                "a garagem e a armadura de Uno. Sem fase, sem tempo e sem mexer no save da campanha. Para voltar "
+                "ao menu, é pela pausa.",
+                "1 A 4 JOGADORES"),
     "reuniao": ("Os quatro chefes da campanha, um atrás do outro, sem acampamento no meio: Aryel, Borba Jr, "
                 "Albeguinio e Cauanzera Corrompidos. Cada um começa com 4 melhorias sorteadas e ganha mais uma "
                 "depois de cada chefe. Vale um selo por dificuldade.",
@@ -308,7 +312,7 @@ CATEGORY_KEYS = [c[0] for c in CATEGORIES]
 # grupos de cada modalidade: (título do grupo, [modos])
 MODE_GROUPS = {
     "campanha": [("CAPÍTULOS", ["continue", "campaign", "campaign2", "campaign3", "campaign4"]),
-                 ("EXTRAS", ["reuniao", "cinema"])],
+                 ("EXTRAS", ["passeio", "reuniao", "cinema"])],
     "duelos": [("LUTAR", ["cpu", "duel", "duel2"]), ("TREINAR", ["treino"])],
     "futebol": [("PARTIDA", ["soccer1", "soccer2"]), ("PÊNALTIS", ["penaltis1", "penaltis", "desafio_goleiro"]),
                 ("TREINAR", ["treino_futebol", "treino_penaltis"])],
@@ -318,7 +322,7 @@ MODE_GROUPS = {
 MODE_LABELS = {"continue": "CONTINUAR CAMPANHA", "campaign": "1 · AS SOMBRAS",
                "campaign2": "2 · LAG LOBBY", "campaign3": "3 · CLEPALOVERS",
                "campaign4": "4 · MANSÃO",
-               "reuniao": "REUNIÃO DOS CHEFES", "cinema": "CINEMA",
+               "reuniao": "REUNIÃO DOS CHEFES", "cinema": "CINEMA", "passeio": "PASSEAR NA CASA",
                "cpu": "CONTRA A CPU", "duel": "DUELO LOCAL 1 x 1",
                "treino": "TREINO E ARSENAL", "penaltis": "DISPUTA DE PÊNALTI"}
 # cena do cartão de cada modalidade: (chão, linhas, [(sprite, direção, dx)], extra)
@@ -719,7 +723,8 @@ class ModeScene(_MenuScene):
         self._illustration(screen, key, pygame.Rect(panel.x + 2, panel.y + 2, panel.w - 4, 170))
         title = ({"continue": "CONTINUAR CAMPANHA", "campaign2": "CAMPANHA: CAPÍTULO 2",
                   "campaign3": "CAMPANHA: CAPÍTULO 3", "campaign4": "CAMPANHA: CAPÍTULO 4",
-                  "reuniao": "REUNIÃO DOS CORROMPIDOS", "cinema": "CINEMA"}.get(key) or MODES[key]["title"])
+                  "reuniao": "REUNIÃO DOS CORROMPIDOS", "cinema": "CINEMA",
+                  "passeio": "PASSEAR NA CASA"}.get(key) or MODES[key]["title"])
         tr = self.ui.text(screen, title, theme.S, theme.BRASS, (panel.x + 24, panel.y + 196), anchor="topleft")
         pw = self.assets.text_width(players, theme.XS)
         y = panel.y + 232
@@ -745,7 +750,7 @@ class ModeScene(_MenuScene):
         return desc, f"{n} JOGADOR" + ("ES" if n > 1 else "")
 
     def _illustration(self, screen, key, area):
-        if key in ("campaign", "continue", "campaign2", "campaign3", "campaign4", "reuniao", "cinema"):
+        if key in ("campaign", "continue", "campaign2", "campaign3", "campaign4", "reuniao", "cinema", "passeio"):
             chapter = (self.saved_run.chapter if key == "continue"
                        else {"campaign2": 2, "campaign3": 3, "campaign4": 4, "reuniao": 4}.get(key, 1))
             self._campaign_illustration(screen, area, chapter=chapter,
@@ -859,7 +864,8 @@ def start_mode(game, choice):
     """Monta a sessão do modo e vai para a tela certa (lobby ou escolha de personagem)."""
     chapter = {"campaign2": 2, "campaign3": 3, "campaign4": 4}.get(choice, 1)
     rush = choice == "reuniao"
-    if chapter > 1 or rush:
+    walk = choice == "passeio"
+    if chapter > 1 or rush or walk:
         choice = "campaign"
     count = MODES[choice]["slots"]
     teams = MODES[choice].get("teams", False) or MODES[choice].get("fill", False)
@@ -869,7 +875,7 @@ def start_mode(game, choice):
     if choice == "campaign":
         slots = slots[:1]           # P2 a P4 entram na tela de conexão
     previous = game.session
-    game.session = Session(choice, slots, chapter=chapter, rush=rush)
+    game.session = Session(choice, slots, chapter=chapter, rush=rush, walk=walk)
     if previous is not None and MODES[choice].get("teams", False):
         game.session.layout = previous.layout      # mantém a divisão de times escolhida
     from .select import CharSelectScene, LobbyScene
