@@ -12,6 +12,15 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.37.0": [
+        {"title": "PARA ONDE?", "scene": "casa", "lines": [
+            "No começo da campanha, ATACAR no carro do quintal abre o PARA ONDE?.",
+            "Escolha o capítulo da viagem: só aparecem liberados os que vocês já alcançaram.",
+            "Começar mais adiante dá almas e melhorias, como no menu da campanha.",
+            "Mudou de ideia? Escolha de novo: o bônus não soma duas vezes.",
+            "Enquanto alguém escolhe, o carro espera. No CONTINUAR e no passeio não tem.",
+        ]},
+    ],
     "1.36.0": [
         {"title": "GARAGEM CAPRICHADA", "scene": "casa", "lines": [
             "Lá embaixo, a garagem ganhou piso de epóxi com placas, marcas de pneu e manchas de óleo.",
