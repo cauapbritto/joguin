@@ -628,8 +628,9 @@ class HubMatch(CoopMatch):
     lobby = True
     music = "camp"
 
-    def __init__(self, game, run, story=True):
+    def __init__(self, game, run, story=True, walk=False):
         self.story = story
+        self.walk = walk                                    # PASSEAR NA CASA: o City não sai
         self._screens = {}                                  # vaga -> versão da tela já mandada ao celular
         cfg = MAPS_BY_KEY[HUB_MAP]
         starts = _spread(cfg.markers["S"], len(run.session.slots))
@@ -649,7 +650,7 @@ class HubMatch(CoopMatch):
         cx, cy = CITY_AT
         self.exit_rect = pygame.Rect(cx - 86, cy - 58, 172, 60)
         self.door_area = self.exit_rect.inflate(110, 96)
-        self.passage = Passage(lambda p: self.door_area.collidepoint(p.x, p.y))
+        self.passage = Passage(lambda p: not self.walk and self.door_area.collidepoint(p.x, p.y))
         if progress.chapter_cleared(4) and self.players:     # recompensa do capítulo 4: a IARA mascote
             from .mansao import IaraMascot
             self.add_effect(IaraMascot(self.players[0], self.assets.sprites.get("iara_nucleo")))
@@ -697,7 +698,7 @@ class HubMatch(CoopMatch):
         self.uno_stand = put(art.uno_stand if self.run.armor else art.uno_armor, *UNO_STAND,
                              foot=((-30, -10, 60, 14),))
         # a armadura de Uno ainda no suporte, e só vale no capítulo 1 (depois é enfeite)
-        self.armor_free = not self.run.armor and self.run.chapter == 1
+        self.armor_free = not self.run.armor and (self.run.chapter == 1 or self.walk)
         put(art.shelf, 9 * T + 10, OY + T - 20, 70, foot=((0, 50, 70, 20),))
         # canto do Aryel (alto à direita): retrato, pôster, moto, capacetes e a roleta
         put(art.frame_portrait, 44 * T, OY + T - 18, "aryel", flat=True)
@@ -774,6 +775,8 @@ class HubMatch(CoopMatch):
     # ── consultas ────────────────────────────
     @property
     def objective_text(self):
+        if self.walk:
+            return "CASA DA TURMA · PAUSE PARA VOLTAR AO MENU"
         return f"CASA DA TURMA · TODOS NO {self.car_name} DO QUINTAL PARA A AVENTURA"
 
     @property
@@ -781,6 +784,8 @@ class HubMatch(CoopMatch):
         return "UNO" if self.run.vehicle == "uno" else "CITY"
 
     def objective(self):
+        if self.walk:
+            return None
         return self.exit_rect.centerx, self.exit_rect.y
 
     def _park(self, key):
@@ -872,7 +877,9 @@ class HubMatch(CoopMatch):
 
     def update_stage(self):
         if self.frame == 1:
-            if self.story:
+            if self.walk:
+                self._set_banner("CASA DA TURMA", "PASSEIO: ANDEM E MEXAM EM TUDO", theme.BRASS)
+            elif self.story:
                 self._set_banner("CASA DA TURMA", "A AVENTURA COMEÇA NO QUINTAL", theme.BRASS)
             else:
                 self._set_banner("CASA DA TURMA", f"CONTINUANDO DA FASE {self.run.phase_index + 1}", theme.BRASS)
@@ -949,13 +956,13 @@ class HubMatch(CoopMatch):
         from .scenes.campaign import hub_scene, start_phase
         from .scenes.viagem import CarTripScene
         if self.reload:                          # LIBERAR TUDO: a casa volta com tudo aberto
-            return hub_scene(self.game, self.run, story=self.story)
+            return hub_scene(self.game, self.run, story=self.story, walk=self.walk)
         return CarTripScene(self.game, [p.sprites for p in self.players], self.run.chapter,
                             lambda: start_phase(self.game, self.run, story=self.story), vehicle=self.run.vehicle)
 
     def restart_scene(self):
         from .scenes.campaign import hub_scene
-        return hub_scene(self.game, self.run, story=self.story)
+        return hub_scene(self.game, self.run, story=self.story, walk=self.walk)
 
     # ── desenho ──────────────────────────────
     def draw_screen_layer(self, screen, ui):
@@ -1006,6 +1013,9 @@ class HubMatch(CoopMatch):
             crt.panel(screen, ("livro", f.slot), lambda s, menu=menu, at=at: menu.draw(s, ui, at))
         top = self.door_area.y
         sx, sy = cam.to_screen(self.exit_rect.centerx, top)
+        if self.walk:
+            ui.text(screen, "SÓ PASSEANDO", theme.XS, theme.MUTED, (round(sx), round(sy) - 14))
+            return
         ui.text(screen, f"TODOS NO {self.car_name} PARA A AVENTURA", theme.XS, theme.BRASS, (round(sx), round(sy) - 14))
         self.draw_passage(screen, ui, self.passage, self.door_area, (self.exit_rect.centerx, top - 4))
 
@@ -1013,6 +1023,72 @@ class HubMatch(CoopMatch):
         super().draw(screen, ui)
         if self.freeing:
             draw_freeing(screen, ui, self.freeing)
+
+    # ── minimapa ─────────────────────────────
+    def minimap_rect(self):
+        w, h = self.arena.size
+        k = MINI_W / w
+        return pygame.Rect(config.SCREEN_W - 12 - MINI_W, MINI_TOP, MINI_W, round((h - OY - 2 * T) * k) + 4)
+
+    def draw_hud(self, screen, ui):
+        super().draw_hud(screen, ui)
+        draw_minimap(screen, ui, self, self.minimap_rect())
+
+    def hud_regions(self):
+        return super().hud_regions() + [self.minimap_rect().inflate(4, 4)]
+
+
+MINI_W = 200                 # o mapinha da Casa (largura na tela)
+MINI_TOP = 44                # embaixo dos CONTINUES, como o da fase
+# cantos da casa no mapinha: (nome, coluna, linha, largura, altura) em quadrados, linha 0 = topo da casa
+MINI_ZONES = (("CAU", 1, 0, 11, 8), ("ARYEL", 36, 0, 11, 8), ("SALA", 12, 0, 24, 14),
+              ("ALBE", 1, 8, 11, 6), ("BORBA", 36, 8, 11, 6))
+
+
+def draw_minimap(screen, ui, match, rect):
+    """O mapinha da Casa: a casa e o quintal, os cantos de cada um, as portas (trancadas em cinza),
+    o que dá para usar (ícones pequenos) e um ponto por jogador, na cor dele."""
+    w, _ = match.arena.size
+    k = (rect.w - 4) / w
+    bg = pygame.Surface(rect.size, pygame.SRCALPHA)
+    bg.fill((8, 8, 14, 175))
+    screen.blit(bg, rect.topleft)
+    pygame.draw.rect(screen, (90, 90, 110), rect, 1)
+
+    def at(x, y):
+        return round(rect.x + 2 + x * k), round(rect.y + 2 + (y - OY) * k)
+
+    def cells(c, r, cw, ch):
+        x, y = at(c * T, OY + r * T)
+        return pygame.Rect(x, y, max(1, round(cw * T * k)), max(1, round(ch * T * k)))
+
+    house = cells(0, 0, 48, 15)
+    yard = pygame.Rect(house.x, house.bottom, house.w, round(9 * T * k))
+    screen.fill((74, 58, 44), house)
+    screen.fill((44, 70, 40), yard)
+    for name, c, r, cw, ch in MINI_ZONES:
+        z = cells(c, r + 1, cw, ch)
+        if name != "SALA":
+            screen.fill((92, 72, 54), z)
+        ui.text(screen, name, theme.XS, (200, 186, 160), (z.centerx, z.centery), shadow=False)
+    pygame.draw.rect(screen, (140, 120, 96), house, 1)
+    pygame.draw.rect(screen, (90, 130, 80), yard, 1)
+    for key, opened, (x, y), _ in match.doors:
+        dx, dy = at(x, y)
+        color = (230, 190, 90) if opened else (90, 90, 100)
+        screen.fill(color, (dx - 3, dy - 2, 6, 4))
+    icons = [((80, 160, 240), match.computers[0][1].center), ((240, 240, 240), UNO_STAND),
+             ((200, 60, 60), match.roulette.rect.center), ((230, 200, 120), match.bakery.rect.center),
+             ((110, 110, 124), match.exit_rect.center)]
+    icons += [((90, 200, 90), b.rect.center) for b in match.beds]
+    for color, (x, y) in icons:
+        pygame.draw.circle(screen, color, at(x, y), 2)
+    for p in match.players:
+        if not p.alive_in_match:
+            continue
+        x, y = at(p.x, p.y)
+        pygame.draw.circle(screen, (250, 250, 250), (x, y), 5)
+        pygame.draw.circle(screen, p.color, (x, y), 4)
 
 
 def draw_freeing(screen, ui, frame):

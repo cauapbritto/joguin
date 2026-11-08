@@ -12,6 +12,19 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.29.0": [
+        {"title": "PASSEAR NA CASA", "scene": "casa", "lines": [
+            "Modo novo na campanha, em EXTRAS: PASSEAR NA CASA.",
+            "Entra direto na Casa da turma, sem fase, sem tempo e sem mexer no save.",
+            "Dá para usar tudo: computador, roleta, padaria, horta, garagem e a armadura de Uno.",
+            "O City fica parado. Para voltar ao menu, é pela pausa.",
+        ]},
+        {"title": "O MAPINHA DA CASA", "scene": "casa", "lines": [
+            "A Casa agora tem um mapinha no canto, como o das fases.",
+            "Ele mostra a casa, o quintal e o canto de cada um.",
+            "Cada jogador é um ponto na cor dele. As portas trancadas ficam em cinza.",
+        ]},
+    ],
     "1.28.0": [
         {"title": "O COMPUTADOR NO CELULAR", "scene": "casa", "lines": [
             "Abriu o PC do Cauanzera ou o notebook do Albeguinio, o celular mostra a tela dele.",
