@@ -9,8 +9,8 @@ from ..ai import DIFFICULTIES
 from ..arena import MAPS_BY_KEY
 from ..enemies import SHADOW_RIM
 from ..fighter import draw_aura
-from ..campaign import (BROKEN, CRYSTAL, DUNGEON_2, FRAGMENT, PHASE_HEAL, PHASES, STORY, CampaignMatch,
-                        CampaignRun)
+from ..campaign import (BROKEN, CRYSTAL, DUNGEON_2, FRAGMENT, PHASE_HEAL, PHASES, STORY, VOICE, VOICE_NAME,
+                        CampaignMatch, CampaignRun)
 from ..net.remote import hub
 from ..ui import MenuList, darken, mix
 from ..upgrades import ICONS, UPGRADES, choices
@@ -30,7 +30,7 @@ def start_campaign(game):
         # direto no capítulo 2 ou 3: almas, melhorias sorteadas e mais uma escolhida antes de entrar
         run.start_at_chapter(chapter)
         return UpgradeScene(game, run, lambda: hub_scene(game, run), intro=True)
-    return StoryScene(game, "prologo", lambda: hub_scene(game, run))
+    return StoryScene(game, "abertura", lambda: StoryScene(game, "prologo", lambda: hub_scene(game, run)))
 
 
 def hub_scene(game, run, story=True, walk=False, arrive=None):
@@ -89,7 +89,8 @@ def after_phase(game, run):
             return start_phase(game, run)
         return UpgradeScene(game, run, next_boss)
     if run.last_phase:
-        return StoryScene(game, "final", lambda: CreditsScene(game, lambda: CampaignEndScene(game, run)))
+        return StoryScene(game, "final", lambda: CreditsScene(
+            game, lambda: StoryScene(game, "epilogo", lambda: CampaignEndScene(game, run))))
 
     def next_phase():
         run.advance()
@@ -172,43 +173,66 @@ def draw_fragment(screen, center, ticks):
         screen.fill((150, 70, 220), (tube.right + 4, y + 10, 8, 2))
 
 
+VOICE_TEXT = (214, 170, 255)        # a voz do cristal fala em roxo (no capítulo 4 é a mesma cor da IARA)
+
+
+def draw_voice(screen, center, ticks):
+    """A voz do cristal: sem rosto, só uma lasca roxa no escuro e ondas de som saindo dela."""
+    cx, cy = center
+    for k in range(4):
+        r = 30 + ((ticks * 1.2 + k * 26) % 104)
+        a = max(0, int(150 * (1 - (r - 30) / 104)))
+        ring = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
+        pygame.draw.circle(ring, (180, 110, 255, a), (r + 2, r + 2), r, 2)
+        screen.blit(ring, (cx - r - 2, cy - r - 2))
+    draw_crystal(screen, (cx, cy + round(math.sin(ticks * 0.05) * 4)), 40, ticks)
+
+
 class StoryScene(_MenuScene):
-    """Páginas de história com retrato, texto aparecendo aos poucos e botão de pular."""
+    """Uma história da campanha tocando como filme (scenes/filme.py): os planos passam sozinhos.
+    ATACAR ou ENTER adiantam (primeiro completam a legenda), ESC ou PAUSA pulam a história."""
 
     phase = "story"
     music = "menu"
-    CHARS_PER_FRAME = 1.4
 
     def __init__(self, game, key, then):
         super().__init__(game)
-        self.heading, map_key, self.pages = STORY[key]
+        from .filme import Film
+        self.film = Film(game, key)
+        self.heading, self.pages = self.film.heading, self.film.pages
         self.then = then
-        self.page = 0
-        self.shown = 0.0
-        self.page_ticks = 0
         self.done = False
-        bg = game.thumbnail(MAPS_BY_KEY[map_key], (config.SCREEN_W, config.SCREEN_H)).copy()
-        darken(bg, 150)
-        self.background = bg
+
+    # a página e a legenda moram no filme (os testes e a sala de cinema mexem por aqui)
+    @property
+    def page(self):
+        return self.film.page
+
+    @page.setter
+    def page(self, value):
+        self.film.page, self.film.age, self.film.title_left = value, 60, 0
+
+    @property
+    def shown(self):
+        return self.film.shown
+
+    @shown.setter
+    def shown(self, value):
+        self.film.shown = min(value, len(self.film.text))
+        self.film.title_left = 0
+
+    @property
+    def text(self):
+        return self.film.text
 
     def enter(self):
         super().enter()
         hub.set_phase("story", mode="campaign", active=self.active_slots(), banner=self.heading)
 
-    @property
-    def text(self):
-        return self.pages[self.page][2]
-
     def _advance(self):
-        if self.shown < len(self.text):
-            self.shown = len(self.text)
-            return
         self.sfx("click", 0.4)
-        if self.page + 1 < len(self.pages):
-            self.page += 1
-            self.shown = 0.0
-            self.page_ticks = 0
-        else:
+        self.film.skip()
+        if self.film.done:
             self._finish()
 
     def _finish(self):
@@ -228,8 +252,10 @@ class StoryScene(_MenuScene):
 
     def update(self):
         super().update()
-        self.page_ticks += 1
-        self.shown = min(len(self.text), self.shown + self.CHARS_PER_FRAME)
+        self.film.update()
+        if self.film.done:
+            self._finish()
+            return
         slots = self.active_slots()
         if self.ticks > 10 and _pressed(self.game, slots, "confirm", "attack"):
             self._advance()
@@ -237,61 +263,7 @@ class StoryScene(_MenuScene):
             self._finish()
 
     def draw(self, screen):
-        W = config.SCREEN_W
-        screen.blit(self.background, (0, 0))
-        self.ui.text(screen, self.heading, theme.S, theme.BRASS, (W // 2, 44))
-        portrait, speaker, text = self.pages[self.page]
-
-        # retrato grande no meio da tela
-        stage_y = 250
-        if portrait in (CRYSTAL, BROKEN):
-            draw_crystal(screen, (W // 2, stage_y - 30), 96, self.page_ticks if portrait == BROKEN else self.ticks,
-                         broken=portrait == BROKEN)
-        elif portrait == FRAGMENT:
-            draw_fragment(screen, (W // 2, stage_y - 20), self.ticks)
-        else:
-            sprites = (self.assets.shadow_sprites(portrait.split(":", 1)[1]) if portrait.startswith("sombra:")
-                       else self.assets.sheet_sprites(portrait))
-            img = (sprites.frame("frente", self.ticks // 7) if self.page_ticks < 60
-                   else sprites.pose("frente", "parado", (self.ticks // 36) % 2))
-            factor = 3 if img.get_height() > 50 else 4
-            img = pygame.transform.scale(img, (img.get_width() * factor, img.get_height() * factor))
-            pygame.draw.ellipse(screen, theme.SHADOW, (W // 2 - 70, stage_y + 30, 140, 22))
-            rect = img.get_rect(midbottom=(W // 2, stage_y + 42))
-            if portrait.startswith("sombra:"):
-                draw_aura(screen, img, rect, SHADOW_RIM, self.ticks, 3)
-            screen.blit(img, rect)
-
-        # caixa de texto: fala comprida faz a caixa crescer para cima (o retrato fica acima de y 292)
-        lines = self.ui.wrap(text, theme.S, W - 160 - 48)
-        need = 18 + (18 if speaker else 0) + len(lines) * 26 + 6
-        box = pygame.Rect(80, 330, W - 160, 136)
-        if need > box.h:
-            box.top = max(296, box.bottom - need)
-            box.h = 466 - box.top
-        self.ui.panel(screen, box, fill=theme.INK_2)
-        y = box.y + 18
-        if speaker:
-            self.ui.text(screen, speaker, theme.XS, (200, 150, 250) if "CORROMPIDO" in speaker or "SOMBRIO" in speaker
-                         else theme.BRASS, (box.x + 24, y + 4), anchor="midleft")
-            y += 18
-        visible = text[:int(self.shown)]
-        # as linhas saem do texto inteiro (as palavras não pulam de linha enquanto aparecem)
-        left = len(visible)
-        for line in lines:
-            part = line[:max(0, left)]
-            left -= len(line) + 1
-            if part:
-                self.ui.text(screen, part, theme.S, theme.BONE, (box.x + 24, y), anchor="topleft")
-            y += 26
-        if self.shown >= len(text) and (self.ticks // 20) % 2:
-            self.ui.arrow(screen, (box.right - 24, box.bottom - 18), "down", 6, theme.BRASS)
-        # páginas
-        n = len(self.pages)
-        for i in range(n):
-            x = W // 2 - (n - 1) * 8 + i * 16
-            screen.fill(theme.BRASS if i == self.page else theme.LINE, (x - 3, box.bottom + 14, 6, 6))
-        self.footer(screen, [("ENTER", "AVANÇAR"), ("ESC", "PULAR")])
+        self.film.draw(screen, self.ui)
 
 
 class UpgradeScene(_MenuScene):
@@ -600,12 +572,12 @@ def draw_seals(scene, screen, box, earned, title, new=None):
 
 
 # cinema: (rótulo, histórias em sequência)
-CINEMA = (("CAPÍTULO 1 · AS SOMBRAS", ("prologo", "floresta", "calabouco", "templo", "fim_capitulo1")),
+CINEMA = (("CAPÍTULO 1 · AS SOMBRAS", ("abertura", "prologo", "floresta", "calabouco", "templo", "fim_capitulo1")),
           ("CAPÍTULO 2 · LAG LOBBY", ("recepcao", "datacenter", "cobertura", "fim_capitulo2")),
           ("CAPÍTULO 3 · CLEPALOVERS", ("clinica_recepcao", "procedimentos", "suite_vip", "fim_capitulo3")),
           ("CAPÍTULO 4 · MANSÃO DO CARIMBO", ("mansao_sede", "mansao_patio", "mansao_gabinete", "final")),
           ("REUNIÃO DOS CORROMPIDOS", ("reuniao_corrompidos",)),
-          ("CRÉDITOS", ("creditos",)))
+          ("CRÉDITOS E EPÍLOGO", ("creditos", "epilogo")))
 
 
 def _play_stories(game, keys, then):
@@ -615,38 +587,6 @@ def _play_stories(game, keys, then):
     if keys[0] == "creditos":
         return CreditsScene(game, lambda: _play_stories(game, keys[1:], then))
     return StoryScene(game, keys[0], lambda: _play_stories(game, keys[1:], then))
-
-
-class CinemaScene(_RunMenuScene):
-    """Cinema (liberado ao zerar a campanha): escolhe uma história e assiste de novo."""
-
-    phase = "story"
-    music = "menu"
-
-    def __init__(self, game, index=0):
-        super().__init__(game)
-        self.menu = MenuList([(label, str(i)) for i, (label, _) in enumerate(CINEMA)] + [("VOLTAR", "back")],
-                             topleft=(64, 96), width=380)
-        self.menu.index = min(index, len(CINEMA))
-
-    def _choose(self, choice):
-        self.sfx("confirm")
-        index = self.menu.index
-        if choice == "back":
-            from .menus import ModeScene
-            self.game.change(ModeScene(self.game, "campanha"))
-        else:
-            keys = CINEMA[int(choice)][1]
-            self.game.change(_play_stories(self.game, keys, lambda: CinemaScene(self.game, index)))
-
-    def draw(self, screen):
-        W = config.SCREEN_W
-        self.draw_background(screen)
-        self.title(screen, "CINEMA", y=48)
-        self.menu.draw(screen, self.ui, self.ticks)
-        box = pygame.Rect(W - 420, 96, 356, 160)
-        draw_seals(self, screen, box, progress.seals(), "SELOS DE ZERADO")
-        self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "ASSISTIR")])
 
 
 # créditos do fim da campanha: (sprite, nome de verdade, personagem)
@@ -895,3 +835,7 @@ class CampaignEndScene(_RunMenuScene):
         self._stats_panel(screen, pygame.Rect(W - 400, 300, 340, 44 + 22 * (1 + len(self.run.slots))), self.run)
         self.menu.draw(screen, self.ui, self.ticks)
         self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR")])
+
+
+# a sala de cinema mora no próprio arquivo (importada aqui para menus.py continuar achando)
+from .cinema_sala import CinemaScene  # noqa: E402,F401

@@ -19,7 +19,7 @@ import pygame
 from . import theme
 from .data import WeaponStats
 from .enemies import PATROL_RED, SHADOW_AURA, SHADOW_RIM, AimLine, EnemyAI, EnemyStats, Shockwave
-from .entities import Entity, GroundMark, ShadowBomb
+from .entities import Entity, FloatingText, GroundMark, ShadowBomb
 
 BOSS_STATS = EnemyStats(
     "aryel_corrompido", "Aryel Corrompido", 1500, 2.6, SHADOW_AURA,
@@ -52,8 +52,26 @@ def spawn_boss(match, x, y, which="aryel"):
     return f, brain(match.session.difficulty, len(match.players))
 
 
+class BossLine(FloatingText):
+    """Uma fala do chefe durante a luta: fica parada em cima dele uns 2,5 s (não sobe como o dano)."""
+
+    def __init__(self, boss, text, color):
+        super().__init__(boss.x, boss.y - 170, text, color)
+        self.boss = boss
+        self.life = 150
+
+    def update(self):
+        self.x, self.y = self.boss.x, self.boss.y - 170
+        self.life -= 1
+        return self.life > 0
+
+
 class BossAI(EnemyAI):
     reaction = 6
+    # falas na luta: ao entrar, na primeira vez que cansa e quando a vida está acabando
+    LINES = ("VIERAM APOSTAR CONTRA A CASA?", "SÓ... MAIS... UMA RODADA...", "A VOZ PROMETEU GREEN!")
+    LINE_COLOR = (214, 170, 255)
+    LAST_LINE_AT = 0.15
     PATTERNS = ("rain", "ring", "jump", "dash")
     WINDUPS = {"rain": 44, "ring": 34, "jump": 26, "dash": 40}
     COLORS = {"rain": (200, 120, 255), "ring": (255, 150, 70), "jump": (255, 90, 90), "dash": (150, 60, 230)}
@@ -92,8 +110,16 @@ class BossAI(EnemyAI):
         self.last_pattern = None
         self.dash_dir = (1.0, 0.0)
         self.dash_hit = set()
+        self.said = set()
 
     # ── utilidades ───────────────────────────
+    def say(self, me, match, which):
+        """Solta a fala ``which`` (0 entrada, 1 cansado, 2 fim) uma vez só na luta."""
+        if which in self.said or which >= len(self.LINES) or not hasattr(match, "popups"):
+            return
+        self.said.add(which)
+        match.popups.append(BossLine(me, self.LINES[which], self.LINE_COLOR))
+
     @property
     def speed(self):
         return (1.35 if self.enraged else 1.0) * self.aggression
@@ -123,6 +149,9 @@ class BossAI(EnemyAI):
             me.steer(0, 0)
             return
         ratio = me.hp / me.max_hp
+        self.say(me, match, 0)
+        if ratio <= self.LAST_LINE_AT:
+            self.say(me, match, 2)
         if not self.summoned and ratio <= 0.5 and self.state not in ("jump", "air"):
             self.summoned = True
             self._roar(me, match)
@@ -157,6 +186,7 @@ class BossAI(EnemyAI):
                 self._set(me, "walk", self._wait(80))
         elif state == "tired":
             me.steer(0, 0)
+            self.say(me, match, 1)
             if self.timer % 30 == 0:
                 match.popup(me.x, me.y - 120, self.TIRED_POPUP, theme.MUTED)
             self._tired_tick(me, match)
@@ -386,6 +416,7 @@ class BorbaBossAI(BossAI):
     PATTERNS = ("cannon", "punch", "jump")
     WINDUPS = {"cannon": 56, "punch": 18, "jump": 26}
     COLORS = {"cannon": PULSE_BLUE, "punch": (255, 150, 70), "jump": (255, 90, 90)}
+    LINES = ("O EXO NÃO ERRA. O EXO NÃO PENSA.", "SUPERAQUECEU... IGUAL FORNO DE PÃO", "A VOZ DISSE QUE ERA PERFEITO...")
     TIRED_LABEL = "SUPERAQUECIDO! HORA DE ATACAR"
     TIRED_POPUP = "SUPERAQUECIDO"
     ROAR_LABEL = "A PATRULHA ESTÁ VINDO"
@@ -547,6 +578,7 @@ class AlbeguinioBossAI(BossAI):
     PATTERNS = ("boletos", "carimbo", "agenda")
     WINDUPS = {"boletos": 30, "carimbo": 36, "agenda": 44}
     COLORS = {"boletos": PAPER, "carimbo": STAMP_RED, "agenda": CLEPA}
+    LINES = ("SENHA 47? PODE ENTRAR... NA FILA.", "PAUSA... SÓ UM CAFEZINHO...", "A META DO MÊS... NÃO BATEU...")
     TIRED_LABEL = "PAUSA PRO CAFÉ! HORA DE ATACAR"
     TIRED_POPUP = "PAUSA PRO CAFÉ"
     ROAR_LABEL = "HARMONIZAÇÃO: CORTEM OS 3 CABOS"
@@ -752,6 +784,8 @@ class CauanzeraBossAI(BossAI):
     WINDUPS = {"pacotes": 30, "carimbo": 36, "jump": 26, "dash": 40, "tentaculos": 34}
     COLORS = {"pacotes": IARA_C, "carimbo": STAMP_RED, "jump": (255, 90, 90), "dash": (150, 60, 230),
               "tentaculos": IARA_C}
+    LINES = ("SEU CHAMADO FOI ABERTO. PRAZO: NUNCA.", "REINICIANDO... NÃO DESLIGUE O PC", "IARA, ME AJUDA... IARA?")
+    LINE_COLOR = IARA_C
     TIRED_LABEL = "REINICIANDO! HORA DE ATACAR"
     TIRED_POPUP = "REINICIANDO"
     ROAR_LABEL = "FIREWALL: DERRUBEM A IARA"
