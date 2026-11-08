@@ -349,6 +349,10 @@ class CampaignRun:
         self.vehicle = "city"                             # com o que o grupo sai da Casa (garagem)
         self.rush = bool(getattr(session, "rush", False))   # Reunião dos Corrompidos (só os chefes)
         self._snapshot = None
+        self._fresh = self._chapter_state()                # o PARA ONDE? volta daqui antes de trocar
+
+    def _chapter_state(self):
+        return {k: copy.deepcopy(getattr(self, k)) for k in ("phase_index", "upgrades", "souls", "start_chapter")}
 
     @property
     def phase(self):
@@ -422,6 +426,17 @@ class CampaignRun:
                 self.souls[s] += CHAPTER2_SOULS * (chapter - 1)
                 for _ in range(CHAPTER2_UPGRADES * (chapter - 1)):
                     self.upgrades[s].append(random.choice(choices(self.upgrades[s])))
+
+    def pick_chapter(self, chapter):
+        """PARA ONDE? no carro da Casa: troca o capítulo de uma campanha que ainda não começou.
+        Volta ao estado do começo (sem somar o bônus duas vezes) e entra no capítulo como pelo menu."""
+        if chapter == self.chapter or chapter not in CHAPTER_START:
+            return False
+        for k, v in self._fresh.items():
+            setattr(self, k, copy.deepcopy(v))
+        if chapter > 1:
+            self.start_at_chapter(chapter)
+        return True
 
     def _state(self):
         return {k: copy.deepcopy(getattr(self, k))

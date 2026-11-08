@@ -259,3 +259,51 @@ class PasseioTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ParaOndeNoCarroTest(unittest.TestCase):
+    def setUp(self):
+        reset_progress(capitulo1_zerado=True, capitulo2_zerado=True)
+        self.addCleanup(reset_progress)
+
+    def _no_carro(self, match):
+        p = match.players[0]
+        p.x, p.y = match.exit_rect.centerx, match.exit_rect.bottom + 10
+        return p
+
+    def test_atacar_no_carro_abre_o_para_onde_e_troca_o_capitulo(self):
+        from soulstrike.para_onde import ChapterPickMenu
+        match, _ = casa_da_turma()
+        p = self._no_carro(match)
+        self.assertTrue(match.interact(p))
+        self.assertIsInstance(match.menus[p], ChapterPickMenu)
+        match.menus[p].on_pick(3)
+        self.assertEqual(match.run.chapter, 3)
+        self.assertEqual(match.run.start_chapter, 3)
+        rich = dict(match.run.souls)
+        self.assertTrue(all(v > 0 for v in rich.values()))
+        match.menus[p].on_pick(2)                          # trocar de novo não soma o bônus
+        self.assertEqual(match.run.chapter, 2)
+        self.assertTrue(all(match.run.souls[s] < rich[s] for s in rich))
+        match.menus[p].on_pick(1)
+        self.assertEqual(match.run.chapter, 1)
+        self.assertEqual(match.run.start_chapter, 1)
+        self.assertEqual(set(match.run.souls.values()), {0})
+        self.assertTrue(all(not u for u in match.run.upgrades.values()))
+
+    def test_escolhendo_o_capitulo_o_carro_espera(self):
+        from soulstrike.para_onde import ChapterPickMenu
+        match, inputs = casa_da_turma(("guerreiro",))
+        p = self._no_carro(match)
+        match.menus[p] = ChapterPickMenu(match, p, match.pick_chapter, 1)
+        passo(match, inputs, PASSAGE_FRAMES + 10)
+        self.assertFalse(match.passage.gone)
+        self.assertFalse(match.leaving)
+
+    def test_sem_para_onde_no_continuar_nem_passeando(self):
+        for story, walk in ((False, False), (False, True)):
+            match, _ = casa_da_turma(story=story, walk=walk)
+            p = self._no_carro(match)
+            self.assertFalse(match.car_near(p))
+            match.interact(p)
+            self.assertNotIn(p, match.menus)

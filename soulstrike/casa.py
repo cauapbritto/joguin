@@ -19,6 +19,7 @@ from .fighter import UNO_HITS
 from .lobbies import CASA_SPLIT, CASA_TOP
 from .matches import Result
 from .net.remote import hub
+from .para_onde import ChapterPickMenu
 
 HUB_MAP = "hub_casa"
 T = TILE_PX
@@ -655,7 +656,8 @@ class HubMatch(CoopMatch):
         cx, cy = CITY_AT
         self.exit_rect = pygame.Rect(cx - 86, cy - 58, 172, 60)
         self.door_area = self.exit_rect.inflate(110, 96)
-        self.passage = Passage(lambda p: not self.walk and self.door_area.collidepoint(p.x, p.y))
+        self.passage = Passage(lambda p: not self.walk and not isinstance(self.menus.get(p), ChapterPickMenu)
+                               and self.door_area.collidepoint(p.x, p.y))
         if progress.chapter_cleared(4) and self.players:     # recompensa do capítulo 4: a IARA mascote
             from .mansao import IaraMascot
             self.add_effect(IaraMascot(self.players[0], self.assets.sprites.get("iara_nucleo")))
@@ -820,6 +822,19 @@ class HubMatch(CoopMatch):
         self.popup(CITY_AT[0], CITY_AT[1] - 90, f"{name} NO QUINTAL", theme.BRASS)
         self.assets.play("confirm", 0.45)
 
+    # ── PARA ONDE? ───────────────────────────
+    @property
+    def can_pick(self):
+        """Escolher o capítulo no carro: só no começo da campanha (não no CONTINUAR nem passeando)."""
+        return self.story and not self.walk and not self.run.rush
+
+    def car_near(self, f):
+        return self.can_pick and f.alive_in_match and _near_rect(f, self.exit_rect)
+
+    def pick_chapter(self, chapter):
+        if self.run.pick_chapter(chapter):
+            self.popup(self.exit_rect.centerx, self.exit_rect.y - 90, f"PARA O CAPÍTULO {chapter}!", theme.BRASS)
+
     def garage_near(self, f):
         if not f.alive_in_match:
             return False
@@ -935,6 +950,10 @@ class HubMatch(CoopMatch):
         if self.armor_near(f):
             self.wear_armor(f)
             return True
+        if self.car_near(f):
+            self.menus[f] = ChapterPickMenu(self, f, self.pick_chapter, self.run.chapter)
+            self.assets.play("select", 0.45)
+            return True
         if self.garage_near(f):
             self.going_down = True                    # o grupo inteiro desce para a garagem
             self.assets.play("select", 0.45)
@@ -1026,18 +1045,27 @@ class HubMatch(CoopMatch):
                 sx, sy = cam.to_screen(x, y + 40)
                 ui.text(screen, hint, theme.XS, theme.BONE, (round(sx), round(sy)))
         self.draw_ground(screen, cam, ui)
+        self.draw_car_labels(screen, ui, free, blink)
         for f, menu in self.menus.items():
             if isinstance(menu, computador.Computer):
                 crt.panel(screen, (menu.kind, f.slot), lambda s, menu=menu: menu.draw(s, ui, cam))
                 continue
             at = cam.to_screen(f.x, f.y)
             crt.panel(screen, ("livro", f.slot), lambda s, menu=menu, at=at: menu.draw(s, ui, at))
+
+    def draw_car_labels(self, screen, ui, free, blink):
+        """Em cima do carro do quintal: a chamada da saída e o PARA ONDE?."""
+        cam = self.camera
         top = self.door_area.y
         sx, sy = cam.to_screen(self.exit_rect.centerx, top)
         if self.walk:
             ui.text(screen, "SÓ PASSEANDO", theme.XS, theme.MUTED, (round(sx), round(sy) - 14))
             return
         ui.text(screen, f"TODOS NO {self.car_name} PARA A AVENTURA", theme.XS, theme.BRASS, (round(sx), round(sy) - 14))
+        if self.can_pick:
+            near = any(self.car_near(p) for p in free)
+            text = "ATACAR: PARA ONDE?" if near else f"RUMO AO CAPÍTULO {self.run.chapter}"
+            ui.text(screen, text, theme.XS, blink if near else theme.BONE, (round(sx), round(sy) - 30))
         self.draw_passage(screen, ui, self.passage, self.door_area, (self.exit_rect.centerx, top - 4))
 
     def draw(self, screen, ui):

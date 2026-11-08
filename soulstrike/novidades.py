@@ -12,6 +12,15 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.40.0": [
+        {"title": "PARA ONDE?", "scene": "casa", "lines": [
+            "No começo da campanha, ATACAR no carro do quintal abre o PARA ONDE?.",
+            "Escolha o capítulo da viagem: só aparecem liberados os que vocês já alcançaram.",
+            "Começar mais adiante dá almas e melhorias, como no menu da campanha.",
+            "Mudou de ideia? Escolha de novo: o bônus não soma duas vezes.",
+            "Enquanto alguém escolhe, o carro espera. No CONTINUAR e no passeio não tem.",
+        ]},
+    ],
     "1.39.0": [
         {"title": "A HISTÓRIA COSTURADA", "scene": "iara", "lines": [
             "Uma voz roxa sai do cristal e tenta cada amigo: o Aryel, o Borba Jr, o Albeguinio.",
