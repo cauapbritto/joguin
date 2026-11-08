@@ -420,11 +420,20 @@ def main():
         sheet, info = build(skin)
         gs.pygame.image.save(sheet, str(OUT / f"{skin}.png"))
         (OUT / f"{skin}.json").write_text(json.dumps(info, ensure_ascii=False), encoding="utf-8")
-        cw, ch = info["cell"]                       # retrato para a loja do celular: parado de frente, 3x
-        idle = sum(n for kind, n in info["poses"][:[k for k, _ in info["poses"]].index("parado")])
-        cell = sheet.subsurface((idle * cw, 0, cw, ch))
-        gs.pygame.image.save(gs.pygame.transform.scale(cell, (cw * 3, ch * 3)), str(OUT / f"{skin}_retrato.png"))
+        portrait(sheet, info, OUT / f"{skin}_retrato.png")
         print("ok", skin)
+    for hero in sorted({hero for hero, _, _ in SKINS.values()}):   # a roupa de sempre, para o armário
+        sheet = gs.pygame.image.load(str(OUT.parent / f"{hero}.png"))
+        info = json.loads((OUT.parent / f"{hero}.json").read_text(encoding="utf-8"))
+        portrait(sheet, info, OUT / f"base_{hero}_retrato.png")
+
+
+def portrait(sheet, info, path):
+    """Retrato para o celular: o herói parado de frente, 3x."""
+    cw, ch = info["cell"]
+    idle = sum(n for kind, n in info["poses"][:[k for k, _ in info["poses"]].index("parado")])
+    cell = sheet.subsurface((idle * cw, 0, cw, ch))
+    gs.pygame.image.save(gs.pygame.transform.scale(cell, (cw * 3, ch * 3)), str(path))
 
 
 if __name__ == "__main__":

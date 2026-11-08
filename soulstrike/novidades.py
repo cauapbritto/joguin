@@ -23,8 +23,10 @@ NEWS = {
         {"title": "SKINS NOVAS", "scene": "loja", "lines": [
             "Por 300 cacos: Fantasma Lençol da Vó, Atirador Cangaceiro, Tanque de Obsidiana e Titã Rei Momo.",
             "Cada skin vem com um efeito em volta do herói: poeira, confete, brasa de obsidiana...",
-            "Comprou, já veste. Na mesma banca dá para tirar e vestir de novo sem pagar.",
-            "Vale na Casa e na campanha. No futebol e no basquete fica o uniforme do time.",
+            "A loja já abre na skin do herói que você está jogando. Comprou, ela é da turma.",
+            "Para vestir, vá ao seu ARMÁRIO (P1 a P4, ao lado da loja) e escolha a roupa do seu herói.",
+            "Armário piscando: tem skin nova esperando. Trocar de roupa lá é sempre de graça.",
+            "A skin fica no herói e vale na Casa e na campanha. No futebol e no basquete, o uniforme.",
         ]},
         {"title": "CUPONS", "scene": "casa", "lines": [
             "O botão INSERIR CUPOM fica lá em cima: digite pelo teclado da TV ou direto no celular.",

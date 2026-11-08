@@ -8,7 +8,8 @@ from apoio import FakeInput, game
 
 from soulstrike import cacos, config, progress
 from soulstrike.campaign import CampaignRun
-from soulstrike.casa import SHOP_AT, HubMatch
+from soulstrike.casa import LOCKERS_AT, SHOP_AT, HubMatch
+from soulstrike.guarda_roupa import WardrobeMenu
 from soulstrike.data import CHARACTERS
 from soulstrike.loja import ShopMenu, state_of
 from soulstrike.session import Session, SlotSetup
@@ -128,7 +129,7 @@ class LojaTest(unittest.TestCase):
         passo(match, inputs, 2)
         self.assertIsInstance(match.menus.get(f), ShopMenu)
 
-    def test_comprar_vestir_e_tirar(self):
+    def test_comprar_na_loja_e_vestir_no_armario(self):
         match, inputs = casa(("atirador", "guerreiro"))
         f = match.players[0]
         menu = ShopMenu(match, f)
@@ -139,14 +140,53 @@ class LojaTest(unittest.TestCase):
         cacos.add(320)
         self.assertTrue(menu.buy())
         self.assertEqual(cacos.balance(), 20)
-        self.assertEqual(state_of(skin), "tirar")
-        self.assertEqual(f.skin, skin.key)                # já aparece vestido na casa
+        self.assertEqual(state_of(skin), "vestir")        # a loja só desbloqueia
+        self.assertIsNone(f.skin)
+        self.assertFalse(menu.buy())                      # comprar de novo não cobra
+        self.assertEqual(cacos.balance(), 20)
+        closet = WardrobeMenu(match, f)
+        self.assertEqual(closet.current()[0], "base")     # abre na roupa vestida
+        closet.pick(skin.key)
+        self.assertTrue(closet.buy())                     # vestir
+        self.assertEqual(f.skin, skin.key)
         self.assertIs(f.sprites, match.assets.skin_sprites(skin.key))
-        self.assertTrue(menu.buy())                       # tirar
+        self.assertFalse(closet.buy())                    # já vestida
+        closet.pick("base")
+        self.assertTrue(closet.buy())                     # roupa de sempre
         self.assertIsNone(f.skin)
         self.assertIs(f.sprites, match.assets.sprites["atirador"])
-        self.assertTrue(menu.buy())                       # vestir de novo, sem pagar
         self.assertEqual(cacos.balance(), 20)
+
+    def test_armario_so_veste_o_que_e_seu(self):
+        match, _ = casa(("tita", "guerreiro"))
+        closet = WardrobeMenu(match, match.players[0])
+        self.assertEqual([k for k, _ in closet.entries()], ["base", "tita_momo"])
+        closet.pick("tita_momo")
+        self.assertFalse(closet.buy())
+        self.assertIsNone(cacos.worn("tita"))
+        snap = closet.snapshot()
+        self.assertEqual(snap["kind"], "armario")
+        self.assertEqual(snap["items"][0]["info"]["img"], "/skin/base_tita.png")
+        self.assertTrue((config.CHAR_DIR / "skins" / "base_tita_retrato.png").is_file())
+        empty = WardrobeMenu(match, match.players[1])     # guerreiro: só a roupa de sempre
+        self.assertEqual(len(empty.entries()), 1)
+
+    def test_armario_de_cada_jogador(self):
+        match, inputs = casa()
+        f, g = match.players
+        x, y = match.lockers.spot(1)
+        self.assertLess(x, LOCKERS_AT[0])                 # o P1 é o da esquerda
+        f.x, f.y = x, y
+        self.assertTrue(match.arena.is_free(f.x, f.y, 10))
+        self.assertEqual(match.lockers.near(f), 1)
+        self.assertFalse(match.door_area.collidepoint(f.x, f.y))   # perto do armário não é a saída
+        inputs[f.slot].tap("attack")
+        passo(match, inputs, 2)
+        self.assertIsInstance(match.menus.get(f), WardrobeMenu)
+        g.x, g.y = match.lockers.spot(3)                  # o armário do P3 não abre para o P2
+        inputs[g.slot].tap("attack")
+        passo(match, inputs, 2)
+        self.assertIsNone(match.menus.get(g))
 
     def test_rara_so_com_cupom(self):
         match, _ = casa()
@@ -162,7 +202,8 @@ class LojaTest(unittest.TestCase):
         menu = ShopMenu(match, f)
         self.assertFalse(menu.pick("cupom:Cauanzera"))
         self.assertEqual(cacos.balance(), 1000)
-        self.assertEqual(f.skin, "cauanzera_cristal")
+        self.assertIn("cauanzera_cristal", cacos.owned())
+        self.assertIsNone(f.skin)                         # vestir é no armário
         snap = menu.snapshot()
         self.assertEqual(snap["kind"], "cacos")
         self.assertEqual(snap["unit"], "CACOS")
@@ -244,6 +285,21 @@ class LojaTest(unittest.TestCase):
         passo(match, inputs, 1)
         self.assertIsNone(match.menus.get(f))             # na tela inicial, ESQUIVA fecha a loja
 
+    def test_abre_na_skin_do_seu_heroi_e_rara_leva_ao_cupom(self):
+        match, _ = casa(("cauanzera", "guerreiro"))
+        menu = ShopMenu(match, match.players[0])
+        self.assertEqual(menu.entries()[0][1].hero, "cauanzera")    # as dele primeiro
+        menu.buy()                                                   # entra em SKINS
+        key, skin = menu.current()
+        self.assertEqual(key, "cauanzera_cristal")
+        self.assertFalse(menu.buy())                                 # rara: não compra...
+        self.assertTrue(menu.coupon)                                 # ...e marca o botão do cupom
+        self.assertTrue(menu.buy())
+        self.assertTrue(menu.typing)
+        snap = ShopMenu(match, match.players[0]).snapshot()
+        mine = [i["id"] for i in snap["items"] if i.get("info", {}).get("mine")]
+        self.assertEqual(mine, ["cauanzera_cristal"])
+
     def test_grade_anda_para_os_lados_e_rola(self):
         from soulstrike import loja
         match, _ = casa()
@@ -270,6 +326,20 @@ class LojaTest(unittest.TestCase):
             self.assertEqual(menu.scroll, 0)
         finally:
             loja.COLS = old
+
+    def test_desenha_o_armario_aberto(self):
+        cacos.give_skin("aryel_fogo")
+        match, inputs = casa(("aryel", "guerreiro"))
+        screen = game().screen
+        for f in match.players:
+            match.menus[f] = WardrobeMenu(match, f)
+        passo(match, inputs, 25)
+        self.assertEqual(match.lockers.open, {1, 2})
+        match.draw(screen, game().ui)
+        match.menus.clear()
+        passo(match, inputs, 25)
+        self.assertIn(1, match.lockers.glow)              # skin nova esperando no armário do P1
+        match.draw(screen, game().ui)
 
     def test_desenha_com_o_menu_aberto(self):
         cacos.give_skin("borba_ouro")

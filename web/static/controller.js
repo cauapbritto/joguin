@@ -1094,9 +1094,10 @@
         if (sub) txt.appendChild(sub);
         lbl.appendChild(txt);
         b.appendChild(lbl);
-        if (shop.kind === "cacos" && r.info) {   // loja de cacos: carta com raridade e etiqueta
+        if ((shop.kind === "cacos" || shop.kind === "armario") && r.info) {   // carta com raridade e etiqueta
           b.dataset.tier = r.info.tier || "";
           b.dataset.state = r.info.state || "";
+          if (r.info.mine) b.dataset.mine = "1";
           b.appendChild(el("i", "tag", r.info.tag || ""));
         } else {
           b.appendChild(el("i", "", r.cost ? r.cost : ""));

@@ -40,7 +40,7 @@ def state_of(skin):
     return "comprar" if skin.price else "cupom"
 
 
-ACTION_LABEL = {"tirar": "TIRAR", "vestir": "VESTIR", "comprar": "COMPRAR", "cupom": "SÓ COM CUPOM"}
+ACTION_LABEL = {"tirar": "NO ARMÁRIO", "vestir": "NO ARMÁRIO", "comprar": "COMPRAR", "cupom": "SÓ COM CUPOM"}
 
 
 class ShopStand(Entity):
@@ -122,10 +122,13 @@ class ShopMenu:
         self.section = 0                      # card marcado na tela inicial
         self.coupon = False                   # botão INSERIR CUPOM (no topo) marcado
         self.scroll = 0
+        stats = getattr(fighter, "stats", None)
+        self.hero = getattr(stats, "key", None)   # as skins do herói de quem abriu vêm primeiro
+        self.order = sorted(ORDER, key=lambda s: s.hero != self.hero)
 
     # ── linhas ───────────────────────────────
     def entries(self):
-        return [(s.key, s) for s in ORDER]
+        return [(s.key, s) for s in self.order]
 
     def current(self):
         """O que está marcado: ("cupom", None), ("secao:<nome>", None) ou (skin, Skin)."""
@@ -151,18 +154,29 @@ class ShopMenu:
                 self._say("OS PETS CHEGAM EM BREVE!", CACO_COLOR)
                 play("cancel", 0.3)
                 return False
-            self.page, self.index, self.scroll = name, 0, 0
+            self.page, self.index, self.scroll = name, self._my_first(), 0
             self.note = ("", theme.BONE)
             play("select", 0.4)
             return True
         return self.act(skin)
 
+    def _my_first(self):
+        """Ao entrar nas skins, já marca a do herói de quem abriu (a vestida, senão a primeira dele)."""
+        rows = self.entries()
+        worn = cacos.worn(self.hero) if self.hero else None
+        for want in (lambda s: s.key == worn, lambda s: s.hero == self.hero):
+            for i, (_, s) in enumerate(rows):
+                if want(s):
+                    return i
+        return 0
+
     def act(self, skin):
         state = state_of(skin)
         play = self.match.assets.play
-        if state == "cupom":
-            self._say("ESSA SÓ VEM COM UM CUPOM ESPECIAL", theme.BLOOD)
-            play("cancel", 0.3)
+        if state == "cupom":                  # rara: leva direto para o botão do cupom
+            self._say("ESSA SÓ VEM POR CUPOM: ATACAR AQUI EM CIMA PARA DIGITAR", CACO_COLOR)
+            self.coupon = True
+            play("select", 0.3)
             return False
         if state == "comprar":
             if not cacos.spend(skin.price):
@@ -170,20 +184,16 @@ class ShopMenu:
                 play("cancel", 0.3)
                 return False
             cacos.give_skin(skin.key)
-            cacos.wear(skin.hero, skin.key)
-            self._say("COMPROU E JÁ VESTIU!", theme.MOSS)
+            self._say(f"É SUA! VISTA NO ARMÁRIO P{self._slot()}, AQUI DO LADO", theme.MOSS)
             self._celebrate(skin)
             play("compra", 0.5)
-        elif state == "vestir":
-            cacos.wear(skin.hero, skin.key)
-            self._say(f"{HERO_NAMES.get(skin.hero, '')} VESTIU!", theme.MOSS)
-            play("select", 0.45)
-        else:
-            cacos.wear(skin.hero, None)
-            self._say("VOLTOU PARA A ROUPA DE SEMPRE", theme.BONE)
-            play("click", 0.4)
-        self.match.redress()
-        return True
+            return True
+        self._say(f"JÁ É SUA: VISTA NO ARMÁRIO P{self._slot()}, AQUI DO LADO", theme.BONE)
+        play("click", 0.3)
+        return False
+
+    def _slot(self):
+        return getattr(self.fighter, "slot", 1)
 
     def redeem(self, code):
         """Tenta o cupom. Errou 5 vezes seguidas: espera 30 segundos para tentar de novo."""
@@ -196,13 +206,11 @@ class ShopMenu:
         if status == "ok":
             self.errors = 0
             name = SKINS[skin].name if skin in SKINS else ""
-            self._say(f"+{amount} CACOS" + (f" E {name}!" if name else "!"), CACO_COLOR)
+            self._say(f"+{amount} CACOS" + (f" E {name}! VISTA NO ARMÁRIO" if name else "!"), CACO_COLOR)
             if skin in SKINS:
-                cacos.wear(SKINS[skin].hero, skin)
                 self.page, self.coupon = "skins", False
                 self.index = next(i for i, (k, _) in enumerate(self.entries()) if k == skin)
                 self._celebrate(SKINS[skin])
-                self.match.redress()
             self.match.popup(self.fighter.x, self.fighter.y - 80, f"+{amount} CACOS", CACO_COLOR)
             play("compra", 0.6)
             self.typing = False
@@ -336,7 +344,7 @@ class ShopMenu:
                   "ok": True, "afford": True, "color": "#78c8ff",
                   "info": {"type": "cupom", "sub": "CACOS E SKIN RARA", "note": self.note[0],
                            "tier": "cupom", "tag": "INSERIR", "state": "cupom"}}]
-        for s in ORDER:
+        for s in self.order:
             state = state_of(s)
             items.append({
                 "id": s.key, "label": s.name, "cost": s.price if state == "comprar" else 0,
@@ -346,7 +354,7 @@ class ShopMenu:
                          "sub": {"tirar": "VESTIDA", "vestir": "É SUA", "comprar": f"{s.price} CACOS",
                                  "cupom": "SÓ COM CUPOM"}[state],
                          "rarity": "RARA · CUPOM" if s.rarity == "rara" else "LOJA",
-                         "tier": s.rarity, "state": state,
+                         "tier": s.rarity, "state": state, "mine": s.hero == self.hero,
                          "tag": {"tirar": "VESTIDA", "vestir": "É SUA", "comprar": str(s.price),
                                  "cupom": "CUPOM"}[state]},
             })
@@ -408,7 +416,8 @@ class ShopMenu:
             shown = skin if skin is not None else self.entries()[self.index % len(self.entries())][1]
             self._draw_detail(screen, ui, pygame.Rect(body.x, area.bottom + 6, body.width, 50), shown)
             hint = ("ATACAR: INSERIR CUPOM · BAIXO: VOLTAR ÀS SKINS" if self.coupon
-                    else "ANALÓGICO: ESCOLHER · ATACAR: " + ACTION_LABEL[state_of(skin)] + " · ESQUIVA: VOLTAR")
+                    else "ANALÓGICO: ESCOLHER · ATACAR: " + ("IR AO CUPOM" if state_of(skin) == "cupom"
+                                                      else ACTION_LABEL[state_of(skin)]) + " · ESQUIVA: VOLTAR")
         ui.text(screen, hint, theme.XS, (130, 126, 140), (rect.centerx, rect.bottom - 10))
 
     # a tela inicial: um card por seção
@@ -446,8 +455,12 @@ class ShopMenu:
 
     def _showcase(self, screen, card, t, on):
         """Três skins de vitrine no card: a do meio grande, girando entre todas de tempos em tempos."""
-        start = (t // 150) % len(ORDER)
-        picks = [ORDER[(start + k) % len(ORDER)] for k in (1, 0, 2)]
+        mine = [s for s in self.order if s.hero == self.hero]
+        if mine and (t // 150) % 2 == 0:            # a skin do seu herói aparece no meio de vez em quando
+            start = self.order.index(mine[(t // 300) % len(mine)])
+        else:
+            start = (t // 150) % len(self.order)
+        picks = [self.order[(start + k) % len(self.order)] for k in (1, 0, 2)]
         places = ((-78, 0.9, 120), (0, 1.5, 255), (78, 0.9, 120))
         for skin, (dx, scale, alpha) in zip(picks, places):
             sprites = self.match.assets.skin_sprites(skin.key)
@@ -576,6 +589,10 @@ class ShopMenu:
             tag = pygame.Rect(card.x + 4, card.y + 4, 34, 13)
             screen.fill((250, 210, 90), tag)
             ui.text(screen, "RARA", theme.XS, (70, 30, 90), tag.center, shadow=False)
+        if skin.hero == self.hero:                                        # selo do herói de quem abriu
+            tag = pygame.Rect(card.x, card.bottom - 35, card.width, 13)
+            screen.fill(theme.SLOT_COLORS.get(self.fighter.slot, theme.BONE), tag)
+            ui.text(screen, "SEU HERÓI", theme.XS, theme.INK, tag.center, shadow=False)
         # faixa de baixo: preço, cadeado ou VESTIDA
         strip = pygame.Rect(card.x, card.bottom - 22, card.width, 22)
         screen.fill((14, 12, 22), strip)
@@ -644,10 +661,8 @@ class ShopMenu:
             ok = cacos.balance() >= skin.price
             self._button(screen, ui, button, f"COMPRAR {skin.price}", CACO_COLOR if ok else theme.FAINT, theme.INK,
                          caco=True)
-        elif state == "vestir":
-            self._button(screen, ui, button, "VESTIR", theme.MOSS, theme.INK)
-        elif state == "tirar":
-            self._button(screen, ui, button, "TIRAR", theme.LINE_HI, theme.BONE)
+        elif state in ("vestir", "tirar"):
+            self._button(screen, ui, button, "VESTIR NO ARMÁRIO", theme.LINE_HI, theme.BONE)
         else:
             self._button(screen, ui, button, "SÓ COM CUPOM", theme.LINE, theme.MUTED)
 
