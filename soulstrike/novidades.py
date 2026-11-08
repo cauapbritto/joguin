@@ -15,7 +15,7 @@ NEWS = {
     "1.43.0": [
         {"title": "LOJA DE CACOS", "scene": "casa", "lines": [
             "Tem banca nova no quintal da Casa: a LOJA DE CACOS. Chegue perto e ATACAR abre.",
-            "A loja é uma vitrine de cartas: o analógico anda pela grade, e ela rola para o lado.",
+            "Ela abre com as seções SKINS e PETS (os pets chegam em breve). Dentro, as skins viram cartas.",
             "Cacos são os caquinhos do cristal da IARA. Ficam salvos no computador, num pote só da turma.",
             "Zerar a campanha inteira paga uns cacos, mais na dificuldade alta, e o dobro na primeira vez.",
             "Na loja só tem enfeite: skin não muda dano, vida, energia nem arma.",
@@ -27,7 +27,7 @@ NEWS = {
             "Vale na Casa e na campanha. No futebol e no basquete fica o uniforme do time.",
         ]},
         {"title": "CUPONS", "scene": "casa", "lines": [
-            "Na loja tem INSERIR CUPOM: digite pelo teclado da TV ou direto no celular.",
+            "O botão INSERIR CUPOM fica lá em cima: digite pelo teclado da TV ou direto no celular.",
             "Cada cupom vale uma vez por save e pode dar cacos e até uma skin rara que não se compra.",
             "As quatro raras são da turma original: Albeguinio, Cauanzera, Aryel e Borba Jr.",
         ]},

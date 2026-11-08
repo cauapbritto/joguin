@@ -615,3 +615,20 @@ body.editing #btn-zone, body.editing #stick-zone { background: rgba(255, 255, 25
 #view-shop[data-kind="cacos"] .shop-item[data-tier="cupom"] .tag { color: #78c8ff; }
 #view-shop[data-kind="cacos"] .shop-item[data-state="tirar"] .tag { background: #76ba60; color: #0d0b12; }
 #view-shop[data-kind="cacos"] .shop-item.off .thumb img { opacity: .6; }
+#view-shop[data-kind="cacos"] .shop-item.cacos-cupom,
+#view-shop[data-kind="cacos"] .shop-item.cacos-back {
+  grid-column: 1 / -1; min-height: 34px; flex-direction: row; justify-content: center; align-items: center;
+  background: #2c2a3a; color: var(--bone); font-size: 11px; }
+#view-shop[data-kind="cacos"] .shop-item.cacos-cupom { background: #f0e4c4; color: #142850; }
+#view-shop[data-kind="cacos"] .shop-item.cacos-cupom.on { box-shadow: 0 0 0 2px #78c8ff, 0 0 14px #78c8ff; }
+#view-shop[data-kind="cacos"] .shop-list[data-page="home"] { grid-template-columns: 1fr 1fr; }
+#view-shop[data-kind="cacos"] .shop-item.cacos-sec {
+  min-height: 150px; justify-content: center; align-items: center; gap: 4px; padding: 8px 4px;
+  background: linear-gradient(#462c78, #1c2450); color: #c8a0ff; font-size: 16px; }
+#view-shop[data-kind="cacos"] .shop-item.cacos-sec[data-sec="pets"] {
+  background: linear-gradient(#24604a, #142c28); color: #8ce6aa; }
+#view-shop[data-kind="cacos"] .shop-item.cacos-sec .pics { display: flex; align-items: flex-end; gap: 2px; height: 80px; }
+#view-shop[data-kind="cacos"] .shop-item.cacos-sec .pics img { image-rendering: pixelated; max-height: 52px; opacity: .55; }
+#view-shop[data-kind="cacos"] .shop-item.cacos-sec .pics img:nth-child(2) { max-height: 78px; opacity: 1; }
+#view-shop[data-kind="cacos"] .shop-item.cacos-sec .qmark { font-size: 44px; color: #8ce6aa; }
+#view-shop[data-kind="cacos"] .shop-item.cacos-sec small { font-size: 8px; color: var(--muted); }

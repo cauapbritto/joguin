@@ -708,6 +708,7 @@
   var shopServerPick = null; // último item marcado que o jogo mandou
   var shopKey = "";
   var shopKeyPick = null;
+  var cacosPage = "home";              // loja de cacos no celular: "home" (seções) ou "skins"
   var cupomText = "";
   var giftTo = null;
   var shopData = null;
@@ -1043,6 +1044,7 @@
     var view = $("view-shop");
     if (shopOpen !== shop.kind) {          // acabou de abrir
       shopOpen = shop.kind;
+      cacosPage = shop.picked && shop.picked !== "cupom" ? "skins" : "home";
       shopPick = shopRow(shop.picked);
       shopServerPick = shop.picked;
       encPick = {};
@@ -1052,6 +1054,7 @@
       $("shop-note").textContent = "";
     } else if (shop.picked !== shopServerPick) {
       shopServerPick = shop.picked;        // mexeram pelo analógico na TV
+      if (shop.kind === "cacos" && shop.picked !== "cupom") cacosPage = "skins";
       var row = shopRow(shop.picked);
       if (rowItem(rows.filter(function (r) { return r.id === shopPick; })[0]) !== shop.picked &&
           !view.classList.contains("gifting")) {
@@ -1068,7 +1071,7 @@
     energy.hidden = !(shopEnergy[1] > 0) || shop.kind === "altar";
     $("shop-energy-n").textContent = shopEnergy[0] + "/" + shopEnergy[1];
     var cur = rowEntry(rows.filter(function (r) { return r.id === shopPick; })[0]);
-    var key = JSON.stringify(rows) + "|" + shopPick + "|" + (cur ? cur.id : "") + "|" + shop.souls;
+    var key = JSON.stringify(rows) + "|" + shopPick + "|" + (cur ? cur.id : "") + "|" + shop.souls + "|" + cacosPage;
     if (document.activeElement && document.activeElement.id === "cupom-input" && shopPick === "cupom" &&
         shopKeyPick === "cupom") key = shopKey;   // não apaga o que está sendo digitado
     if (key !== shopKey) {
@@ -1076,7 +1079,10 @@
       shopKeyPick = shopPick;
       var list = $("shop-list");
       list.innerHTML = "";
+      list.dataset.page = shop.kind === "cacos" ? cacosPage : "";
+      if (shop.kind === "cacos") cacosHead(list, shop, rows);
       rows.forEach(function (r) {
+        if (shop.kind === "cacos" && (r.id === "cupom" || cacosPage !== "skins")) return;
         var b = el("button", "shop-item" + (r.id === shopPick ? " on" : "") + (r.ok && r.afford ? "" : " off"));
         b.style.setProperty("--c", r.color);
         b.style.setProperty("--r", (r.info && r.info.weapon) ? r.info.weapon.color : r.color);
@@ -1119,6 +1125,53 @@
     else if (cur && !cur.afford) note.textContent = "FALTAM " + (cur.cost - shop.souls) + " " + shopUnit();
     else if (note.textContent !== "PEDIDO ENVIADO" && note.textContent.indexOf("DOOU") !== 0) note.textContent = "";
     renderGift(shop);
+  }
+
+  // loja de cacos: botão do cupom no topo e, na tela inicial, um card por seção
+  function cacosHead(list, shop, rows) {
+    var cup = rows.filter(function (r) { return r.id === "cupom"; })[0];
+    if (cup) {
+      var b = el("button", "shop-item cacos-cupom" + (shopPick === "cupom" ? " on" : ""), "INSERIR CUPOM");
+      b.addEventListener("pointerdown", function (e) {
+        e.preventDefault(); buzz(); shopPick = "cupom"; $("shop-note").textContent = "";
+        order("cupom", false); renderShop(shopData);
+      });
+      list.appendChild(b);
+    }
+    if (cacosPage === "skins") {
+      var back = el("button", "shop-item cacos-back", "‹ SEÇÕES");
+      back.addEventListener("pointerdown", function (e) {
+        e.preventDefault(); buzz(); cacosPage = "home"; shopKey = null; renderShop(shopData);
+      });
+      list.appendChild(back);
+      return;
+    }
+    var skins = rows.filter(function (r) { return r.info && r.info.type === "skin"; });
+    var mine = skins.filter(function (r) { return r.info.state === "tirar" || r.info.state === "vestir"; }).length;
+    [["skins", "SKINS", skins.length + " ROUPAS · " + mine + (mine === 1 ? " SUA" : " SUAS")],
+     ["pets", "PETS", "EM BREVE"]].forEach(function (sec) {
+      var b = el("button", "shop-item cacos-sec", "");
+      b.dataset.sec = sec[0];
+      var pics = el("span", "pics");
+      if (sec[0] === "skins") {
+        skins.slice(0, 3).forEach(function (r) {
+          var im = el("img", "ic"); im.src = r.info.img; im.alt = ""; im.draggable = false; pics.appendChild(im);
+        });
+      } else {
+        pics.appendChild(el("b", "qmark", "?"));
+      }
+      b.appendChild(pics);
+      b.appendChild(el("span", "name", sec[1]));
+      b.appendChild(el("small", "", sec[2]));
+      b.addEventListener("pointerdown", function (e) {
+        e.preventDefault(); buzz();
+        if (sec[0] !== "skins") { $("shop-note").textContent = "OS PETS CHEGAM EM BREVE!"; return; }
+        cacosPage = "skins"; shopKey = null;
+        if (shopPick === "cupom" && skins.length) { shopPick = skins[0].id; order(shopPick, false); }
+        renderShop(shopData);
+      });
+      list.appendChild(b);
+    });
   }
 
   function renderGift(shop) {

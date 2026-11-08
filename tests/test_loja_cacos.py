@@ -177,7 +177,8 @@ class LojaTest(unittest.TestCase):
         menu = match.menus[f] = ShopMenu(match, f)
         inp = inputs[f.slot]
         passo(match, inputs, 2)
-        inp.tap("attack")                                 # INSERIR CUPOM: abre o teclado
+        menu.coupon = True                                # botão INSERIR CUPOM do topo marcado
+        inp.tap("attack")                                 # abre o teclado
         passo(match, inputs, 1)
         self.assertTrue(menu.typing)
         menu.code = "ARYE"
@@ -214,10 +215,40 @@ class LojaTest(unittest.TestCase):
         soccer = SoccerMatch(g, g.session)
         self.assertTrue(all(p.skin is None for p in soccer.fighters))
 
+    def test_tela_inicial_com_secoes_e_cupom_no_topo(self):
+        match, inputs = casa()
+        f = match.players[0]
+        menu = match.menus[f] = ShopMenu(match, f)
+        self.assertEqual(menu.page, "home")
+        self.assertEqual(menu.current(), ("secao:skins", None))
+        menu.section = 1
+        self.assertFalse(menu.buy())                      # pets ainda não chegaram
+        self.assertEqual(menu.page, "home")
+        menu.section = 0
+        self.assertTrue(menu.buy())                       # entra nas skins
+        self.assertEqual(menu.page, "skins")
+        self.assertIsNotNone(menu.current()[1])
+        menu._move_card(0, -1)                            # sobe da primeira linha: botão do cupom
+        self.assertTrue(menu.coupon)
+        self.assertEqual(menu.current(), ("cupom", None))
+        self.assertTrue(menu.buy())
+        self.assertTrue(menu.typing)
+        inp = inputs[f.slot]
+        passo(match, inputs, 2)                           # o menu acabou de abrir
+        for _ in range(3):                                # ESQUIVA: fecha o teclado, solta o cupom, volta
+            inp.tap("dodge")
+            passo(match, inputs, 1)
+        self.assertEqual(menu.page, "home")
+        self.assertIs(match.menus.get(f), menu)
+        inp.tap("dodge")
+        passo(match, inputs, 1)
+        self.assertIsNone(match.menus.get(f))             # na tela inicial, ESQUIVA fecha a loja
+
     def test_grade_anda_para_os_lados_e_rola(self):
         from soulstrike import loja
         match, _ = casa()
         menu = ShopMenu(match, match.players[0])
+        menu.page = "skins"
         n = len(menu.entries())
         menu._move_card(1, 0)
         self.assertEqual(menu.index, loja.ROWS)            # uma coluna para a direita
@@ -247,6 +278,10 @@ class LojaTest(unittest.TestCase):
         f = match.players[0]
         menu = match.menus[f] = ShopMenu(match, f)
         screen = game().screen
+        for section in range(2):
+            menu.section = section
+            match.draw(screen, game().ui)
+        menu.page = "skins"
         for i in range(len(menu.entries())):
             menu.index = i
             passo(match, inputs, 1)
