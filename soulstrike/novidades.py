@@ -15,6 +15,7 @@ NEWS = {
     "1.43.0": [
         {"title": "LOJA DE CACOS", "scene": "casa", "lines": [
             "Tem banca nova no quintal da Casa: a LOJA DE CACOS. Chegue perto e ATACAR abre.",
+            "A loja é uma vitrine de cartas: o analógico anda pela grade, e ela rola para o lado.",
             "Cacos são os caquinhos do cristal da IARA. Ficam salvos no computador, num pote só da turma.",
             "Zerar a campanha inteira paga uns cacos, mais na dificuldade alta, e o dobro na primeira vez.",
             "Na loja só tem enfeite: skin não muda dano, vida, energia nem arma.",

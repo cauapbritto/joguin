@@ -214,6 +214,32 @@ class LojaTest(unittest.TestCase):
         soccer = SoccerMatch(g, g.session)
         self.assertTrue(all(p.skin is None for p in soccer.fighters))
 
+    def test_grade_anda_para_os_lados_e_rola(self):
+        from soulstrike import loja
+        match, _ = casa()
+        menu = ShopMenu(match, match.players[0])
+        n = len(menu.entries())
+        menu._move_card(1, 0)
+        self.assertEqual(menu.index, loja.ROWS)            # uma coluna para a direita
+        menu._move_card(0, 1)
+        self.assertEqual(menu.index, loja.ROWS + 1)        # desce na mesma coluna
+        menu._move_card(-1, 0)
+        menu._move_card(-1, 0)                             # passa da primeira: volta pela última coluna
+        self.assertLess(menu.index, n)
+        self.assertGreaterEqual(menu.index // loja.ROWS, (n - 1) // loja.ROWS)
+        screen = game().screen
+        old = loja.COLS
+        try:
+            loja.COLS = 2                                  # poucas colunas: a grade tem que rolar
+            menu.index = n - 1
+            menu.draw(screen, game().ui, (480, 400))
+            self.assertGreater(menu.scroll, 0)
+            menu.index = 0
+            menu.draw(screen, game().ui, (480, 400))
+            self.assertEqual(menu.scroll, 0)
+        finally:
+            loja.COLS = old
+
     def test_desenha_com_o_menu_aberto(self):
         cacos.give_skin("borba_ouro")
         cacos.wear("borba", "borba_ouro")

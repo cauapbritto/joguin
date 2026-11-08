@@ -1088,7 +1088,13 @@
         if (sub) txt.appendChild(sub);
         lbl.appendChild(txt);
         b.appendChild(lbl);
-        b.appendChild(el("i", "", r.cost ? r.cost : ""));
+        if (shop.kind === "cacos" && r.info) {   // loja de cacos: carta com raridade e etiqueta
+          b.dataset.tier = r.info.tier || "";
+          b.dataset.state = r.info.state || "";
+          b.appendChild(el("i", "tag", r.info.tag || ""));
+        } else {
+          b.appendChild(el("i", "", r.cost ? r.cost : ""));
+        }
         b.addEventListener("pointerdown", function (e) {
           e.preventDefault();
           buzz();

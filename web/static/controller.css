@@ -578,3 +578,40 @@ body.editing #btn-zone, body.editing #stick-zone { background: rgba(255, 255, 25
 .cupom-input { font: inherit; font-size: 13px; padding: 8px; text-transform: uppercase; letter-spacing: 1px;
   background: #f0f0ec; color: #1e1e28; border: 2px solid var(--r, #78c8ff); width: 100%; box-sizing: border-box; }
 .shop-detail .cupom-note { color: var(--r, #78c8ff); }
+
+/* loja de CACOS em cartas, como as lojinhas de game */
+#view-shop[data-kind="cacos"] .shop-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; align-content: start;
+  padding: 4px 4px 8px; }
+#view-shop[data-kind="cacos"] .shop-item {
+  position: relative; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 0;
+  min-height: 100px; padding: 0; overflow: hidden; text-align: center;
+  background: linear-gradient(#2c4680, #161e3e); border-color: #0c0a12; }
+#view-shop[data-kind="cacos"] .shop-item[data-tier="rara"] { background: linear-gradient(#5c2e82, #b47430); }
+#view-shop[data-kind="cacos"] .shop-item[data-tier="cupom"] { background: #f0e4c4; }
+#view-shop[data-kind="cacos"] .shop-item[data-tier="rara"]::before {
+  content: "RARA"; position: absolute; top: 3px; left: 3px; padding: 1px 3px; font-size: 7px;
+  background: #fad25a; color: #461e5a; }
+#view-shop[data-kind="cacos"] .shop-item[data-tier="cupom"]::before {
+  content: "CUPOM"; position: absolute; top: 0; left: 0; right: 0; padding: 2px 0; font-size: 8px;
+  background: #78c8ff; color: #142850; }
+#view-shop[data-kind="cacos"] .shop-item.on {
+  border-color: #fff; box-shadow: 0 0 0 2px var(--c), 0 0 14px var(--c); transform: translateY(-2px); }
+#view-shop[data-kind="cacos"] .shop-item .lbl { flex: 1; flex-direction: column; justify-content: center; gap: 4px;
+  padding: 14px 4px 4px; }
+#view-shop[data-kind="cacos"] .shop-item .thumb { width: auto; height: 54px; background: none; border: 0; }
+#view-shop[data-kind="cacos"] .shop-item .skin-thumb img { max-height: 52px; max-width: 64px;
+  filter: drop-shadow(0 3px 0 #0006); }
+#view-shop[data-kind="cacos"] .shop-item .thumb .qmark { font-size: 26px; color: #2c64ba; }
+#view-shop[data-kind="cacos"] .shop-item .txt { display: none; }
+#view-shop[data-kind="cacos"] .shop-item .tag {
+  display: block; padding: 4px 0 3px; font-size: 9px; background: #0e0c16; color: #78c8ff; }
+#view-shop[data-kind="cacos"] .shop-item .tag::before { content: ""; }
+#view-shop[data-kind="cacos"] .shop-item[data-state="comprar"] .tag::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; background: #78c8ff;
+  transform: rotate(45deg) scale(.8, 1.2); }
+#view-shop[data-kind="cacos"] .shop-item.off[data-state="comprar"] .tag { color: #c8423c; }
+#view-shop[data-kind="cacos"] .shop-item[data-state="cupom"] .tag { color: var(--muted); }
+#view-shop[data-kind="cacos"] .shop-item[data-tier="cupom"] .tag { color: #78c8ff; }
+#view-shop[data-kind="cacos"] .shop-item[data-state="tirar"] .tag { background: #76ba60; color: #0d0b12; }
+#view-shop[data-kind="cacos"] .shop-item.off .thumb img { opacity: .6; }

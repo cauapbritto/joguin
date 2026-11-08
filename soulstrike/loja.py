@@ -24,6 +24,12 @@ KEY_ACTIONS = ("APAGAR", "LIMPAR", "USAR")
 MAX_CODE = 20
 HERO_NAMES = {c.key: c.name.upper() for c in CHARACTERS}
 ORDER = sorted(SKINS.values(), key=lambda s: (s.rarity != "rara", s.name))
+ROWS = 2                      # a grade da TV: 2 linhas de cartas, rolando para o lado
+COLS = 5                      # colunas que cabem de uma vez
+CARD_W, CARD_H, GAP = 100, 116, 10
+RARE_BG = ((92, 46, 130), (180, 116, 48))     # carta rara: roxo que vira dourado
+SHOP_BG = ((44, 70, 128), (22, 30, 62))       # carta da loja: azul da noite
+PAPER = (240, 228, 196)
 
 
 def state_of(skin):
@@ -221,12 +227,21 @@ class ShopMenu:
             if inp.pressed("attack") or inp.pressed("confirm"):
                 self._press_key()
             return True
-        if moved and sy:
-            self.index = (self.index + sy) % len(self.entries())
-            self.match.assets.play("click", 0.3)
+        if moved:
+            self._move_card(sx, sy)
         if inp.pressed("attack") or inp.pressed("confirm"):
             self.buy()
         return True
+
+    def _move_card(self, sx, sy):
+        """Grade de cartas em 2 linhas que rola para o lado: o analógico anda nas duas direções."""
+        n = len(self.entries())
+        cols = (n + ROWS - 1) // ROWS
+        col, row = divmod(self.index % n, ROWS)
+        col = (col + sx) % cols
+        row = (row + sy) % ROWS
+        self.index = min(n - 1, col * ROWS + row)
+        self.match.assets.play("click", 0.3)
 
     def _keys(self):
         return [list(r) for r in KEY_ROWS] + [list(KEY_ACTIONS)]
@@ -274,7 +289,8 @@ class ShopMenu:
         balance = cacos.balance()
         items = [{"id": "cupom", "label": "INSERIR CUPOM", "cost": 0, "desc": "digite o cupom para ganhar cacos",
                   "ok": True, "afford": True, "color": "#78c8ff",
-                  "info": {"type": "cupom", "sub": "CACOS E SKIN RARA", "note": self.note[0]}}]
+                  "info": {"type": "cupom", "sub": "CACOS E SKIN RARA", "note": self.note[0],
+                           "tier": "cupom", "tag": "INSERIR", "state": "cupom"}}]
         for s in ORDER:
             state = state_of(s)
             items.append({
@@ -284,7 +300,10 @@ class ShopMenu:
                 "info": {"type": "skin", "img": f"/skin/{s.key}.png", "hero": HERO_NAMES.get(s.hero, ""),
                          "sub": {"tirar": "VESTIDA", "vestir": "É SUA", "comprar": f"{s.price} CACOS",
                                  "cupom": "SÓ COM CUPOM"}[state],
-                         "rarity": "RARA · CUPOM" if s.rarity == "rara" else "LOJA"},
+                         "rarity": "RARA · CUPOM" if s.rarity == "rara" else "LOJA",
+                         "tier": s.rarity, "state": state,
+                         "tag": {"tirar": "VESTIDA", "vestir": "É SUA", "comprar": str(s.price),
+                                 "cupom": "CUPOM"}[state]},
             })
         action = "USAR CUPOM" if skin is None else ACTION_LABEL[state_of(skin)]
         return {"kind": "cacos", "title": "LOJA DE CACOS", "souls": balance, "unit": "CACOS",
@@ -293,85 +312,244 @@ class ShopMenu:
     # ── TV ───────────────────────────────────
     def draw(self, screen, ui, anchor):
         f = self.fighter
-        w, h = 520, 300
+        w, h = 640, 384
         x = max(8, min(config.SCREEN_W - w - 8, round(anchor[0]) - w // 2))
-        y = max(56, min(config.SCREEN_H - h - 70, round(anchor[1]) - h - 70))
+        y = max(52, min(config.SCREEN_H - h - 64, round(anchor[1]) - h - 70))
         rect = pygame.Rect(x, y, w, h)
         ui.panel(screen, rect, fill=theme.INK_2, accent=CACO_COLOR)
-        ui.text(screen, f"{f.label} · LOJA DE CACOS", theme.XS, theme.BONE, (rect.x + 12, rect.y + 14),
-                anchor="midleft")
-        balance = cacos.balance()
-        draw_caco(screen, rect.right - 20, rect.y + 14, self.match.frame)
-        ui.text(screen, f"{balance} CACOS", theme.XS, CACO_COLOR, (rect.right - 32, rect.y + 14), anchor="midright")
-        rows = self.entries()
-        cur = self.index % len(rows)
-        list_w = 250
-        for i, (key, skin) in enumerate(rows):
-            r = pygame.Rect(rect.x + 8, rect.y + 30 + i * 24, list_w, 22)
-            if i == cur:
-                screen.fill(theme.INK_3, r)
-                pygame.draw.rect(screen, CACO_COLOR if skin is None else skin.color, r, 1)
-            if skin is None:
-                ui.text(screen, "INSERIR CUPOM", theme.XS, CACO_COLOR, (r.x + 8, r.centery), anchor="midleft")
-                continue
-            state = state_of(skin)
-            color = skin.color if state != "cupom" else theme.FAINT
-            label = skin.name if len(skin.name) <= 22 else skin.name[:21] + "…"
-            ui.text(screen, label, theme.XS, color, (r.x + 8, r.centery), anchor="midleft")
-            tag = {"tirar": "VESTIDA", "vestir": "SUA", "comprar": str(skin.price), "cupom": "CUPOM"}[state]
-            tag_color = {"tirar": theme.MOSS, "vestir": theme.BONE, "cupom": theme.FAINT}.get(
-                state, CACO_COLOR if balance >= skin.price else theme.FAINT)
-            ui.text(screen, tag, theme.XS, tag_color, (r.right - 6, r.centery), anchor="midright")
-        side = pygame.Rect(rect.x + list_w + 18, rect.y + 30, w - list_w - 26, h - 62)
-        screen.fill((20, 18, 28), side)
-        key, skin = rows[cur]
-        if self.typing or skin is None:
-            self._draw_coupon(screen, ui, side)
-        else:
-            self._draw_skin(screen, ui, side, skin)
+        t = self.match.frame
+        # cabeçalho: jogador, título e o pote de cacos
+        chip = pygame.Rect(rect.x + 12, rect.y + 10, 30, 20)
+        screen.fill(theme.SLOT_COLORS.get(f.slot, theme.BONE), chip)
+        ui.text(screen, f"P{f.slot}", theme.XS, theme.INK, chip.center, shadow=False)
+        draw_caco(screen, rect.x + 58, rect.y + 20, t, size=7)
+        ui.text(screen, "LOJA DE CACOS", theme.S, theme.BONE, (rect.x + 72, rect.y + 20), anchor="midleft")
+        pill = pygame.Rect(rect.right - 132, rect.y + 8, 120, 24)
+        screen.fill((12, 10, 18), pill)
+        pygame.draw.rect(screen, CACO_COLOR, pill, 1)
+        draw_caco(screen, pill.x + 14, pill.centery, t)
+        ui.text(screen, str(cacos.balance()), theme.S, CACO_COLOR, (pill.right - 10, pill.centery + 1),
+                anchor="midright")
         text, color = self.note
         if text:
-            ui.text(screen, text, theme.XS, color, (rect.centerx, rect.bottom - 26))
+            ui.text(screen, text, theme.XS, color, (rect.centerx + 40, rect.y + 46))
+        area = pygame.Rect(rect.x + 12, rect.y + 58, w - 24, ROWS * CARD_H + GAP + 8)
+        rows = self.entries()
+        key, skin = rows[self.index % len(rows)]
+        if self.typing:
+            self._draw_coupon(screen, ui, area)
+        else:
+            self._draw_grid(screen, ui, area, rows)
+        self._draw_detail(screen, ui, pygame.Rect(rect.x + 12, area.bottom + 6, w - 24, 50), skin)
         hint = ("ANALÓGICO: TECLA · ATACAR: DIGITAR · ESQUIVA: VOLTAR" if self.typing
-                else "ATACAR: " + ("ABRIR TECLADO" if skin is None else ACTION_LABEL[state_of(skin)])
+                else "ANALÓGICO: ESCOLHER · ATACAR: " + ("CUPOM" if skin is None else ACTION_LABEL[state_of(skin)])
                 + " · ESQUIVA: FECHAR")
         ui.text(screen, hint, theme.XS, (130, 126, 140), (rect.centerx, rect.bottom - 10))
 
-    def _draw_skin(self, screen, ui, side, skin):
-        sprites = self.match.assets.skin_sprites(skin.key)
-        t = self.match.frame
-        if sprites is not None:
-            img = sprites.frame("frente", t // 8)
-            img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
-            spot = img.get_rect(midbottom=(side.centerx, side.y + 172))
-            draw_back(screen, skin.key, spot, t)
-            screen.blit(img, spot)
-            draw_front(screen, skin.key, spot, t)
-        ui.text(screen, skin.name, theme.XS, skin.color, (side.centerx, side.y + 186))
-        ui.text(screen, "RARA · SÓ COM CUPOM" if skin.rarity == "rara" else "LOJA", theme.XS, theme.MUTED,
-                (side.centerx, side.y + 202))
-        state = state_of(skin)
-        line = {"tirar": "VESTIDA NO " + HERO_NAMES.get(skin.hero, ""), "vestir": "É SUA: ATACAR VESTE",
-                "comprar": f"{skin.price} CACOS", "cupom": "CUPOM ESPECIAL"}[state]
-        ui.text(screen, line, theme.XS, theme.BONE, (side.centerx, side.y + 218))
+    # a grade de cartas
+    def _draw_grid(self, screen, ui, area, rows):
+        n = len(rows)
+        cols = (n + ROWS - 1) // ROWS
+        cur = self.index % n
+        col = cur // ROWS
+        first = getattr(self, "scroll", 0)
+        first = max(min(first, col), col - COLS + 1, 0)
+        first = min(first, max(0, cols - COLS))
+        self.scroll = first
+        grid_w = COLS * CARD_W + (COLS - 1) * GAP
+        gx = area.centerx - grid_w // 2
+        clip = screen.get_clip()
+        screen.set_clip(area.inflate(0, 8))
+        for i, (key, skin) in enumerate(rows):
+            c, r = divmod(i, ROWS)
+            if not first <= c < first + COLS:
+                continue
+            card = pygame.Rect(gx + (c - first) * (CARD_W + GAP), area.y + 6 + r * (CARD_H + GAP), CARD_W, CARD_H)
+            on = i == cur
+            if on:
+                card.move_ip(0, -3)
+            if skin is None:
+                self._draw_ticket(screen, ui, card, on)
+            else:
+                self._draw_card(screen, ui, card, skin, on)
+        screen.set_clip(clip)
+        # setinhas de rolar
+        blink = (self.match.frame // 20) % 2
+        for side, show in ((-1, first > 0), (1, first + COLS < cols)):
+            if not show:
+                continue
+            ax = gx - 14 if side < 0 else gx + grid_w + 14
+            ay = area.centery + (1 if blink else 0)
+            pts = [(ax + side * 6, ay), (ax - side * 4, ay - 9), (ax - side * 4, ay + 9)]
+            pygame.draw.polygon(screen, CACO_COLOR, pts)
+        if cols > COLS:                                 # bolinhas de página
+            for k in range(cols - COLS + 1):
+                cx = area.centerx + (k - (cols - COLS) / 2) * 10
+                pygame.draw.circle(screen, CACO_COLOR if k == first else theme.FAINT,
+                                   (round(cx), area.bottom + 1), 2)
 
-    def _draw_coupon(self, screen, ui, side):
-        ui.text(screen, "CUPOM", theme.S, CACO_COLOR, (side.centerx, side.y + 16))
-        box = pygame.Rect(side.x + 10, side.y + 32, side.width - 20, 24)
-        screen.fill((240, 240, 236), box)
-        blink = "_" if self.typing and (self.match.frame // 20) % 2 else ""
-        ui.text(screen, (self.code + blink) or "DIGITE AQUI", theme.XS,
-                (30, 30, 40) if self.code else (150, 150, 160), (box.centerx, box.centery), shadow=False)
-        if not self.typing:
-            for i, line in enumerate(("CADA CUPOM VALE UMA VEZ", "E DÁ CACOS. ALGUNS DÃO", "UMA SKIN RARA JUNTO.",
-                                      "", "NO CELULAR: DIGITE NO", "TECLADO DO CELULAR.")):
-                ui.text(screen, line, theme.XS, theme.MUTED, (side.centerx, side.y + 80 + i * 16))
+    def _gradient(self, screen, rect, top, bottom):
+        for k in range(rect.height):
+            a = k / max(1, rect.height - 1)
+            color = tuple(round(top[j] + (bottom[j] - top[j]) * a) for j in range(3))
+            screen.fill(color, (rect.x, rect.y + k, rect.width, 1))
+
+    def _frame(self, screen, card, color, on):
+        if on:
+            glow = pygame.Surface((card.width + 12, card.height + 12), pygame.SRCALPHA)
+            pulse = 70 + round(40 * math.sin(self.match.frame * 0.15))
+            pygame.draw.rect(glow, (*color, pulse), glow.get_rect(), border_radius=6)
+            screen.blit(glow, (card.x - 6, card.y - 6))
+            pygame.draw.rect(screen, (250, 248, 240), card.inflate(4, 4), 2)
+            pygame.draw.rect(screen, color, card, 2)
+        else:
+            pygame.draw.rect(screen, (12, 10, 18), card.inflate(4, 4), 2)
+            pygame.draw.rect(screen, theme.LINE, card, 1)
+
+    def _draw_card(self, screen, ui, card, skin, on):
+        t = self.match.frame
+        state = state_of(skin)
+        screen.fill((8, 6, 12), card.move(3, 4))                          # sombra da carta
+        self._gradient(screen, card, *(RARE_BG if skin.rarity == "rara" else SHOP_BG))
+        # brilho atrás do herói, na cor da skin
+        halo = pygame.Surface((card.width, card.width), pygame.SRCALPHA)
+        for rad, alpha in ((44, 30), (32, 40), (20, 50)):
+            pygame.draw.circle(halo, (*skin.color, alpha), (card.width // 2, card.width // 2), rad)
+        screen.blit(halo, (card.x, card.y + 4))
+        if skin.rarity == "rara" and on:                                   # raios girando na rara marcada
+            rays = pygame.Surface(card.size, pygame.SRCALPHA)
+            cx, cy = card.width // 2, 50
+            for k in range(6):
+                a = t * 0.02 + k * math.pi / 3
+                pts = [(cx, cy), (cx + math.cos(a) * 80, cy + math.sin(a) * 80),
+                       (cx + math.cos(a + 0.22) * 80, cy + math.sin(a + 0.22) * 80)]
+                pygame.draw.polygon(rays, (255, 226, 150, 46), pts)
+            screen.blit(rays, card.topleft)
+        sprites = self.match.assets.skin_sprites(skin.key)
+        if sprites is not None:
+            img = sprites.frame("frente", t // 8 if on else 0)
+            spot = img.get_rect(midbottom=(card.centerx, card.bottom - 26))
+            pygame.draw.ellipse(screen, (0, 0, 0), (spot.centerx - 18, spot.bottom - 4, 36, 8))
+            if on:
+                draw_back(screen, skin.key, spot, t)
+            screen.blit(img, spot)
+            if on:
+                draw_front(screen, skin.key, spot, t)
+        # selo de raridade
+        if skin.rarity == "rara":
+            tag = pygame.Rect(card.x + 4, card.y + 4, 34, 13)
+            screen.fill((250, 210, 90), tag)
+            ui.text(screen, "RARA", theme.XS, (70, 30, 90), tag.center, shadow=False)
+        # faixa de baixo: preço, cadeado ou VESTIDA
+        strip = pygame.Rect(card.x, card.bottom - 22, card.width, 22)
+        screen.fill((14, 12, 22), strip)
+        if state == "comprar":
+            ok = cacos.balance() >= skin.price
+            draw_caco(screen, strip.centerx - 18, strip.centery, t)
+            ui.text(screen, str(skin.price), theme.XS, CACO_COLOR if ok else theme.BLOOD,
+                    (strip.centerx - 8, strip.centery + 1), anchor="midleft")
+        elif state == "cupom":
+            self._lock(screen, strip.centerx - 26, strip.centery)
+            ui.text(screen, "CUPOM", theme.XS, theme.MUTED, (strip.centerx - 16, strip.centery + 1), anchor="midleft")
+        elif state == "tirar":
+            screen.fill(theme.MOSS, strip)
+            ui.text(screen, "VESTIDA", theme.XS, theme.INK, (strip.centerx, strip.centery + 1), shadow=False)
+        else:
+            ui.text(screen, "É SUA", theme.XS, theme.BONE, (strip.centerx, strip.centery + 1))
+        if state == "cupom" and not on:                                   # rara trancada: mais apagada
+            veil = pygame.Surface((card.width, card.height - 22), pygame.SRCALPHA)
+            veil.fill((10, 8, 16, 90))
+            screen.blit(veil, card.topleft)
+        self._frame(screen, card, skin.color, on)
+
+    def _lock(self, screen, x, y):
+        pygame.draw.rect(screen, theme.MUTED, (x - 3, y - 7, 7, 6), 1)
+        screen.fill(theme.MUTED, (x - 4, y - 2, 9, 7))
+        screen.fill((14, 12, 22), (x, y, 1, 3))
+
+    def _draw_ticket(self, screen, ui, card, on):
+        t = self.match.frame
+        screen.fill((8, 6, 12), card.move(3, 4))
+        screen.fill(PAPER, card)
+        screen.fill((120, 200, 255), (card.x, card.y, card.width, 18))
+        ui.text(screen, "CUPOM", theme.XS, (20, 40, 80), (card.centerx, card.y + 9), shadow=False)
+        for k in range(card.x + 4, card.right - 4, 6):                    # picote
+            screen.fill((190, 176, 140), (k, card.y + 70, 3, 1))
+        for side in (card.x, card.right):                                 # mordidinhas do ingresso
+            pygame.draw.circle(screen, theme.INK_2, (side, card.y + 70), 6)
+        bob = math.sin(t * 0.08) * 2 if on else 0
+        draw_caco(screen, card.centerx, card.y + 42 + bob, t, size=12)
+        ui.text(screen, "+CACOS", theme.XS, (60, 70, 110), (card.centerx, card.y + 84), shadow=False)
+        strip = pygame.Rect(card.x, card.bottom - 22, card.width, 22)
+        screen.fill((14, 12, 22), strip)
+        ui.text(screen, "INSERIR", theme.XS, CACO_COLOR, (strip.centerx, strip.centery + 1))
+        self._frame(screen, card, CACO_COLOR, on)
+
+    # a barra de baixo: nome, herói, descrição e o botão da ação
+    def _draw_detail(self, screen, ui, bar, skin):
+        screen.fill((16, 14, 24), bar)
+        pygame.draw.rect(screen, theme.LINE, bar, 1)
+        button = pygame.Rect(bar.right - 150, bar.y + 10, 140, 30)
+        if skin is None:
+            ui.text(screen, "INSERIR CUPOM", theme.S, CACO_COLOR, (bar.x + 10, bar.y + 16), anchor="midleft")
+            ui.text(screen, "DÁ CACOS E, ÀS VEZES, UMA SKIN RARA",
+                    theme.XS, theme.MUTED, (bar.x + 10, bar.y + 36), anchor="midleft")
+            self._button(screen, ui, button, "TECLA USAR" if self.typing else "DIGITAR", CACO_COLOR, theme.INK)
             return
+        state = state_of(skin)
+        ui.text(screen, skin.name, theme.S if len(skin.name) <= 24 else theme.XS, skin.color,
+                (bar.x + 10, bar.y + 16), anchor="midleft")
+        sub = HERO_NAMES.get(skin.hero, "") + " · " + skin.blurb
+        room = button.x - bar.x - 20
+        while len(sub) > 8 and ui.assets.text(sub, theme.XS, theme.MUTED).get_width() > room:
+            sub = sub[:-2].rstrip(" ,·") + "…"
+        ui.text(screen, sub, theme.XS, theme.MUTED, (bar.x + 10, bar.y + 36), anchor="midleft")
+        if state == "comprar":
+            ok = cacos.balance() >= skin.price
+            self._button(screen, ui, button, f"COMPRAR {skin.price}", CACO_COLOR if ok else theme.FAINT, theme.INK,
+                         caco=True)
+        elif state == "vestir":
+            self._button(screen, ui, button, "VESTIR", theme.MOSS, theme.INK)
+        elif state == "tirar":
+            self._button(screen, ui, button, "TIRAR", theme.LINE_HI, theme.BONE)
+        else:
+            self._button(screen, ui, button, "SÓ COM CUPOM", theme.LINE, theme.MUTED)
+
+    def _button(self, screen, ui, rect, label, fill, ink, caco=False):
+        screen.fill((8, 6, 12), rect.move(0, 3))
+        screen.fill(fill, rect)
+        screen.fill(tuple(min(255, c + 40) for c in fill), (rect.x, rect.y, rect.width, 2))
+        if caco:
+            draw_caco(screen, rect.right - 16, rect.centery, self.match.frame)
+            ui.text(screen, label, theme.XS, ink, (rect.centerx - 8, rect.centery + 1), shadow=False)
+        else:
+            ui.text(screen, label, theme.XS, ink, (rect.centerx, rect.centery + 1), shadow=False)
+
+    # o cupom na TV: ingresso com o código e o teclado na tela
+    def _draw_coupon(self, screen, ui, area):
+        t = self.match.frame
+        ticket = pygame.Rect(area.x + 14, area.y + 20, 200, 200)
+        screen.fill((8, 6, 12), ticket.move(3, 4))
+        screen.fill(PAPER, ticket)
+        screen.fill((120, 200, 255), (ticket.x, ticket.y, ticket.width, 24))
+        ui.text(screen, "CUPOM", theme.S, (20, 40, 80), (ticket.centerx, ticket.y + 13), shadow=False)
+        draw_caco(screen, ticket.centerx, ticket.y + 70, t, size=16)
+        box = pygame.Rect(ticket.x + 12, ticket.y + 118, ticket.width - 24, 26)
+        screen.fill((255, 255, 250), box)
+        pygame.draw.rect(screen, (120, 200, 255), box, 2)
+        blink = "_" if (t // 20) % 2 else ""
+        ui.text(screen, (self.code + blink) or "DIGITE AQUI", theme.XS,
+                (30, 30, 40) if self.code else (150, 150, 160), box.center, shadow=False)
+        for i, line in enumerate(("VALE UMA VEZ POR SAVE", "OU DIGITE NO CELULAR")):
+            ui.text(screen, line, theme.XS, (90, 90, 110), (ticket.centerx, ticket.y + 160 + i * 14), shadow=False)
+        keys = pygame.Rect(ticket.right + 20, area.y + 20, area.right - ticket.right - 34, 200)
         rows = self._keys()
         for r, row in enumerate(rows):
-            cw = (side.width - 20) // len(row)
+            cw = keys.width // len(row)
             for c, k in enumerate(row):
-                cell = pygame.Rect(side.x + 10 + c * cw, side.y + 66 + r * 26, cw - 2, 22)
+                cell = pygame.Rect(keys.x + c * cw, keys.y + r * 40, cw - 4, 34)
                 on = (r, c) == self.key
+                screen.fill((8, 6, 12), cell.move(0, 3))
                 screen.fill(CACO_COLOR if on else (44, 42, 58), cell)
-                ui.text(screen, k, theme.XS, (20, 20, 30) if on else theme.BONE, cell.center, shadow=False)
+                ui.text(screen, k, theme.XS if len(k) > 1 else theme.S, (20, 20, 30) if on else theme.BONE,
+                        (cell.centerx, cell.centery + 1), shadow=False)
