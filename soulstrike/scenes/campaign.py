@@ -589,17 +589,19 @@ def _play_stories(game, keys, then):
     return StoryScene(game, keys[0], lambda: _play_stories(game, keys[1:], then))
 
 
-# créditos do fim da campanha: (sprite, nome de verdade, personagem)
-CAST = (("cauanzera", "Cauã Pedrozo Brito", "CAUANZERA"),
-        ("aryel", "Adryel Assunção Rocha", "ARYEL"),
-        ("borba", "João Francisco da Silva Malaquias", "BORBA JR"),
-        ("albeguinio", "Alber Alberguini Cabral", "ALBEGUINIO"))
+# créditos do fim da campanha: quem criou o jogo e quem testou primeiro (sprite, nome, personagem)
+CREATOR = ("cauanzera", "Cauã Pedrozo Brito", "ideia, programação, arte e história")
+TESTERS = (("aryel", "Adryel Assunção Rocha", "ARYEL"),
+           ("borba", "João Francisco da Silva Malaquias", "BORBA JR"),
+           ("albeguinio", "Alber Alberguini Cabral", "ALBEGUINIO"))
+TESTERS_NOTE = ("O Soul Strike nasceu como um projeto de faculdade e foi ganhando corpo.",
+                "Eles estavam lá desde o começo: inspiraram os personagens, jogaram e deram os primeiros feedbacks.")
 CREDITS_SPEED = 0.9
 
 
 class CreditsScene(_MenuScene):
-    """Créditos depois do fim da campanha: o elenco de verdade (com o sprite de cada um) subindo
-    pela tela. ATACAR, ENTER ou ESC pulam."""
+    """Créditos depois do fim da campanha: quem criou o jogo e quem testou primeiro (com o sprite
+    de cada um) subindo pela tela. ATACAR, ENTER ou ESC pulam."""
 
     phase = "story"
     music = "menu"
@@ -615,10 +617,12 @@ class CreditsScene(_MenuScene):
         self.lines = self._build()
 
     def _build(self):
-        rows = [("title", "SOUL STRIKE"), ("sub", "A CAMPANHA"), ("gap", 30), ("head", "ELENCO")]
-        for sprite, name, role in CAST:
+        rows = [("title", "SOUL STRIKE"), ("sub", "A CAMPANHA"), ("gap", 30), ("head", "CRIADO POR"),
+                ("creator", CREATOR), ("gap", 30), ("head", "QUEM TESTOU PRIMEIRO"),
+                *(("small", line) for line in TESTERS_NOTE), ("gap", 10)]
+        for sprite, name, role in TESTERS:
             rows.append(("cast", (sprite, name, role)))
-        rows += [("gap", 20), ("head", "IDEIA E DIREÇÃO"), ("text", "Cauã Pedrozo Brito"),
+        rows += [
                  ("gap", 20), ("head", "VILÕES"),
                  ("text", "Aryel Corrompido · Borba Jr Corrompido"),
                  ("text", "Albeguinio Corrompido · Cauanzera Corrompido e a IARA"),
@@ -631,7 +635,7 @@ class CreditsScene(_MenuScene):
 
     @staticmethod
     def _height(kind, value):
-        return {"title": 60, "sub": 34, "head": 44, "cast": 92, "text": 30, "small": 26}.get(kind, value or 0)
+        return {"title": 60, "sub": 34, "head": 44, "creator": 130, "cast": 92, "text": 30, "small": 26}.get(kind, value or 0)
 
     @property
     def total(self):
@@ -678,13 +682,19 @@ class CreditsScene(_MenuScene):
                     self.ui.text(screen, value, theme.S, theme.BONE, (W // 2, round(y + h / 2)))
                 elif kind == "small":
                     self.ui.text(screen, value, theme.XS, theme.MUTED, (W // 2, round(y + h / 2)))
+                elif kind == "creator":
+                    sprite, name, what = value
+                    img = self.assets.sprites[sprite].frame("frente", self.ticks // 6)
+                    screen.blit(img, img.get_rect(midbottom=(W // 2, round(y + 64))))
+                    self.ui.text(screen, name, theme.M, theme.BONE, (W // 2, round(y + 86)))
+                    self.ui.text(screen, what, theme.XS, theme.BRASS, (W // 2, round(y + 114)))
                 elif kind == "cast":
                     sprite, name, role = value
                     img = self.assets.sprites[sprite].frame("frente", self.ticks // 6)
                     screen.blit(img, img.get_rect(midbottom=(W // 2 - 190, round(y + h - 8))))
                     self.ui.text(screen, name, theme.S, theme.BONE, (W // 2 - 120, round(y + h / 2 - 10)),
                                  anchor="midleft")
-                    self.ui.text(screen, "como " + role, theme.XS, theme.BRASS, (W // 2 - 120, round(y + h / 2 + 16)),
+                    self.ui.text(screen, "inspirou o " + role, theme.XS, theme.BRASS, (W // 2 - 120, round(y + h / 2 + 16)),
                                  anchor="midleft")
             y += h
         self.ui.text(screen, "ATACAR PULA", theme.XS, theme.MUTED, (W - 24, H - 20), anchor="midright")

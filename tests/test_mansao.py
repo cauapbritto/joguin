@@ -401,10 +401,11 @@ if __name__ == "__main__":
 
 
 class CreditosTest(unittest.TestCase):
-    def test_creditos_tem_o_elenco_e_acabam_sozinhos(self):
-        from soulstrike.scenes.campaign import CAST, CreditsScene
-        names = [n for _, n, _ in CAST]
-        self.assertIn("Cauã Pedrozo Brito", names)
+    def test_creditos_tem_o_criador_e_os_testadores_e_acabam_sozinhos(self):
+        from soulstrike.scenes.campaign import CREATOR, TESTERS, CreditsScene
+        self.assertEqual(CREATOR[1], "Cauã Pedrozo Brito")
+        names = [n for _, n, _ in TESTERS]
+        self.assertNotIn("Cauã Pedrozo Brito", names)
         self.assertIn("João Francisco da Silva Malaquias", names)
         g = game()
         g.session = Session("campaign", [SlotSetup(1, char=0)])
