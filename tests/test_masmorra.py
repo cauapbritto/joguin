@@ -1,5 +1,6 @@
 """Campanha em masmorras: as salas de luta (CampaignMatch avulsa), o baú com as armas raras, a
 fogueira e as armas no chão. O mapa da fase inteira fica em test_fase_mapa."""
+import math
 import unittest
 
 from apoio import FakeInput, game
@@ -131,8 +132,8 @@ class MasmorraTest(unittest.TestCase):
 
 
 class BauTest(unittest.TestCase):
-    def test_bau_da_uma_arma_rara_para_cada_um(self):
-        match, inputs = acampamento(chars=("guerreiro", "atirador", "ninja"), back=True)
+    def _abrir(self, chars=("guerreiro", "atirador", "ninja")):
+        match, inputs = acampamento(chars=chars, back=True)
         chest = match.chest
         self.assertIsNotNone(chest)
         juntar(match, chest.x - 40, chest.y + 10)
@@ -141,16 +142,42 @@ class BauTest(unittest.TestCase):
         passo(match, inputs, 1)
         self.assertEqual(chest.state, "opening")
         self.assertEqual(match.bullets, [])               # o ATACAR abriu o baú (não atirou)
-        passo(match, inputs, DONE_AT + 10)
+        for k, p in enumerate(match.players):             # todo mundo sai de perto (não pega sem querer)
+            p.x, p.y = chest.x - 300 - 40 * k, chest.y
+        passo(match, inputs, DONE_AT + 30)
         self.assertEqual(chest.state, "open")
-        relics = [p.relic for p in match.players]
-        self.assertTrue(all(r is not None and r.rare for r in relics))
-        self.assertEqual(len({r.name for r in relics}), 3)    # armas diferentes
-        for p in match.players:
+        return match, inputs
+
+    def test_bau_joga_as_armas_no_chao_sem_trocar_sozinho(self):
+        match, inputs = self._abrir()
+        self.assertTrue(all(p.relic is None for p in match.players))    # ninguém trocou de arma sozinho
+        self.assertTrue(all(len(p.weapons) == 2 for p in match.players))
+        items = list(match.ground)
+        self.assertEqual(len(items), len(match.players) + 1)            # uma por jogador e mais uma
+        self.assertTrue(all(g.weapon.rare and g.landed for g in items))
+        self.assertEqual(len({g.weapon.name for g in items}), len(items))    # armas diferentes
+        chest = match.chest
+        for g in items:                                                 # caem na frente do baú
+            self.assertGreater(g.y, chest.y)
+            self.assertLess(math.hypot(g.x - chest.x, g.y - chest.y), 450)
+        self.assertTrue(match.run.chest_open)
+
+    def test_cada_um_escolhe_e_pega_a_sua(self):
+        match, inputs = self._abrir(chars=("guerreiro", "atirador"))
+        p1, p2 = match.players
+        a, b = match.ground[0], match.ground[2]
+        p1.x, p1.y = a.x + 20, a.y
+        p2.x, p2.y = b.x + 20, b.y
+        inputs[1].tap("attack")
+        inputs[2].tap("attack")
+        passo(match, inputs, 1)
+        self.assertIs(p1.relic, a.weapon)
+        self.assertIs(p2.relic, b.weapon)
+        for p in (p1, p2):
             self.assertIs(p.weapon, p.relic)                  # já vem na mão
             self.assertEqual(len(p.weapons), 3)
             self.assertEqual(match.run.relics[p.slot], next(k for k, w in RARE_WEAPONS.items() if w is p.relic))
-        self.assertTrue(match.run.chest_open)
+        self.assertEqual(len(match.ground), 1)                # sobrou a outra no chão
 
     def test_arma_rara_continua_nas_proximas_etapas(self):
         g, run = corrida(stage=DUNGEON_2)
@@ -184,11 +211,8 @@ class ArmaNoChaoTest(unittest.TestCase):
             inputs[f.slot] = match.controllers[f] = _Input()
         p1 = match.players[0]
         self.assertIs(p1.relic, RARE_WEAPONS["besta"])
-        chest = match.chest
-        juntar(match, chest.x - 40, chest.y + 10)
-        passo(match, inputs, 3)
-        inputs[1].tap("attack")
-        passo(match, inputs, DONE_AT + 40)                 # abre, as armas voam e a antiga cai
+        match.give_relic(p1, RARE_WEAPONS["canhao"])        # pegou outra rara: a besta cai
+        passo(match, inputs, 40)
         return match, inputs, p1
 
     def test_quarta_arma_deixa_a_antiga_no_chao(self):
@@ -222,6 +246,7 @@ class ArmaNoChaoTest(unittest.TestCase):
     def test_companheiro_pode_pegar(self):
         match, inputs, p1 = self._bau_com_besta()
         p2 = match.players[1]
+        match.give_relic(p2, RARE_WEAPONS["bumerangue"])
         mine = p2.relic
         item = match.ground[0]
         p1.x += 300

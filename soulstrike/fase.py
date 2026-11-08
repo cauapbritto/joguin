@@ -18,7 +18,7 @@ from . import config, crt, enfeites, hud, mascotes, theme
 from .armario import RACK_SIZE, Armario
 from .campaign import CampaignMatch, CoopMatch, _center, _spread
 from .data import PHASE_RELICS, RARE_WEAPONS
-from .dungeon import Campfire, Chest, RelicDrop
+from .dungeon import Campfire, Chest
 from .hazards import make_hazard
 from .mapa_fase import PhaseArena, PhaseLayout, RoomDoor, draw_minimap, minimap_rect
 from .market import MarketMenu, Stall
@@ -27,6 +27,9 @@ from .progress import chapter_cleared
 ROOM_INTRO = 70               # quadros entre a grade descer e a primeira onda sair
 ENTER_DEPTH = 70              # quanto o primeiro precisa entrar na sala para ela fechar
 MINI_TOP = 44                 # o mapinha fica embaixo dos CONTINUES
+CHEST_GAP = 100               # distância entre as armas que o baú joga no chão
+CHEST_CLEAR = 90              # e delas até o armário, a fogueira e as bancas
+CHEST_STEP = 50               # uma sim outra não, mais para baixo
 
 
 class PhaseMatch(CampaignMatch):
@@ -148,6 +151,7 @@ class PhaseMatch(CampaignMatch):
         if self.fight_room is None and self.banner and self.banner[3] > 110:
             self.banner = None
         self._track()
+        self._keep_inside()
         if self.fight_room is None and not self.leaving:
             room = self._entering()
             if room is not None:
@@ -165,6 +169,27 @@ class PhaseMatch(CampaignMatch):
             seen = self.layout.room_at(p.x, p.y)
             if seen is not None:
                 self.visited.add(seen.key)
+
+    def _keep_inside(self):
+        """Rede de segurança: inimigo que foi parar fora da sala de luta (nasceu no corredor, foi
+        empurrado por uma brecha...) volta para dentro na fumaça. Senão ninguém alcança ele, ele não
+        alcança ninguém e a sala nunca fica limpa."""
+        room = self.fight_room
+        if room is None:
+            return
+        for e in self.enemies:
+            if not e.alive_in_match or getattr(e, "ghost_walk", False):
+                continue
+            if room.rect.inflate(-2 * e.radius, -2 * e.radius).collidepoint(e.x, e.y):
+                continue
+            self.burst(e.x, e.y - 16, (200, 200, 210), 10, speed=3)
+            x, y = self.arena.random_free_spot(e.radius)
+            e.x, e.y = x, y
+            e.prev_pos = (x, y)
+            e.vx = e.vy = 0.0
+            e.knock = [0.0, 0.0]
+            e.charge_timer = e.dash_timer = 0
+            self.burst(x, y - 16, (200, 200, 210), 10, speed=3)
 
     def _entering(self):
         for room in self.layout.fight_rooms:
@@ -282,20 +307,48 @@ class PhaseMatch(CampaignMatch):
         return self.pick_ground(f)
 
     def launch_relics(self, chest):
-        """O baú solta uma arma rara para cada jogador: armas diferentes entre si e, se der, que
-        ninguém do grupo já tenha (a que cada um tinha fica no chão)."""
+        """O baú joga as armas raras no chão, em fila na frente dele: uma para cada jogador e mais
+        uma, para dar escolha. Ninguém troca de arma sozinho: cada um vai lá, olha o nome e pega
+        (ATACAR) a que quiser; a que tinha fica no lugar. As armas são diferentes entre si e, se der,
+        da lista da fase e que ninguém do grupo já tenha."""
         held = {p.relic for p in self.players if p.relic is not None}
         phase = [RARE_WEAPONS[k] for k in PHASE_RELICS.get(self.run.phase.key, RARE_WEAPONS)]
+        extra = [w for w in RARE_WEAPONS.values() if not w.forjada and w not in phase]
+        random.shuffle(extra)
         pool = [w for w in phase if w not in held]
         random.shuffle(pool)
-        for p in self.players:
-            choices = [w for w in pool if w is not p.relic] or \
-                [w for w in phase if w is not p.relic] or \
-                [w for w in RARE_WEAPONS.values() if w is not p.relic and not w.forjada]
-            weapon = choices[0]
-            if weapon in pool:
-                pool.remove(weapon)
-            self.props.append(RelicDrop(chest, p, weapon))
+        pool += [w for w in phase if w in held] + [w for w in extra if w not in held]
+        count = len(self.players) + 1
+        weapons = pool[:count]
+        for weapon, at in zip(weapons, self._chest_spots(chest, len(weapons))):
+            self.drop_weapon(chest, weapon, at=at, start=(chest.x, chest.y - 24))
+        solo = len(self.players) == 1
+        self.popup(chest.x, chest.y - 80, "ESCOLHA UMA ARMA" if solo else "ESCOLHAM AS ARMAS", theme.BRASS)
+
+    def _chest_spots(self, chest, n):
+        """Onde as armas do baú caem: em fila do lado dele, para o meio da sala, uma sim outra não
+        mais para baixo (os nomes não se encostam), longe do armário, da fogueira e das bancas."""
+        others = [self.armario, self.campfire] + self.stalls
+        labels = [(o.x, o.y - 120) for o in [self.armario] + self.stalls]     # os nomes em cima deles
+        home = self.layout.room_at(chest.x, chest.y)
+        spots = []
+        cols = (-1, -2, -3, -4, 1, 2, -5, -6, 3)                # do lado do baú, para o meio da sala
+        for row, j in [(row, j) for row in (0, 1, 2) for j in cols]:
+            want = (chest.x + j * CHEST_GAP, chest.y + 10 + (CHEST_STEP if j % 2 == 0 else 0) + row * 2 * CHEST_STEP)
+            x, y = self.arena.free_spot(*want, 16)
+            if math.hypot(x - want[0], y - want[1]) > 30 or self.layout.room_at(x, y) is not home:
+                continue
+            if any(math.hypot(o.x - x, o.y - y) < CHEST_CLEAR for o in others):
+                continue
+            if any(abs(lx - x) < 150 and abs(ly - y - 20) < 36 for lx, ly in labels + [(sx, sy + 20) for sx, sy in spots]):
+                continue
+            spots.append((x, y))
+            if len(spots) == n:
+                break
+        while len(spots) < n:                                  # sem espaço: em volta do baú
+            a = len(spots) * 1.3
+            spots.append(self.arena.free_spot(chest.x + math.cos(a) * 90, chest.y + 40 + math.sin(a) * 60, 16))
+        return spots
 
     # ── desenho ──────────────────────────────
     def draw_screen_layer(self, screen, ui):

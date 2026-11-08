@@ -425,9 +425,10 @@ class MarketMenu:
             owner = owner_of(w)
             sold = w.name in self.stall.sold
             mine = any(x.name == w.name for x in f.weapons)
-            swap = next((x for x in f.base_weapons if x.is_melee == w.is_melee), None)
+            swap = None if f.fused else next((x for x in f.base_weapons if x.is_melee == w.is_melee), None)
             sub = "VENDIDA" if sold else "VOCÊ JÁ TEM" if mine else f"DONO: {owner}"
-            desc = (f"vem para a mão no lugar da {swap.name.lower()}" if swap is not None
+            desc = ("com a forjada na mão, não dá para trocar" if f.fused
+                    else f"vem para a mão no lugar da {swap.name.lower()}" if swap is not None
                     else "seu herói não usa esse tipo de arma")
             info = {"type": "arma", "sub": sub, "owner": owner, "weapon": weapon_card(f, w),
                     "out": weapon_card(f, swap) if swap is not None else None}
@@ -436,7 +437,8 @@ class MarketMenu:
         return out
 
     def _buy_weapon(self, weapon):
-        """Arma da vitrine: vai direto para a mão; a que ela troca fica no chão, na frente da banca."""
+        """Arma da vitrine: vai direto para a mão; a que ela troca (se for de outro herói) fica no chão,
+        na frente da banca. A do próprio herói volta para a mochila."""
         s = self.stall
         s.sold.add(weapon.name)
         self.match.give_common(self.fighter, weapon, drop_at=(s.x, s.y + 56))
@@ -501,8 +503,12 @@ class MarketMenu:
         weapon = FORGED[key]
         for w in f.base_weapons:
             f.forge.pop(w.name, None)               # as do herói voltam ao +0
+            f.clips.pop(w, None)
         if f.relic is not None:
             f.forge.pop(f.relic.name, None)
+        # as três somem dentro da forjada: fica só ela na mão (LARGAR a forjada devolve as do herói)
+        f.loadout = None
+        run.loadouts[f.slot] = None
         f.give_relic(weapon)
         run.relics[f.slot] = key
         if level:

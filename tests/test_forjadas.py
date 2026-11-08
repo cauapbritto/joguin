@@ -62,10 +62,34 @@ class FusaoTest(unittest.TestCase):
         self.assertEqual(match.run.souls[1], 1000 - FUSION_COST)
         self.assertIn("arco_mil_almas", forged.discovered())
         self.assertIsNone(menu._fusion_entry())                # forjada não entra em outra fusão
+        self.assertEqual(p.weapons, (FORGED["arco_mil_almas"],))  # as três viraram uma só
+        self.assertIs(p.weapon, p.relic)
+        self.assertFalse(p.switch_weapon())                   # nada para trocar
         match.run.begin_phase()
         back = CampaignRun.from_save(json.loads(json.dumps(match.run.to_save())))
         self.assertEqual(back.relics[1], "arco_mil_almas")
         self.assertEqual(back.fused_phase, 0)
+
+    def test_fusao_consome_arma_de_outro_heroi_e_largar_devolve_as_do_heroi(self):
+        match, inputs = acampamento(souls=1000)
+        p = match.players[0]
+        katana = common_weapon("Katana")
+        match.give_common(p, katana)
+        p.give_relic(R["besta"])
+        p, menu = abrir(match, inputs[1], "ferreiro")
+        menu.index = len(menu.entries()) - 1
+        apertar(match, inputs[1], "attack")
+        self.assertTrue(p.fused)
+        self.assertEqual(len(p.weapons), 1)
+        self.assertIsNone(match.run.loadouts[1])              # a katana foi junto na fusão
+        apertar(match, inputs[1], "dodge")
+        n = len(match.ground)
+        match.give_common(p, common_weapon("Machado"))         # com a forjada não pega comum
+        self.assertEqual(len(p.weapons), 1)
+        match.drop_held(p)                                     # larga a forjada: volta o herói
+        self.assertFalse(p.fused)
+        self.assertEqual(p.weapons, p.stats.weapons)
+        self.assertEqual(len(match.ground), n + 1)
 
     def test_uma_fusao_por_mercado(self):
         match, inputs = acampamento(souls=1000)

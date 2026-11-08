@@ -555,15 +555,29 @@ class Arena:
             return False
         return not any(w.overlaps_circle(x, y, radius) for w in self.walls)
 
+    @property
+    def in_room(self):
+        """True numa sala de luta da fase em mapa só (a sala é só um pedaço do mapa)."""
+        return self.room.size != (self.width, self.height)
+
+    def in_room_spot(self, x, y, radius):
+        """(x, y) está dentro da sala de luta? (no mapa inteiro, sempre)."""
+        return not self.in_room or self.room.inflate(-2 * radius, -2 * radius).collidepoint(x, y)
+
     def free_spot(self, x, y, radius):
-        """Ponto livre mais próximo de (x, y), procurando em espiral."""
-        if self.is_free(x, y, radius):
+        """Ponto livre mais próximo de (x, y), procurando em espiral. Numa sala de luta, o ponto
+        fica dentro dela: nada nasce no corredor, atrás da grade, onde ninguém alcança."""
+        if self.in_room:
+            inner = self.room.inflate(-2 * radius - 8, -2 * radius - 8)
+            x = min(max(x, inner.left), inner.right)
+            y = min(max(y, inner.top), inner.bottom)
+        if self.is_free(x, y, radius) and self.in_room_spot(x, y, radius):
             return x, y
         for dist in range(10, 400, 10):
             for k in range(16):
                 a = k * math.pi / 8
                 px, py = x + math.cos(a) * dist, y + math.sin(a) * dist
-                if self.is_free(px, py, radius):
+                if self.is_free(px, py, radius) and self.in_room_spot(px, py, radius):
                     return px, py
         return x, y
 

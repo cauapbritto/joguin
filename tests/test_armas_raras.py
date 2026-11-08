@@ -75,10 +75,15 @@ class BauPorFaseTest(unittest.TestCase):
             g, run = corrida(chars=("guerreiro", "atirador", "ninja", "geada"), phase=i, stage=LOBBY_BACK)
             match = PhaseMatch(g, run)
             match.launch_relics(match.chest)
-            dados = [d.weapon for d in match.props if d.__class__.__name__ == "RelicDrop"]
-            self.assertEqual(len(dados), 4)
-            self.assertTrue(all(w in [RARE_WEAPONS[k] for k in PHASE_RELICS[ph.key]] for w in dados), ph.key)
-            self.assertEqual(len(set(map(id, dados))), 4)                # todos diferentes
+            dados = [g.weapon for g in match.ground]
+            self.assertEqual(len(dados), 5)                              # uma por jogador e mais uma
+            lista = [RARE_WEAPONS[k] for k in PHASE_RELICS[ph.key]]
+            self.assertTrue(all(w in dados for w in lista), ph.key)      # as da fase vêm todas primeiro
+            self.assertEqual(len(set(map(id, dados))), 5)                # todos diferentes
+            self.assertFalse(any(w.forjada for w in dados))
+            sala = match.layout.rooms["recompensa"]
+            for g in match.ground:                                       # todas dentro da sala do baú
+                self.assertIs(match.layout.room_at(g.end[0], g.end[1]), sala, ph.key)
 
     def test_todas_tem_projetil_arte_e_texto(self):
         for key in [k for ks in PHASE_RELICS.values() for k in ks]:

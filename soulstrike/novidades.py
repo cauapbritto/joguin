@@ -12,6 +12,23 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.42.0": [
+        {"title": "O BAÚ NÃO ESCOLHE POR VOCÊ", "scene": "corredores", "lines": [
+            "Abrindo o baú, as armas raras saltam para o chão, na frente dele: uma por jogador e mais uma.",
+            "Ninguém troca de arma sozinho: vá até a que quiser, veja o nome e ATACAR pega.",
+            "A rara que você tinha fica no chão no lugar, e o amigo pode pegar.",
+        ]},
+        {"title": "CORREÇÕES", "scene": "mapa_fase", "lines": [
+            "Trocar de arma não duplica mais: a arma do seu herói volta para a mochila, não para o chão.",
+            "Os drones e os outros chamados do chefe nascem dentro da sala, e não mais no corredor.",
+            "Inimigo que escapar da sala de luta volta para dentro: a sala sempre dá para limpar.",
+        ]},
+        {"title": "FUSÃO DE VERDADE", "scene": "loja", "lines": [
+            "No ferreiro, FUNDIR AS 3 ARMAS agora junta as três numa só: sobra só a forjada na mão.",
+            "Quer as armas do herói de volta? LARGAR ARMA solta a forjada no chão.",
+            "Com a forjada na mão não dá para pegar arma comum: largue ela antes.",
+        ]},
+    ],
     "1.41.0": [
         {"title": "CRÉDITOS NOVOS", "scene": "mansao", "lines": [
             "Os créditos do fim da campanha e do cinema agora abrem com CRIADO POR: Cauã Pedrozo Brito.",
