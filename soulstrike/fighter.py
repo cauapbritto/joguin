@@ -404,7 +404,14 @@ class Fighter(Entity):
         return self.loadout or self.stats.weapons
 
     @property
+    def fused(self):
+        """Com a forjada da fusão na mão, as três armas que viraram ela não existem mais."""
+        return self.relic is not None and self.relic.forjada
+
+    @property
     def weapons(self):
+        if self.fused:
+            return (self.relic,)
         if self.relic is not None:
             return self.base_weapons + (self.relic,)
         return self.base_weapons
@@ -456,7 +463,7 @@ class Fighter(Entity):
         w = self.weapon
         if not w.is_melee:
             return w
-        for w in self.base_weapons:
+        for w in self.weapons:
             if not w.is_melee:
                 return w
         return None

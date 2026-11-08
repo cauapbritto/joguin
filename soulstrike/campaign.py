@@ -894,8 +894,9 @@ class CoopMatch(Match):
         self.ground.remove(item)
         if item.weapon.rare:
             self.give_relic(f, item.weapon, drop_at=(item.x, item.y))
-        else:
-            self.give_common(f, item.weapon, drop_at=(item.x, item.y))
+        elif self.give_common(f, item.weapon, drop_at=(item.x, item.y)) is False:
+            item.alive = True                        # não pegou: a arma fica onde estava
+            self.ground.append(item)
         return True
 
     def give_relic(self, fighter, weapon, drop_at=None):
@@ -908,10 +909,13 @@ class CoopMatch(Match):
 
     def give_common(self, fighter, weapon, drop_at=None):
         """Arma de outro herói: entra no lugar da de mesmo tipo e já vem na mão."""
+        if fighter.fused:                            # só a forjada: larga ela antes de pegar outra
+            self.popup(fighter.x, fighter.y - 80, "LARGUE A FORJADA ANTES", theme.MUTED)
+            return False
         base = list(fighter.base_weapons)
         i = next((k for k, w in enumerate(base) if w.is_melee == weapon.is_melee), None)
         if i is None:                                # herói sem arma desse tipo (só joga bola): não pega
-            return
+            return False
         old = base[i]
         base[i] = weapon
         fighter.loadout = None if tuple(base) == fighter.stats.weapons else tuple(base)
@@ -1067,6 +1071,10 @@ class CoopMatch(Match):
         if weapon.rare:
             old = f.give_relic(weapon)
             self.run.relics[f.slot] = relic_key(weapon)
+        elif f.fused:                                # só a forjada: a comum volta para o armário
+            self.run.rack.insert(0, token_of(weapon))
+            self.popup(f.x, f.y - 80, "LARGUE A FORJADA ANTES", theme.MUTED)
+            return False
         else:
             base = list(f.base_weapons)
             i = next(k for k, w in enumerate(base) if w.is_melee == weapon.is_melee)

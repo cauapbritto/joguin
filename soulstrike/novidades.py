@@ -23,6 +23,11 @@ NEWS = {
             "Os drones e os outros chamados do chefe nascem dentro da sala, e não mais no corredor.",
             "Inimigo que escapar da sala de luta volta para dentro: a sala sempre dá para limpar.",
         ]},
+        {"title": "FUSÃO DE VERDADE", "scene": "loja", "lines": [
+            "No ferreiro, FUNDIR AS 3 ARMAS agora junta as três numa só: sobra só a forjada na mão.",
+            "Quer as armas do herói de volta? LARGAR ARMA solta a forjada no chão.",
+            "Com a forjada na mão não dá para pegar arma comum: largue ela antes.",
+        ]},
     ],
     "1.41.0": [
         {"title": "CRÉDITOS NOVOS", "scene": "mansao", "lines": [
