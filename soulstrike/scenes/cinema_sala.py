@@ -13,7 +13,7 @@ import pygame
 
 from .. import config, progress, theme
 from ..ui import MenuList
-from .campaign import CAST, CINEMA, _pressed, _RunMenuScene, draw_seals
+from .campaign import CINEMA, CREATOR, TESTERS, TESTERS_NOTE, _pressed, _RunMenuScene, draw_seals
 
 W, H = config.SCREEN_W, config.SCREEN_H
 SCREEN = pygame.Rect(120, 26, 720, 330)          # o telão, visto da plateia
@@ -44,7 +44,7 @@ def _lerp_rect(a, b, t):
 
 
 class CreditsRoll:
-    """Os créditos subindo dentro do telão (o elenco de verdade, com o sprite de cada um)."""
+    """Os créditos subindo dentro do telão: quem criou o jogo e quem testou primeiro."""
 
     def __init__(self, game):
         self.game = game
@@ -59,6 +59,14 @@ class CreditsRoll:
     def skip(self):
         self.done = True
 
+    def _sprite(self, surf, sprite, **where):
+        try:
+            img = self.game.assets.sheet_sprites(sprite).pose("frente", "parado", (self.age // 30) % 2)
+            img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
+            surf.blit(img, img.get_rect(**where))
+        except (FileNotFoundError, pygame.error, KeyError):
+            pass
+
     def draw(self, surf, ui):
         surf.fill((0, 0, 0))
         if self.done:
@@ -69,16 +77,21 @@ class CreditsRoll:
         y += 70
         ui.text(surf, "A CAMPANHA", theme.S, theme.MUTED, (W // 2, round(y)))
         y += 70
-        ui.text(surf, "ELENCO", theme.M, theme.BRASS, (W // 2, round(y)))
-        y += 50
-        for sprite, name, role in CAST:
-            try:
-                img = self.game.assets.sheet_sprites(sprite).pose("frente", "parado", (self.age // 30) % 2)
-                img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
-                surf.blit(img, img.get_rect(midright=(W // 2 - 150, round(y) + 6)))
-            except (FileNotFoundError, pygame.error, KeyError):
-                pass
-            ui.text(surf, role, theme.XS, theme.BRASS, (W // 2 - 120, round(y) - 8), anchor="midleft")
+        ui.text(surf, "CRIADO POR", theme.M, theme.BRASS, (W // 2, round(y)))
+        y += 34
+        sprite, name, what = CREATOR
+        self._sprite(surf, sprite, midtop=(W // 2, round(y)))
+        y += 150
+        ui.text(surf, name, theme.M, theme.BONE, (W // 2, round(y)))
+        ui.text(surf, what, theme.XS, theme.BRASS, (W // 2, round(y) + 30))
+        y += 110
+        ui.text(surf, "QUEM TESTOU PRIMEIRO", theme.M, theme.BRASS, (W // 2, round(y)))
+        for i, line in enumerate(TESTERS_NOTE):
+            ui.text(surf, line, theme.XS, theme.MUTED, (W // 2, round(y) + 32 + i * 20))
+        y += 130
+        for sprite, name, role in TESTERS:
+            self._sprite(surf, sprite, midright=(W // 2 - 150, round(y) + 6))
+            ui.text(surf, "inspirou o " + role, theme.XS, theme.BRASS, (W // 2 - 120, round(y) - 8), anchor="midleft")
             ui.text(surf, name, theme.S, theme.BONE, (W // 2 - 120, round(y) + 12), anchor="midleft")
             y += 90
         y += 40

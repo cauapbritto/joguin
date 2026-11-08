@@ -12,6 +12,13 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.41.0": [
+        {"title": "CRÉDITOS NOVOS", "scene": "mansao", "lines": [
+            "Os créditos do fim da campanha e do cinema agora abrem com CRIADO POR: Cauã Pedrozo Brito.",
+            "Os amigos ganharam a seção QUEM TESTOU PRIMEIRO, cada um com o personagem que inspirou.",
+            "O jogo nasceu como projeto de faculdade e ganhou corpo. Valeu, turma, por estar junto desde o começo!",
+        ]},
+    ],
     "1.40.0": [
         {"title": "PARA ONDE?", "scene": "casa", "lines": [
             "No começo da campanha, ATACAR no carro do quintal abre o PARA ONDE?.",
