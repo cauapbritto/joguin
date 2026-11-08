@@ -349,16 +349,39 @@ class ChefeTest(unittest.TestCase):
         pancada(match, boss, 0.1)
         self.assertEqual(brain.stage, 4)
         self.assertTrue(boss.alive_in_match)
-        passo(match, 700)
-        self.assertEqual(len(brain.allies), 3)
-        self.assertIsNotNone(brain.plug)
-        self.assertTrue(boss.stunned)
+        self.assertIsNotNone(brain.plug)                                  # SOBRECARGA: a tomada já aparece
+        passo(match, 120)
+        self.assertFalse(boss.stunned)                                    # sem a turma: ninguém prende ele
+        boss.invulnerable_timer = 0
+        boss.take_damage(boss.max_hp, boss.x, boss.y, attacker=match.players[0], match=match)
+        passo(match, 5)
+        self.assertTrue(boss.alive_in_match)                              # só a tomada derruba
+        self.assertEqual(boss.hp, 1)
+        self.assertFalse(any(type(e).__name__ == "AllyCameo" for e in match.effects))
         p = match.players[0]
         p.x, p.y = brain.plug.x, brain.plug.y + 30
         self.assertTrue(match.interact(p))
         passo(match, 20)
         self.assertFalse(boss.alive_in_match)
         self.assertTrue(match.slain_boss)
+
+    def test_sobrecarga_protege_a_tomada(self):
+        match, boss, brain = chefe()
+        brain.stage, brain.enraged, brain.summoned = 3, True, True
+        pancada(match, boss, 0.1)
+        self.assertEqual(brain.stage, 4)
+        plug = brain.plug
+        passo(match, 90)                                                  # passa o rugido
+        p = match.players[0]
+        p.x, p.y = plug.x + 150, plug.y + 60                              # chegando perto da tomada
+        guarded = False
+        for _ in range(300):                                              # termina o golpe e investe
+            p.x, p.y = plug.x + 150, plug.y + 60
+            match.update()
+            if brain.state in ("dash", "dashing") and brain.guard_cd > 0:
+                guarded = True
+                break
+        self.assertTrue(guarded)                                          # ele investe em quem chega
 
     def test_chefe_aparece_e_luta(self):
         random.seed(2)
