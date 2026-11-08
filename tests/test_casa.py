@@ -21,11 +21,11 @@ class _Input(FakeInput):
         pass
 
 
-def casa_da_turma(chars=("guerreiro", "atirador"), story=True):
+def casa_da_turma(chars=("guerreiro", "atirador"), story=True, walk=False):
     g = game()
-    g.session = Session("campaign", [SlotSetup(i + 1, char=KEYS.index(c)) for i, c in enumerate(chars)])
+    g.session = Session("campaign", [SlotSetup(i + 1, char=KEYS.index(c)) for i, c in enumerate(chars)], walk=walk)
     run = CampaignRun(g.session)
-    match = HubMatch(g, run, story)
+    match = HubMatch(g, run, story, walk=walk)
     inputs = {}
     for f in match.players:
         inputs[f.slot] = match.controllers[f] = _Input()
@@ -154,14 +154,15 @@ class CasaTest(unittest.TestCase):
         p.x, p.y = r.centerx, r.bottom + 10
         self.assertIsNone(match.speaker_near(p))
 
-    def test_corrompidos_so_depois_de_liberados(self):
+    def test_corrompidos_so_no_salao_da_garagem(self):
+        from soulstrike.garagem import GarageMatch
         reset_progress()
         match, _ = casa_da_turma()
-        keys = {s.key for s in match.speakers}
-        self.assertNotIn("aryel_corrompido", keys)
+        self.assertFalse(any(s.key.endswith("_corrompido") for s in GarageMatch(match.game, match.run).speakers))
         reset_progress(capitulo1_zerado=True)
         match, _ = casa_da_turma()
-        keys = {s.key for s in match.speakers}
+        self.assertNotIn("aryel_corrompido", {s.key for s in match.speakers})     # na casa, não
+        keys = {s.key for s in GarageMatch(match.game, match.run).speakers}
         self.assertIn("aryel_corrompido", keys)
         self.assertNotIn("borba_corrompido", keys)
         reset_progress()
@@ -203,6 +204,57 @@ class CasaTest(unittest.TestCase):
         match, _ = casa_da_turma()
         self.assertTrue(all(opened for _, opened, _, _ in match.doors))
         reset_progress()
+
+
+class PasseioTest(unittest.TestCase):
+    def test_passear_na_casa_pelo_menu(self):
+        reset_progress()
+        from soulstrike.scenes import menus
+        from soulstrike.scenes.campaign import start_campaign
+        g = game()
+        went = []
+        g.change = lambda s: went.append(s)
+        self.addCleanup(lambda: g.__dict__.pop("change", None))
+        self.assertIn("passeio", [m for _, modes in menus.MODE_GROUPS["campanha"] for m in modes])
+        menus.start_mode(g, "passeio")
+        self.assertTrue(g.session.walk)
+        self.assertEqual(g.session.mode, "campaign")
+        scene = start_campaign(g)
+        self.assertIsInstance(scene.match, HubMatch)
+        self.assertTrue(scene.match.walk)
+        self.assertEqual(progress.saved_campaign(), None)          # o passeio não cria save
+
+    def test_no_passeio_o_city_nao_sai(self):
+        reset_progress()
+        match, inputs = casa_da_turma(walk=True)
+        area = match.door_area
+        for k, p in enumerate(match.players):
+            p.x, p.y = area.x + 20 + 40 * k, area.bottom - 10
+        passo(match, inputs, PASSAGE_FRAMES + LEAVE_FRAMES + 2)
+        self.assertFalse(match.finished)
+        self.assertIsNone(match.objective())
+        self.assertIn("PAUSE", match.objective_text)
+        self.assertTrue(match.restart_scene().match.walk)
+
+    def test_armadura_vale_no_passeio_em_qualquer_capitulo(self):
+        reset_progress()
+        match, _ = casa_da_turma(walk=True)
+        match.run.phase_index = 6
+        again = HubMatch(match.game, match.run, False, walk=True)
+        self.assertTrue(again.armor_free)
+
+    def test_minimapa_da_casa(self):
+        reset_progress()
+        match, _ = casa_da_turma(("guerreiro", "atirador", "ninja", "tanque"))
+        rect = match.minimap_rect()
+        self.assertLessEqual(rect.right, config.SCREEN_W)
+        self.assertIn(rect.inflate(4, 4), match.hud_regions())
+        screen = pygame.Surface((config.SCREEN_W, config.SCREEN_H))
+        match.draw_hud(screen, match.game.ui)
+        p = match.players[-1]                                 # o último desenhado fica por cima
+        x = round(rect.x + 2 + p.x * (rect.w - 4) / match.arena.size[0])
+        y = round(rect.y + 2 + (p.y - casa.OY) * (rect.w - 4) / match.arena.size[0])
+        self.assertEqual(tuple(screen.get_at((x, y)))[:3], p.color[:3])   # o ponto do jogador na cor dele
 
 
 if __name__ == "__main__":

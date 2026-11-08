@@ -12,7 +12,7 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
-    "1.32.0": [
+    "1.39.0": [
         {"title": "A HISTÓRIA COSTURADA", "scene": "iara", "lines": [
             "Uma voz roxa sai do cristal e tenta cada amigo: o Aryel, o Borba Jr, o Albeguinio.",
             "No capítulo 4 ela entra no servidor e ganha nome: é a IARA.",
@@ -36,6 +36,119 @@ NEWS = {
             "O telão vem chegando até ocupar a tela inteira, e o filme passa sozinho.",
             "FILME COMPLETO vai da abertura ao epílogo, com a plateia reagindo e aplaudindo no fim.",
             "Segure ESC para sair no meio.",
+        ]},
+    ],
+    "1.38.0": [
+        {"title": "SALAS MOBILIADAS", "scene": "mapa_fase", "lines": [
+            "As salas de luta ganharam móveis do capítulo, desenhados no mesmo capricho dos heróis.",
+            "Na floresta: árvores, tronco caído, pedras e moitas. No Lag Lobby: rack, mesa com PC e caixas.",
+            "Na clínica: cadeiras de espera, biombo e carrinho de spa. Na Mansão: relógio, poltronas e busto.",
+            "Poças de luz no chão de cada sala, e nenhum móvel fecha porta ou caminho.",
+        ]},
+    ],
+    "1.37.0": [
+        {"title": "MASCOTES DA CASA", "scene": "casa", "lines": [
+            "O gato laranja dorme no sofá, o Caramelo mora na casinha do quintal e o papagaio no poleiro.",
+            "Chegue perto do cantinho e aperte ATACAR para adotar. Ele passa a te seguir, nas fases também.",
+            "Cada bicho tem um dono só, e fica guardado de uma vez para a outra.",
+            "Para devolver, leve o bicho até o cantinho dele e aperte ATACAR.",
+        ]},
+        {"title": "CASA ACONCHEGANTE", "scene": "casa", "lines": [
+            "A luz das janelas segue o relógio: dourada de manhã, alaranjada à tarde e luar de noite.",
+            "De noite o vidro escurece e aparecem a lua e as estrelas.",
+            "Padaria com pão francês, sonho, baguete, pão de queijo e croissant, e o forno soltando fumaça.",
+            "O exoesqueleto do Borba Jr ganhou pistões, núcleo aceso e capacete com viseira.",
+        ]},
+    ],
+    "1.36.0": [
+        {"title": "GARAGEM CAPRICHADA", "scene": "casa", "lines": [
+            "Lá embaixo, a garagem ganhou piso de epóxi com placas, marcas de pneu e manchas de óleo.",
+            "Parede de bloco com a faixa de aviso, placa de neon GARAGEM DA TURMA e painel de ferramentas.",
+            "Cada vaga tem faixa amarela, batente e o nome do carro pintado no chão.",
+            "Estante com um troféu para cada selo da campanha, carrinho de ferramentas, pneus e tambor.",
+        ]},
+    ],
+    "1.35.0": [
+        {"title": "OS CARROS DA TURMA", "scene": "casa", "lines": [
+            "O City do João agora é o sedã 2026, azul acinzentado, com farol de LED e roda de 5 raios.",
+            "O Uno Mille branco ficou quadradinho de verdade, com a calota de 4 furos.",
+            "A moto do Aryel ganhou carenagem laranja, garfo dourado e escapamento cromado.",
+        ]},
+        {"title": "A ESTRADA DA VIAGEM", "scene": "casa", "lines": [
+            "Céu em degradê com nuvens, morros em duas camadas e o bairro com casinhas e árvores.",
+            "Calçada com postes e asfalto granulado. Depois vem o cenário do capítulo.",
+            "Dá para ver a turma pelo vidro do carro, e as rodas giram de verdade.",
+        ]},
+    ],
+    "1.34.0": [
+        {"title": "QUEM ATENDE A LOJA", "scene": "loja", "lines": [
+            "A loja e o ferreiro agora têm gente atrás do balcão, desenhada como os heróis.",
+            "Cap. 1: o mascate de chapéu e o ferreiro ruivo martelando a bigorna.",
+            "Cap. 2: o técnico do lado da máquina de venda e o soldador de máscara.",
+            "Cap. 3: a atendente de jaleco rosa e o técnico dos aparelhos de estética.",
+            "Cap. 4: o mordomo com a bandeja e o ourives de lupa no olho.",
+        ]},
+        {"title": "SALA DE RECOMPENSAS", "scene": "loja", "lines": [
+            "Cada capítulo tem o seu baú: baú de madeira, cofre, maleta de beleza e arca de mogno.",
+            "O armário de armas também muda: madeira, rack de servidor, armário rosa e cristaleira.",
+            "A fogueira vira tambor com fogo na Lag Lobby, difusor de vapor na clínica",
+            "e lareira de mármore na mansão. Todas continuam curando do mesmo jeito.",
+        ]},
+    ],
+    "1.33.0": [
+        {"title": "CANTOS FECHADOS", "scene": "casa", "lines": [
+            "As paredes que se encostam agora são uma peça só, na Casa e em todas as fases.",
+            "Em cima aparece o topo da parede, embaixo a frente, com um contorno só em volta.",
+            "Cada sala virou um quadrado fechado de verdade, sem emenda nos cantos.",
+        ]},
+        {"title": "CASA MAIS BONITA", "scene": "casa", "lines": [
+            "Chão de carvalho claro e tapete persa vinho com franja na sala.",
+            "Vasos diferentes, placa GREEN! com moldura, roleta vermelha e creme.",
+            "Os craques do quintal ganharam pódio de pedra com plaquinha e holofote.",
+            "Horta com espantalho e mangueira, alçapão do porão com corrente e cadeado.",
+            "A garagem do quintal tem telhado de telha, portão de enrolar e placa.",
+        ]},
+    ],
+    "1.31.0": [
+        {"title": "UM MAPA POR CAPÍTULO", "scene": "casa", "lines": [
+            "Cada capítulo tem o seu formato de mapa.",
+            "Capítulo 1: a cruz de sempre, com a abertura no meio.",
+            "Capítulo 2: a torre da Lag Lobby, subindo andar por andar até a cobertura.",
+            "Capítulo 3: o corredor da clínica, da recepção até o fim, com a farmácia de lado.",
+            "Capítulo 4: o pátio da mansão, com as salas em volta e o chefe no salão do fundo.",
+        ]},
+        {"title": "FASES ESPELHADAS", "scene": "casa", "lines": [
+            "As três fases do capítulo usam o mesmo formato, mas espelhado.",
+            "A segunda vira de lado, e a terceira vira também de cima para baixo (a torre sempre sobe).",
+            "O mapinha do canto acompanha o formato novo.",
+        ]},
+    ],
+    "1.30.0": [
+        {"title": "GARAGEM LÁ EMBAIXO", "scene": "casa", "lines": [
+            "A garagem virou um lugar de verdade: ATACAR no portão e a turma desce a rampa.",
+            "Lá embaixo ficam três vagas: o City, o Uno e a moto.",
+            "Ande até um carro e aperte ATACAR para ir com ele. O menu da lista continua na estante.",
+            "Carro que ainda não foi liberado fica coberto com a lona.",
+            "Para voltar, é só subir a rampa: vocês saem na porta da garagem.",
+        ]},
+        {"title": "SALÃO DOS CORROMPIDOS", "scene": "casa", "lines": [
+            "Descendo a escada no fundo da garagem tem o salão dos corrompidos.",
+            "Zerou o capítulo, o corrompido dele ganha um lugar lá, e dá para conversar com ele.",
+            "Pedestal vazio mostra qual capítulo falta zerar.",
+            "A estante de troféus fica do lado das vagas.",
+        ]},
+    ],
+    "1.29.0": [
+        {"title": "PASSEAR NA CASA", "scene": "casa", "lines": [
+            "Modo novo na campanha, em EXTRAS: PASSEAR NA CASA.",
+            "Entra direto na Casa da turma, sem fase, sem tempo e sem mexer no save.",
+            "Dá para usar tudo: computador, roleta, padaria, horta, garagem e a armadura de Uno.",
+            "O City fica parado. Para voltar ao menu, é pela pausa.",
+        ]},
+        {"title": "O MAPINHA DA CASA", "scene": "casa", "lines": [
+            "A Casa agora tem um mapinha no canto, como o das fases.",
+            "Ele mostra a casa, o quintal e o canto de cada um.",
+            "Cada jogador é um ponto na cor dele. As portas trancadas ficam em cinza.",
         ]},
     ],
     "1.28.0": [

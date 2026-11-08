@@ -413,6 +413,45 @@ def _lag_garagem(s, rng):
     _vignette(s, (20, 20, 24), 40)
 
 
+def _garagem(s, rng):
+    """Garagem da Casa, lá embaixo: piso de epóxi cinza-azulado em placas, com brilho das luminárias,
+    marcas de pneu, manchas de óleo e o ralo."""
+    w, h = s.get_size()
+    base, seam = (86, 90, 98), (74, 78, 86)
+    s.fill(base)
+    tile = 40                                                         # placas de 80 px na tela
+    for gy in range(0, h, tile):
+        for gx in range(0, w, tile):
+            s.fill(_shade(base, rng.randint(-3, 3)), (gx + 1, gy + 1, tile - 1, tile - 1))
+        s.fill(seam, (0, gy, w, 1))
+    for gx in range(0, w, tile):
+        s.fill(seam, (gx, 0, 1, h))
+    for _ in range(w * h // 5):                                       # granulado do epóxi
+        s.set_at((rng.randrange(w), rng.randrange(h)), _shade(base, rng.choice((-10, -6, 8, 12))))
+    sheen = pygame.Surface((w, h), pygame.SRCALPHA)                    # brilho das luminárias no piso
+    for cx in range(w // 6, w, w // 3):
+        for k in range(10):
+            pygame.draw.ellipse(sheen, (255, 255, 255, 5), (cx - 90 + k * 6, h // 3 + k * 3, 180 - k * 12, 120 - k * 6))
+    s.blit(sheen, (0, 0))
+    for _ in range(8):                                                # marcas de pneu
+        x, y, length = rng.randrange(w), rng.randrange(h // 4, h), rng.randint(40, 120)
+        for dx in (0, 14):
+            for i in range(0, length, 2):
+                s.set_at(((x + dx) % w, min(h - 1, y + i)), (64, 66, 72))
+    for _ in range(12):                                               # manchas de óleo
+        x, y = rng.randrange(w), rng.randrange(h)
+        rw, rh = rng.randint(10, 24), rng.randint(5, 10)
+        pygame.draw.ellipse(s, (58, 60, 68), (x, y, rw, rh))
+        pygame.draw.ellipse(s, (48, 50, 58), (x + rw // 4, y + rh // 4, rw // 2, rh // 2))
+        s.set_at((x + rw // 3, y + 1), (110, 96, 130))                # o arco-íris do óleo
+    for cx in range(w // 4, w, w // 2):                               # ralos
+        cy = h - 30
+        s.fill((50, 52, 58), (cx - 8, cy - 4, 16, 8))
+        for k in range(cx - 6, cx + 6, 3):
+            s.fill((30, 30, 34), (k, cy - 3, 1, 6))
+    _vignette(s, (20, 20, 26), 30)
+
+
 def _lag_cobertura(s, rng):
     """Cobertura: placas de concreto, o H do heliponto no meio e ralos."""
     w, h = s.get_size()
@@ -917,18 +956,20 @@ def _casa(s, rng):
             continue
         s.fill((70, 120, 54), (x, y, 1, 3))
         s.fill((70, 120, 54), (x + 2, y + 1, 1, 2))
-    # casa: tábuas corridas com as juntas desencontradas
+    # casa: tábuas corridas de carvalho claro, com as juntas desencontradas (os móveis escuros destacam)
     top = CASA_TOP * t
-    s.fill((96, 62, 38), (0, top, w, split - top))
+    base, plank, joint, line, knot = (168, 128, 84), (180, 140, 92), (134, 98, 62), (126, 92, 58), (156, 118, 78)
+    s.fill(base, (0, top, w, split - top))
     for y in range(top, split, 8):
         off = rng.randrange(0, 40)
         for x in range(-off, w, 40 + rng.randrange(0, 20)):
-            c = _shade((104, 68, 42), rng.randint(-12, 12))
+            c = _shade(plank, rng.randint(-10, 10))
             s.fill(c, (x, y, 60, 7))
-            s.fill((70, 44, 26), (x, y, 1, 7))
-        s.fill((66, 42, 26), (0, y + 7, w, 1))
-    for _ in range(140):
-        s.fill((88, 56, 34), (rng.randrange(w), rng.randrange(top, split), rng.randrange(2, 6), 1))
+            s.fill(_shade(c, 14), (x, y, 60, 1))
+            s.fill(joint, (x, y, 1, 7))
+        s.fill(line, (0, y + 7, w, 1))
+    for _ in range(160):
+        s.fill(knot, (rng.randrange(w), rng.randrange(top, split), rng.randrange(2, 6), 1))
 
 
 _PAINTERS = {"floresta": _floresta, "calabouco": _calabouco, "templo_gelado": _templo,
@@ -938,7 +979,7 @@ _PAINTERS = {"floresta": _floresta, "calabouco": _calabouco, "templo_gelado": _t
              "clinica_adm": _clinica_adm, "clinica_calcada": _clinica_calcada,
              "mansao": _mansao, "mansao_arquivo": _mansao_arquivo, "mansao_patio": _mansao_patio,
              "mansao_cpd": _mansao_cpd, "mansao_reuniao": _mansao_reuniao, "mansao_nucleo": _mansao_nucleo,
-             "mansao_jardim": _mansao_jardim, "casa": _casa}
+             "mansao_jardim": _mansao_jardim, "casa": _casa, "garagem": _garagem}
 THEMED_MAPS = tuple(_PAINTERS)
 
 
@@ -1523,18 +1564,216 @@ class CasaWall(_Style):
             s.fill(wood, (0, 0, max(4, w // 3), h))
 
 
+class GarageWall(_Style):
+    """Garagem lá embaixo: bloco de concreto pintado de cinza claro, rodapé com a faixa de aviso
+    amarela e preta e a linha de tinta azul no meio."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((14, 14, 20, 180), (0, 6, w, h))
+        block, joint = (150, 152, 158), (126, 128, 134)
+        s.fill(block, (0, 0, w, h))
+        s.fill((176, 178, 184), (0, 0, w, 3))
+        for row, yy in enumerate(range(4, h, 16)):
+            s.fill(joint, (0, yy, w, 1))
+            for xx in range(-20 if row % 2 else 0, w, 40):
+                s.fill(joint, (max(0, xx), yy, 1, 16))
+        if w >= h:
+            s.fill((70, 110, 170), (0, h // 2 - 2, w, 3))
+            strip = min(14, max(6, h // 4))
+            for xx in range(-strip, w, 24):
+                pygame.draw.polygon(s, (236, 196, 60), [(xx, h), (xx + 12, h - strip), (xx + 24, h - strip), (xx + 12, h)])
+                pygame.draw.polygon(s, (30, 30, 34), [(xx + 12, h), (xx + 24, h - strip), (xx + 36, h - strip), (xx + 24, h)])
+        for _ in range(max(1, w * h // 700)):
+            s.set_at((rng.randrange(w), rng.randrange(h)), _shade(block, rng.choice((-14, 10))))
+
+
 _STYLES = {"floresta": Hedge, "calabouco": DungeonStone, "templo_gelado": IceBlock,
            "lag_escritorio": GlassWall, "lag_datacenter": ServerRack, "lag_garagem": Barrier, "lag_cobertura": Barrier,
            "clinica": ClinicWall, "clinica_spa": SpaWall, "clinica_vip": MirrorWall, "clinica_adm": FileCabinet,
            "clinica_calcada": ClinicWall,
            "mansao": MansionWall, "mansao_arquivo": ShelfWall, "mansao_patio": PatioWall, "mansao_cpd": CellarRack,
            "mansao_reuniao": BoardroomWall, "mansao_nucleo": CoreWall, "mansao_jardim": GardenWall,
-           "casa": CasaWall}
+           "casa": CasaWall, "garagem": GarageWall}
 
 
 def wall_style(key):
     cls = _STYLES.get(key)
     return cls(key) if cls else None
+
+
+# ─────────────────────────────────────────────
+#  Paredes juntas: as que se encostam viram uma forma só
+# ─────────────────────────────────────────────
+JOIN_FACE = 28             # altura da frente da parede (o resto do trecho é o topo, visto de cima)
+JOIN_BELOW = 8             # sombra no chão embaixo da frente
+JOIN_MARGIN = 4            # quanto da vizinhança cada pedaço olha (contorno e luz da beirada)
+_STRIPS = {}
+_GRAIN = {}
+_CAPS = {"CasaWall": ((80, 54, 36), "madeira"), "Hedge": ((50, 92, 44), "folhas")}
+
+
+def _join_kind(wall):
+    """Que forma a parede usa (a casa: papel de parede dentro, cerca viva no quintal)."""
+    style = wall.style
+    if type(style).__name__ == "CasaWall":
+        from .lobbies import CASA, CASA_SPLIT, TILE
+        x = wall.rect.x
+        inner = 0 < x and x + wall.rect.w < len(CASA[1][0]) * TILE
+        if wall.rect.y >= CASA_SPLIT and not inner:
+            return Hedge("floresta")
+    return style
+
+
+def _strip(style):
+    """A frente da parede: o desenho de sempre do estilo, numa faixa comprida sem as pontas."""
+    key = (type(style).__name__, style.key)
+    if key not in _STRIPS:
+        s = pygame.Surface((968, JOIN_FACE + 12), pygame.SRCALPHA)
+        style.paint(s, 968, JOIN_FACE, random.Random(f"frente:{key}"))
+        _STRIPS[key] = s.subsurface((8, 0, 952, JOIN_FACE)).copy()
+    return _STRIPS[key]
+
+
+def _join_grain(seed):
+    """Grão de 1 pixel que se repete a cada 64 (alinhado no mundo, sem emenda entre pedaços)."""
+    if seed not in _GRAIN:
+        rng = random.Random(seed)
+        g = pygame.Surface((64, 64), pygame.SRCALPHA)
+        for _ in range(420):
+            x, y = rng.randrange(64), rng.randrange(64)
+            g.set_at((x, y), (255, 255, 255, 22) if rng.random() < 0.5 else (0, 0, 0, 30))
+        _GRAIN[seed] = g
+    return _GRAIN[seed]
+
+
+def _cap_layer(style, strip, rect):
+    """O topo da parede (visto de cima) no pedaço ``rect`` do mundo."""
+    name = type(style).__name__
+    if name in _CAPS:
+        base, kind = _CAPS[name]
+    else:
+        px = [strip.get_at((x, y))[:3] for x in range(0, strip.get_width(), 7) for y in range(2, 8)]
+        px = [c for c in px if sum(c) > 0]
+        px.sort(key=sum)
+        base, kind = (px[len(px) // 2] if px else (90, 90, 96)), "liso"
+    s = pygame.Surface(rect.size, pygame.SRCALPHA)
+    s.fill((*base, 255))
+    if kind == "madeira":                                    # tábuas compridas do topo
+        for y in range(rect.y - rect.y % 10, rect.bottom, 10):
+            s.fill(_shade(base, -18), (0, y - rect.y, rect.w, 1))
+    elif kind == "folhas":                                   # copa: tufos claros e escuros
+        rng = random.Random(f"copa:{rect.x // 64}:{rect.y // 64}")
+        for _ in range(rect.w * rect.h // 30):
+            x, y = rng.randrange(0, rect.w, 2), rng.randrange(0, rect.h, 2)
+            s.fill(_shade(base, 20) if rng.random() < 0.6 else _shade(base, -16), (x, y, 2, 2))
+    g = _join_grain(name)
+    for gx in range(-(rect.x % 64), rect.w, 64):
+        for gy in range(-(rect.y % 64), rect.h, 64):
+            s.blit(g, (gx, gy))
+    return s
+
+
+def _shifted(mask, dx, dy):
+    out = pygame.mask.Mask(mask.get_size())
+    out.draw(mask, (dx, dy))
+    return out
+
+
+def _paint_joined(style, union, origin, wall):
+    """Desenha o pedaço ``wall`` da forma juntada. ``union``: a máscara do grupo, com o canto em
+    ``origin`` no mundo."""
+    m = JOIN_MARGIN
+    keep = pygame.Rect(wall.rect.x - m, wall.rect.y - m, wall.rect.w + 2 * m, wall.rect.h + JOIN_BELOW + 2 * m)
+    area = keep.inflate(16, 16)               # olha em volta (a beirada do cálculo fica fora do pedaço)
+    area.h += JOIN_FACE                       # e mais para baixo: o trecho pode continuar além do pedaço
+    size = area.size
+    local = pygame.mask.Mask(size)
+    local.draw(union, (origin[0] - area.x, origin[1] - area.y))
+    # topo x frente: a frente é o fim de cada trecho, olhando de cima para baixo
+    deep = local.copy()                                       # tem parede até JOIN_FACE abaixo
+    for k in range(1, JOIN_FACE + 1):
+        deep = deep.overlap_mask(local, (0, -k))
+    face = local.copy()
+    face.erase(deep, (0, 0))
+    out = pygame.Surface(size, pygame.SRCALPHA)
+    cap = _cap_layer(style, _strip(style), area)
+    local.to_surface(out, setsurface=cap, unsetcolor=None)
+    strip = _strip(style)
+    bottom = local.copy()
+    bottom.erase(local, (0, -1))                              # último pixel de cada trecho
+    faces = pygame.Surface(size, pygame.SRCALPHA)
+    period = strip.get_width()
+    for r in bottom.get_bounding_rects():
+        for row in range(r.y, r.bottom):
+            y0 = row + 1 - JOIN_FACE
+            x = r.x
+            while x < r.right:
+                sx = (area.x + x) % period
+                w = min(r.right - x, period - sx)
+                faces.blit(strip, (x, y0), (sx, 0, w, JOIN_FACE))
+                x += w
+    face.to_surface(out, setsurface=faces, unsetcolor=None)
+    # beirada do topo: luz em cima e à esquerda, sombra à direita, frisinho por dentro
+    top = deep.copy()
+    top.erase(local, (0, 1))
+    left = deep.copy()
+    left.erase(local, (1, 0))
+    right = deep.copy()
+    right.erase(local, (-1, 0))
+    out.blit(top.to_surface(setcolor=(34, 30, 24, 0), unsetcolor=(0, 0, 0, 0)), (0, 0), special_flags=pygame.BLEND_RGB_ADD)
+    out.blit(left.to_surface(setcolor=(24, 20, 16, 0), unsetcolor=(0, 0, 0, 0)), (0, 0), special_flags=pygame.BLEND_RGB_ADD)
+    out.blit(right.to_surface(setcolor=(200, 196, 204, 255), unsetcolor=(255, 255, 255, 255)), (0, 0),
+             special_flags=pygame.BLEND_RGB_MULT)
+    inner = deep.copy()
+    for dx, dy in ((0, 3), (3, 0), (-3, 0), (0, -3)):
+        inner = inner.overlap_mask(deep, (dx, dy))
+    trim = deep.copy()
+    for dx, dy in ((0, 2), (2, 0), (-2, 0), (0, -2)):
+        trim = trim.overlap_mask(deep, (dx, dy))
+    trim.erase(inner, (0, 0))
+    out.blit(trim.to_surface(setcolor=(216, 212, 220, 255), unsetcolor=(255, 255, 255, 255)), (0, 0),
+             special_flags=pygame.BLEND_RGB_MULT)
+    lip = face.overlap_mask(_shifted(deep, 0, 1), (0, 0))      # dobra entre o topo e a frente
+    out.blit(lip.to_surface(setcolor=(170, 164, 176, 255), unsetcolor=(255, 255, 255, 255)), (0, 0),
+             special_flags=pygame.BLEND_RGB_MULT)
+    # sombra no chão e um contorno só em volta de tudo
+    shade_m = pygame.mask.Mask(size)
+    for k in range(2, JOIN_BELOW + 1):
+        shade_m.draw(local, (0, k))
+    shade_m.erase(local, (0, 0))
+    shade_m.erase(_shifted(local, 0, 1), (0, 0))
+    shade_m.to_surface(out, setcolor=(14, 10, 18, 100), unsetcolor=None)
+    ring = pygame.mask.Mask(size)
+    for off in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        ring.draw(local, off)
+    ring.erase(local, (0, 0))
+    ring.to_surface(out, setcolor=(18, 14, 22, 255), unsetcolor=None)
+    return (out.subsurface((keep.x - area.x, keep.y - area.y, *keep.size)).copy(),
+            (keep.x - wall.rect.x, keep.y - wall.rect.y))
+
+
+def join_walls(walls):
+    """Paredes que se encostam (canto da sala, L, T) viram uma forma só: em cima o topo da parede,
+    embaixo de cada trecho a frente com o desenho de sempre do estilo, um contorno só em volta e a
+    sombra no chão. Peça solta (mesa, bloco) fica como está. A colisão não muda."""
+    pieces = [w for w in walls if w.visible and w.image is None and hasattr(getattr(w, "style", None), "paint")]
+    groups = {}
+    for w in pieces:
+        style = _join_kind(w)
+        key = (type(style).__name__, style.key)
+        groups.setdefault(key, (style, []))[1].append(w)
+    for style, ws in groups.values():
+        grow = [w.rect.inflate(2, 2) for w in ws]
+        ws = [w for i, w in enumerate(ws) if any(i != j and grow[i].colliderect(o.rect) for j, o in enumerate(ws))]
+        if not ws:
+            continue
+        bounds = ws[0].rect.unionall([w.rect for w in ws])
+        union = pygame.mask.Mask(bounds.size)
+        for w in ws:
+            union.draw(pygame.mask.Mask(w.rect.size, fill=True), (w.rect.x - bounds.x, w.rect.y - bounds.y))
+        for w in ws:
+            w._drawn, w.draw_offset = _paint_joined(style, union, bounds.topleft, w)
+            w.joined = True
 
 
 # ─────────────────────────────────────────────

@@ -1659,7 +1659,11 @@ class CampaignMatch(CoopMatch):
         self.drop_weapon(e, weapon, at=(e.x + random.uniform(-30, 30), e.y + 20), start=(e.x, e.y - 20))
 
     def last_breath(self, fighter):
-        """Jogando sozinho não tem quem levante: o primeiro golpe fatal da masmorra deixa com 1 de vida."""
+        """Jogando sozinho não tem quem levante: o primeiro golpe fatal da masmorra deixa com 1 de vida.
+        Também segura o chefe que só cai de um jeito (o Cauanzera só cai tirando da tomada)."""
+        brain = self.controllers.get(fighter)
+        if brain is not None and getattr(brain, "unkillable", False):
+            return True
         if self.run.players != 1 or self.breath_used or fighter not in self.players:
             return False
         self.breath_used = True
@@ -2207,7 +2211,7 @@ STORY = {
     "epilogo": ("EPÍLOGO · DE VOLTA À CASA", "hub_casa", (
         ("borba", "BORBA JR", "Pão quentinho da padaria da família! E o City? Consertei na oficina. De vez, eu juro."),
         ("albeguinio", "ALBEGUINIO", "O celular vibrou. Era a Daiwone. Deixei no vácuo. Crescimento pessoal."),
-        ("sombra:aryel", None, "No porão da Casa, as quatro sombras dos corrompidos ganharam um cantinho. Elas "
+        ("sombra:aryel", None, "No salão lá embaixo da garagem, as quatro sombras dos corrompidos ganharam um cantinho. Elas "
                                "treinam, brigam pelo controle e perdem no green ou red."),
         ("iara", "IARA", "Agora sou só a assistente da TV da sala. Sem cookies, prometo. Alguém quer um café?"),
         ("cauanzera", "CAUANZERA", "Então, sexta que vem, mesma hora? Só não aceitem nada sem ler os termos."),

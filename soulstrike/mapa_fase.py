@@ -1,6 +1,8 @@
 """A fase num mapa só, como no Soul Knight: as salas ligadas por corredores, tudo a pé.
 
-O desenho segue o rascunho do Cauã (cinco salas):
+Cada capítulo tem um formato (``SHAPES``): a cruz no 1, a torre subindo no 2, o corredor da
+clínica no 3 e o pátio da mansão no 4. As três fases do capítulo usam o mesmo formato, espelhado
+(``flips``). O do capítulo 1 segue o rascunho do Cauã (cinco salas):
 
 * ABERTURA no meio: o portal da Casa da turma chega aqui; tem a lojinha e o altar;
 * em cima, a MASMORRA 1 (corredor curto);
@@ -74,6 +76,149 @@ def _overlap(a, b, gap):
     return ax - gap < bx + bw and bx - gap < ax + aw and ay - gap < by + bh and by - gap < ay + ah
 
 
+# ─────────────────────────────────────────────
+#  Um formato de mapa por capítulo
+# ─────────────────────────────────────────────
+# Cada formato devolve as salas e os corredores em quadrados (a abertura no canto (0, 0), depois
+# tudo é deslocado para caber) e as portas das salas de luta: (sala, lado, corredor que chega).
+# As três fases do capítulo usam o mesmo formato: a 1ª como foi desenhado, a 2ª espelhada na
+# horizontal e a 3ª espelhada também na vertical (a torre só espelha de lado: ela sempre sobe).
+SHAPES = {1: "cruz", 2: "torre", 3: "corredor", 4: "patio"}
+GAP = 6                      # comprimento dos corredores entre duas salas
+
+
+def phase_in_chapter(phase):
+    """0, 1 ou 2: a posição da fase dentro do capítulo dela."""
+    from .campaign import PHASES
+    same = [p.key for p in PHASES if p.chapter == phase.chapter]
+    return same.index(phase.key) if phase.key in same else 0
+
+
+def flips(shape, index):
+    """(espelha de lado, espelha de cima para baixo) da fase ``index`` do capítulo."""
+    if shape == "torre":
+        return (index % 2 == 1, False)
+    return (index >= 1, index == 2)
+
+
+def _push(box, others, axis, step):
+    """Empurra a sala até ela não encostar nas outras (SPACE de folga)."""
+    while any(_overlap(box, o, SPACE) for o in others):
+        box[axis] += step
+
+
+def _cruz(size):
+    """Capítulo 1: a abertura no meio e as salas em volta (o desenho do Cauã)."""
+    aw, ah = CALM
+    w1, h1 = size["luta1"]
+    l1 = [aw // 2 - w1 // 2, -GAP - h1, w1, h1]
+    mid = ah // 2
+    w2, h2 = size["luta2"]
+    l2 = [aw + 8, mid - h2 // 2, w2, h2]
+    _push(l2, [l1], 0, 1)                         # a sala do meio não encosta na masmorra 1
+    rw, rh = CALM
+    rew = [l2[0] + w2 // 2 - rw // 2, l2[1] + h2 + GAP, rw, rh]
+    wf, hf = size["final"]
+    vx = -12                                     # o corredor que desce para a sala final
+    fin = [vx - 3 - wf, ah - 2, wf, hf]
+    door_f = fin[1] + hf - 8                     # porta da final: no lado direito, perto de baixo
+    corridors = [
+        [aw // 2 - CW // 2, -GAP, CW, GAP],                     # abertura ↔ masmorra 1
+        [aw, mid - CW // 2, l2[0] - aw, CW],                    # abertura ↔ sala do meio
+        [l2[0] + w2 // 2 - CW // 2, l2[1] + h2, CW, GAP],       # sala do meio ↔ recompensa
+        [vx, mid - CW // 2, -vx, CW],                           # abertura → esquerda
+        [vx, mid - CW // 2, CW, door_f + CW - (mid - CW // 2)],  # ... desce
+        [fin[0] + wf, door_f, vx - fin[0] - wf, CW],            # ... e entra na sala final
+    ]
+    rooms = {"abertura": [0, 0, aw, ah], "luta1": l1, "luta2": l2, "recompensa": rew, "final": fin}
+    doors = [("luta1", "baixo", 0), ("luta2", "esquerda", 1), ("luta2", "baixo", 2), ("final", "direita", 5)]
+    return rooms, corridors, doors
+
+
+def _torre(size):
+    """Capítulo 2 (Lag Lobby): um prédio, em linha reta subindo andar por andar: térreo (abertura),
+    masmorra 1, a loja (recompensa), masmorra 2 e a cobertura (a final). Os andares ficam um pouco
+    para um lado e para o outro, como uma escada."""
+    order = ["abertura", "luta1", "recompensa", "luta2", "final"]
+    dims = {"abertura": CALM, "recompensa": CALM, **size}
+    rooms, corridors, doors = {}, [], []
+    bottom, sway = 0, (0, 6, -4, 5, 0)
+    for i, k in enumerate(order):
+        w, h = dims[k]
+        rooms[k] = [sway[i] - w // 2, bottom - h, w, h]
+        bottom -= h + GAP
+    for i in range(4):
+        low, high = rooms[order[i]], rooms[order[i + 1]]
+        left, right = max(low[0], high[0]) + 2, min(low[0] + low[2], high[0] + high[2]) - 2
+        c = (left + right) // 2 - CW // 2
+        corridors.append([c, high[1] + high[3], CW, GAP])
+        if order[i] in ("luta1", "luta2"):
+            doors.append((order[i], "cima", i))
+        if order[i + 1] in ("luta1", "luta2", "final"):
+            doors.append((order[i + 1], "baixo", i))
+    return rooms, corridors, doors
+
+
+def _corredor(size):
+    """Capítulo 3 (Clepalovers): o corredor comprido da clínica, da recepção (abertura) até o fim
+    (a final), passando pelas alas 1 e 2; a farmácia (recompensa) fica de lado, embaixo, saindo
+    do corredor entre as duas alas."""
+    aw, ah = CALM
+    mid = ah // 2
+    rooms = {"abertura": [0, 0, aw, ah]}
+    corridors, doors = [], []
+    x = aw
+    for k, gap in (("luta1", GAP), ("luta2", 12), ("final", GAP)):
+        w, h = size[k]
+        corridors.append([x, mid - CW // 2, gap, CW])
+        rooms[k] = [x + gap, mid - h // 2, w, h]
+        doors.append((k, "esquerda", len(corridors) - 1))
+        x += gap + w
+    doors.insert(1, ("luta1", "direita", 1))
+    doors.insert(3, ("luta2", "direita", 2))
+    l1, l2 = rooms["luta1"], rooms["luta2"]
+    branch = l1[0] + l1[2] + 6 - CW // 2           # no meio do corredor entre as alas
+    rw, rh = CALM
+    top = max(l1[1] + l1[3], l2[1] + l2[3]) + GAP
+    rooms["recompensa"] = [branch + CW // 2 - rw // 2, top, rw, rh]
+    corridors.append([branch, mid + CW // 2, CW, top - mid - CW // 2])
+    return rooms, corridors, doors
+
+
+def _patio(size):
+    """Capítulo 4 (a mansão): o pátio no meio e as salas em volta. Do portão (abertura) sobe-se
+    ao pátio; a masmorra 1 de um lado, a 2 do outro e o chefe no salão do fundo. O baú
+    (recompensa) fica ao lado do portão."""
+    pw, ph = 20, 14
+    patio = [0, 0, pw, ph]
+    stub = 4
+    w1, h1 = size["luta1"]
+    w2, h2 = size["luta2"]
+    wf, hf = size["final"]
+    l1 = [-stub - w1, ph // 2 - h1 // 2, w1, h1]
+    l2 = [pw + stub, ph // 2 - h2 // 2, w2, h2]
+    fin = [pw // 2 - wf // 2, -stub - hf, wf, hf]
+    _push(fin, [l1, l2], 1, -1)                  # o salão largo não encosta nas masmorras
+    aw, ah = CALM
+    gate = [pw // 2 - aw // 2, max(l1[1] + l1[3], l2[1] + l2[3]) + SPACE + 1, aw, ah]
+    rw, rh = CALM
+    rew = [gate[0] - stub - rw, gate[1], rw, rh]
+    corridors = [
+        patio,
+        [pw // 2 - CW // 2, ph, CW, gate[1] - ph],               # portão ↔ pátio
+        [-stub, ph // 2 - CW // 2, stub, CW],                    # pátio ↔ masmorra 1
+        [pw, ph // 2 - CW // 2, stub, CW],                       # pátio ↔ masmorra 2
+        [pw // 2 - CW // 2, fin[1] + hf, CW, -fin[1] - hf],     # pátio ↔ salão do chefe
+        [gate[0] - stub, gate[1] + ah // 2 - CW // 2, stub, CW],  # portão ↔ baú
+    ]
+    rooms = {"abertura": gate, "luta1": l1, "luta2": l2, "recompensa": rew, "final": fin}
+    doors = [("luta1", "direita", 2), ("luta2", "esquerda", 3), ("final", "baixo", 4)]
+    return rooms, corridors, doors
+
+
+SHAPE_BUILDERS = {"cruz": _cruz, "torre": _torre, "corredor": _corredor, "patio": _patio}
+
+
 class PhaseLayout:
     """Onde fica cada sala, cada corredor e cada porta da fase (só geometria)."""
 
@@ -92,31 +237,19 @@ class PhaseLayout:
         fights = {"luta1": first, "luta2": phase.middle, "final": last}
         size = {k: (MAPS_BY_KEY[d.map_key].size[0] // T, MAPS_BY_KEY[d.map_key].size[1] // T)
                 for k, d in fights.items()}
-        aw, ah = CALM
-        # tudo medido a partir do canto da abertura (0, 0); depois desloca para caber no mapa
-        w1, h1 = size["luta1"]
-        l1 = [aw // 2 - w1 // 2, -6 - h1, w1, h1]
-        mid = ah // 2
-        w2, h2 = size["luta2"]
-        l2 = [aw + 8, mid - h2 // 2, w2, h2]
-        while _overlap(l1, l2, SPACE):              # a sala do meio não encosta na masmorra 1
-            l2[0] += 1
-        rw, rh = CALM
-        rew = [l2[0] + w2 // 2 - rw // 2, l2[1] + h2 + 6, rw, rh]
-        wf, hf = size["final"]
-        vx = -12                                     # o corredor que desce para a sala final
-        fin = [vx - 3 - wf, ah - 2, wf, hf]
-        door_f = fin[1] + hf - 8                     # porta da final: no lado direito, perto de baixo
-        corridors = [
-            [aw // 2 - CW // 2, -6, CW, 6],                         # abertura ↔ masmorra 1
-            [aw, mid - CW // 2, l2[0] - aw, CW],                    # abertura ↔ sala do meio
-            [l2[0] + w2 // 2 - CW // 2, l2[1] + h2, CW, 6],         # sala do meio ↔ recompensa
-            [vx, mid - CW // 2, -vx, CW],                           # abertura → esquerda
-            [vx, mid - CW // 2, CW, door_f + CW - (mid - CW // 2)],  # ... desce
-            [fin[0] + wf, door_f, vx - fin[0] - wf, CW],            # ... e entra na sala final
-        ]
-        rooms = {"abertura": [0, 0, aw, ah], "luta1": l1, "luta2": l2, "recompensa": rew, "final": fin}
+        self.shape = SHAPES.get(phase.chapter, "cruz")
+        self.flip = flips(self.shape, phase_in_chapter(phase))
+        rooms, corridors, doors = SHAPE_BUILDERS[self.shape](size)
+        flip_x, flip_y = self.flip
         boxes = list(rooms.values()) + corridors
+        for b in boxes:                                  # o mesmo desenho, espelhado
+            if flip_x:
+                b[0] = -(b[0] + b[2])
+            if flip_y:
+                b[1] = -(b[1] + b[3])
+        swap = {"esquerda": "direita", "direita": "esquerda", "cima": "baixo", "baixo": "cima"}
+        doors = [(k, swap[side] if (flip_x and side in ("esquerda", "direita"))
+                  or (flip_y and side in ("cima", "baixo")) else side, i) for k, side, i in doors]
         dx = MARGIN - min(b[0] for b in boxes) + 1
         dy = MARGIN - min(b[1] for b in boxes) + 1
         for b in boxes:
@@ -126,23 +259,24 @@ class PhaseLayout:
         self.lines = max(b[1] + b[3] for b in boxes) + MARGIN + 1
         self.corridors = [tuple(c) for c in corridors]
         self.rooms = {}
-        for k, cells in rooms.items():
+        for k in ("abertura", "luta1", "luta2", "recompensa", "final"):
             d = fights.get(k)
             order = ("luta1", "luta2", "final").index(k) if d else 0
-            room = Room(k, tuple(cells), d, order, cells_px(*cells))
-            self.rooms[k] = room
-        self._doors(corridors)
+            self.rooms[k] = Room(k, tuple(rooms[k]), d, order, cells_px(*rooms[k]))
+        self._doors(doors)
         self.rows = self._draw()
         self.size, self.grid_walls, _void, self.markers = lobbies.parse(self.rows)
 
     # ── portas das salas de luta ─────────────
-    def _doors(self, corridors):
-        c = corridors
-        l1, l2, fin = self.rooms["luta1"], self.rooms["luta2"], self.rooms["final"]
-        l1.doors.append(("baixo", self._door_h(c[0], l1.rect.bottom - DOOR_DEPTH)))
-        l2.doors.append(("esquerda", self._door_v(c[1], l2.rect.x)))
-        l2.doors.append(("baixo", self._door_h(c[2], l2.rect.bottom - DOOR_DEPTH)))
-        fin.doors.append(("direita", self._door_v(c[5], fin.rect.right - DOOR_DEPTH)))
+    def _doors(self, doors):
+        for key, side, i in doors:
+            room, c = self.rooms[key], self.corridors[i]
+            r = room.rect
+            if side in ("cima", "baixo"):
+                rect = self._door_h(c, r.y if side == "cima" else r.bottom - DOOR_DEPTH)
+            else:
+                rect = self._door_v(c, r.x if side == "esquerda" else r.right - DOOR_DEPTH)
+            room.doors.append((side, rect))
 
     @staticmethod
     def _door_h(corridor, y):
@@ -290,6 +424,7 @@ class PhaseArena(Arena):
         for k in ("abertura", "recompensa"):
             rect = layout.rooms[k].rect
             self.ambiences.append((scenery.create_ambience(layout.scenery, rect.size, []), rect))
+        scenery.join_walls(self.walls)  # cantos fechados: as paredes que se encostam viram uma forma só
         for wall in self.walls:
             wall.prepare()
         self.floor = None

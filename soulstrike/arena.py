@@ -483,7 +483,15 @@ def _casa():
                      theme="casa", void=void, markers=markers)
 
 
+def _garagem():
+    """A garagem da Casa, lá embaixo (lobbies.GARAGEM): o hall dos carros e o salão dos corrompidos."""
+    size, walls, void, markers = lobbies.parse(lobbies.GARAGEM[1])
+    return MapConfig("garagem_casa", lobbies.GARAGEM[0], size, walls=walls, spawns=markers["S"], battle=False,
+                     theme="garagem", void=void, markers=markers)
+
+
 MAPS.append(_casa())
+MAPS.append(_garagem())
 MAPS_BY_KEY = {m.key: m for m in MAPS}
 BATTLE_MAPS = [m for m in MAPS if m.battle]
 
@@ -502,6 +510,7 @@ class Arena:
             self.walls.append(wall)
         for x, y, w, h in cfg.bounds:
             self.walls.append(Wall(x, y, w, h, visible=False))
+        scenery.join_walls(self.walls)  # cantos fechados: as paredes que se encostam viram uma forma só
         for wall in self.walls:
             wall.prepare()          # pronto antes da partida começar (nada de tranco no primeiro quadro)
         self.floor = self._render_floor(assets.backgrounds.get(cfg.key))
