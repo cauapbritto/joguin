@@ -12,7 +12,7 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
-    "1.29.0": [
+    "1.33.0": [
         {"title": "CANTOS FECHADOS", "scene": "casa", "lines": [
             "As paredes que se encostam agora são uma peça só, na Casa e em todas as fases.",
             "Em cima aparece o topo da parede, embaixo a frente, com um contorno só em volta.",
