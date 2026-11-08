@@ -8,7 +8,7 @@ import math
 
 import pygame
 
-from . import theme, weapon_art
+from . import pecas, theme, weapon_art
 from .data import RARE_WEAPONS, common_weapon, rarity_color
 from .entities import Entity, Wall
 
@@ -37,10 +37,12 @@ class Armario(Entity):
 
     REACH = 78
 
-    def __init__(self, x, y, run, style=None):
+    def __init__(self, x, y, run, style=None, chapter=1):
         super().__init__(x, y)
         self.run = run
         self.style = style
+        self.chapter = pecas.chapter_of(chapter)    # madeira, rack de servidor, armário rosa ou cristaleira
+        self.art = pecas.image(f"armario_{self.chapter}")
         self.age = 0
         self.wall = Wall(round(x) - 44, round(y) - 10, 88, 20, visible=False)
 
@@ -60,6 +62,9 @@ class Armario(Entity):
 
     def draw(self, surf, camera):
         sx, sy = round(self.x - camera.x), round(self.y - camera.y)
+        if self.art is not None:
+            self._draw_art(surf, sx, sy)
+            return
         pygame.draw.ellipse(surf, (10, 8, 12), (sx - 50, sy + 2, 100, 14))
         if self.style == "lag":
             frame, board, peg = (70, 80, 96), (40, 46, 58), (150, 210, 255)
@@ -85,8 +90,25 @@ class Armario(Entity):
                     surf.blit(img, img.get_rect(midtop=(hx, sy - 62 + bob)))
                 surf.fill(rarity_color(w), (hx - 4, sy - 20, 9, 2))
 
+    def _draw_art(self, surf, sx, sy):
+        """O armário desenhado como os heróis, de portas abertas, com as armas da campanha nos ganchos."""
+        surf.blit(pecas.shadow(116, 18, 90), (sx - 58, sy - 2))
+        surf.blit(self.art, self.art.get_rect(midbottom=(sx, sy + 6)))
+        peg = (150, 210, 255) if self.chapter == 2 else (210, 200, 180)
+        weapons = self.weapons
+        for i in range(RACK_SIZE):
+            hx = sx - 30 + i * 20
+            surf.fill(peg, (hx - 1, sy - 74, 3, 4))
+            if i < len(weapons):
+                w = weapons[i]
+                img = weapon_art.rotated(w.name, -90, scale=2)
+                if img is not None:
+                    bob = round(math.sin(self.age * 0.05 + i) * 1)
+                    surf.blit(img, img.get_rect(midtop=(hx, sy - 72 + bob)))
+                surf.fill(rarity_color(w), (hx - 4, sy - 22, 9, 2))
+
     def draw_prompt(self, screen, camera, ui, frame, prompt):
-        sx, sy = camera.to_screen(self.x, self.y - 96)
+        sx, sy = camera.to_screen(self.x, self.y - (112 if self.art is not None else 96))
         n = len(self.run.rack)
         ui.text(screen, f"ARMÁRIO {n}/{RACK_SIZE}", theme.XS, theme.BRASS, (round(sx), round(sy)))
         if prompt:

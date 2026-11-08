@@ -15,7 +15,7 @@ import random
 
 import pygame
 
-from . import config, theme
+from . import config, pecas, theme
 from .data import CHARACTERS, duel_arsenal, rarity, rarity_color
 from .entities import Entity, Particle, Wall
 
@@ -160,19 +160,35 @@ class Stall(Entity):
     def title(self):
         return "LOJINHA" if self.mini else self.NAMES[self.kind]
 
-    def __init__(self, kind, x, y, style=None, mini=False):
+    def __init__(self, kind, x, y, style=None, mini=False, chapter=1):
         super().__init__(x, y)
         self.kind = kind
+        self.chapter = pecas.chapter_of(chapter)    # a banca e quem atende mudam por capítulo
         self.mini = mini                # lojinha da sala inicial: só poção, continue e doar
         self.style = style              # "lag": máquina de venda, bancada de solda e servidor com o fragmento
         self.age = 0
         self.stock = None               # loja: as armas da vitrine (sorteadas na primeira vez que abre)
         self.sold = set()               # ... e as que alguém já levou
-        self.wall = Wall(round(x) - 34, round(y) - 10, 68, 22, visible=False)
+        wide = 96 if self._art() else 68
+        self.wall = Wall(round(x) - wide // 2, round(y) - 10, wide, 22, visible=False)
 
     @property
     def sort_y(self):
         return self.y
+
+    def _art(self):
+        """As duas camadas da banca desenhada (None no altar ou sem a arte)."""
+        if self.kind == "altar":
+            return None
+        back = pecas.image(f"banca_{self.kind}_{self.chapter}_tras")
+        front = pecas.image(f"banca_{self.kind}_{self.chapter}_frente")
+        return (back, front) if back and front else None
+
+    def _spark_at(self):
+        """Onde sai a faísca do trabalho do ferreiro (na bigorna, na solda, no cristal...)."""
+        if not self._art():
+            return (10, -30) if self.style == "lag" else (14, -26)
+        return {1: (24, -50), 2: (20, -44), 3: (-22, -42), 4: (0, -44)}[self.chapter]
 
     def can_use(self, fighter):
         return fighter.alive_in_match and fighter.distance_to(self) < self.REACH
@@ -181,17 +197,20 @@ class Stall(Entity):
         self.age += 1
         if self.style == "lag":
             if self.kind == "ferreiro" and self.age % 30 == 0:  # faísca azul da solda
+                dx, dy = self._spark_at()
                 for _ in range(5):
-                    match.particles.append(Particle(self.x + 10, self.y - 30, random.uniform(-1.8, 1.8),
+                    match.particles.append(Particle(self.x + dx, self.y + dy, random.uniform(-1.8, 1.8),
                                                     random.uniform(-2.2, -0.6), (150, 210, 255), 14, 2, gravity=0.12))
             elif self.kind == "altar" and self.age % 6 == 0:
                 match.particles.append(Particle(self.x + random.uniform(-5, 5), self.y - 60, random.uniform(-0.3, 0.3),
                                                 random.uniform(-1.2, -0.6), CURSE_COLOR, 20, 3))
             return
         if self.kind == "ferreiro" and self.age % 40 == 0:      # faísca da bigorna
+            dx, dy = self._spark_at()
+            color = {3: (255, 150, 220), 4: (255, 236, 150)}.get(self.chapter, (255, 200, 90))
             for _ in range(4):
-                match.particles.append(Particle(self.x + 14, self.y - 26, random.uniform(-1.6, 1.6),
-                                                random.uniform(-2.4, -0.8), (255, 200, 90), 16, 2, gravity=0.12))
+                match.particles.append(Particle(self.x + dx, self.y + dy, random.uniform(-1.6, 1.6),
+                                                random.uniform(-2.4, -0.8), color, 16, 2, gravity=0.12))
         elif self.kind == "altar" and self.age % 6 == 0:
             match.particles.append(Particle(self.x + random.uniform(-6, 6), self.y - 36, random.uniform(-0.3, 0.3),
                                             random.uniform(-1.2, -0.6), CURSE_COLOR, 20, 3))
@@ -201,6 +220,10 @@ class Stall(Entity):
 
     def draw(self, surf, camera):
         sx, sy = round(self.x - camera.x), round(self.y - camera.y)
+        art = self._art()
+        if art:
+            self._draw_art(surf, sx, sy, *art)
+            return
         pygame.draw.ellipse(surf, (10, 8, 12), (sx - 40, sy + 2, 80, 14))
         if self.style == "lag":
             self._draw_lag(surf, sx, sy)
@@ -237,6 +260,26 @@ class Stall(Entity):
             surf.fill((70, 70, 80), (sx + 10, sy - 28, 8, 4))
             surf.fill((120, 76, 40), (sx - 22, sy - 32, 14, 3))         # martelo
             surf.fill((90, 90, 100), (sx - 12, sy - 36, 6, 8))
+
+    def _draw_art(self, surf, sx, sy, back, front):
+        """A banca desenhada como os heróis: a parte de trás, quem atende (respirando; o ferreiro
+        bate o martelo de vez em quando) e o balcão na frente."""
+        shadow = pecas.shadow(116, 22)
+        surf.blit(shadow, (sx - 58, sy - 6))
+        ox, oy = sx - back.get_width() // 2, sy + 6 - back.get_height()
+        surf.blit(back, (ox, oy))
+        beat = self.age % 120
+        if self.kind == "ferreiro" and beat < 24:
+            npc = pecas.npc_frame(self.kind, self.chapter, "ataque", beat // 12)
+        else:
+            npc = pecas.npc_frame(self.kind, self.chapter, "parado", (self.age // 30) % 2)
+        if npc:
+            dx = pecas.NPC_DX.get((self.kind, self.chapter), 0)
+            surf.blit(npc, (sx + dx - npc.get_width() // 2, oy + 82 - npc.get_height()))
+        surf.blit(front, (ox, oy))
+        if self.kind == "loja" and self.chapter == 2:     # a máquina de venda pisca a faixa de cima
+            pulse = 0.5 + 0.5 * math.sin(self.age * 0.1)
+            surf.fill(tuple(round(c * (0.6 + 0.4 * pulse)) for c in (64, 200, 230)), (ox + 10, oy + 10, 46, 2))
 
     def _draw_lag(self, surf, sx, sy):
         """As bancas na Lag Lobby: a loja é uma máquina de venda, o ferreiro uma bancada de solda
@@ -278,7 +321,7 @@ class Stall(Entity):
             pygame.draw.polygon(surf, (220, 170, 255), [(sx - 3, sy - 50), (sx, sy - 60 - flick), (sx + 3, sy - 50)])
 
     def draw_prompt(self, screen, camera, ui, frame, near):
-        sx, sy = camera.to_screen(self.x, self.y - 82)
+        sx, sy = camera.to_screen(self.x, self.y - (128 if self._art() else 82))
         ui.text(screen, self.title, theme.XS, theme.BRASS, (round(sx), round(sy)))
         if near:
             color = theme.BRASS if (frame // 15) % 2 else theme.BONE

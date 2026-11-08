@@ -5,7 +5,7 @@ import random
 
 import pygame
 
-from . import theme, weapon_art
+from . import pecas, theme, weapon_art
 from .data import rarity_color
 from .entities import Entity, Particle, Wall
 
@@ -39,9 +39,15 @@ class Campfire(Entity):
     HEAL_TO = 0.7
     HEAL_EVERY = 6
 
-    def __init__(self, x, y):
+    # por capítulo: (largura e altura do bloqueio, altura da base do fogo acima do pé; None = vapor)
+    LOOKS = {1: ((44, 24), 0), 2: ((40, 20), 44), 3: ((32, 16), None), 4: ((88, 24), 8)}
+
+    def __init__(self, x, y, chapter=1):
         super().__init__(x, y)
-        self.wall = Wall(round(x) - 22, round(y) - 12, 44, 24, visible=False)
+        self.chapter = pecas.chapter_of(chapter)    # roda de pedras, tambor, difusor ou lareira
+        self.base = pecas.image(f"fogueira_{self.chapter}")
+        (w, h), self.flame_y = self.LOOKS[self.chapter] if self.base else ((44, 24), 0)
+        self.wall = Wall(round(x) - w // 2, round(y) - h // 2, w, h, visible=False)
         self.age = 0
         rng = random.Random(f"fogueira:{x}:{y}")
         self.stones = [(math.cos(a) * 24 + rng.uniform(-2, 2), math.sin(a) * 12 + rng.uniform(-1, 1))
@@ -51,15 +57,27 @@ class Campfire(Entity):
     def sort_y(self):
         return self.y - 4
 
+    @property
+    def steam(self):
+        """Capítulo 3: o difusor da clínica solta vapor rosa no lugar do fogo."""
+        return self.base is not None and self.flame_y is None
+
     def update(self, match):
         self.age += 1
-        if self.age % 3 == 0:
-            match.particles.append(Particle(self.x + random.uniform(-6, 6), self.y - 14, random.uniform(-0.3, 0.3),
+        lift = self.flame_y or 0
+        if self.steam:
+            if self.age % 4 == 0:
+                match.particles.append(Particle(self.x + random.uniform(-3, 3), self.y - 40, random.uniform(-0.3, 0.3),
+                                                random.uniform(-0.9, -0.5),
+                                                random.choice(((255, 214, 236), (250, 240, 250), (255, 170, 220))),
+                                                random.randint(26, 40), 4, -0.004))
+        elif self.age % 3 == 0:
+            match.particles.append(Particle(self.x + random.uniform(-6, 6), self.y - 14 - lift, random.uniform(-0.3, 0.3),
                                             random.uniform(-1.4, -0.7),
                                             random.choice(((252, 170, 60), (234, 104, 44), (255, 230, 150))),
                                             random.randint(16, 28), 3))
-        if self.age % 9 == 0:
-            match.particles.append(Particle(self.x + random.uniform(-4, 4), self.y - 26, random.uniform(-0.2, 0.2),
+        if self.age % 9 == 0 and not self.steam and self.chapter != 4:     # a lareira solta a fumaça pela chaminé
+            match.particles.append(Particle(self.x + random.uniform(-4, 4), self.y - 26 - lift, random.uniform(-0.2, 0.2),
                                             -0.5, (80, 76, 84), 40, 5, -0.005))
         if self.age % self.HEAL_EVERY:
             return
@@ -73,6 +91,9 @@ class Campfire(Entity):
     def draw(self, surf, camera):
         sx, sy = round(self.x - camera.x), round(self.y - camera.y)
         flicker = math.sin(self.age * 0.23) + 0.5 * math.sin(self.age * 0.61)
+        if self.base is not None:
+            self._draw_art(surf, sx, sy, flicker)
+            return
         g = glow(120, (255, 140, 60), 0.42 + 0.06 * flicker)
         surf.blit(g, g.get_rect(center=(sx, sy - 6)), special_flags=pygame.BLEND_ADD)
         pygame.draw.ellipse(surf, (16, 12, 14), (sx - 30, sy - 12, 60, 26))
@@ -83,10 +104,28 @@ class Campfire(Entity):
         for a, b in (((-16, 4), (14, -4)), ((-14, -4), (16, 4))):           # lenha cruzada
             pygame.draw.line(surf, (40, 24, 16), (sx + a[0], sy + a[1]), (sx + b[0], sy + b[1]), 7)
             pygame.draw.line(surf, (120, 76, 40), (sx + a[0], sy + a[1] - 1), (sx + b[0], sy + b[1] - 1), 3)
-        tall = 20 + round(flicker * 4)
-        for w, h, color in ((18, tall, (210, 70, 30)), (12, tall - 6, (250, 160, 50)), (6, tall - 12, (255, 236, 170))):
-            pts = [(sx - w // 2, sy), (sx, sy - h), (sx + w // 2, sy)]
-            pygame.draw.polygon(surf, color, pts)
+        _flames(surf, sx, sy, 20 + round(flicker * 4))
+
+    def _draw_art(self, surf, sx, sy, flicker):
+        """A fogueira desenhada como os heróis: a base de cada capítulo e o fogo (ou vapor) mexendo."""
+        color = (255, 140, 200) if self.steam else (255, 140, 60)
+        g = glow(120, color, round((0.2 if self.steam else 0.42) + 0.06 * flicker, 2))
+        surf.blit(g, g.get_rect(center=(sx, sy - 6 - (self.flame_y or 20))), special_flags=pygame.BLEND_ADD)
+        w = self.base.get_width()
+        surf.blit(pecas.shadow(w + 8, 18, 90), (sx - w // 2 - 4, sy - 2))
+        surf.blit(self.base, self.base.get_rect(midbottom=(sx, sy + 8)))
+        if self.steam:
+            puff = 0.5 + 0.5 * math.sin(self.age * 0.12)
+            surf.fill((255, round(150 + 60 * puff), 220), (sx - 6, sy - 16, 12, 3))     # anel de luz respirando
+            return
+        tall = (20 if self.chapter == 1 else 16) + round(flicker * 4)
+        _flames(surf, sx, sy - self.flame_y + (2 if self.chapter == 1 else 0), tall)
+
+
+def _flames(surf, sx, sy, tall):
+    for w, h, color in ((18, tall, (210, 70, 30)), (12, tall - 6, (250, 160, 50)), (6, tall - 12, (255, 236, 170))):
+        pts = [(sx - w // 2, sy), (sx, sy - h), (sx + w // 2, sy)]
+        pygame.draw.polygon(surf, color, pts)
 
 
 # ─────────────────────────────────────────────
@@ -169,13 +208,16 @@ class Chest(Entity):
 
     REACH = 64
 
-    def __init__(self, x, y, style=None):
+    def __init__(self, x, y, style=None, chapter=1):
         super().__init__(x, y)
         self.style = style           # "lag": vira o cofre da Lag Lobby
+        self.chapter = pecas.chapter_of(chapter)    # baú, cofre, maleta de beleza ou arca de mogno
+        self.art = pecas.image(f"bau_{self.chapter}_fechado") is not None
         self.state = "closed"        # closed → opening → open
         self.t = 0
         self.age = 0
-        self.wall = Wall(round(x) - 18, round(y) - 6, 36, 18, visible=False)
+        w = 56 if self.art else 36
+        self.wall = Wall(round(x) - w // 2, round(y) - 6, w, 18, visible=False)
 
     @property
     def sort_y(self):
@@ -230,6 +272,11 @@ class Chest(Entity):
         elif self.state == "closed":
             g = glow(36, (255, 210, 120), 0.18 + 0.08 * math.sin(self.age * 0.08))
             surf.blit(g, g.get_rect(center=(sx, sy - 10)), special_flags=pygame.BLEND_ADD)
+        if self.art:
+            surf.blit(pecas.shadow(72, 16, 90), (sx - 36 + shake, sy + 2))
+            img = pecas.image(f"bau_{self.chapter}_{'aberto' if opened else 'fechado'}")
+            surf.blit(img, img.get_rect(midbottom=(sx + shake, sy + 10)))
+            return
         pygame.draw.ellipse(surf, (10, 8, 12), (sx - 20, sy + 4, 40, 10))
         img = chest_image(opened, self.style)
         surf.blit(img, img.get_rect(midbottom=(sx + shake, sy + 10)))
@@ -237,7 +284,7 @@ class Chest(Entity):
     def draw_prompt(self, screen, camera, ui, frame, near):
         if self.state != "closed" or not near:
             return
-        sx, sy = camera.to_screen(self.x, self.y - 40)
+        sx, sy = camera.to_screen(self.x, self.y - (64 if self.art else 40))
         color = theme.BRASS if (frame // 15) % 2 else theme.BONE
         ui.text(screen, "ATACAR: ABRIR", theme.XS, color, (round(sx), round(sy)))
 

@@ -63,17 +63,17 @@ class PhaseMatch(CampaignMatch):
         self._stall("loja", loja)
         self._stall("ferreiro", markers["R"][0])
         fx, fy = _center(markers["F"])
-        self.campfire = Campfire(fx, fy)
+        self.campfire = Campfire(fx, fy, run.phase.chapter)
         self.arena.walls.append(self.campfire.wall)
         self.props.append(self.campfire)
         self.chest = None
         if not run.chest_open:
             cx, cy = markers["C"][0]
-            self.chest = Chest(cx, cy, self.style)
+            self.chest = Chest(cx, cy, self.style, run.phase.chapter)
             self.arena.walls.append(self.chest.wall)
             self.props.append(self.chest)
         x, y = markers["K"][0]
-        self.armario = Armario(x, y, run, self.style)
+        self.armario = Armario(x, y, run, self.style, run.phase.chapter)
         self.arena.walls.append(self.armario.wall)
         self.props.append(self.armario)
         enfeites.furnish(self, self.layout.rows, run.phase.chapter, joke=True)
@@ -84,7 +84,7 @@ class PhaseMatch(CampaignMatch):
             self.burst(p.x, p.y - 20, (200, 180, 255), 14, speed=3)
 
     def _stall(self, kind, at, mini=False):
-        stall = Stall(kind, *at, self.style, mini=mini)
+        stall = Stall(kind, *at, self.style, mini=mini, chapter=self.run.phase.chapter)
         self.stalls.append(stall)
         self.arena.walls.append(stall.wall)
         self.props.append(stall)
