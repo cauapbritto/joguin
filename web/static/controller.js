@@ -707,6 +707,9 @@
   var shopPick = null;       // linha marcada aqui no celular
   var shopServerPick = null; // último item marcado que o jogo mandou
   var shopKey = "";
+  var shopKeyPick = null;
+  var cacosPage = "home";              // loja de cacos no celular: "home" (seções) ou "skins"
+  var cupomText = "";
   var giftTo = null;
   var shopData = null;
   var shopEnergy = [0, 0];   // energia e barra cheia de quem está na banca
@@ -797,8 +800,18 @@
     if (info.type === "arma") return weaponPic(info.weapon, "thumb");
     if (info.type === "forja" || info.type === "encanto") return weaponPic(info.weapon, "thumb");
     if (info.type === "fusao") return weaponPic(info.next, "thumb", !info.known);
+    if (info.type === "skin") {
+      var sk = el("span", "thumb skin-thumb");
+      var si = el("img", "ic");
+      si.src = info.img;
+      si.alt = "";
+      si.draggable = false;
+      sk.appendChild(si);
+      return sk;
+    }
     var box = el("span", "thumb");
-    if (r.id === "pocao") box.appendChild(el("i", "potion"));
+    if (info.type === "cupom") box.appendChild(el("b", "qmark", "#"));
+    else if (r.id === "pocao") box.appendChild(el("i", "potion"));
     else if (r.id === "arma") box.appendChild(el("b", "qmark", "?"));
     else if (r.id === "trocar") box.appendChild(el("b", "qmark", "↻"));
     else if (r.id === "doar") box.appendChild(el("b", "gem gift-gem"));
@@ -955,6 +968,40 @@
         box.appendChild(grid);
       }
       box.appendChild(el("p", "dnote", "AS 3 ARMAS SOMEM E AS SUAS VOLTAM AO +0."));
+    } else if (info.type === "skin") {      // loja de CACOS: a skin do herói
+      box.style.setProperty("--r", r.color);
+      var t4 = el("div", "trans skin-pic");
+      var pic4 = el("img", "skin-big");
+      pic4.src = info.img;
+      pic4.alt = "";
+      pic4.draggable = false;
+      t4.appendChild(pic4);
+      box.appendChild(t4);
+      box.appendChild(titleLine(r.label, info.rarity, r.color));
+      box.appendChild(el("p", "dnote", info.hero + " · " + (r.desc || "").toUpperCase()));
+      box.appendChild(el("p", "dnote", info.sub));
+    } else if (info.type === "cupom") {     // loja de CACOS: digitar o cupom
+      box.style.setProperty("--r", r.color);
+      var nb2 = el("b", "", "INSERIR CUPOM");
+      nb2.style.color = r.color;
+      box.appendChild(nb2);
+      var input = el("input", "cupom-input");
+      input.id = "cupom-input";
+      input.type = "text";
+      input.maxLength = 40;
+      input.placeholder = "DIGITE O CUPOM";
+      input.autocomplete = "off";
+      input.autocapitalize = "characters";
+      input.spellcheck = false;
+      input.value = cupomText;
+      input.addEventListener("input", function () { cupomText = input.value; });
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); sendCupom(); }
+      });
+      box.appendChild(input);
+      box.appendChild(el("p", "dnote", "CADA CUPOM VALE UMA VEZ E DÁ CACOS. ALGUNS DÃO UMA SKIN RARA JUNTO."));
+      if (info.note) box.appendChild(el("p", "dnote cupom-note", info.note));
+      return;
     } else if (info.type === "tela") {      // computador da casa: o que está na tela agora
       var tela = el("div", "tela tela-" + (info.look || "pc"));
       (info.lines || []).forEach(function (line) { tela.appendChild(el("div", "tl", line || "\u00a0")); });
@@ -967,9 +1014,28 @@
       box.appendChild(el("p", "dnote", (r.desc || "").toUpperCase()));
     }
     var foot = el("div", "foot");
-    foot.appendChild(el("strong", "", cur.cost ? cur.cost + " ALMAS" : "GRÁTIS"));
+    foot.appendChild(el("strong", "", cur.cost ? cur.cost + " " + shopUnit() : info.type === "skin" ? "" : "GRÁTIS"));
     if (cur.cost && cur.afford) foot.appendChild(el("span", "", "SOBRAM " + (shopData.souls - cur.cost)));
     box.appendChild(foot);
+  }
+
+  function shopUnit() {
+    return (shopData && shopData.unit) || "ALMAS";
+  }
+
+  function sendCupom() {
+    var code = (cupomText || "").trim();
+    if (!code) {
+      $("shop-note").textContent = "DIGITE O CUPOM";
+      return;
+    }
+    var input = $("cupom-input");
+    if (input) input.blur();
+    order("cupom:" + code, true);
+    cupomText = "";
+    shopKey = "";
+    $("shop-note").textContent = "CUPOM ENVIADO";
+    if (navigator.vibrate) navigator.vibrate([10, 40, 20]);
   }
 
   function renderShop(shop) {
@@ -978,6 +1044,7 @@
     var view = $("view-shop");
     if (shopOpen !== shop.kind) {          // acabou de abrir
       shopOpen = shop.kind;
+      cacosPage = shop.picked && shop.picked !== "cupom" ? "skins" : "home";
       shopPick = shopRow(shop.picked);
       shopServerPick = shop.picked;
       encPick = {};
@@ -987,6 +1054,7 @@
       $("shop-note").textContent = "";
     } else if (shop.picked !== shopServerPick) {
       shopServerPick = shop.picked;        // mexeram pelo analógico na TV
+      if (shop.kind === "cacos" && shop.picked !== "cupom") cacosPage = "skins";
       var row = shopRow(shop.picked);
       if (rowItem(rows.filter(function (r) { return r.id === shopPick; })[0]) !== shop.picked &&
           !view.classList.contains("gifting")) {
@@ -998,16 +1066,23 @@
     view.dataset.kind = shop.kind;
     $("shop-title").textContent = shop.title;
     $("shop-souls").textContent = shop.souls;
+    $("shop-unit").textContent = shopUnit();
     var energy = $("shop-energy");
     energy.hidden = !(shopEnergy[1] > 0) || shop.kind === "altar";
     $("shop-energy-n").textContent = shopEnergy[0] + "/" + shopEnergy[1];
     var cur = rowEntry(rows.filter(function (r) { return r.id === shopPick; })[0]);
-    var key = JSON.stringify(rows) + "|" + shopPick + "|" + (cur ? cur.id : "") + "|" + shop.souls;
+    var key = JSON.stringify(rows) + "|" + shopPick + "|" + (cur ? cur.id : "") + "|" + shop.souls + "|" + cacosPage;
+    if (document.activeElement && document.activeElement.id === "cupom-input" && shopPick === "cupom" &&
+        shopKeyPick === "cupom") key = shopKey;   // não apaga o que está sendo digitado
     if (key !== shopKey) {
       shopKey = key;
+      shopKeyPick = shopPick;
       var list = $("shop-list");
       list.innerHTML = "";
+      list.dataset.page = shop.kind === "cacos" ? cacosPage : "";
+      if (shop.kind === "cacos") cacosHead(list, shop, rows);
       rows.forEach(function (r) {
+        if (shop.kind === "cacos" && (r.id === "cupom" || cacosPage !== "skins")) return;
         var b = el("button", "shop-item" + (r.id === shopPick ? " on" : "") + (r.ok && r.afford ? "" : " off"));
         b.style.setProperty("--c", r.color);
         b.style.setProperty("--r", (r.info && r.info.weapon) ? r.info.weapon.color : r.color);
@@ -1019,7 +1094,14 @@
         if (sub) txt.appendChild(sub);
         lbl.appendChild(txt);
         b.appendChild(lbl);
-        b.appendChild(el("i", "", r.cost ? r.cost : ""));
+        if ((shop.kind === "cacos" || shop.kind === "armario") && r.info) {   // carta com raridade e etiqueta
+          b.dataset.tier = r.info.tier || "";
+          b.dataset.state = r.info.state || "";
+          if (r.info.mine) b.dataset.mine = "1";
+          b.appendChild(el("i", "tag", r.info.tag || ""));
+        } else {
+          b.appendChild(el("i", "", r.cost ? r.cost : ""));
+        }
         b.addEventListener("pointerdown", function (e) {
           e.preventDefault();
           buzz();
@@ -1041,9 +1123,56 @@
     var note = $("shop-note");
     if (cur && !cur.ok) note.textContent = (cur.info && cur.info.sub) || "INDISPONÍVEL";
     else if (shop.action) note.textContent = "";
-    else if (cur && !cur.afford) note.textContent = "FALTAM " + (cur.cost - shop.souls) + " ALMAS";
+    else if (cur && !cur.afford) note.textContent = "FALTAM " + (cur.cost - shop.souls) + " " + shopUnit();
     else if (note.textContent !== "PEDIDO ENVIADO" && note.textContent.indexOf("DOOU") !== 0) note.textContent = "";
     renderGift(shop);
+  }
+
+  // loja de cacos: botão do cupom no topo e, na tela inicial, um card por seção
+  function cacosHead(list, shop, rows) {
+    var cup = rows.filter(function (r) { return r.id === "cupom"; })[0];
+    if (cup) {
+      var b = el("button", "shop-item cacos-cupom" + (shopPick === "cupom" ? " on" : ""), "INSERIR CUPOM");
+      b.addEventListener("pointerdown", function (e) {
+        e.preventDefault(); buzz(); shopPick = "cupom"; $("shop-note").textContent = "";
+        order("cupom", false); renderShop(shopData);
+      });
+      list.appendChild(b);
+    }
+    if (cacosPage === "skins") {
+      var back = el("button", "shop-item cacos-back", "‹ SEÇÕES");
+      back.addEventListener("pointerdown", function (e) {
+        e.preventDefault(); buzz(); cacosPage = "home"; shopKey = null; renderShop(shopData);
+      });
+      list.appendChild(back);
+      return;
+    }
+    var skins = rows.filter(function (r) { return r.info && r.info.type === "skin"; });
+    var mine = skins.filter(function (r) { return r.info.state === "tirar" || r.info.state === "vestir"; }).length;
+    [["skins", "SKINS", skins.length + " ROUPAS · " + mine + (mine === 1 ? " SUA" : " SUAS")],
+     ["pets", "PETS", "EM BREVE"]].forEach(function (sec) {
+      var b = el("button", "shop-item cacos-sec", "");
+      b.dataset.sec = sec[0];
+      var pics = el("span", "pics");
+      if (sec[0] === "skins") {
+        skins.slice(0, 3).forEach(function (r) {
+          var im = el("img", "ic"); im.src = r.info.img; im.alt = ""; im.draggable = false; pics.appendChild(im);
+        });
+      } else {
+        pics.appendChild(el("b", "qmark", "?"));
+      }
+      b.appendChild(pics);
+      b.appendChild(el("span", "name", sec[1]));
+      b.appendChild(el("small", "", sec[2]));
+      b.addEventListener("pointerdown", function (e) {
+        e.preventDefault(); buzz();
+        if (sec[0] !== "skins") { $("shop-note").textContent = "OS PETS CHEGAM EM BREVE!"; return; }
+        cacosPage = "skins"; shopKey = null;
+        if (shopPick === "cupom" && skins.length) { shopPick = skins[0].id; order(shopPick, false); }
+        renderShop(shopData);
+      });
+      list.appendChild(b);
+    });
   }
 
   function renderGift(shop) {
@@ -1181,6 +1310,10 @@
   onPress($("pc-close"), function () { $("pc-input").blur(); order("fechar", false); });
   onPress($("pc-back"), function () { order("voltar", false); });
   onPress($("shop-buy"), function () {
+    if (shopPick === "cupom") {
+      sendCupom();
+      return;
+    }
     if (shopPick === "doar") {
       giftTo = null;
       $("view-shop").classList.add("gifting");

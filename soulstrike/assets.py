@@ -130,6 +130,13 @@ class Assets:
             self.sprites[name] = tint_sprites(self.sprites[key], TINTS.get(key, SHADOW_TINT))
         return self.sprites[name]
 
+    def skin_sprites(self, skin):
+        """Sprites de uma skin da loja de CACOS (assets/characters/skins), ou None sem a folha."""
+        name = "skin:" + skin
+        if name not in self.sprites:
+            self.sprites[name] = load_sheet(f"skins/{skin}")
+        return self.sprites[name]
+
     def sheet_sprites(self, key):
         """Sprites de quem não é personagem nem criatura (o Albeguinio do administrativo)."""
         if key not in self.sprites:

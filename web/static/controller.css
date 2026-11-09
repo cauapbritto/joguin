@@ -566,3 +566,75 @@ body.editing #btn-zone, body.editing #stick-zone { background: rgba(255, 255, 25
 .pen-wait { display: none; color: var(--muted); }
 #view-penalty.espera .pen-wait { display: block; }
 #view-penalty.espera .pen-goal { opacity: .35; }
+
+/* loja de CACOS (Casa da turma): skins e cupom */
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-souls .gem { background: #78c8ff; transform: rotate(45deg) scale(.8, 1.2); }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-detail .foot strong { color: #78c8ff; }
+.skin-thumb img { max-height: 26px; max-width: 30px; }
+.shop-detail .skin-pic { justify-content: center; min-height: 0;
+  background: radial-gradient(circle, color-mix(in srgb, var(--r) 30%, transparent), transparent 70%); }
+.skin-big { image-rendering: pixelated; max-height: 120px; max-width: 100%; object-fit: contain;
+  filter: drop-shadow(0 0 4px var(--r)); pointer-events: none; }
+.cupom-input { font: inherit; font-size: 13px; padding: 8px; text-transform: uppercase; letter-spacing: 1px;
+  background: #f0f0ec; color: #1e1e28; border: 2px solid var(--r, #78c8ff); width: 100%; box-sizing: border-box; }
+.shop-detail .cupom-note { color: var(--r, #78c8ff); }
+
+/* loja de CACOS em cartas, como as lojinhas de game */
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; align-content: start;
+  padding: 4px 4px 8px; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item {
+  position: relative; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 0;
+  min-height: 100px; padding: 0; overflow: hidden; text-align: center;
+  background: linear-gradient(#2c4680, #161e3e); border-color: #0c0a12; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item[data-tier="rara"] { background: linear-gradient(#5c2e82, #b47430); }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item[data-tier="cupom"] { background: #f0e4c4; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item[data-tier="rara"]::before {
+  content: "RARA"; position: absolute; top: 3px; left: 3px; padding: 1px 3px; font-size: 7px;
+  background: #fad25a; color: #461e5a; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item[data-tier="cupom"]::before {
+  content: "CUPOM"; position: absolute; top: 0; left: 0; right: 0; padding: 2px 0; font-size: 8px;
+  background: #78c8ff; color: #142850; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.on {
+  border-color: #fff; box-shadow: 0 0 0 2px var(--c), 0 0 14px var(--c); transform: translateY(-2px); }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item .lbl { flex: 1; flex-direction: column; justify-content: center; gap: 4px;
+  padding: 14px 4px 4px; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item .thumb { width: auto; height: 54px; background: none; border: 0; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item .skin-thumb img { max-height: 52px; max-width: 64px;
+  filter: drop-shadow(0 3px 0 #0006); }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item .thumb .qmark { font-size: 26px; color: #2c64ba; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item .txt { display: none; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item .tag {
+  display: block; padding: 4px 0 3px; font-size: 9px; background: #0e0c16; color: #78c8ff; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item .tag::before { content: ""; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item[data-state="comprar"] .tag::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; background: #78c8ff;
+  transform: rotate(45deg) scale(.8, 1.2); }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.off[data-state="comprar"] .tag { color: #c8423c; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item[data-state="cupom"] .tag { color: var(--muted); }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item[data-tier="cupom"] .tag { color: #78c8ff; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item[data-state="tirar"] .tag { background: #76ba60; color: #0d0b12; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.off .thumb img { opacity: .6; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.cacos-cupom,
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.cacos-back {
+  grid-column: 1 / -1; min-height: 34px; flex-direction: row; justify-content: center; align-items: center;
+  background: #2c2a3a; color: var(--bone); font-size: 11px; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.cacos-cupom { background: #f0e4c4; color: #142850; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.cacos-cupom.on { box-shadow: 0 0 0 2px #78c8ff, 0 0 14px #78c8ff; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-list[data-page="home"] { grid-template-columns: 1fr 1fr; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.cacos-sec {
+  min-height: 150px; justify-content: center; align-items: center; gap: 4px; padding: 8px 4px;
+  background: linear-gradient(#462c78, #1c2450); color: #c8a0ff; font-size: 16px; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.cacos-sec[data-sec="pets"] {
+  background: linear-gradient(#24604a, #142c28); color: #8ce6aa; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.cacos-sec .pics { display: flex; align-items: flex-end; gap: 2px; height: 80px; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.cacos-sec .pics img { image-rendering: pixelated; max-height: 52px; opacity: .55; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.cacos-sec .pics img:nth-child(2) { max-height: 78px; opacity: 1; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.cacos-sec .qmark { font-size: 44px; color: #8ce6aa; }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item.cacos-sec small { font-size: 8px; color: var(--muted); }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item[data-mine="1"]::after { left: 0; bottom: 22px; top: auto !important; text-align: center;
+  content: "SEU HERÓI"; position: absolute; top: 3px; right: 3px; padding: 1px 3px; font-size: 7px;
+  background: var(--slot); color: #0d0b12; }
+#view-shop[data-kind="armario"] .shop-item[data-tier="base"] { background: linear-gradient(#423e50, #1e1c28); }
+#view-shop[data-kind="armario"] .shop-item[data-state="comprar"] .thumb img,
+#view-shop[data-kind="armario"] .shop-item[data-state="cupom"] .thumb img { filter: brightness(0.15); }

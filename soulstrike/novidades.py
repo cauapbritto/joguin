@@ -12,6 +12,28 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.43.0": [
+        {"title": "LOJA DE CACOS", "scene": "casa", "lines": [
+            "Tem banca nova no quintal da Casa: a LOJA DE CACOS. Chegue perto e ATACAR abre.",
+            "Ela abre com as seções SKINS e PETS (os pets chegam em breve). Dentro, as skins viram cartas.",
+            "Cacos são os caquinhos do cristal da IARA. Ficam salvos no computador, num pote só da turma.",
+            "Zerar a campanha inteira paga uns cacos, mais na dificuldade alta, e o dobro na primeira vez.",
+            "Na loja só tem enfeite: skin não muda dano, vida, energia nem arma.",
+        ]},
+        {"title": "SKINS NOVAS", "scene": "loja", "lines": [
+            "Por 300 cacos: Fantasma Lençol da Vó, Atirador Cangaceiro, Tanque de Obsidiana e Titã Rei Momo.",
+            "Cada skin vem com um efeito em volta do herói: poeira, confete, brasa de obsidiana...",
+            "A loja já abre na skin do herói que você está jogando. Comprou, ela é da turma.",
+            "Para vestir, vá ao seu ARMÁRIO (P1 a P4, ao lado da loja) e escolha a roupa do seu herói.",
+            "Armário piscando: tem skin nova esperando. Trocar de roupa lá é sempre de graça.",
+            "A skin fica no herói e vale na Casa e na campanha. No futebol e no basquete, o uniforme.",
+        ]},
+        {"title": "CUPONS", "scene": "casa", "lines": [
+            "O botão INSERIR CUPOM fica lá em cima: digite pelo teclado da TV ou direto no celular.",
+            "Cada cupom vale uma vez por save e pode dar cacos e até uma skin rara que não se compra.",
+            "As quatro raras são da turma original: Albeguinio, Cauanzera, Aryel e Borba Jr.",
+        ]},
+    ],
     "1.42.0": [
         {"title": "O BAÚ NÃO ESCOLHE POR VOCÊ", "scene": "corredores", "lines": [
             "Abrindo o baú, as armas raras saltam para o chão, na frente dele: uma por jogador e mais uma.",

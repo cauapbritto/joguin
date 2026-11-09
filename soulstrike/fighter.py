@@ -9,7 +9,7 @@ from . import rumble
 from .abilities import create_ability
 from .data import shot_sound
 from .entities import Entity, Particle, hostile
-from . import energia, forged, gadgets, rare_fx
+from . import energia, forged, gadgets, rare_fx, skins
 from .market import BURN_TICK, FORGE_DAMAGE, FORGE_MAG, enchant_hit
 from . import weapon_art
 
@@ -235,6 +235,7 @@ class Fighter(Entity):
         self.team = team
         self.is_cpu = is_cpu
         self.sprites = sprites
+        self.skin = None                # skin da loja de CACOS vestida (só o efeito em volta; a folha já vem em sprites)
         self.max_hp = stats.max_hp      # pode crescer com melhorias (campanha)
         self.hp = self.max_hp
         self.weapon_index = weapon_index
@@ -1418,10 +1419,15 @@ class Fighter(Entity):
             rect = img.get_rect(center=rect.center)
         if self.aura is not None:
             self._draw_aura(surf, img, rect, ticks)
+        dressed = self.skin is not None and self.cloak < 0.5 and not self.spin and self.exo_base is None
+        if dressed:
+            skins.draw_back(surf, self.skin, rect, ticks)
         if self.cloak > 0.02:
             img = img.copy()
             img.set_alpha(round(255 * max(0.08, 1 - self.cloak)))
         surf.blit(img, rect)
+        if dressed:
+            skins.draw_front(surf, self.skin, rect, ticks)
         if self.uniform and self.cloak < 0.5 and not self.spin:
             draw_uniform(surf, rect, direction)
         if self.uno_hits > 0 and self.cloak < 0.5 and not self.spin:

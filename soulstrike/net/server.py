@@ -72,6 +72,14 @@ def weapon_icon(name):
     return send_from_directory(config.ASSETS_DIR / "weapons", name, max_age=86400)
 
 
+@app.route("/skin/<name>")
+def skin_picture(name):
+    """Retrato de uma skin da loja de CACOS (assets/characters/skins/<skin>_retrato.png)."""
+    if not name.endswith(".png") or "/" in name or "\\" in name or ".." in name:
+        abort(404)
+    return send_from_directory(config.CHAR_DIR / "skins", name[:-4] + "_retrato.png", max_age=86400)
+
+
 @app.route("/sprite/<int:index>.png")
 def sprite(index):
     data = _previews.get(index)
