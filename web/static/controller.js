@@ -1044,7 +1044,7 @@
     var view = $("view-shop");
     if (shopOpen !== shop.kind) {          // acabou de abrir
       shopOpen = shop.kind;
-      cacosPage = shop.picked && shop.picked !== "cupom" ? "skins" : "home";
+      cacosPage = !shop.picked || shop.picked === "cupom" ? "home" : shop.picked.indexOf("pet:") === 0 ? "pets" : "skins";
       shopPick = shopRow(shop.picked);
       shopServerPick = shop.picked;
       encPick = {};
@@ -1054,7 +1054,8 @@
       $("shop-note").textContent = "";
     } else if (shop.picked !== shopServerPick) {
       shopServerPick = shop.picked;        // mexeram pelo analógico na TV
-      if (shop.kind === "cacos" && shop.picked !== "cupom") cacosPage = "skins";
+      if (shop.kind === "cacos" && shop.picked !== "cupom")
+        cacosPage = shop.picked.indexOf("pet:") === 0 ? "pets" : "skins";
       var row = shopRow(shop.picked);
       if (rowItem(rows.filter(function (r) { return r.id === shopPick; })[0]) !== shop.picked &&
           !view.classList.contains("gifting")) {
@@ -1082,7 +1083,7 @@
       list.dataset.page = shop.kind === "cacos" ? cacosPage : "";
       if (shop.kind === "cacos") cacosHead(list, shop, rows);
       rows.forEach(function (r) {
-        if (shop.kind === "cacos" && (r.id === "cupom" || cacosPage !== "skins")) return;
+        if (shop.kind === "cacos" && (r.id === "cupom" || !r.info || r.info.section !== cacosPage)) return;
         var b = el("button", "shop-item" + (r.id === shopPick ? " on" : "") + (r.ok && r.afford ? "" : " off"));
         b.style.setProperty("--c", r.color);
         b.style.setProperty("--r", (r.info && r.info.weapon) ? r.info.weapon.color : r.color);
@@ -1139,7 +1140,7 @@
       });
       list.appendChild(b);
     }
-    if (cacosPage === "skins") {
+    if (cacosPage !== "home") {
       var back = el("button", "shop-item cacos-back", "‹ SEÇÕES");
       back.addEventListener("pointerdown", function (e) {
         e.preventDefault(); buzz(); cacosPage = "home"; shopKey = null; renderShop(shopData);
@@ -1147,28 +1148,29 @@
       list.appendChild(back);
       return;
     }
-    var skins = rows.filter(function (r) { return r.info && r.info.type === "skin"; });
-    var mine = skins.filter(function (r) { return r.info.state === "tirar" || r.info.state === "vestir"; }).length;
-    [["skins", "SKINS", skins.length + " ROUPAS · " + mine + (mine === 1 ? " SUA" : " SUAS")],
-     ["pets", "PETS", "EM BREVE"]].forEach(function (sec) {
+    function part(name) { return rows.filter(function (r) { return r.info && r.info.section === name; }); }
+    function mineOf(list) {
+      return list.filter(function (r) { return r.info.state === "tirar" || r.info.state === "vestir"; }).length;
+    }
+    var skins = part("skins"), pets = part("pets");
+    var ms = mineOf(skins), mp = mineOf(pets);
+    [["skins", "SKINS", skins, skins.length + " ROUPAS · " + ms + (ms === 1 ? " SUA" : " SUAS")],
+     ["pets", "PETS", pets, pets.length + " BICHINHOS · " + mp + (mp === 1 ? " SEU" : " SEUS")]].forEach(function (sec) {
       var b = el("button", "shop-item cacos-sec", "");
       b.dataset.sec = sec[0];
       var pics = el("span", "pics");
-      if (sec[0] === "skins") {
-        skins.slice(0, 3).forEach(function (r) {
-          var im = el("img", "ic"); im.src = r.info.img; im.alt = ""; im.draggable = false; pics.appendChild(im);
-        });
-      } else {
-        pics.appendChild(el("b", "qmark", "?"));
-      }
+      sec[2].slice(0, 3).forEach(function (r) {
+        var im = el("img", "ic"); im.src = r.info.img; im.alt = ""; im.draggable = false; pics.appendChild(im);
+      });
       b.appendChild(pics);
       b.appendChild(el("span", "name", sec[1]));
-      b.appendChild(el("small", "", sec[2]));
+      b.appendChild(el("small", "", sec[3]));
       b.addEventListener("pointerdown", function (e) {
         e.preventDefault(); buzz();
-        if (sec[0] !== "skins") { $("shop-note").textContent = "OS PETS CHEGAM EM BREVE!"; return; }
-        cacosPage = "skins"; shopKey = null;
-        if (shopPick === "cupom" && skins.length) { shopPick = skins[0].id; order(shopPick, false); }
+        cacosPage = sec[0]; shopKey = null;
+        if (sec[2].length && !sec[2].some(function (r) { return r.id === shopPick; })) {
+          shopPick = sec[2][0].id; order(shopPick, false);
+        }
         renderShop(shopData);
       });
       list.appendChild(b);

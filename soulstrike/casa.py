@@ -669,6 +669,7 @@ class HubMatch(CoopMatch):
         self.add_effect(luz_casa.CasaLight([(13 * T, OY + 4, 120, 52), (32 * T, OY + 4, 120, 52)],
                                            self.bakery.chimney))
         mascotes.furnish(self, T, OY, QY, self._put, art)
+        mascotes.join_shop(self)                            # os pets da loja de CACOS
 
     # ── montagem ─────────────────────────────
     def _floor(self, fn, x, y, *args, **kw):
@@ -905,6 +906,10 @@ class HubMatch(CoopMatch):
             if not skins.dress(p, self.assets) and p.skin is not None:
                 p.sprites = self.assets.sprites[p.stats.key]
                 p.skin = None
+
+    def refresh_pets(self):
+        """Depois de trocar de pet no armário."""
+        mascotes.refresh_shop(self)
 
     def book_near(self, f):
         return f.alive_in_match and math.hypot(f.x - self.book.x, f.y - (self.book.y + 40)) < BOOK_REACH

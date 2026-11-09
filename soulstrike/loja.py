@@ -15,7 +15,7 @@ import pygame
 from . import cacos, config, pecas, theme
 from .data import CHARACTERS
 from .entities import Entity, Particle, Wall
-from .skins import CACO_COLOR, SKINS, draw_back, draw_caco, draw_front
+from .skins import CACO_COLOR, PETS, SKINS, ShopPet, draw_back, draw_caco, draw_front
 
 STICK = 0.5
 REACH = 80
@@ -34,10 +34,17 @@ SECTIONS = (("skins", "SKINS"), ("pets", "PETS"))
 
 
 def state_of(skin):
-    """O que dá para fazer com a skin agora: "tirar", "vestir", "comprar" ou "cupom"."""
+    """O que dá para fazer com a skin (ou o pet) agora: "tirar", "vestir", "comprar" ou "cupom"."""
+    if isinstance(skin, ShopPet):
+        return "vestir" if skin.key in cacos.owned_pets() else "comprar"
     if skin.key in cacos.owned():
         return "tirar" if cacos.worn(skin.hero) == skin.key else "vestir"
     return "comprar" if skin.price else "cupom"
+
+
+def pet_image(pet, walking=False):
+    """A figura do pet da loja (sentado ou andando, virado para a direita)."""
+    return pecas.image(f"mascote_{pet}_{'andando' if walking else 'sentado'}")
 
 
 ACTION_LABEL = {"tirar": "NO ARMÁRIO", "vestir": "NO ARMÁRIO", "comprar": "COMPRAR", "cupom": "SÓ COM CUPOM"}
@@ -128,6 +135,8 @@ class ShopMenu:
 
     # ── linhas ───────────────────────────────
     def entries(self):
+        if self.page == "pets":
+            return [(p.key, p) for p in PETS.values()]
         return [(s.key, s) for s in self.order]
 
     def current(self):
@@ -150,11 +159,8 @@ class ShopMenu:
             return True
         if skin is None:                      # tela inicial: entra na seção
             name = SECTIONS[self.section][0]
-            if name != "skins":
-                self._say("OS PETS CHEGAM EM BREVE!", CACO_COLOR)
-                play("cancel", 0.3)
-                return False
-            self.page, self.index, self.scroll = name, self._my_first(), 0
+            self.page, self.index, self.scroll = name, 0, 0
+            self.index = self._my_first()
             self.note = ("", theme.BONE)
             play("select", 0.4)
             return True
@@ -162,6 +168,8 @@ class ShopMenu:
 
     def _my_first(self):
         """Ao entrar nas skins, já marca a do herói de quem abriu (a vestida, senão a primeira dele)."""
+        if self.page != "skins":
+            return 0
         rows = self.entries()
         worn = cacos.worn(self.hero) if self.hero else None
         for want in (lambda s: s.key == worn, lambda s: s.hero == self.hero):
@@ -183,12 +191,17 @@ class ShopMenu:
                 self._say(f"FALTAM {skin.price - cacos.balance()} CACOS", theme.BLOOD)
                 play("cancel", 0.3)
                 return False
-            cacos.give_skin(skin.key)
-            self._say(f"É SUA! VISTA NO ARMÁRIO P{self._slot()}, AQUI DO LADO", theme.MOSS)
+            if isinstance(skin, ShopPet):
+                cacos.give_pet(skin.key)
+                self._say(f"É SEU! ESCOLHA ELE NO ARMÁRIO P{self._slot()}, AQUI DO LADO", theme.MOSS)
+            else:
+                cacos.give_skin(skin.key)
+                self._say(f"É SUA! VISTA NO ARMÁRIO P{self._slot()}, AQUI DO LADO", theme.MOSS)
             self._celebrate(skin)
             play("compra", 0.5)
             return True
-        self._say(f"JÁ É SUA: VISTA NO ARMÁRIO P{self._slot()}, AQUI DO LADO", theme.BONE)
+        self._say(f"JÁ É {'SEU' if isinstance(skin, ShopPet) else 'SUA'}: PEGUE NO ARMÁRIO P{self._slot()}, AQUI DO LADO",
+                  theme.BONE)
         play("click", 0.3)
         return False
 
@@ -327,11 +340,14 @@ class ShopMenu:
         if key == "cupom":
             self.coupon = True
             return True
-        for i, (k, _) in enumerate(self.entries()):
+        page = "pets" if key.startswith("pet:") else "skins"
+        key = key[4:] if page == "pets" else key
+        rows = [(p.key, p) for p in PETS.values()] if page == "pets" else [(s.key, s) for s in self.order]
+        for i, (k, _) in enumerate(rows):
             if k == key:
-                if i != self.index % len(self.entries()) or self.page != "skins":
+                if i != self.index % len(rows) or self.page != page:
                     self.match.assets.play("click", 0.3)
-                self.index, self.page, self.coupon = i, "skins", False
+                self.index, self.page, self.coupon = i, page, False
                 self.typing = False
                 return True
         return False
@@ -356,10 +372,23 @@ class ShopMenu:
                          "rarity": "RARA · CUPOM" if s.rarity == "rara" else "LOJA",
                          "tier": s.rarity, "state": state, "mine": s.hero == self.hero,
                          "tag": {"tirar": "VESTIDA", "vestir": "É SUA", "comprar": str(s.price),
-                                 "cupom": "CUPOM"}[state]},
+                                 "cupom": "CUPOM"}[state], "section": "skins"},
+            })
+        for pet in PETS.values():
+            state = state_of(pet)
+            items.append({
+                "id": "pet:" + pet.key, "label": pet.name, "cost": pet.price if state == "comprar" else 0,
+                "desc": pet.blurb, "ok": True, "afford": state != "comprar" or balance >= pet.price,
+                "color": "#%02x%02x%02x" % pet.color,
+                "info": {"type": "skin", "img": f"/pet/{pet.key}.png", "hero": "PET", "tier": "pet",
+                         "sub": "É SEU" if state == "vestir" else f"{pet.price} CACOS", "rarity": "PET",
+                         "state": state, "tag": "É SEU" if state == "vestir" else str(pet.price),
+                         "section": "pets"},
             })
         if skin is None:
             key = "cupom"
+        elif isinstance(skin, ShopPet):
+            key = "pet:" + key
         action = "USAR CUPOM" if skin is None else ACTION_LABEL[state_of(skin)]
         return {"kind": "cacos", "title": "LOJA DE CACOS", "souls": balance, "unit": "CACOS",
                 "picked": key, "mates": [], "items": items, "action": action}
@@ -415,7 +444,7 @@ class ShopMenu:
             self._draw_grid(screen, ui, area, self.entries())
             shown = skin if skin is not None else self.entries()[self.index % len(self.entries())][1]
             self._draw_detail(screen, ui, pygame.Rect(body.x, area.bottom + 6, body.width, 50), shown)
-            hint = ("ATACAR: INSERIR CUPOM · BAIXO: VOLTAR ÀS SKINS" if self.coupon
+            hint = ("ATACAR: INSERIR CUPOM · BAIXO: VOLTAR À VITRINE" if self.coupon
                     else "ANALÓGICO: ESCOLHER · ATACAR: " + ("IR AO CUPOM" if state_of(skin) == "cupom"
                                                       else ACTION_LABEL[state_of(skin)]) + " · ESQUIVA: VOLTAR")
         ui.text(screen, hint, theme.XS, (130, 126, 140), (rect.centerx, rect.bottom - 10))
@@ -440,17 +469,19 @@ class ShopMenu:
                 color = (200, 160, 255)
             else:
                 self._gradient(screen, card, (36, 96, 70), (20, 44, 40))
-                self._pet_teaser(screen, ui, card, t)
-                sub = "OS BICHINHOS ESTÃO CHEGANDO"
+                self._pet_showcase(screen, card, t, on)
+                owned = len(cacos.owned_pets())
+                sub = f"{len(PETS)} BICHINHOS · " + ("NENHUM SEU AINDA" if not owned
+                                                      else f"{owned} SEU" + ("S" if owned > 1 else ""))
                 color = (140, 230, 170)
             strip = pygame.Rect(card.x, card.bottom - 54, card.width, 54)
             screen.fill((14, 12, 22), strip)
             ui.text(screen, title, theme.M, color, (strip.centerx, strip.y + 18))
             ui.text(screen, sub, theme.XS, theme.MUTED, (strip.centerx, strip.y + 40))
-            if name != "skins":
-                tag = pygame.Rect(card.right - 82, card.y + 8, 74, 16)
+            if name == "pets" and not cacos.owned_pets():
+                tag = pygame.Rect(card.right - 58, card.y + 8, 50, 16)
                 screen.fill((250, 210, 90), tag)
-                ui.text(screen, "EM BREVE", theme.XS, (70, 40, 20), tag.center, shadow=False)
+                ui.text(screen, "NOVO", theme.XS, (70, 40, 20), tag.center, shadow=False)
             self._frame(screen, card, color, on)
 
     def _showcase(self, screen, card, t, on):
@@ -482,17 +513,27 @@ class ShopMenu:
                 img.set_alpha(alpha)
                 screen.blit(img, spot)
 
-    def _pet_teaser(self, screen, ui, card, t):
-        """Silhuetas dos pets que vêm por aí, com um ponto de interrogação pulando."""
-        base = card.bottom - 72
-        for dx, w_, h_ in ((-70, 34, 22), (0, 44, 30), (66, 30, 26)):
-            bob = math.sin(t * 0.08 + dx) * 2
-            body = pygame.Rect(0, 0, w_, h_)
-            body.midbottom = (card.centerx + dx, base + bob)
-            pygame.draw.ellipse(screen, (12, 30, 24), body)
-            pygame.draw.circle(screen, (12, 30, 24), (body.right - 4, body.y + 2), h_ // 3)
-        q = card.centerx, card.y + 54 + math.sin(t * 0.1) * 3
-        ui.text(screen, "?", theme.L, (140, 230, 170), (round(q[0]), round(q[1])))
+    def _pet_showcase(self, screen, card, t, on):
+        """Três pets passeando no card: o do meio grande, trocando de tempos em tempos."""
+        pets = list(PETS.values())
+        start = (t // 150) % len(pets)
+        picks = [pets[(start + k) % len(pets)] for k in (1, 0, 2)]
+        for pet, (dx, scale, alpha) in zip(picks, ((-84, 1.4, 130), (0, 2.4, 255), (84, 1.4, 130))):
+            img = pet_image(pet.key, on and dx == 0 and (t // 20) % 2)
+            if img is None:
+                continue
+            img = pygame.transform.scale(img, (round(img.get_width() * scale), round(img.get_height() * scale)))
+            bob = math.sin(t * 0.1 + dx) * 3 if pet.flies else 0
+            spot = img.get_rect(midbottom=(card.centerx + dx, card.bottom - 72 + bob - (24 if pet.flies else 0)))
+            if dx == 0:
+                halo = pygame.Surface((160, 160), pygame.SRCALPHA)
+                for rad, a in ((70, 26), (50, 36), (30, 46)):
+                    pygame.draw.circle(halo, (*pet.color, a), (80, 80), rad)
+                screen.blit(halo, halo.get_rect(center=spot.center))
+                pygame.draw.ellipse(screen, (0, 0, 0), (spot.centerx - 30, card.bottom - 78, 60, 12))
+            else:
+                img.set_alpha(alpha)
+            screen.blit(img, spot)
 
     # a grade de cartas
     def _draw_grid(self, screen, ui, area, rows):
@@ -574,7 +615,15 @@ class ShopMenu:
                        (cx + math.cos(a + 0.22) * 80, cy + math.sin(a + 0.22) * 80)]
                 pygame.draw.polygon(rays, (255, 226, 150, 46), pts)
             screen.blit(rays, card.topleft)
-        sprites = self.match.assets.skin_sprites(skin.key)
+        sprites = None if isinstance(skin, ShopPet) else self.match.assets.skin_sprites(skin.key)
+        if isinstance(skin, ShopPet):
+            img = pet_image(skin.key, on and (t // 20) % 2)
+            if img is not None:
+                img = pygame.transform.scale(img, (round(img.get_width() * 1.6), round(img.get_height() * 1.6)))
+                bob = round(math.sin(t * 0.12) * 2) if skin.flies else 0
+                spot = img.get_rect(midbottom=(card.centerx, card.bottom - 30 + bob - (8 if skin.flies else 0)))
+                pygame.draw.ellipse(screen, (0, 0, 0), (card.centerx - 22, card.bottom - 34, 44, 8))
+                screen.blit(img, spot)
         if sprites is not None:
             img = sprites.frame("frente", t // 8 if on else 0)
             spot = img.get_rect(midbottom=(card.centerx, card.bottom - 26))
@@ -589,7 +638,7 @@ class ShopMenu:
             tag = pygame.Rect(card.x + 4, card.y + 4, 34, 13)
             screen.fill((250, 210, 90), tag)
             ui.text(screen, "RARA", theme.XS, (70, 30, 90), tag.center, shadow=False)
-        if skin.hero == self.hero:                                        # selo do herói de quem abriu
+        if skin.hero is not None and skin.hero == self.hero:              # selo do herói de quem abriu
             tag = pygame.Rect(card.x, card.bottom - 35, card.width, 13)
             screen.fill(theme.SLOT_COLORS.get(self.fighter.slot, theme.BONE), tag)
             ui.text(screen, "SEU HERÓI", theme.XS, theme.INK, tag.center, shadow=False)
@@ -608,7 +657,8 @@ class ShopMenu:
             screen.fill(theme.MOSS, strip)
             ui.text(screen, "VESTIDA", theme.XS, theme.INK, (strip.centerx, strip.centery + 1), shadow=False)
         else:
-            ui.text(screen, "É SUA", theme.XS, theme.BONE, (strip.centerx, strip.centery + 1))
+            ui.text(screen, "É SEU" if isinstance(skin, ShopPet) else "É SUA", theme.XS, theme.BONE,
+                    (strip.centerx, strip.centery + 1))
         if state == "cupom" and not on:                                   # rara trancada: mais apagada
             veil = pygame.Surface((card.width, card.height - 22), pygame.SRCALPHA)
             veil.fill((10, 8, 16, 90))
@@ -652,7 +702,7 @@ class ShopMenu:
         state = state_of(skin)
         ui.text(screen, skin.name, theme.S if len(skin.name) <= 24 else theme.XS, skin.color,
                 (bar.x + 10, bar.y + 16), anchor="midleft")
-        sub = HERO_NAMES.get(skin.hero, "") + " · " + skin.blurb
+        sub = ("PET" if isinstance(skin, ShopPet) else HERO_NAMES.get(skin.hero, "")) + " · " + skin.blurb
         room = button.x - bar.x - 20
         while len(sub) > 8 and ui.assets.text(sub, theme.XS, theme.MUTED).get_width() > room:
             sub = sub[:-2].rstrip(" ,·") + "…"
@@ -662,7 +712,8 @@ class ShopMenu:
             self._button(screen, ui, button, f"COMPRAR {skin.price}", CACO_COLOR if ok else theme.FAINT, theme.INK,
                          caco=True)
         elif state in ("vestir", "tirar"):
-            self._button(screen, ui, button, "VESTIR NO ARMÁRIO", theme.LINE_HI, theme.BONE)
+            self._button(screen, ui, button, "PEGAR NO ARMÁRIO" if isinstance(skin, ShopPet) else "VESTIR NO ARMÁRIO",
+                         theme.LINE_HI, theme.BONE)
         else:
             self._button(screen, ui, button, "SÓ COM CUPOM", theme.LINE, theme.MUTED)
 

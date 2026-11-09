@@ -80,6 +80,15 @@ def skin_picture(name):
     return send_from_directory(config.CHAR_DIR / "skins", name[:-4] + "_retrato.png", max_age=86400)
 
 
+@app.route("/pet/<name>")
+def pet_picture(name):
+    """Figura de um pet da loja de CACOS (assets/pecas/mascote_<pet>_sentado.png)."""
+    if not name.endswith(".png") or "/" in name or "\\" in name or ".." in name:
+        abort(404)
+    return send_from_directory(config.ROOT / "assets" / "pecas", "mascote_" + name[:-4] + "_sentado.png",
+                               max_age=86400)
+
+
 @app.route("/sprite/<int:index>.png")
 def sprite(index):
     data = _previews.get(index)

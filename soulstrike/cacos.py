@@ -156,3 +156,39 @@ def redeem(code):
             skins.append(skin)
     progress.save(data)
     return "ok", amount, skin
+
+
+# ── pets ──────────────────────────────────────
+def owned_pets():
+    box = progress.load().get(KEY)
+    pets = box.get("pets") if isinstance(box, dict) else None
+    return set(pets) if isinstance(pets, list) else set()
+
+
+def give_pet(pet):
+    data = progress.load()
+    box = _box(data)
+    pets = box.setdefault("pets", [])
+    if pet not in pets:
+        pets.append(pet)
+    progress.save(data)
+
+
+def pet_of(slot):
+    """O pet da loja que o jogador ``slot`` (1 a 4) leva junto (ou None)."""
+    box = progress.load().get(KEY)
+    chosen = box.get("pet_jogador") if isinstance(box, dict) else None
+    pet = chosen.get(str(slot)) if isinstance(chosen, dict) else None
+    return pet if pet in owned_pets() else None
+
+
+def set_pet(slot, pet):
+    """O jogador ``slot`` passa a levar ``pet`` (None deixa sem pet)."""
+    data = progress.load()
+    box = _box(data)
+    chosen = box.setdefault("pet_jogador", {})
+    if pet is None:
+        chosen.pop(str(slot), None)
+    else:
+        chosen[str(slot)] = pet
+    progress.save(data)

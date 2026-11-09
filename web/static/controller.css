@@ -638,3 +638,5 @@ body.editing #btn-zone, body.editing #stick-zone { background: rgba(255, 255, 25
 #view-shop[data-kind="armario"] .shop-item[data-tier="base"] { background: linear-gradient(#423e50, #1e1c28); }
 #view-shop[data-kind="armario"] .shop-item[data-state="comprar"] .thumb img,
 #view-shop[data-kind="armario"] .shop-item[data-state="cupom"] .thumb img { filter: brightness(0.15); }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item[data-tier="pet"] { background: linear-gradient(#24604a, #142c28); }
+#view-shop:is([data-kind="cacos"], [data-kind="armario"]) .shop-item[data-tier="pet"] .thumb img { max-height: 44px; max-width: 56px; }

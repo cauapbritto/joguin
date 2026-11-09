@@ -13,7 +13,8 @@ from soulstrike.guarda_roupa import WardrobeMenu
 from soulstrike.data import CHARACTERS
 from soulstrike.loja import ShopMenu, state_of
 from soulstrike.session import Session, SlotSetup
-from soulstrike.skins import SKINS
+from soulstrike.mascotes import Pet
+from soulstrike.skins import PETS, SKINS
 
 KEYS = [c.key for c in CHARACTERS]
 ROOT = Path(__file__).resolve().parent.parent
@@ -263,8 +264,10 @@ class LojaTest(unittest.TestCase):
         self.assertEqual(menu.page, "home")
         self.assertEqual(menu.current(), ("secao:skins", None))
         menu.section = 1
-        self.assertFalse(menu.buy())                      # pets ainda não chegaram
-        self.assertEqual(menu.page, "home")
+        self.assertTrue(menu.buy())                       # entra nos pets
+        self.assertEqual(menu.page, "pets")
+        self.assertIn(menu.current()[0], PETS)
+        menu.page = "home"
         menu.section = 0
         self.assertTrue(menu.buy())                       # entra nas skins
         self.assertEqual(menu.page, "skins")
@@ -331,8 +334,10 @@ class LojaTest(unittest.TestCase):
         cacos.give_skin("aryel_fogo")
         match, inputs = casa(("aryel", "guerreiro"))
         screen = game().screen
+        cacos.give_pet("caquinho")
         for f in match.players:
             match.menus[f] = WardrobeMenu(match, f)
+        match.menus[match.players[1]].row = 1
         passo(match, inputs, 25)
         self.assertEqual(match.lockers.open, {1, 2})
         match.draw(screen, game().ui)
@@ -340,6 +345,64 @@ class LojaTest(unittest.TestCase):
         passo(match, inputs, 25)
         self.assertIn(1, match.lockers.glow)              # skin nova esperando no armário do P1
         match.draw(screen, game().ui)
+
+    def test_comprar_pet_e_levar_pelo_armario(self):
+        match, inputs = casa()
+        f, g = match.players
+        shop = ShopMenu(match, f)
+        self.assertTrue(shop.pick("pet:capivara"))
+        self.assertEqual(shop.page, "pets")
+        self.assertFalse(shop.buy())                      # sem cacos
+        cacos.add(260)
+        self.assertTrue(shop.buy())
+        self.assertEqual(cacos.balance(), 10)
+        self.assertIn("capivara", cacos.owned_pets())
+        self.assertIsNone(cacos.pet_of(f.slot))           # a loja só desbloqueia
+        self.assertFalse(shop.buy())                      # já é seu: não cobra de novo
+        self.assertEqual(cacos.balance(), 10)
+        snap = shop.snapshot()
+        self.assertEqual(snap["picked"], "pet:capivara")
+        item = next(i for i in snap["items"] if i["id"] == "pet:capivara")
+        self.assertEqual(item["info"]["img"], "/pet/capivara.png")
+        closet = WardrobeMenu(match, f)
+        self.assertTrue(closet.pick("pet:jabuti"))
+        self.assertEqual(closet.row, 1)
+        self.assertFalse(closet.buy())                    # não comprou o jabuti
+        closet.pick("pet:capivara")
+        self.assertTrue(closet.buy())
+        self.assertEqual(cacos.pet_of(f.slot), "capivara")
+        following = [p for p in match.props if isinstance(p, Pet) and p.shop]
+        self.assertEqual([(p.pet, p.target) for p in following], [("capivara", f)])
+        g_closet = WardrobeMenu(match, g)                 # o P2 também pode levar uma capivara
+        g_closet.pick("pet:capivara")
+        self.assertTrue(g_closet.buy())
+        self.assertEqual(len([p for p in match.props if isinstance(p, Pet) and p.shop]), 2)
+        closet.pick("pet:none")
+        self.assertTrue(closet.buy())
+        self.assertIsNone(cacos.pet_of(f.slot))
+        following = [p for p in match.props if isinstance(p, Pet) and p.shop]
+        self.assertEqual([p.target for p in following], [g])
+        passo(match, inputs, 30)                          # o pet anda atrás do dono
+        self.assertLess(abs(following[0].x - g.x), 120)
+
+    def test_pet_vai_para_a_fase(self):
+        from soulstrike import mascotes
+        cacos.give_pet("drone")
+        cacos.set_pet(1, "drone")
+        match, _ = casa()
+        props = []
+
+        class Fake:
+            players = match.players
+        Fake.props = props
+        mascotes.join(Fake)
+        self.assertEqual([(p.pet, p.flies, p.target) for p in props], [("drone", True, match.players[0])])
+
+    def test_folhas_dos_pets(self):
+        from soulstrike.loja import pet_image
+        for key in PETS:
+            for walking in (False, True):
+                self.assertIsNotNone(pet_image(key, walking), key)
 
     def test_desenha_com_o_menu_aberto(self):
         cacos.give_skin("borba_ouro")
@@ -358,6 +421,12 @@ class LojaTest(unittest.TestCase):
             match.draw(screen, game().ui)
         menu.typing = True
         match.draw(screen, game().ui)
+        menu.typing = False
+        cacos.give_pet("mico")
+        menu.page = "pets"
+        for i in range(len(menu.entries())):
+            menu.index = i
+            match.draw(screen, game().ui)
 
 
 if __name__ == "__main__":
