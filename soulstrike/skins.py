@@ -44,6 +44,36 @@ SKINS = {s.key: s for s in (
 )}
 
 
+@dataclass(frozen=True)
+class ShopPet:
+    """Pet da loja de CACOS: segue o jogador na Casa e nas fases (só enfeite, como os mascotes)."""
+    key: str
+    name: str
+    price: int
+    blurb: str
+    color: tuple
+    flies: bool
+    lines: tuple
+    rarity: str = "loja"
+    hero: str = None
+
+
+PETS = {p.key: p for p in (
+    ShopPet("capivara", "CAPIVARA", 250, "ANDA DEVAGARINHO E TEM UMA LARANJA NA CABEÇA", (206, 164, 112), False,
+            ("ZZZ...", "*MASTIGA A LARANJA*", "*BOCEJA*")),
+    ShopPet("mico", "MICO-LEÃO-DOURADO", 250, "PULA DE UM OMBRO PARA O OUTRO E ROUBA MOEDINHA", (250, 160, 50), False,
+            ("UH UH!", "*PEGA UMA MOEDINHA*", "IIIH!")),
+    ShopPet("tuiuiu", "TUIUIÚ FILHOTE", 250, "O PRIMO DO BEM DO TUIUIÚ-DRONE, SÓ QUE DE VERDADE", (230, 90, 80), False,
+            ("TUIU!", "*BATE O BICO*", "*ABRE AS ASAS*")),
+    ShopPet("jabuti", "JABUTI", 250, "O MAIS LENTO DA TURMA: CORREU, ELE SE ESCONDE NO CASCO", (120, 170, 80), False,
+            ("...", "*DEVAGAR E SEMPRE*", "*COLOCA A CABEÇA PARA FORA*")),
+    ShopPet("drone", "MINI-DRONE LAG LOBBY", 250, "ROBOZINHO DA LAG LOBBY QUE VOA DO SEU LADO", (90, 220, 220), True,
+            ("BIP BOP!", "LAG? AQUI NÃO!", "PING: 1 MS")),
+    ShopPet("caquinho", "CAQUINHO", 250, "UM CACO DO CRISTAL QUE GANHOU VIDA: O MASCOTE DOS CACOS",
+            (120, 200, 255), True, ("TLIN!", "*BRILHA*", "CACO CACO!")),
+)}
+
+
 CACO_COLOR = (120, 200, 255)
 
 

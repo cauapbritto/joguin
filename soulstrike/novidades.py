@@ -12,6 +12,18 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.44.0": [
+        {"title": "PETS NA LOJA DE CACOS", "scene": "casa", "lines": [
+            "A seção PETS da loja abriu: capivara, mico-leão-dourado, tuiuiú filhote e jabuti.",
+            "E dois que voam do seu lado: o mini-drone da Lag Lobby e o Caquinho, um caco que ganhou vida.",
+            "Cada pet custa 250 cacos e é só enfeite: não bate, não apanha, não muda nada na luta.",
+        ]},
+        {"title": "O PET NO ARMÁRIO", "scene": "casa", "lines": [
+            "Comprou? Vá ao seu armário: embaixo das roupas tem a linha PET. Escolha e ele já vem atrás.",
+            "O pet fica com o jogador (P1 a P4) e vai junto para as fases, mesmo trocando de herói.",
+            "Dois jogadores podem levar o mesmo bicho, e o gato, o cachorro e o papagaio continuam na Casa.",
+        ]},
+    ],
     "1.43.0": [
         {"title": "LOJA DE CACOS", "scene": "casa", "lines": [
             "Tem banca nova no quintal da Casa: a LOJA DE CACOS. Chegue perto e ATACAR abre.",

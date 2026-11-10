@@ -1,10 +1,11 @@
-"""Os 4 ARMÁRIOS da Casa (um por jogador, P1 a P4): onde se veste a skin.
+"""Os 4 ARMÁRIOS da Casa (um por jogador, P1 a P4): onde se veste a skin e se escolhe o pet.
 
-A loja de CACOS (soulstrike/loja.py) só desbloqueia a skin. Para vestir, cada jogador vai até o
-armário com o número dele, aperta ATACAR e escolhe a roupa do herói que está jogando: a de sempre
-ou uma das skins que a turma já tem. A skin fica no herói (quem jogar com ele aparece com ela).
+A loja de CACOS (soulstrike/loja.py) só desbloqueia. Para vestir, cada jogador vai até o armário com
+o número dele, aperta ATACAR e escolhe a roupa do herói que está jogando (a de sempre ou uma skin que
+a turma já tem) e o pet que vai junto. A skin fica no herói (quem jogar com ele aparece com ela); o
+pet fica no jogador (P1 a P4), na Casa e nas fases.
 
-Armário piscando = o seu herói tem skin nova esperando para ser vestida.
+Armário piscando = tem skin nova do seu herói ou pet que ninguém levou esperando.
 """
 import math
 
@@ -12,18 +13,21 @@ import pygame
 
 from . import cacos, config, theme
 from .entities import Entity, Wall
-from .loja import HERO_NAMES, STICK, ShopMenu
-from .skins import CACO_COLOR, SKINS, draw_back, draw_caco, draw_front, for_hero
+from .loja import HERO_NAMES, STICK, ShopMenu, pet_image
+from .skins import CACO_COLOR, PETS, draw_back, draw_caco, draw_front, for_hero
 
 SLOTS = 4
 W, H, GAP = 44, 84, 6          # cada armário (px no chão do quintal)
 REACH = 46
 
 
-def _new_for(hero):
-    """O herói tem skin que a turma já ganhou e ninguém vestiu ainda?"""
+def _new_for(hero, slot):
+    """Tem coisa nova esperando no armário: skin do herói que ninguém vestiu ou pet que ninguém levou?"""
     owned = cacos.owned()
-    return cacos.worn(hero) is None and any(s.key in owned for s in for_hero(hero))
+    if cacos.worn(hero) is None and any(s.key in owned for s in for_hero(hero)):
+        return True
+    taken = {cacos.pet_of(k) for k in range(1, SLOTS + 1)}
+    return cacos.pet_of(slot) is None and bool(cacos.owned_pets() - taken)
 
 
 class Lockers(Entity):
@@ -71,7 +75,7 @@ class Lockers(Entity):
         self.open = {m.fighter.slot for m in match.menus.values() if isinstance(m, WardrobeMenu)}
         self.here = {p.slot for p in match.players}
         if self.age % 20 == 1:
-            self.glow = {p.slot for p in match.players if _new_for(p.stats.key)}
+            self.glow = {p.slot for p in match.players if _new_for(p.stats.key, p.slot)}
 
     def draw(self, surf, camera):
         sx0, sy = round(self.left - camera.x), round(self.y - camera.y)
@@ -111,51 +115,87 @@ class Lockers(Entity):
 
 
 class WardrobeMenu(ShopMenu):
-    """O armário aberto: as roupas do herói que o jogador está usando, uma carta por roupa."""
+    """O armário aberto: em cima as roupas do herói que o jogador está usando, embaixo o pet que vai
+    junto. Uma carta por opção; o analógico troca de linha (cima/baixo) e de carta (lados)."""
 
     kind = "armario"
+    ROWS = ("ROUPA", "PET")
 
     def __init__(self, match, fighter):
+        self.marks = [0, 0]                   # carta marcada em cada linha
+        self.row = 0
         super().__init__(match, fighter)
         self.page = "skins"
         worn = cacos.worn(self.hero)
-        self.index = next((i for i, (k, _) in enumerate(self.entries()) if k == worn), 0)
+        self.marks[0] = next((i for i, (k, _) in enumerate(self.line(0)) if k == worn), 0)
+        pet = cacos.pet_of(self._slot())
+        self.marks[1] = next((i for i, (k, _) in enumerate(self.line(1)) if k == "pet:" + str(pet)), 0)
+
+    # a carta marcada na linha de agora (o ShopMenu chama de index)
+    @property
+    def index(self):
+        return self.marks[self.row] if hasattr(self, "marks") else 0
+
+    @index.setter
+    def index(self, value):
+        if hasattr(self, "marks"):
+            self.marks[self.row] = value
+
+    def line(self, row):
+        if row == 0:
+            return [("base", None)] + [(s.key, s) for s in for_hero(self.hero)]
+        return [("pet:none", None)] + [("pet:" + p.key, p) for p in PETS.values()]
 
     def entries(self):
-        return [("base", None)] + [(s.key, s) for s in for_hero(self.hero)]
+        return self.line(self.row)
 
     def current(self):
         rows = self.entries()
         return rows[self.index % len(rows)]
 
-    def state(self, skin):
+    def state(self, item, row=None):
         """"vestida", "vestir", "comprar" (na loja) ou "cupom"."""
+        row = self.row if row is None else row
+        if row == 1:
+            pet = cacos.pet_of(self._slot())
+            if item is None:
+                return "vestida" if pet is None else "vestir"
+            if item.key in cacos.owned_pets():
+                return "vestida" if pet == item.key else "vestir"
+            return "comprar"
         worn = cacos.worn(self.hero)
-        if skin is None:
+        if item is None:
             return "vestida" if worn is None else "vestir"
-        if skin.key in cacos.owned():
-            return "vestida" if worn == skin.key else "vestir"
-        return "comprar" if skin.price else "cupom"
+        if item.key in cacos.owned():
+            return "vestida" if worn == item.key else "vestir"
+        return "comprar" if item.price else "cupom"
 
     def buy(self):
-        key, skin = self.current()
+        key, item = self.current()
         play = self.match.assets.play
-        state = self.state(skin)
+        state = self.state(item)
+        pet_row = self.row == 1
         if state == "vestida":
-            self._say("JÁ ESTÁ VESTIDA", theme.BONE)
+            self._say("JÁ ESTÁ COM VOCÊ" if pet_row else "JÁ ESTÁ VESTIDA", theme.BONE)
             play("click", 0.3)
             return False
         if state in ("comprar", "cupom"):
-            self._say("ESSA AINDA NÃO É SUA: " + ("COMPRE NA LOJA DE CACOS" if state == "comprar"
-                                                 else "SÓ SAI POR CUPOM, NA LOJA"), theme.BLOOD)
+            what = "ESSE AINDA NÃO É SEU" if pet_row else "ESSA AINDA NÃO É SUA"
+            self._say(what + ": " + ("COMPRE NA LOJA DE CACOS" if state == "comprar"
+                                     else "SÓ SAI POR CUPOM, NA LOJA"), theme.BLOOD)
             play("cancel", 0.3)
             return False
-        cacos.wear(self.hero, None if skin is None else skin.key)
-        self.match.redress()
-        name = HERO_NAMES.get(self.hero, "")
-        self._say(f"{name} VESTIU!" if skin else "DE VOLTA À ROUPA DE SEMPRE", theme.MOSS)
         f = self.fighter
-        self.match.burst(f.x, f.y - 30, skin.color if skin else theme.BONE, 18, speed=2.5)
+        if pet_row:
+            cacos.set_pet(self._slot(), None if item is None else item.key)
+            self.match.refresh_pets()
+            self._say(f"O {item.name} VAI COM VOCÊ!" if item else "SEM PET POR ENQUANTO", theme.MOSS)
+            self.match.burst(f.x - 30, f.y - 10, item.color if item else theme.BONE, 14, speed=2.5)
+        else:
+            cacos.wear(self.hero, None if item is None else item.key)
+            self.match.redress()
+            self._say(f"{HERO_NAMES.get(self.hero, '')} VESTIU!" if item else "DE VOLTA À ROUPA DE SEMPRE", theme.MOSS)
+            self.match.burst(f.x, f.y - 30, item.color if item else theme.BONE, 18, speed=2.5)
         play("select", 0.5)
         return True
 
@@ -166,57 +206,80 @@ class WardrobeMenu(ShopMenu):
         if inp.pressed("dodge") or inp.pressed("special") or inp.pressed("cancel"):
             self.match.assets.play("cancel", 0.3)
             return False
-        x, _ = inp.axis()
+        x, y = inp.axis()
         sx = 1 if x > STICK else -1 if x < -STICK else 0
-        moved = sx != self._last[0] and sx
-        self._last = (sx, 0)
+        sy = 1 if y > STICK else -1 if y < -STICK else 0
+        moved = (sx, sy) != self._last and (sx or sy)
+        self._last = (sx, sy)
         if moved:
-            self.index = (self.index + sx) % len(self.entries())
+            if sy:
+                self.row = max(0, min(1, self.row + sy))
+            elif sx:
+                self.index = (self.index + sx) % len(self.entries())
+            self.note = ("", theme.BONE)
             self.match.assets.play("click", 0.3)
         if inp.pressed("attack") or inp.pressed("confirm"):
             self.buy()
         return True
 
     def pick(self, key):
-        for i, (k, _) in enumerate(self.entries()):
-            if k == key:
-                if i != self.index:
-                    self.match.assets.play("click", 0.3)
-                self.index = i
-                return True
+        for row in (0, 1):
+            for i, (k, _) in enumerate(self.line(row)):
+                if k == key:
+                    if (row, i) != (self.row, self.index):
+                        self.match.assets.play("click", 0.3)
+                    self.row = row
+                    self.index = i
+                    return True
         return False
 
     # ── celular ──────────────────────────────
     def snapshot(self):
-        key, skin = self.current()
+        key, item = self.current()
         items = []
-        for k, s in self.entries():
-            state = self.state(s)
-            tag = {"vestida": "VESTIDA", "vestir": "VESTIR", "comprar": "NA LOJA", "cupom": "CUPOM"}[state]
-            items.append({
-                "id": k, "label": s.name if s else "ROUPA DE SEMPRE", "cost": 0,
-                "desc": s.blurb if s else "O " + HERO_NAMES.get(self.hero, "") + " DE SEMPRE",
-                "ok": state != "vestida", "afford": state in ("vestir", "vestida"),
-                "color": "#%02x%02x%02x" % (s.color if s else theme.BONE),
-                "info": {"type": "skin", "img": f"/skin/{s.key if s else 'base_' + self.hero}.png",
-                         "hero": HERO_NAMES.get(self.hero, ""), "tier": s.rarity if s else "base",
-                         "state": {"vestida": "tirar", "vestir": "vestir"}.get(state, state), "tag": tag,
-                         "sub": {"vestida": "VESTIDA", "vestir": "É SUA", "comprar": "COMPRE NA LOJA",
-                                 "cupom": "SÓ COM CUPOM"}[state],
-                         "rarity": "ROUPA DE SEMPRE" if s is None else ("RARA" if s.rarity == "rara" else "LOJA")},
-            })
-        state = self.state(skin)
-        action = {"vestida": "VESTIDA", "vestir": "VESTIR", "comprar": "NA LOJA", "cupom": "SÓ COM CUPOM"}[state]
+        for row in (0, 1):
+            for k, s in self.line(row):
+                state = self.state(s, row)
+                pet = row == 1
+                if pet:
+                    img = f"/pet/{s.key}.png" if s else None
+                    label = s.name if s else "SEM PET"
+                    tier = "pet" if s else "base"
+                else:
+                    img = f"/skin/{s.key if s else 'base_' + self.hero}.png"
+                    label = s.name if s else "ROUPA DE SEMPRE"
+                    tier = s.rarity if s else "base"
+                tag = {"vestida": "COM VOCÊ" if pet else "VESTIDA", "vestir": "PEGAR" if pet else "VESTIR",
+                       "comprar": "NA LOJA", "cupom": "CUPOM"}[state]
+                info = {"type": "skin" if img else "nada", "hero": "PET" if pet else HERO_NAMES.get(self.hero, ""),
+                        "tier": tier, "state": {"vestida": "tirar", "vestir": "vestir"}.get(state, state), "tag": tag,
+                        "sub": {"vestida": tag, "vestir": "É SEU" if pet else "É SUA", "comprar": "COMPRE NA LOJA",
+                                "cupom": "SÓ COM CUPOM"}[state],
+                        "rarity": "PET" if pet else ("ROUPA DE SEMPRE" if s is None
+                                                     else ("RARA" if s.rarity == "rara" else "LOJA"))}
+                if img:
+                    info["img"] = img
+                items.append({
+                    "id": k, "label": label, "cost": 0,
+                    "desc": s.blurb if s else ("SÓ VOCÊ, SEM BICHINHO" if pet
+                                               else "O " + HERO_NAMES.get(self.hero, "") + " DE SEMPRE"),
+                    "ok": state != "vestida", "afford": state in ("vestir", "vestida"),
+                    "color": "#%02x%02x%02x" % (s.color if s else theme.BONE), "info": info,
+                })
+        state = self.state(item)
+        action = {"vestida": "COM VOCÊ" if self.row else "VESTIDA", "vestir": "PEGAR" if self.row else "VESTIR",
+                  "comprar": "NA LOJA", "cupom": "SÓ COM CUPOM"}[state]
         return {"kind": "armario", "title": "ARMÁRIO · " + HERO_NAMES.get(self.hero, ""), "souls": cacos.balance(),
                 "unit": "CACOS", "picked": key, "mates": [], "items": items, "action": action}
 
     # ── TV ───────────────────────────────────
     def draw(self, screen, ui, anchor):
         f = self.fighter
-        rows = self.entries()
-        cw, ch, gap = 120, 150, 14
-        w = max(540, len(rows) * cw + (len(rows) - 1) * gap + 60)
-        h = 300
+        sizes = ((96, 116), (80, 84))
+        gap = 10
+        widest = max(len(self.line(r)) * sizes[r][0] + (len(self.line(r)) - 1) * gap for r in (0, 1))
+        w = max(560, widest + 120)
+        h = 380
         x = max(8, min(config.SCREEN_W - w - 8, round(anchor[0]) - w // 2))
         y = max(52, min(config.SCREEN_H - h - 64, round(anchor[1]) - h - 70))
         rect = pygame.Rect(x, y, w, h)
@@ -229,81 +292,104 @@ class WardrobeMenu(ShopMenu):
                 (rect.x + 52, rect.y + 20), anchor="midleft")
         text, note = self.note
         if text:
-            ui.text(screen, text, theme.XS, note, (rect.centerx, rect.y + 44))
-        cur = self.index % len(rows)
-        x0 = rect.centerx - (len(rows) * cw + (len(rows) - 1) * gap) // 2
-        for i, (key, skin) in enumerate(rows):
-            card = pygame.Rect(x0 + i * (cw + gap), rect.y + 58, cw, ch)
-            on = i == cur
-            if on:
-                card.move_ip(0, -3)
-            self._wardrobe_card(screen, ui, card, skin, on)
-        key, skin = rows[cur]
-        bar = pygame.Rect(rect.x + 12, rect.y + 58 + ch + 12, w - 24, 46)
+            ui.text(screen, text, theme.XS, note, (rect.centerx, rect.y + 42))
+        top = rect.y + 54
+        for row in (0, 1):
+            cw, ch = sizes[row]
+            items = self.line(row)
+            here = row == self.row
+            ui.text(screen, self.ROWS[row], theme.XS, theme.BONE if here else theme.FAINT,
+                    (rect.x + 16, top + ch // 2), anchor="midleft")
+            x0 = rect.x + 70 + (w - 86 - (len(items) * cw + (len(items) - 1) * gap)) // 2
+            for i, (key, item) in enumerate(items):
+                card = pygame.Rect(x0 + i * (cw + gap), top, cw, ch)
+                on = here and i == self.marks[row] % len(items)
+                if on:
+                    card.move_ip(0, -3)
+                self._wardrobe_card(screen, ui, card, item, on, row)
+            top += ch + 14
+        key, item = self.current()
+        bar = pygame.Rect(rect.x + 12, top, w - 24, 46)
         screen.fill((16, 14, 24), bar)
         pygame.draw.rect(screen, theme.LINE, bar, 1)
-        name = skin.name if skin else "ROUPA DE SEMPRE"
-        ui.text(screen, name, theme.S if len(name) <= 22 else theme.XS, skin.color if skin else theme.BONE,
+        pet = self.row == 1
+        name = item.name if item else ("SEM PET" if pet else "ROUPA DE SEMPRE")
+        ui.text(screen, name, theme.S if len(name) <= 22 else theme.XS, item.color if item else theme.BONE,
                 (bar.x + 10, bar.y + 14), anchor="midleft")
-        sub = skin.blurb if skin else "SEM SKIN: O VISUAL ORIGINAL DO HERÓI"
+        sub = item.blurb if item else ("NINGUÉM TE SEGUINDO" if pet else "SEM SKIN: O VISUAL ORIGINAL DO HERÓI")
         button = pygame.Rect(bar.right - 130, bar.y + 8, 120, 30)
         room = button.x - bar.x - 20
         while len(sub) > 8 and ui.assets.text(sub, theme.XS, theme.MUTED).get_width() > room:
             sub = sub[:-2].rstrip(" ,·") + "…"
         ui.text(screen, sub, theme.XS, theme.MUTED, (bar.x + 10, bar.y + 32), anchor="midleft")
-        state = self.state(skin)
-        label, fill, ink = {"vestida": ("VESTIDA", theme.LINE, theme.MUTED), "vestir": ("VESTIR", theme.MOSS, theme.INK),
+        state = self.state(item)
+        label, fill, ink = {"vestida": ("COM VOCÊ" if pet else "VESTIDA", theme.LINE, theme.MUTED),
+                            "vestir": ("PEGAR" if pet else "VESTIR", theme.MOSS, theme.INK),
                             "comprar": ("NA LOJA", theme.LINE, theme.MUTED),
                             "cupom": ("SÓ COM CUPOM", theme.LINE, theme.MUTED)}[state]
         self._button(screen, ui, button, label, fill, ink)
-        if len(rows) == 1:
-            hint = "ESSE HERÓI AINDA NÃO TEM SKIN · ESQUIVA: FECHAR"
-        else:
-            hint = "ANALÓGICO: ESCOLHER · ATACAR: VESTIR · ESQUIVA: FECHAR"
-        ui.text(screen, hint, theme.XS, (130, 126, 140), (rect.centerx, rect.bottom - 10))
+        hint = "LADOS: ESCOLHER · CIMA/BAIXO: ROUPA OU PET · ATACAR: " + ("PEGAR" if pet else "VESTIR")
+        ui.text(screen, hint + " · ESQUIVA: FECHAR", theme.XS, (130, 126, 140), (rect.centerx, rect.bottom - 10))
 
-    def _wardrobe_card(self, screen, ui, card, skin, on):
+    def _wardrobe_card(self, screen, ui, card, item, on, row):
         t = self.match.frame
-        state = self.state(skin)
+        state = self.state(item, row)
+        mine = state in ("vestida", "vestir")
         screen.fill((8, 6, 12), card.move(3, 4))
-        if skin is None:
+        if item is None:
             self._gradient(screen, card, (66, 62, 80), (30, 28, 40))
-            sprites = self.match.assets.sprites.get(self.hero)
             tint = theme.BONE
+        elif row == 1:
+            self._gradient(screen, card, (36, 96, 70), (20, 44, 40))
+            tint = item.color
         else:
-            self._gradient(screen, card, *((92, 46, 130), (180, 116, 48)) if skin.rarity == "rara"
+            self._gradient(screen, card, *((92, 46, 130), (180, 116, 48)) if item.rarity == "rara"
                            else ((44, 70, 128), (22, 30, 62)))
-            sprites = self.match.assets.skin_sprites(skin.key)
-            tint = skin.color
+            tint = item.color
         halo = pygame.Surface((card.width, card.width), pygame.SRCALPHA)
-        for rad, alpha in ((54, 26), (38, 36), (24, 46)):
-            pygame.draw.circle(halo, (*tint, alpha), (card.width // 2, card.width // 2), rad)
-        screen.blit(halo, (card.x, card.y + 6))
-        if sprites is not None:
-            img = sprites.frame("frente", t // 8 if on else 0)
-            img = pygame.transform.scale(img, (round(img.get_width() * 1.3), round(img.get_height() * 1.3)))
-            spot = img.get_rect(midbottom=(card.centerx, card.bottom - 28))
-            pygame.draw.ellipse(screen, (0, 0, 0), (spot.centerx - 22, spot.bottom - 5, 44, 10))
-            mine = state in ("vestida", "vestir")
-            if on and skin is not None and mine:
-                draw_back(screen, skin.key, spot, t)
-            if not mine:                                       # ainda não é sua: só a silhueta
+        for rad, alpha in ((card.width * 0.45, 26), (card.width * 0.32, 36), (card.width * 0.2, 46)):
+            pygame.draw.circle(halo, (*tint, alpha), (card.width // 2, card.width // 2), round(rad))
+        screen.blit(halo, (card.x, card.y + 4))
+        img = None
+        if row == 0:
+            sprites = (self.match.assets.sprites.get(self.hero) if item is None
+                       else self.match.assets.skin_sprites(item.key))
+            if sprites is not None:
+                img = sprites.frame("frente", t // 8 if on else 0)
+                img = pygame.transform.scale(img, (round(img.get_width() * 1.1), round(img.get_height() * 1.1)))
+        elif item is not None:
+            img = pet_image(item.key, on and (t // 20) % 2)
+            if img is not None:
+                img = pygame.transform.scale(img, (round(img.get_width() * 1.2), round(img.get_height() * 1.2)))
+        else:                                                   # SEM PET: um X apagado
+            c = card.centerx, card.y + card.height // 2 - 10
+            pygame.draw.line(screen, theme.FAINT, (c[0] - 10, c[1] - 10), (c[0] + 10, c[1] + 10), 3)
+            pygame.draw.line(screen, theme.FAINT, (c[0] + 10, c[1] - 10), (c[0] - 10, c[1] + 10), 3)
+        if img is not None:
+            spot = img.get_rect(midbottom=(card.centerx, card.bottom - 26))
+            pygame.draw.ellipse(screen, (0, 0, 0), (spot.centerx - 18, spot.bottom - 4, 36, 8))
+            fx = on and row == 0 and item is not None and mine
+            if fx:
+                draw_back(screen, item.key, spot, t)
+            if not mine:                                        # ainda não é seu: só a silhueta
                 img = img.copy()
                 img.fill((20, 18, 30, 255), special_flags=pygame.BLEND_RGBA_MULT)
             screen.blit(img, spot)
-            if on and skin is not None and mine:
-                draw_front(screen, skin.key, spot, t)
-        strip = pygame.Rect(card.x, card.bottom - 22, card.width, 22)
+            if fx:
+                draw_front(screen, item.key, spot, t)
+        strip = pygame.Rect(card.x, card.bottom - 20, card.width, 20)
         if state == "vestida":
             screen.fill(theme.MOSS, strip)
-            ui.text(screen, "VESTIDA", theme.XS, theme.INK, (strip.centerx, strip.centery + 1), shadow=False)
+            ui.text(screen, "COM VOCÊ" if row else "VESTIDA", theme.XS, theme.INK,
+                    (strip.centerx, strip.centery + 1), shadow=False)
         else:
             screen.fill((14, 12, 22), strip)
-            label, ink = {"vestir": ("VESTIR", theme.BONE), "comprar": ("NA LOJA", theme.MUTED),
-                          "cupom": ("CUPOM", theme.MUTED)}[state]
             if state in ("comprar", "cupom"):
-                self._lock(screen, strip.centerx - 30, strip.centery)
-                ui.text(screen, label, theme.XS, ink, (strip.centerx - 20, strip.centery + 1), anchor="midleft")
+                label = ("LOJA" if row else "NA LOJA") if state == "comprar" else "CUPOM"
+                half = (ui.assets.text(label, theme.XS, theme.MUTED).get_width() + 12) // 2
+                self._lock(screen, strip.centerx - half + 3, strip.centery)
+                ui.text(screen, label, theme.XS, theme.MUTED, (strip.centerx - half + 12, strip.centery + 1),
+                        anchor="midleft")
             else:
-                ui.text(screen, label, theme.XS, ink, (strip.centerx, strip.centery + 1))
+                ui.text(screen, "PEGAR" if row else "VESTIR", theme.XS, theme.BONE, (strip.centerx, strip.centery + 1))
         self._frame(screen, card, tint, on)

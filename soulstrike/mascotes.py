@@ -9,8 +9,9 @@ import random
 
 import pygame
 
-from . import pecas, progress, theme
+from . import cacos, pecas, progress, theme
 from .entities import Entity, Particle
+from .skins import PETS as SHOP_PETS
 
 REACH = 70
 KEY = "mascotes"
@@ -54,7 +55,12 @@ class Pet(Entity):
     def __init__(self, pet, home, home_sort=None):
         super().__init__(*home)
         self.pet = pet
-        self.name, self.flies, self.lines = PETS[pet]
+        if pet in PETS:
+            self.name, self.flies, self.lines = PETS[pet]
+        else:                                       # pet da loja de CACOS
+            shop = SHOP_PETS[pet]
+            self.name, self.flies, self.lines = shop.name, shop.flies, shop.lines
+        self.shop = pet in SHOP_PETS and pet not in PETS
         self.home = home
         self.home_sort = home_sort                  # gato no sofá: desenhado por cima do sofá
         self.target = None                          # o lutador que ele segue
@@ -154,6 +160,30 @@ def join(match):
         p = Pet(pet, (owner.x - 30, owner.y + 6))
         p.follow(owner)
         match.props.append(p)
+    join_shop(match)
+
+
+def join_shop(match):
+    """Os pets da loja de CACOS: cada jogador leva o que escolheu no armário (na Casa e nas fases)."""
+    for f in match.players:
+        pet = cacos.pet_of(f.slot)
+        if pet is None or pet not in SHOP_PETS:
+            continue
+        p = Pet(pet, (f.x - 30, f.y + 6))
+        p.follow(f)
+        match.props.append(p)
+
+
+def refresh_shop(match):
+    """Trocou de pet no armário: tira os pets da loja que estavam seguindo e põe os escolhidos."""
+    old = {id(p): (p.target, p.x, p.y) for p in match.props if isinstance(p, Pet) and p.shop}
+    match.props[:] = [p for p in match.props if not (isinstance(p, Pet) and p.shop)]
+    join_shop(match)
+    for p in match.props:                       # quem já estava seguindo continua no mesmo lugar
+        if isinstance(p, Pet) and p.shop:
+            for target, x, y in old.values():
+                if target is p.target:
+                    p.x, p.y = x, y
 
 
 def _home_near(match, f):
