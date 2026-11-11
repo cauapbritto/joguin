@@ -12,6 +12,14 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.45.0": [
+        {"title": "ENERGIA NA LOJA", "scene": "loja", "lines": [
+            "A loja da fase agora vende ENERGIA: 20 almas enchem 100 da barra, metade dela.",
+            "Tem na lojinha da sala inicial e na loja completa, logo abaixo da poção de vida.",
+            "Barra cheia, a loja não deixa comprar. No Ibrahim e no Borba, fica mais cara como o resto.",
+            "Pelo celular também: o item aparece com um frasco azul.",
+        ]},
+    ],
     "1.44.0": [
         {"title": "PETS NA LOJA DE CACOS", "scene": "casa", "lines": [
             "A seção PETS da loja abriu: capivara, mico-leão-dourado, tuiuiú filhote e jabuti.",

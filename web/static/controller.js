@@ -812,6 +812,7 @@
     var box = el("span", "thumb");
     if (info.type === "cupom") box.appendChild(el("b", "qmark", "#"));
     else if (r.id === "pocao") box.appendChild(el("i", "potion"));
+    else if (r.id === "energia") box.appendChild(el("i", "potion energy-potion"));
     else if (r.id === "arma") box.appendChild(el("b", "qmark", "?"));
     else if (r.id === "trocar") box.appendChild(el("b", "qmark", "↻"));
     else if (r.id === "doar") box.appendChild(el("b", "gem gift-gem"));

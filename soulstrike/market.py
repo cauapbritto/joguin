@@ -2,7 +2,7 @@
 
 Cada inimigo derrotado solta almas. Cada jogador tem a sua carteira: quem deu o golpe final leva
 a maior parte e os outros vivos ganham um pouco, para ninguém ficar sem nada. Na volta
-da Masmorra 1, o acampamento tem duas bancas perto da fogueira: a LOJA (poção, a vitrine com duas
+da Masmorra 1, o acampamento tem duas bancas perto da fogueira: a LOJA (poção, energia, a vitrine com duas
 armas de outros heróis, arma surpresa, trocar as melhorias do fim da fase e continue) e o FERREIRO, que sobe a arma de +1 até +3
 (+15% de dano e pente maior a cada nível) e, no +3, põe um encanto: fogo, gelo ou raio.
 Perto da banca, ATACAR abre o menu; para cima e para baixo escolhe, ATACAR compra, ESQUIVA fecha.
@@ -24,6 +24,8 @@ SHARE = {"comum": 1, "elite": 4, "chefe": 60}       # ... e para cada um dos out
 VITRINE = 2                                         # armas de outros heróis à mostra na loja
 VITRINE_COST = 40
 SURPRISE_COST = 25                                  # ARMA SURPRESA: uma arma qualquer cai no chão
+ENERGY_COST = 20                                    # ENERGIA: mesmo preço da poção...
+ENERGY_REFILL = 100                                 # ... e enche metade da barra (200), como a poção na vida
 GIFT = 20                                           # DOAR: almas passadas a um companheiro
 FORGE_COST = (40, 80, 140)                          # +1, +2, +3
 FORGE_DAMAGE = 0.15                                 # dano a mais por nível
@@ -164,7 +166,7 @@ class Stall(Entity):
         super().__init__(x, y)
         self.kind = kind
         self.chapter = pecas.chapter_of(chapter)    # a banca e quem atende mudam por capítulo
-        self.mini = mini                # lojinha da sala inicial: só poção, continue e doar
+        self.mini = mini                # lojinha da sala inicial: só poção, energia, continue e doar
         self.style = style              # "lag": máquina de venda, bancada de solda e servidor com o fragmento
         self.age = 0
         self.stock = None               # loja: as armas da vitrine (sorteadas na primeira vez que abre)
@@ -386,6 +388,7 @@ class MarketMenu:
         used = run.rerolls[f.slot]
         potion = [Entry("POÇÃO DE VIDA", 20, "cura metade da vida", not full, self._potion, key="pocao",
                         info={"sub": "VIDA CHEIA" if full else "CURA METADE"})]
+        potion += self._energy_entry()
         gifts = [Entry(f"DOAR {GIFT} > {m.label}", GIFT, f"passa {GIFT} almas para {m.label}", True,
                        lambda m=m: self._gift(m), m.color, f"doar:{m.slot}")
                  for m in self.match.players if m is not f]
@@ -399,6 +402,17 @@ class MarketMenu:
                   info={"sub": f"{used} DE {MAX_REROLLS} USADAS"}),
             self._continue_entry(),
         ] + gifts
+
+    def _energy_entry(self):
+        """ENERGIA: enche metade da barra das armas fortes (só na campanha, onde a barra existe)."""
+        from . import energia
+        f = self.fighter
+        if not energia.enabled(f):
+            return []
+        full = f.energy >= f.energy_max
+        return [Entry("ENERGIA", ENERGY_COST, f"+{ENERGY_REFILL} de energia para as armas fortes", not full,
+                      self._energy, energia.ENERGY_COLOR, "energia",
+                      {"sub": "ENERGIA CHEIA" if full else f"+{ENERGY_REFILL} ENERGIA"})]
 
     def _continue_entry(self):
         run = self.run
@@ -527,6 +541,13 @@ class MarketMenu:
         f = self.fighter
         f.hp = min(f.max_hp, f.hp + f.max_hp // 2)
         self.match.burst(f.x, f.y - 20, theme.MOSS, 14, speed=3)
+
+    def _energy(self):
+        from . import energia
+        f = self.fighter
+        got = energia.gain(f, ENERGY_REFILL)
+        self.match.burst(f.x, f.y - 20, energia.ENERGY_COLOR, 14, speed=3)
+        return f"+{got} ENERGIA"
 
     def _weapon(self):
         ranged, melee = duel_arsenal()
