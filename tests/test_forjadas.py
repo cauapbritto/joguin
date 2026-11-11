@@ -84,12 +84,42 @@ class FusaoTest(unittest.TestCase):
         self.assertIsNone(match.run.loadouts[1])              # a katana foi junto na fusão
         apertar(match, inputs[1], "dodge")
         n = len(match.ground)
-        match.give_common(p, common_weapon("Machado"))         # com a forjada não pega comum
-        self.assertEqual(len(p.weapons), 1)
+        machado = common_weapon("Maça")
+        match.give_common(p, machado)                          # com a forjada, a comum entra ao lado
+        self.assertTrue(p.fused)
+        self.assertEqual(p.weapons, (machado, p.relic))
+        self.assertIs(p.weapon, machado)
+        self.assertEqual(match.run.loadouts[1], ["Maça"])
+        match.give_common(p, katana)                           # outra de perto troca o machado
+        self.assertEqual(p.weapons, (katana, p.relic))
+        self.assertEqual(len(match.ground), n + 1)             # o machado caiu no chão
+        p.weapon_index = 1
         match.drop_held(p)                                     # larga a forjada: volta o herói
         self.assertFalse(p.fused)
-        self.assertEqual(p.weapons, p.stats.weapons)
-        self.assertEqual(len(match.ground), n + 1)
+        own_ranged = next(w for w in p.stats.weapons if not w.is_melee)
+        self.assertEqual(p.weapons, (own_ranged, katana))      # a katana fica no lugar da de perto
+        self.assertEqual(len(match.ground), n + 2)
+
+    def test_forjada_com_comum_ao_lado_sobrevive_ao_save(self):
+        match, inputs = acampamento(souls=1000)
+        p = match.players[0]
+        p.give_relic(R["besta"])
+        p, menu = abrir(match, inputs[1], "ferreiro")
+        menu.index = len(menu.entries()) - 1
+        apertar(match, inputs[1], "attack")
+        apertar(match, inputs[1], "dodge")
+        pistola, katana = common_weapon("Pistola"), common_weapon("Katana")
+        match.give_common(p, pistola)
+        match.give_common(p, katana)
+        self.assertEqual(p.weapons, (pistola, katana, p.relic))     # a forjada e mais uma de cada tipo
+        match.run.carry(match)
+        back = CampaignRun.from_save(json.loads(json.dumps(match.run.to_save())))
+        self.assertEqual(back.loadouts[1], ["Pistola", "Katana"])
+        f = match.players[0]
+        f.loadout, f.relic = None, None
+        back.prepare(f)
+        self.assertTrue(f.fused)
+        self.assertEqual(f.weapons, (pistola, katana, f.relic))
 
     def test_uma_fusao_por_mercado(self):
         match, inputs = acampamento(souls=1000)

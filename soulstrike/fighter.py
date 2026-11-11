@@ -406,13 +406,24 @@ class Fighter(Entity):
 
     @property
     def fused(self):
-        """Com a forjada da fusão na mão, as três armas que viraram ela não existem mais."""
+        """Com a forjada da fusão na mão, as três armas que viraram ela não existem mais. Ainda dá
+        para pegar uma arma comum de cada tipo (de tiro e de perto): elas ficam em ``loadout``."""
         return self.relic is not None and self.relic.forjada
+
+    @property
+    def extras(self):
+        """Com a forjada: as armas comuns que ele pegou depois (até uma de cada tipo)."""
+        return tuple(self.loadout or ()) if self.fused else ()
+
+    def settle_extras(self, extras):
+        """Largou a forjada: as comuns que ele pegou com ela entram no lugar das do herói do mesmo tipo."""
+        base = tuple(next((e for e in extras if e.is_melee == w.is_melee), w) for w in self.stats.weapons)
+        self.loadout = None if base == self.stats.weapons else base
 
     @property
     def weapons(self):
         if self.fused:
-            return (self.relic,)
+            return self.extras + (self.relic,)
         if self.relic is not None:
             return self.base_weapons + (self.relic,)
         return self.base_weapons
@@ -427,7 +438,15 @@ class Fighter(Entity):
         old = self.relic
         if old is not None:
             self.clips.pop(old, None)
+        was_fused = self.fused
+        extras = self.extras
         self.relic = weapon
+        if weapon.forjada and not was_fused:
+            # forjada na mão: as do herói somem, as comuns de outros heróis ficam junto
+            keep = tuple(w for w in (self.loadout or ()) if w not in self.stats.weapons)
+            self.loadout = keep or None
+        elif was_fused and not weapon.forjada:
+            self.settle_extras(extras)
         self.weapon_index = len(self.weapons) - 1
         self.bow_draw = 0
         return old

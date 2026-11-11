@@ -49,6 +49,41 @@ class MascotesTest(unittest.TestCase):
         self.assertFalse(mascotes.interact(match, p2))
         self.assertIs(cao.target, p1)
 
+    def test_um_pet_por_jogador(self):
+        match, _ = casa_da_turma(("guerreiro", "atirador"))
+        p1 = match.players[0]
+        gato, cao = _pet(match, "gato"), _pet(match, "cachorro")
+        _perto(p1, gato)
+        mascotes.interact(match, p1)
+        _perto(p1, cao)
+        self.assertTrue(mascotes.interact(match, p1))        # adotar outro devolve o gato
+        self.assertIs(cao.target, p1)
+        self.assertIsNone(gato.target)
+        self.assertEqual(mascotes.owners(), {"cachorro": p1.slot})
+
+    def test_bicho_da_casa_tira_o_pet_da_loja_e_vice_versa(self):
+        from soulstrike import cacos
+        cacos.give_pet("capivara")
+        cacos.set_pet(1, "capivara")
+        match, _ = casa_da_turma(("guerreiro", "atirador"))
+        p1 = match.players[0]
+        gato = _pet(match, "gato")
+        _perto(p1, gato)
+        mascotes.interact(match, p1)
+        self.assertIsNone(cacos.pet_of(1))
+        shop = [p for p in match.props if isinstance(p, Pet) and p.shop]
+        self.assertEqual(shop, [])
+        cacos.set_pet(1, "capivara")                          # o armário faz isso e chama send_home
+        mascotes.send_home(match, 1)
+        self.assertIsNone(gato.target)
+        self.assertEqual(mascotes.owners(), {})
+
+    def test_save_antigo_com_varios_fica_com_um(self):
+        reset_progress(mascotes={"gato": 1, "cachorro": 1, "papagaio": 2})
+        match, _ = casa_da_turma(("guerreiro", "atirador"))
+        self.assertEqual(mascotes.owners(), {"gato": 1, "papagaio": 2})
+        self.assertIsNone(_pet(match, "cachorro").target)
+
     def test_deixar_em_casa(self):
         match, _ = casa_da_turma(("guerreiro", "atirador"))
         p1 = match.players[0]

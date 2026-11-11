@@ -12,6 +12,17 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.46.0": [
+        {"title": "FORJADA COM COMPANHIA", "scene": "loja", "lines": [
+            "Fundiu as três armas? Agora dá para pegar arma comum de novo, ao lado da forjada.",
+            "Cabe uma de tiro e uma de perto junto com ela: chão, vitrine ou armário.",
+            "Largou a forjada? As comuns que estavam com ela ficam no lugar das do herói.",
+        ]},
+        {"title": "UM PET POR JOGADOR", "scene": "casa", "lines": [
+            "Cada jogador leva um pet só: adotar outro bicho da Casa devolve o que você tinha.",
+            "Pegar um pet da loja no armário manda o bicho da Casa de volta para o cantinho dele.",
+        ]},
+    ],
     "1.45.0": [
         {"title": "ENERGIA NA LOJA", "scene": "loja", "lines": [
             "A loja da fase agora vende ENERGIA: 20 almas enchem 100 da barra, metade dela.",
