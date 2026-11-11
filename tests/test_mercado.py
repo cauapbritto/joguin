@@ -114,7 +114,7 @@ class MercadoTest(unittest.TestCase):
         p = match.players[0]
         lojinha = next(s for s in match.stalls if s.kind == "loja" and s.mini)
         keys = [e.key for e in MarketMenu(match, p, lojinha).entries()]
-        self.assertEqual(keys, ["pocao", "continue", "doar:2"])
+        self.assertEqual(keys, ["pocao", "energia", "continue", "doar:2"])
         loja = next(s for s in match.stalls if s.kind == "loja" and not s.mini)
         full = [e.key for e in MarketMenu(match, match.players[0], loja).entries()]
         self.assertIn("arma", full)
@@ -129,6 +129,35 @@ class MercadoTest(unittest.TestCase):
         self.assertEqual(p.hp, 20 + p.max_hp // 2)
         self.assertEqual(match.run.souls, {1: 30, 2: 50})
         self.assertEqual(p.x, x)                         # parado no balcão
+
+    def test_energia_enche_metade_e_gasta_almas(self):
+        match, inputs = acampamento(souls=50)
+        p, menu = abrir(match, inputs[1], "loja")
+        p.energy = 30
+        apertar(match, inputs[1], stick=(0.0, 1.0))       # desce da poção para a energia
+        self.assertEqual(menu.entries()[menu.index].key, "energia")
+        apertar(match, inputs[1], "attack")
+        self.assertEqual(p.energy, 30 + M.ENERGY_REFILL)
+        self.assertEqual(match.run.souls, {1: 50 - M.ENERGY_COST, 2: 50})
+
+    def test_energia_cheia_nao_vende(self):
+        match, inputs = acampamento(souls=50)
+        p, menu = abrir(match, inputs[1], "loja")
+        p.energy = p.energy_max
+        menu.pick("energia")
+        apertar(match, inputs[1], "attack")
+        self.assertEqual(match.run.souls[1], 50)
+        item = next(i for i in menu.snapshot()["items"] if i["id"] == "energia")
+        self.assertFalse(item["ok"])
+        self.assertEqual(item["info"]["sub"], "ENERGIA CHEIA")
+
+    def test_energia_nao_passa_do_maximo(self):
+        match, inputs = acampamento(souls=50)
+        p, menu = abrir(match, inputs[1], "loja")
+        p.energy = p.energy_max - 10
+        menu.pick("energia")
+        apertar(match, inputs[1], "attack")
+        self.assertEqual(p.energy, p.energy_max)
 
     def test_sem_almas_nao_compra(self):
         match, inputs = acampamento(souls=5)
@@ -166,7 +195,7 @@ class MercadoTest(unittest.TestCase):
         held = {w.name for q in match.players for w in q.weapons}
         self.assertFalse(held & {w.name for w in stock})
         ids = [e.key for e in menu.entries()]
-        self.assertEqual(ids[:4], ["pocao"] + [f"vitrine:{w.name}" for w in stock] + ["arma"])
+        self.assertEqual(ids[:5], ["pocao", "energia"] + [f"vitrine:{w.name}" for w in stock] + ["arma"])
         q, other = abrir_outro(match, inputs[2])
         self.assertEqual(other.stock(), stock)            # a vitrine é a mesma para o grupo
 
@@ -306,9 +335,9 @@ class LojaNoCelularTest(unittest.TestCase):
         self.assertEqual(shop["kind"], "loja")
         self.assertEqual(shop["souls"], 50)
         ids = [i["id"] for i in shop["items"]]
-        self.assertEqual(ids[0], "pocao")
-        self.assertEqual(ids[3:6], ["arma", "trocar", "continue"])
-        vitrine = shop["items"][1]["info"]
+        self.assertEqual(ids[:2], ["pocao", "energia"])
+        self.assertEqual(ids[4:7], ["arma", "trocar", "continue"])
+        vitrine = shop["items"][2]["info"]
         self.assertTrue(vitrine["weapon"]["icon"].endswith(".png"))      # a imagem da arma
         self.assertEqual(vitrine["out"]["name"], "ARCO")                 # o guerreiro troca o arco
         self.assertEqual(vitrine["weapon"]["energy"], 1)                 # arma de tiro de outro: 1 por tiro

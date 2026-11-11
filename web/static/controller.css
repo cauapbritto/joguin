@@ -214,6 +214,7 @@ body.locked .opt { opacity: .55; }
 .ic { image-rendering: pixelated; display: block; object-fit: contain; pointer-events: none; }
 .thumb img { max-height: 22px; max-width: 38px; }
 .potion { width: 12px; height: 14px; background: #d23c3c; box-shadow: 0 -4px 0 -1px #e6e6f0; }
+.energy-potion { background: #5aaaff; }
 .qmark { font-weight: normal; font-size: 14px; color: var(--brass); }
 .thumb .gem { margin: 0; }
 .thumb .gift-gem { background: #c8aaff; }
