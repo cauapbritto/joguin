@@ -481,7 +481,7 @@ class CampaignRun:
         apply_all(fighter, self.upgrades.get(fighter.slot, ()))
         relic = RARE_WEAPONS.get(self.relics.get(fighter.slot))
         if relic is not None:
-            fighter.give_relic(relic)
+            fighter.relic = relic                    # direto: com a forjada, o loadout salvo são as comuns ao lado dela
         fighter.weapon_index = min(self.held.get(fighter.slot, 0), len(fighter.weapons) - 1)
         fighter.hp = max(1, round(fighter.max_hp * self.hp_ratio.get(fighter.slot, 1.0)))
         # armadura de Uno: só vale no capítulo 1 (ficou na floresta)
@@ -570,7 +570,9 @@ class CampaignRun:
                 names = loadouts.get(s)
                 if names is not None:
                     weapons = [common_weapon(n) for n in names]
-                    if len(weapons) != 2 or None in weapons or [w.is_melee for w in weapons] != [False, True]:
+                    # 2 = (de tiro, de perto) no lugar das do herói; com a forjada, 1 ou 2 comuns ao lado dela
+                    if (len(weapons) not in (1, 2) or None in weapons
+                            or (len(weapons) == 2 and [w.is_melee for w in weapons] != [False, True])):
                         return None
                     names = list(names)
                 run.loadouts[s] = names
@@ -903,15 +905,21 @@ class CoopMatch(Match):
         """Arma rara na mão. Só dá para ter uma: a que ele tinha cai no chão (ATACAR pega de volta)."""
         old = fighter.give_relic(weapon)
         self.run.relics[fighter.slot] = relic_key(weapon)
+        self.run.loadouts[fighter.slot] = [w.name for w in fighter.loadout] if fighter.loadout else None
         if old is not None and old is not weapon:
             self.drop_weapon(fighter, old, drop_at)
         self._got_weapon(fighter, weapon)
 
     def give_common(self, fighter, weapon, drop_at=None):
         """Arma de outro herói: entra no lugar da de mesmo tipo e já vem na mão."""
-        if fighter.fused:                            # só a forjada: larga ela antes de pegar outra
-            self.popup(fighter.x, fighter.y - 80, "LARGUE A FORJADA ANTES", theme.MUTED)
-            return False
+        if fighter.fused:                            # com a forjada: entra ao lado dela
+            old = self.give_extra(fighter, weapon)
+            if old is False:
+                return False
+            if old is not None and old is not weapon:
+                self.drop_weapon(fighter, old, drop_at)
+            self._got_weapon(fighter, weapon)
+            return None
         base = list(fighter.base_weapons)
         i = next((k for k, w in enumerate(base) if w.is_melee == weapon.is_melee), None)
         if i is None:                                # herói sem arma desse tipo (só joga bola): não pega
@@ -928,6 +936,26 @@ class CoopMatch(Match):
         if old is not weapon and old not in fighter.stats.weapons:
             self.drop_weapon(fighter, old, drop_at)
         self._got_weapon(fighter, weapon)
+
+    def give_extra(self, fighter, weapon):
+        """Com a forjada na mão, a comum vai junto dela (uma de tiro e uma de perto, no máximo).
+        Devolve a comum do mesmo tipo que ela trocou (ou None), ou False se o herói não usa esse tipo."""
+        if not any(w.is_melee == weapon.is_melee for w in fighter.stats.weapons):
+            return False
+        extras = list(fighter.extras)
+        i = next((k for k, w in enumerate(extras) if w.is_melee == weapon.is_melee), None)
+        old = None
+        if i is None:
+            extras.append(weapon)
+            extras.sort(key=lambda w: w.is_melee)    # sempre (de tiro, de perto), como no save
+        else:
+            old, extras[i] = extras[i], weapon
+            fighter.clips.pop(old, None)
+        fighter.loadout = tuple(extras)
+        fighter.weapon_index = extras.index(weapon)
+        fighter.bow_draw = 0
+        self.run.loadouts[fighter.slot] = [w.name for w in fighter.loadout]
+        return old
 
     def _got_weapon(self, fighter, weapon):
         color = rarity_color(weapon)
@@ -1009,16 +1037,25 @@ class CoopMatch(Match):
     def droppable(self, f):
         """A arma da mão pode sair? (a rara do baú ou a de outro herói; a dele, não)."""
         weapon = f.weapon
-        return (f.relic is not None and weapon is f.relic) or weapon not in f.stats.weapons
+        return f.fused or (f.relic is not None and weapon is f.relic) or weapon not in f.stats.weapons
 
     def _take_out(self, f):
         """Tira a arma da mão (sem jogar no chão) e devolve ela, ou None se for a do herói."""
         weapon = f.weapon
         if f.relic is not None and weapon is f.relic:
+            extras = f.extras
             f.relic = None
             f.clips.pop(weapon, None)
             f.weapon_index = 0
             self.run.relics[f.slot] = None
+            if weapon.forjada:                       # as comuns que estavam com ela vão para o lugar das do herói
+                f.settle_extras(extras)
+                self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
+        elif f.fused:                                # uma comum que estava com a forjada
+            f.loadout = tuple(w for w in f.extras if w is not weapon) or None
+            f.clips.pop(weapon, None)
+            f.weapon_index = len(f.weapons) - 1
+            self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
         elif weapon not in f.stats.weapons:
             base = list(f.base_weapons)
             i = base.index(weapon)
@@ -1071,10 +1108,12 @@ class CoopMatch(Match):
         if weapon.rare:
             old = f.give_relic(weapon)
             self.run.relics[f.slot] = relic_key(weapon)
-        elif f.fused:                                # só a forjada: a comum volta para o armário
-            self.run.rack.insert(0, token_of(weapon))
-            self.popup(f.x, f.y - 80, "LARGUE A FORJADA ANTES", theme.MUTED)
-            return False
+            self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
+        elif f.fused:                                # com a forjada: a comum entra ao lado dela
+            old = self.give_extra(f, weapon)
+            if old is False:
+                self.run.rack.insert(0, token_of(weapon))
+                return False
         else:
             base = list(f.base_weapons)
             i = next(k for k, w in enumerate(base) if w.is_melee == weapon.is_melee)

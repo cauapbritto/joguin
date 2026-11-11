@@ -3,7 +3,10 @@ poleiro perto do canto do Aryel. Liberados desde o começo e só de enfeite (nã
 
 Na Casa, ATACAR perto de um bicho em casa adota: ele passa a seguir aquele jogador (na Casa e nas
 fases), do jeitinho da IARA. Cada bicho tem um dono só, guardado no progresso pelo número do
-jogador (P1 a P4). ATACAR perto do cantinho dele, com ele atrás, deixa o bicho em casa de novo."""
+jogador (P1 a P4). ATACAR perto do cantinho dele, com ele atrás, deixa o bicho em casa de novo.
+
+Um pet por jogador: adotar um bicho da Casa devolve o outro que ele tinha (e tira o pet da loja de
+CACOS), e pegar um pet da loja no armário manda o bicho da Casa de volta para o cantinho dele."""
 import math
 import random
 
@@ -133,12 +136,37 @@ def home_spots(T, OY, QY):
     }
 
 
+def send_home(match, slot, keep=None):
+    """Um pet por jogador: os bichos da Casa do jogador ``slot`` (menos ``keep``) voltam para casa."""
+    for pet, owner in owners().items():
+        if owner == slot and pet != keep:
+            set_owner(pet, None)
+    for p in getattr(match, "pets", ()):
+        if p.pet != keep and p.target is not None and p.target.slot == slot:
+            p.stay()
+
+
+def tidy():
+    """Saves antigos podiam ter vários bichos por jogador: fica só um (o pet da loja, se tiver;
+    senão o primeiro bicho da Casa)."""
+    seen = {s for s in range(1, 5) if cacos.pet_of(s) is not None}
+    for pet in PETS:
+        owner = owners().get(pet)
+        if owner is None:
+            continue
+        if owner in seen:
+            set_owner(pet, None)
+        else:
+            seen.add(owner)
+
+
 def furnish(match, T, OY, QY, put, art):
     """Põe a casinha, o poleiro e os três bichos na Casa (cada um com o dono que tiver)."""
     spots = home_spots(T, OY, QY)
     put(art.doghouse, 18 * T, QY + 6 * T + 20, foot=((-36, -20, 72, 22),))
     put(art.perch, 38 * T, OY + 2 * T + 30, foot=((-14, -6, 28, 10),))
     match.pets = []
+    tidy()
     own = owners()
     for pet, (home, sort) in spots.items():
         p = Pet(pet, home, sort)
@@ -152,6 +180,7 @@ def furnish(match, T, OY, QY, put, art):
 
 def join(match):
     """Nas fases: os bichos adotados vêm junto com os donos que estão jogando."""
+    tidy()
     own = owners()
     for pet in PETS:
         owner = next((f for f in match.players if f.slot == own.get(pet)), None)
@@ -223,6 +252,10 @@ def interact(match, f):
         return True
     if p.target is not None or owner not in (None, f.slot):
         return False
+    send_home(match, f.slot, keep=p.pet)        # um pet por jogador
+    if cacos.pet_of(f.slot) is not None:
+        cacos.set_pet(f.slot, None)
+        refresh_shop(match)
     p.follow(f)
     set_owner(p.pet, f.slot)
     match.popup(p.home[0], p.home[1] - 70, f"P{f.slot} ADOTOU O {p.name}!", theme.MOSS)

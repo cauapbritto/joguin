@@ -19,6 +19,15 @@ NEWS = {
             "Barra cheia, a loja não deixa comprar. No Ibrahim e no Borba, fica mais cara como o resto.",
             "Pelo celular também: o item aparece com um frasco azul.",
         ]},
+        {"title": "FORJADA COM COMPANHIA", "scene": "loja", "lines": [
+            "Fundiu as três armas? Agora dá para pegar arma comum de novo, ao lado da forjada.",
+            "Cabe uma de tiro e uma de perto junto com ela: chão, vitrine ou armário.",
+            "Largou a forjada? As comuns que estavam com ela ficam no lugar das do herói.",
+        ]},
+        {"title": "UM PET POR JOGADOR", "scene": "casa", "lines": [
+            "Cada jogador leva um pet só: adotar outro bicho da Casa devolve o que você tinha.",
+            "Pegar um pet da loja no armário manda o bicho da Casa de volta para o cantinho dele.",
+        ]},
     ],
     "1.44.0": [
         {"title": "PETS NA LOJA DE CACOS", "scene": "casa", "lines": [

@@ -439,14 +439,17 @@ class MarketMenu:
             owner = owner_of(w)
             sold = w.name in self.stall.sold
             mine = any(x.name == w.name for x in f.weapons)
-            swap = None if f.fused else next((x for x in f.base_weapons if x.is_melee == w.is_melee), None)
+            kind_ok = any(x.is_melee == w.is_melee for x in f.stats.weapons)
+            pool = f.extras if f.fused else f.base_weapons
+            swap = next((x for x in pool if x.is_melee == w.is_melee), None)
             sub = "VENDIDA" if sold else "VOCÊ JÁ TEM" if mine else f"DONO: {owner}"
-            desc = ("com a forjada na mão, não dá para trocar" if f.fused
+            desc = ("seu herói não usa esse tipo de arma" if not kind_ok
                     else f"vem para a mão no lugar da {swap.name.lower()}" if swap is not None
-                    else "seu herói não usa esse tipo de arma")
+                    else "vem para a mão junto com a forjada")
+            usable = kind_ok and (swap is not None or f.fused)
             info = {"type": "arma", "sub": sub, "owner": owner, "weapon": weapon_card(f, w),
                     "out": weapon_card(f, swap) if swap is not None else None}
-            out.append(Entry(w.name.upper(), VITRINE_COST, desc, not sold and not mine and swap is not None,
+            out.append(Entry(w.name.upper(), VITRINE_COST, desc, not sold and not mine and usable,
                              lambda w=w: self._buy_weapon(w), rarity_color(w), f"vitrine:{w.name}", info))
         return out
 

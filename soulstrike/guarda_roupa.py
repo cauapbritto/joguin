@@ -188,6 +188,9 @@ class WardrobeMenu(ShopMenu):
         f = self.fighter
         if pet_row:
             cacos.set_pet(self._slot(), None if item is None else item.key)
+            if item is not None:                    # um pet por jogador: o bicho da Casa volta
+                from . import mascotes
+                mascotes.send_home(self.match, self._slot())
             self.match.refresh_pets()
             self._say(f"O {item.name} VAI COM VOCÊ!" if item else "SEM PET POR ENQUANTO", theme.MOSS)
             self.match.burst(f.x - 30, f.y - 10, item.color if item else theme.BONE, 14, speed=2.5)
