@@ -241,8 +241,9 @@ class MotorDeSomTest(unittest.TestCase):
         full = self.mixer.music_volume()
         sound = mock.Mock()
         sound.get_num_channels.return_value = 0
-        with mock.patch.dict(self.mixer.sounds, {"explosion": sound}):
-            self.mixer.play("explosion")
+        with mock.patch.dict(self.mixer.sounds, {"teste_estrondo": sound}), \
+                mock.patch.dict(self.som.DUCK, {"teste_estrondo": self.som.DUCK["explosion"]}):
+            self.mixer.play("teste_estrondo")
         self.assertLess(self.mixer.music_volume(), full)
         for _ in range(200):
             self.mixer.tick()
