@@ -1,5 +1,6 @@
 """PARA ONDE? o menu de escolher o capítulo ao entrar no carro, e os carros novos da viagem."""
 import unittest
+from types import SimpleNamespace
 
 import pygame
 
@@ -18,9 +19,12 @@ class _Match:
     assets = _Assets()
 
 
+_P1 = SimpleNamespace(label="P1", color=(84, 162, 222), x=480, y=470, slot=1)
+
+
 def _abre(current=1):
     picked = []
-    menu = para_onde.ChapterPickMenu(_Match(), None, picked.append, current)
+    menu = para_onde.ChapterPickMenu(_Match(), _P1, picked.append, current)
     inp = FakeInput()
     menu.handle(inp)                      # o quadro em que abriu
     return menu, inp, picked
@@ -61,9 +65,11 @@ class ParaOndeTest(unittest.TestCase):
     def test_desenha(self):
         g = game()
         menu, _, _ = _abre()
-        screen = pygame.Surface((960, 540))
+        screen = pygame.Surface((960, 540), pygame.SRCALPHA)
         menu.draw(screen, g.ui, (480, 400))
-        self.assertGreater(screen.get_bounding_rect().w, 300)
+        w = screen.get_bounding_rect().w
+        self.assertGreater(w, 200)
+        self.assertLess(w, 300)                   # janela pequena (era 380)
 
 
 class CarrosTest(unittest.TestCase):

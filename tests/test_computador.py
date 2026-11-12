@@ -28,22 +28,28 @@ def ate(match, inputs, cond, limit=1500):
 
 
 def clica(menu, key):
-    """Clica (como o dedo ou a setinha) no meio do que faz ``key`` na tela de dentro."""
+    """Marca a linha ``key`` (rolando a lista até ela) e toca no meio dela, como o dedo no celular."""
+    rows = [k for k, _, _ in menu.rows()]
+    if key in rows:
+        menu.sel = rows.index(key)
     menu._layout()
     rect = next(r for r, k in menu.spots if k == key)
     return menu.click(*rect.center)
 
 
 def toque(menu, key):
-    """O mesmo clique vindo do celular: ``pc:tap:u,v`` (0 a 1 na cópia da tela)."""
+    """O mesmo toque vindo do celular: ``pc:tap:u,v`` (0 a 1 na cópia da tela)."""
+    rows = [k for k, _, _ in menu.rows()]
+    if key in rows:
+        menu.sel = rows.index(key)
     menu._layout()
     rect = next(r for r, k in menu.spots if k == key)
     return menu.pick(f"pc:tap:{rect.centerx / INNER_W:.4f},{rect.centery / INNER_H:.4f}")
 
 
-def digita(match, inputs, menu, text):
-    """Digita no celular, ENVIAR, e espera o terminal terminar de responder."""
-    menu.pick("pc:text:" + text)
+def roda(match, inputs, menu, key):
+    """Escolhe o comando pronto na lista do terminal e espera ele terminar de responder."""
+    clica(menu, key)
     return ate(match, inputs, lambda: not menu.busy)
 
 
@@ -61,13 +67,20 @@ class ComputadorTest(unittest.TestCase):
         self.assertTrue(match.interact(p))
         return match, inputs, p, match.menus[p]
 
+    def test_janela_tem_metade_do_tamanho_antigo(self):
+        _, _, _, menu = self.abre()
+        w, h = menu.size(None)
+        self.assertLessEqual(w, 520 // 2 + 10)                  # era 520 x 316
+        self.assertLessEqual(w * h, 520 * 316 // 2)
+
     def test_pc_abre_e_o_celular_ganha_a_copia_da_tela(self):
         match, inputs, p, menu = self.abre()
         self.assertIsInstance(menu, Computer)
         snap = menu.snapshot()
         self.assertEqual(snap["kind"], "pc")
         self.assertTrue(snap["screen"])
-        self.assertFalse(snap["typing"])
+        self.assertFalse(snap["typing"])                        # nada se digita
+        self.assertEqual(snap["fields"], [])
         passo(match, inputs, 2)
         self.assertTrue(hub._screens[p.slot].startswith(b"\x89PNG"))     # o celular pede em /api/tela.png
         self.assertEqual(match._screens[p.slot], menu.version)
@@ -77,88 +90,73 @@ class ComputadorTest(unittest.TestCase):
         q.x, q.y = p.x + 30, p.y
         self.assertIsNone(match.computer_near(q))
 
-    def test_toque_no_celular_abre_o_navegador_e_o_x_fecha(self):
+    def test_toque_no_celular_abre_o_navegador_e_volta(self):
         _, _, _, menu = self.abre()
         toque(menu, "open:navegador")
         self.assertEqual(menu.screen, "navegador")
         clica(menu, "pag:3")
-        self.assertIn("PADARIA DO JOÃO", " ".join(menu.page_lines()))
+        self.assertIn("www.padariadojoao.com", menu.reading[1])
+        clica(menu, "ler:voltar")
+        self.assertIsNone(menu.reading)
+        clica(menu, "pag:4")
+        self.assertIn("SOULWIKI", menu.reading[0])
+        clica(menu, "ler:voltar")
         clica(menu, "close")
-        self.assertEqual(menu.screen, "desktop")
+        self.assertEqual(menu.screen, "inicio")
 
-    def test_endereco_digitado_leva_ao_site_ou_ao_404(self):
+    def test_arquivos_abrem_o_texto(self):
         _, _, _, menu = self.abre()
-        clica(menu, "open:navegador")
-        toque(menu, "focus:url")
-        self.assertEqual(menu.snapshot()["focus"], "url")
-        self.assertTrue(any(f[4] == "url" for f in menu.snapshot()["fields"]))
-        menu.pick("pc:text:www.soulwiki.com")
-        self.assertIn("BESTIÁRIO", " ".join(menu.page_lines()))
-        clica(menu, "focus:url")
-        menu.pick("pc:text:google.com")
-        self.assertIsNone(menu.page)
-        self.assertIn("ERRO 404", " ".join(menu.page_lines()))
+        clica(menu, "open:arquivos")
+        clica(menu, "arq:0")
+        self.assertEqual(menu.reading[0], FILES[0][0])
+        self.assertTrue(menu.back())                             # ESQUIVA fecha o arquivo
+        self.assertIsNone(menu.reading)
+        self.assertTrue(menu.back())                             # e volta para o início
+        self.assertEqual(menu.screen, "inicio")
+        self.assertFalse(menu.back())                            # no início, ESQUIVA desliga
 
-    def test_a_tv_mostra_o_que_esta_sendo_digitado(self):
-        _, _, _, menu = self.abre()
-        clica(menu, "open:terminal")
-        version = menu.version
-        menu.pick("pc:buf:aju")
-        self.assertEqual(menu.buffer, "aju")
-        self.assertGreater(menu.version, version)
-        self.assertEqual(menu.suggestions(), ["ajuda"])
-
-    def test_terminal_comandos_de_verdade(self):
+    def test_terminal_so_com_comandos_prontos(self):
         match, inputs, p, menu = self.abre()
         clica(menu, "open:terminal")
-        self.assertEqual(menu.focus, "terminal")
         self.assertTrue(ate(match, inputs, lambda: not menu.busy))
-        digita(match, inputs, menu, "ls")
+        self.assertEqual([k[4:] for k, _, _ in menu.rows()], list(computador.PC_MENU))
+        roda(match, inputs, menu, "cmd:ls")
         texts = " ".join(t for t, _ in menu.lines)
         self.assertIn(FILES[0][0], texts)
-        digita(match, inputs, menu, "xyz")
-        self.assertIn("COMANDO NÃO ENCONTRADO", menu.lines[-1][0])
-        digita(match, inputs, menu, "limpar")
-        self.assertEqual(menu.lines, [("", menu.lines[0][1])] if menu.lines else [])
-        digita(match, inputs, menu, "exit")
-        self.assertEqual(menu.screen, "desktop")
-        clica(menu, "open:terminal")
-        digita(match, inputs, menu, "desligar")
+        roda(match, inputs, menu, "cmd:cat leia-me.txt")
+        self.assertIn("AJUDA", menu.lines[-1][0])
+        roda(match, inputs, menu, "cmd:limpar")
+        self.assertEqual(menu.lines, [])
+        roda(match, inputs, menu, "cmd:exit")
+        self.assertEqual(menu.screen, "inicio")
+        clica(menu, "desligar")
         passo(match, inputs, 2)
         self.assertNotIn(p, match.menus)
         self.assertNotIn(p.slot, match._screens)              # o celular parou de receber a tela
 
-    def test_teclado_da_tela_e_sugestao(self):
-        match, inputs, _, menu = self.abre()
-        clica(menu, "open:terminal")
-        self.assertTrue(ate(match, inputs, lambda: not menu.busy))
-        for key in ("osk:a", "osk:j"):
-            clica(menu, key)
-        self.assertEqual(menu.buffer, "aj")
-        clica(menu, "osk:apagar")
-        self.assertEqual(menu.buffer, "a")
-        clica(menu, "osk:sug:ajuda")                           # sugestão completa o comando
-        self.assertEqual(menu.buffer, "ajuda")
-        clica(menu, "osk:enter")
-        self.assertTrue(ate(match, inputs, lambda: not menu.busy))
-        self.assertIn("ajuda", " ".join(t for t, _ in menu.lines))
+    def test_toda_linha_cabe_na_janela(self):
+        _, _, _, menu = self.abre()
+        ui = menu.match.game.ui
+        for c in computador.PC_MENU + computador.NB_MENU:
+            menu.say("  " + c.upper())
+        for name, text in computador.FILES:
+            menu.say("  " + text)
+        for text, _, _, _, _ in menu.queue:
+            self.assertLessEqual(ui.assets.text_width(text, 8), INNER_W - 8, text)
 
-    def test_setinha_do_controle_e_segurar_esquiva_fecha(self):
+    def test_controle_anda_na_lista_e_segurar_esquiva_fecha(self):
         match, inputs, p, menu = self.abre()
         inp = inputs[p.slot]
         passo(match, inputs, 2)
-        menu._layout()
-        target = next(r for r, k in menu.spots if k == "open:arquivos").center
-        for _ in range(200):                                   # leva a setinha até ARQUIVOS
-            dx, dy = target[0] - menu.cursor[0], target[1] - menu.cursor[1]
-            if abs(dx) < 6 and abs(dy) < 6:
-                break
-            inp.stick = (max(-1, min(1, dx / 20)), max(-1, min(1, dy / 20)))
-            passo(match, inputs)
+        self.assertEqual(menu.sel, 0)
+        inp.stick = (0.0, 1.0)                                   # para baixo: NAVEGADOR
+        passo(match, inputs)
         inp.stick = (0.0, 0.0)
+        passo(match, inputs)
+        self.assertEqual(menu.rows()[menu.sel][0], "open:navegador")
         inp.tap("attack")
         passo(match, inputs)
-        self.assertEqual(menu.screen, "arquivos")
+        self.assertEqual(menu.screen, "navegador")
         for _ in range(computador.CLOSE_HOLD + 2):
             inp.hold("dodge")
             passo(match, inputs)
@@ -174,11 +172,11 @@ class ComputadorTest(unittest.TestCase):
         match, inputs, _, menu = self.abre()
         clica(menu, "open:terminal")
         self.assertTrue(ate(match, inputs, lambda: not menu.busy))
-        digita(match, inputs, menu, "liberar --tudo")
+        roda(match, inputs, menu, "cmd:liberar --tudo")
         self.assertTrue(menu.asking)
-        self.assertEqual(menu.suggestions(), ["s", "n"])
+        self.assertEqual([k for k, _, _ in menu.rows()], ["cmd:s", "cmd:n"])
         self.assertFalse(computador.freed())
-        menu.pick("pc:text:s")
+        toque(menu, "cmd:s")
         self.assertTrue(ate(match, inputs, lambda: match.freeing > 0))
         self.assertTrue(computador.freed())
         for k in range(1, progress.LAST_CHAPTER + 1):
@@ -198,8 +196,8 @@ class ComputadorTest(unittest.TestCase):
         match, inputs, _, menu = self.abre()
         clica(menu, "open:terminal")
         self.assertTrue(ate(match, inputs, lambda: not menu.busy))
-        digita(match, inputs, menu, "liberar --tudo")
-        digita(match, inputs, menu, "n")
+        roda(match, inputs, menu, "cmd:liberar --tudo")
+        roda(match, inputs, menu, "cmd:n")
         passo(match, inputs, 30)
         self.assertFalse(computador.freed())
         self.assertFalse(match.freeing)
@@ -208,18 +206,22 @@ class ComputadorTest(unittest.TestCase):
         match, inputs, _, nb = self.abre("notebook")
         self.assertIsInstance(nb, HackerNotebook)
         self.assertEqual(nb.screen, "login")
-        toque(nb, "focus:senha")
-        nb.pick("pc:text:senha errada")
+        self.assertEqual([k[6:] for k, _, _ in nb.rows()], list(computador.GUESSES))
+        toque(nb, "senha:123456")
         self.assertTrue(ate(match, inputs, lambda: not nb.busy))
         self.assertEqual(nb.screen, "login")
-        clica(nb, "focus:senha")
-        nb.pick("pc:text:Oi Sumido")
-        self.assertTrue(ate(match, inputs, lambda: nb.screen == "desktop" and not nb.busy))
+        self.assertIn("SENHA ERRADA", " ".join(t for t, _ in nb.lines[-2:]))
+        clica(nb, "senha:oi sumido")
+        self.assertTrue(ate(match, inputs, lambda: nb.screen == "inicio" and not nb.busy))
         self.assertTrue(match.notebook_open)
+        clica(nb, "open:alerta")
+        self.assertEqual(nb.reading[0], "ALERTA")
+        clica(nb, "vacuo")
+        self.assertIsNone(nb.reading)
         clica(nb, "open:terminal")
         self.assertEqual(nb.screen, "terminal")
         self.assertTrue(ate(match, inputs, lambda: not nb.busy))
-        nb.pick(f"pc:text:{HACK}")
+        clica(nb, f"cmd:{HACK}")
         frames = 0
         while not match.freeing and frames < 1500:
             passo(match, inputs)
@@ -238,19 +240,20 @@ class ComputadorTest(unittest.TestCase):
         q.x, q.y = rect.centerx - 40, rect.bottom + 14
         match.interact(q)
         nb = match.menus[q]
-        for screen in ("desktop", "arquivos", "navegador", "terminal"):
-            pc.screen = screen
-            for focus in (None, "terminal"):
-                pc.focus = focus
-                match.draw(g.screen, g.ui)
-                pc.png(g.ui)
-        pc.page = None
-        pc.screen = "navegador"
+        for screen in ("inicio", "arquivos", "navegador", "terminal"):
+            pc.go(screen)
+            match.draw(g.screen, g.ui)
+            pc.png(g.ui)
+        pc.go("inicio")
+        clica(pc, "open:arquivos")
+        clica(pc, "arq:2")
         match.draw(g.screen, g.ui)
-        for screen in ("login", "desktop", "alerta", "terminal"):
-            nb.screen = screen
+        for screen in ("login", "inicio", "terminal"):
+            nb.go(screen)
             match.draw(g.screen, g.ui)
             nb.png(g.ui)
+        nb.open_app("alerta")
+        match.draw(g.screen, g.ui)
         match.freeing = 60
         match.draw(g.screen, g.ui)
 

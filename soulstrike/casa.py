@@ -11,7 +11,7 @@ import random
 import pygame
 
 from . import casa_art as art
-from . import computador, config, crt, luz_casa, mascotes, progress, skins, theme
+from . import computador, config, janelas, luz_casa, mascotes, progress, skins, theme
 from .guarda_roupa import Lockers, WardrobeMenu
 from .loja import ShopMenu, ShopStand
 from .arena import MAPS_BY_KEY
@@ -524,25 +524,30 @@ class BookMenu:
     def snapshot(self):
         return None                             # nada na loja do celular
 
-    def draw(self, screen, ui, anchor):
-        w = 340
-        lines = ui.wrap(self.text, theme.XS, w - 40)
-        h = 66 + len(lines) * 14 + 26
-        x = max(8, min(config.SCREEN_W - w - 8, round(anchor[0]) - w // 2))
-        y = max(60, min(config.SCREEN_H - h - 70, round(anchor[1]) - h - 70))
-        rect = pygame.Rect(x, y, w, h)
+    W = 250
+
+    def _lines(self, ui):
+        return ui.wrap(self.text, theme.XS, self.W - 32)
+
+    def size(self, ui):
+        return self.W, 52 + len(self._lines(ui)) * 12 + 30
+
+    def draw(self, screen, ui, cam, rect=None):
+        if rect is None:
+            rect = janelas.default_rect(self.size(ui), cam, self.fighter)
         pygame.draw.rect(screen, theme.SHADOW, rect.move(3, 3))
         pygame.draw.rect(screen, (90, 30, 36), rect)                         # capa
-        page = rect.inflate(-12, -12)
+        pygame.draw.rect(screen, self.fighter.color, (rect.x, rect.y, rect.w, 3))
+        page = rect.inflate(-10, -10)
         pygame.draw.rect(screen, (246, 238, 214), page)
-        ui.text(screen, "PALAVRA DO DIA", theme.XS, (150, 40, 50), (rect.centerx, page.y + 14), shadow=False)
-        ty = page.y + 34
-        for line in lines:
+        ui.text(screen, f"{self.fighter.label} · PALAVRA DO DIA", theme.XS, (150, 40, 50),
+                (rect.centerx, page.y + 12), shadow=False)
+        ty = page.y + 30
+        for line in self._lines(ui):
             ui.text(screen, line, theme.XS, (50, 36, 30), (rect.centerx, ty), shadow=False)
-            ty += 14
-        ui.text(screen, self.ref, theme.XS, (120, 90, 60), (rect.centerx, ty + 8), shadow=False)
-        ui.text(screen, "ATACAR OU ESQUIVA: FECHAR", theme.XS, (150, 136, 110), (rect.centerx, page.bottom - 10),
-                shadow=False)
+            ty += 12
+        ui.text(screen, self.ref, theme.XS, (120, 90, 60), (rect.centerx, ty + 6), shadow=False)
+        ui.text(screen, "ATACAR: FECHAR", theme.XS, (150, 136, 110), (rect.centerx, page.bottom - 9), shadow=False)
 
 
 class GarageMenu:
@@ -583,51 +588,47 @@ class GarageMenu:
     def snapshot(self):
         return None
 
-    def draw(self, screen, ui, anchor):
-        w, h = 360, 236
-        x = max(8, min(config.SCREEN_W - w - 8, round(anchor[0]) - w // 2))
-        y = max(56, min(config.SCREEN_H - h - 70, round(anchor[1]) - h - 70))
-        rect = pygame.Rect(x, y, w, h)
-        pygame.draw.rect(screen, theme.SHADOW, rect.move(3, 3))
-        pygame.draw.rect(screen, (34, 32, 40), rect)
-        pygame.draw.rect(screen, (120, 116, 130), rect, 2)
-        ui.text(screen, "GARAGEM", theme.S, theme.BRASS, (rect.centerx, y + 18))
-        ui.text(screen, "COM O QUE A TURMA SAI?", theme.XS, theme.BONE, (rect.centerx, y + 38))
+    def size(self, ui):
+        return 260, 190
+
+    def draw(self, screen, ui, cam, rect=None):
+        if rect is None:
+            rect = janelas.default_rect(self.size(ui), cam, self.fighter)
+        body = janelas.panel(screen, ui, rect, self.fighter, "GARAGEM", "COM O QUE SAI?")
         chosen = self.match.run.vehicle
         for i, (key, name, chapter) in enumerate(VEHICLES):
-            row = pygame.Rect(x + 14, y + 52 + i * 26, w - 28, 22)
+            row = pygame.Rect(body.x, body.y + i * 18, body.w, 16)
             ready = vehicle_ready(key)
             if i == self.index:
                 pygame.draw.rect(screen, (70, 60, 40), row)
                 pygame.draw.rect(screen, theme.BRASS, row, 1)
             color = theme.BONE if ready else (110, 108, 120)
-            ui.text(screen, name, theme.XS, color, (row.x + 10, row.centery), anchor="midleft")
-            state = ("ESCOLHIDO" if key == chosen else "LIBERADO") if ready else f"ZERE O CAPÍTULO {chapter}"
+            ui.text(screen, name, theme.XS, color, (row.x + 6, row.centery), anchor="midleft")
+            state = ("ESCOLHIDO" if key == chosen else "LIBERADO") if ready else f"ZERE O CAP {chapter}"
             ui.text(screen, state, theme.XS, theme.MOSS if key == chosen else color,
-                    (row.right - 10, row.centery), anchor="midright")
+                    (row.right - 6, row.centery), anchor="midright")
         # troféus: os selos de cada dificuldade e o melhor tempo
         from .ai import CAMPAIGN_ORDER
         from .scenes.campaign import draw_seal
-        ty = y + 146
+        ty = body.y + len(VEHICLES) * 18 + 10
         ui.text(screen, "TROFÉUS", theme.XS, theme.BRASS, (rect.centerx, ty))
         earned = progress.seals()
         n = len(CAMPAIGN_ORDER)
         for i, key in enumerate(CAMPAIGN_ORDER):
-            draw_seal(screen, ui, (rect.centerx - (n - 1) * 30 + i * 60, ty + 30), key, key in earned, size=18)
+            draw_seal(screen, ui, (rect.centerx - (n - 1) * 22 + i * 44, ty + 24), key, key in earned, size=12)
         best = [t for t in (progress.best_time(k) for k in CAMPAIGN_ORDER) if t is not None]
         freed = sum(1 for _, ch, _, _ in CORROMPIDOS if progress.chapter_cleared(ch))
-        info = f"CORROMPIDOS LIBERADOS: {freed}/{len(CORROMPIDOS)}"
+        ui.text(screen, f"CORROMPIDOS: {freed}/{len(CORROMPIDOS)}", theme.XS, (190, 186, 200), (rect.centerx, ty + 48))
         if best:
             m = int(min(best))
-            info += f" · MELHOR TEMPO {m // 60}:{m % 60:02d}"
-        ui.text(screen, info, theme.XS, (190, 186, 200), (rect.centerx, ty + 62))
-        ui.text(screen, "ATACAR: ESCOLHER · ESQUIVA: FECHAR", theme.XS, (130, 126, 140), (rect.centerx, rect.bottom - 10))
+            ui.text(screen, f"MELHOR TEMPO {m // 60}:{m % 60:02d}", theme.XS, (190, 186, 200), (rect.centerx, ty + 60))
+        janelas.footer(screen, ui, rect, "ATACAR: ESCOLHER · ESQUIVA: FECHAR")
 
 
 # ─────────────────────────────────────────────
 #  A partida da casa
 # ─────────────────────────────────────────────
-class HubMatch(CoopMatch):
+class HubMatch(janelas.Janelas, CoopMatch):
     """A Casa da turma. ``story``: começo de campanha (a história da fase passa antes da sala inicial);
     no CONTINUAR vai direto."""
 
@@ -890,13 +891,9 @@ class HubMatch(CoopMatch):
         return None
 
     def free_everything(self, fighter):
-        """Chamado pelo computador quando o LIBERAR TUDO termina: tela branca e a casa recarrega."""
-        if self.freeing:
-            return
-        for f in [g for g in self.menus if g is not fighter]:
-            del self.menus[f]
-        self.freeing = 1
-        self.assets.play("confirm", 0.7)
+        """Chamado pelo computador quando o LIBERAR TUDO termina: quem está em outra janela vê o
+        LIBERANDO TUDO EM 5; depois, tela branca e a casa recarrega."""
+        self.free_soon(fighter)
 
     def redress(self):
         """Depois de vestir/tirar uma skin na loja: todo mundo na casa já aparece com a roupa escolhida."""
@@ -948,6 +945,7 @@ class HubMatch(CoopMatch):
         self.bakery.update(self)
         self.shop.update(self)
         self.lockers.update(self)
+        self.update_windows()
         if self.freeing:
             self.freeing += 1
             if self.freeing >= FREE_FRAMES and not self.finished:
@@ -963,8 +961,37 @@ class HubMatch(CoopMatch):
             self.assets.play("confirm", 0.5)
         if self.leaving:
             return
+        self._board_soon()
         if self.passage.update(self):
             self.leave()
+
+    def _board_soon(self):
+        """A turma toda no City e alguém numa janela lá dentro: ela avisa e fecha em 3 s, e a pessoa
+        aparece do lado do carro (o City não sai sem ninguém). Alguém saiu do carro: cancela."""
+        if self.walk:
+            return
+        present = self.present_slots()
+        busy = [p for p in self.menus if not isinstance(self.menus[p], ChapterPickMenu)]
+        free = [p for p in self.alive_players if p.slot in present and p not in self.menus]
+        ready = bool(busy) and bool(free) and all(self.passage.contains(p) for p in free)
+        if ready and not self.leaving_in:
+            self.leave_soon(lambda: self._board(busy))
+        elif not ready and self.leaving_in and not self.going_down:
+            self.leaving_in = 0
+            self.leaving_action = None
+
+    def _board(self, who):
+        """Quem estava numa janela aparece do lado do City (a contagem do carro começa)."""
+        cx, cy = self.door_area.center
+        for k, p in enumerate(who):
+            if not p.alive_in_match:
+                continue
+            self.burst(p.x, p.y - 16, (200, 200, 210), 18, speed=4)
+            p.x, p.y = self.arena.free_spot(cx - 60 + 40 * k, cy + 20, p.radius)
+            p.prev_pos = (p.x, p.y)
+            p.vx = p.vy = 0.0
+            p.teleport_flash = 20
+            self.burst(p.x, p.y - 16, p.color, 18, speed=4)
 
     def interact(self, f):
         if self.passage.try_force(self, f):
@@ -998,9 +1025,11 @@ class HubMatch(CoopMatch):
             self.assets.play("select", 0.45)
             return True
         if self.garage_near(f):
-            self.going_down = True                    # o grupo inteiro desce para a garagem
+            if self.leaving_in:
+                return True
             self.assets.play("select", 0.45)
-            self._finish(won=True)
+            self.going_down = True                    # o grupo inteiro desce para a garagem
+            self.leave_soon(lambda: self._finish(won=True))
             return True
         spot = self.computer_near(f)
         if spot is not None:
@@ -1095,12 +1124,7 @@ class HubMatch(CoopMatch):
                 ui.text(screen, hint, theme.XS, theme.BONE, (round(sx), round(sy)))
         self.draw_ground(screen, cam, ui)
         self.draw_car_labels(screen, ui, free, blink)
-        for f, menu in self.menus.items():
-            if isinstance(menu, computador.Computer):
-                crt.panel(screen, (menu.kind, f.slot), lambda s, menu=menu: menu.draw(s, ui, cam))
-                continue
-            at = cam.to_screen(f.x, f.y)
-            crt.panel(screen, ("livro", f.slot), lambda s, menu=menu, at=at: menu.draw(s, ui, at))
+        janelas.draw(self, screen, ui)
 
     def draw_car_labels(self, screen, ui, free, blink):
         """Em cima do carro do quintal: a chamada da saída e o PARA ONDE?."""
