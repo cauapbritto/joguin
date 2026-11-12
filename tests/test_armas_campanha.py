@@ -49,56 +49,108 @@ class DerrubarTest(unittest.TestCase):
 
 
 class TrocaTest(unittest.TestCase):
-    def test_pegar_comum_troca_a_do_mesmo_tipo(self):
-        match, _ = campanha(("guerreiro", "atirador"))
+    """Bolsa de 3 armas quaisquer: com vaga, a nova só entra; cheia, troca pela da mão (que cai no chão)."""
+
+    def _p1(self, chars=("guerreiro", "atirador")):
+        match, _ = campanha(chars)
         pular_intro(match)
         p1 = match.players[0]
         p1.x, p1.y = 500, 600
+        return match, p1
+
+    def test_com_vaga_a_arma_entra_na_bolsa(self):
+        match, p1 = self._p1()
         katana = common_weapon("Katana")
         item = no_chao(match, katana, 520, 600)
         self.assertTrue(match.interact(p1))
-        self.assertEqual([w.name for w in p1.base_weapons], ["Arco", "Katana"])
+        self.assertEqual([w.name for w in p1.weapons], ["Arco", "Espada", "Katana"])
         self.assertIs(p1.weapon, katana)
         self.assertNotIn(item, match.ground)
-        self.assertEqual(match.ground, [])               # a dele volta para a mochila (não duplica)
-        self.assertEqual(match.run.loadouts[1], ["Arco", "Katana"])
+        self.assertEqual(match.ground, [])
+        self.assertEqual(match.run.bags[1], ["comum:Arco", "comum:Espada", "comum:Katana"])
 
-    def test_pegar_rara_vai_na_vaga_rara(self):
-        match, _ = campanha()
-        pular_intro(match)
-        p1 = match.players[0]
-        p1.x, p1.y = 500, 600
+    def test_bolsa_cheia_troca_pela_da_mao_que_fica_no_chao(self):
+        match, p1 = self._p1()
         no_chao(match, RARE_WEAPONS["besta"], 520, 600)
         match.interact(p1)
-        self.assertIs(p1.relic, RARE_WEAPONS["besta"])
-        self.assertEqual(match.run.relics[1], "besta")
+        p1.weapon_index = 0                                     # Arco na mão
+        no_chao(match, common_weapon("Pistola"), 520, 600)
+        match.interact(p1)
+        self.assertEqual([w.name for w in p1.weapons], ["Pistola", "Espada", RARE_WEAPONS["besta"].name])
+        self.assertEqual([g.weapon.name for g in match.ground], ["Arco"])     # a do herói não some
+        self.assertTrue(match.ground[0].by_player)
+        self.assertEqual(match.run.bags[1][2], "rara:besta")
+
+    def test_qualquer_tipo_cabe_ate_tres_rara(self):
+        match, p1 = self._p1()
+        match.drop_held(p1)
+        match.drop_held(p1)
+        self.assertEqual(p1.bag, [])
+        self.assertEqual(p1.weapon.name, "Soco")                # bolsa vazia = soco
+        for key in ("besta", "canhao", "bumerangue"):
+            no_chao(match, RARE_WEAPONS[key], 520, 600)
+            match.interact(p1)
+        self.assertEqual(len(p1.bag), 3)
+        self.assertTrue(all(w.rare for w in p1.weapons))
+
+    def test_amigo_pega_a_arma_do_seu_heroi(self):
+        match, p1 = self._p1()
+        p2 = match.players[1]
+        p1.weapon_index = 0
+        match.drop_held(p1)                                     # larga o Arco
+        arco = match.ground[0]
+        arco.t = arco.TOSS
+        arco.x, arco.y = arco.end
+        p2.x, p2.y = arco.x + 10, arco.y
+        self.assertTrue(match.interact(p2))
+        self.assertIn("Arco", [w.name for w in p2.weapons])
+        self.assertNotIn("Arco", [w.name for w in p1.weapons])
+
+    def test_arma_que_o_jogador_largou_nunca_some_sozinha(self):
+        match, p1 = self._p1()
+        match.drop_held(p1)
+        mine = match.ground[0]
+        for k in range(C.MAX_GROUND + 6):
+            item = GroundWeapon(common_weapon("Katana"), (100, 100), (100 + k, 100))
+            match.ground.append(item)
+            match.props.append(item)
+        match.drop_held(match.players[1])                       # a limpeza roda ao cair arma nova
+        self.assertEqual(len([g for g in match.ground if not g.by_player]), C.MAX_GROUND)
+        self.assertIn(mine, match.ground)
 
     def test_arma_pega_passa_para_a_proxima_etapa_e_fica_salva(self):
-        match, _ = campanha()
-        pular_intro(match)
-        p1 = match.players[0]
-        p1.x, p1.y = 500, 600
+        match, p1 = self._p1(("guerreiro", "atirador"))
         no_chao(match, common_weapon("Pistola"), 520, 600)
         match.interact(p1)
         match.run.carry(match)
         match.run.begin_phase()
         data = json.loads(json.dumps(match.run.to_save()))
         back = CampaignRun.from_save(data)
-        self.assertEqual(back.loadouts[1], ["Pistola", "Espada"])
-        self.assertIsNone(back.loadouts[2])
-        match2, _ = campanha()
+        self.assertEqual(back.bags[1], ["comum:Arco", "comum:Espada", "comum:Pistola"])
+        match2, _ = campanha(("guerreiro", "atirador"))
         f = match2.players[0]
-        f.loadout = None
         back.prepare(f)
-        self.assertEqual(f.base_weapons[0].name, "Pistola")
+        self.assertEqual([w.name for w in f.weapons], ["Arco", "Espada", "Pistola"])
 
-    def test_save_antigo_sem_armas_comuns_ainda_carrega(self):
+    def test_save_antigo_vira_bolsa(self):
+        match, _ = campanha(("guerreiro", "atirador"))
+        match.run.begin_phase()
+        data = json.loads(json.dumps(match.run.to_save()))
+        del data["estado"]["bags"]
+        data["versao"] = 2
+        data["estado"]["relics"] = {"1": "besta", "2": None}
+        data["estado"]["loadouts"] = {"1": ["Katana"], "2": None}
+        back = CampaignRun.from_save(data)
+        self.assertEqual(back.bags[1], ["comum:Arco", "comum:Katana", "rara:besta"])
+        self.assertIsNone(back.bags[2])
+        data["estado"]["relics"] = {"1": "espada_falsa", "2": None}
+        self.assertIsNone(CampaignRun.from_save(data))
+
+    def test_bolsa_estranha_no_save_e_recusada(self):
         match, _ = campanha()
         match.run.begin_phase()
         data = json.loads(json.dumps(match.run.to_save()))
-        del data["estado"]["loadouts"]
-        self.assertIsNotNone(CampaignRun.from_save(data))
-        data["estado"]["loadouts"] = {"1": ["Espada", "Arco"], "2": None}     # ordem errada
+        data["estado"]["bags"] = {"1": ["comum:Arco"] * 4}
         self.assertIsNone(CampaignRun.from_save(data))
 
 

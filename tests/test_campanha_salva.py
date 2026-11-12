@@ -61,7 +61,7 @@ class CampanhaSalvaTest(unittest.TestCase):
                        lambda d: d.update(dificuldade="impossivel"),
                        lambda d: d["estado"].update(phase_index=len(PHASES)),
                        lambda d: d["estado"]["upgrades"].update({"1": ["nao_existe"]}),
-                       lambda d: d["estado"]["relics"].update({"1": "espada_falsa"}),
+                       lambda d: d["estado"]["bags"].update({"1": ["rara:espada_falsa"]}),
                        lambda d: d["estado"]["kills"].pop("2"),
                        lambda d: d["jogadores"][0].update(char=999),
                        lambda d: d["jogadores"].append({"slot": 1, "char": 0, "weapon": 0}),

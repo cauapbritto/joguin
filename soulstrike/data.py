@@ -285,6 +285,11 @@ def roster_for_web():
     ]
 
 
+# bolsa vazia na campanha: o herói luta no soco (fraco e de graça)
+PUNCH = WeaponStats("Soco", "melee", 8, reach=48, cooldown=18, note="Sem arma nenhuma na bolsa.")
+BAG_SIZE = 3                    # campanha: cada jogador carrega até 3 armas de qualquer tipo
+
+
 def duel_arsenal():
     """Armas que dá para escolher antes de cada round do duelo: as de tiro e as de perto dos heróis
     (sem repetir nome e sem as raras do baú). Devolve (de tiro, de perto)."""

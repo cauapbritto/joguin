@@ -16,7 +16,7 @@ import random
 import pygame
 
 from . import config, pecas, theme
-from .data import CHARACTERS, duel_arsenal, rarity, rarity_color
+from .data import BAG_SIZE, CHARACTERS, duel_arsenal, rarity, rarity_color
 from .entities import Entity, Particle, Wall
 
 SOULS = {"comum": 3, "elite": 12, "chefe": 60}      # almas por inimigo derrotado (quem deu o golpe final)
@@ -439,14 +439,12 @@ class MarketMenu:
             owner = owner_of(w)
             sold = w.name in self.stall.sold
             mine = any(x.name == w.name for x in f.weapons)
-            kind_ok = any(x.is_melee == w.is_melee for x in f.stats.weapons)
-            pool = f.extras if f.fused else f.base_weapons
-            swap = next((x for x in pool if x.is_melee == w.is_melee), None)
+            bag = f.bag if f.bag is not None else list(f.weapons)
+            swap = f.weapon if len(bag) >= BAG_SIZE and bag else None
             sub = "VENDIDA" if sold else "VOCÊ JÁ TEM" if mine else f"DONO: {owner}"
-            desc = ("seu herói não usa esse tipo de arma" if not kind_ok
-                    else f"vem para a mão no lugar da {swap.name.lower()}" if swap is not None
-                    else "vem para a mão junto com a forjada")
-            usable = kind_ok and (swap is not None or f.fused)
+            desc = (f"troca pela {swap.name.lower()} da mão (ela fica no chão)" if swap is not None
+                    else "entra na vaga livre da bolsa")
+            usable = True
             info = {"type": "arma", "sub": sub, "owner": owner, "weapon": weapon_card(f, w),
                     "out": weapon_card(f, swap) if swap is not None else None}
             out.append(Entry(w.name.upper(), VITRINE_COST, desc, not sold and not mine and usable,
@@ -454,8 +452,8 @@ class MarketMenu:
         return out
 
     def _buy_weapon(self, weapon):
-        """Arma da vitrine: vai direto para a mão; a que ela troca (se for de outro herói) fica no chão,
-        na frente da banca. A do próprio herói volta para a mochila."""
+        """Arma da vitrine: vai para a bolsa e para a mão; com a bolsa cheia, a da mão fica no chão,
+        na frente da banca."""
         s = self.stall
         s.sold.add(weapon.name)
         self.match.give_common(self.fighter, weapon, drop_at=(s.x, s.y + 56))
@@ -491,13 +489,15 @@ class MarketMenu:
         return out
 
     def _fusion_entry(self):
-        """Fusão: as três armas viram uma forjada (uma vez por mercado; a forjada não entra em outra)."""
+        """Fusão: as três armas da bolsa viram uma forjada (uma vez por mercado; forjada não entra
+        em outra fusão). Precisa da bolsa cheia."""
         from .forged import FORGED, FUSION_COST, discovered, preview_text, recipe
         f, run = self.fighter, self.run
-        if f.relic is None or f.relic.forjada:
+        bag = f.bag or []
+        if len(bag) < BAG_SIZE or any(w.forjada for w in bag):
             return None
         from .forged import FAMILY_NAMES, RECIPES
-        key, level, enchant = recipe(f.weapons)
+        key, level, enchant = recipe(bag)
         known = key in discovered()
         name, note = preview_text(key, discovered())
         done = run.fused_phase == run.phase_index
@@ -508,7 +508,7 @@ class MarketMenu:
             card["name"] = "???"
         fam = next((k for k, v in RECIPES.items() if v == key), None)
         info = {"type": "fusao", "sub": "JÁ FUNDIU AQUI" if done else "VIRA 1 FORJADA",
-                "inputs": [weapon_card(f, w) for w in f.weapons], "next": card, "known": known,
+                "inputs": [weapon_card(f, w) for w in bag], "next": card, "known": known,
                 "note": note.upper(), "family": FAMILY_NAMES.get(fam, "")}
         return Entry("FUNDIR AS 3 ARMAS", FUSION_COST, desc, not done, self._fuse, rarity_color(FORGED[key]),
                      "fundir", info)
@@ -516,18 +516,16 @@ class MarketMenu:
     def _fuse(self):
         from .forged import FORGED, discover, recipe
         f, run = self.fighter, self.run
-        key, level, enchant = recipe(f.weapons)
+        key, level, enchant = recipe(f.bag)
         weapon = FORGED[key]
-        for w in f.base_weapons:
-            f.forge.pop(w.name, None)               # as do herói voltam ao +0
+        for w in f.bag:
+            f.forge.pop(w.name, None)               # as três voltam ao +0 (se alguém pegar outra igual)
             f.clips.pop(w, None)
-        if f.relic is not None:
-            f.forge.pop(f.relic.name, None)
-        # as três somem dentro da forjada: fica só ela na mão (LARGAR a forjada devolve as do herói)
-        f.loadout = None
-        run.loadouts[f.slot] = None
-        f.give_relic(weapon)
-        run.relics[f.slot] = key
+        # as três somem dentro da forjada: ela fica sozinha na bolsa, com 2 vagas livres
+        f.bag = [weapon]
+        f.weapon_index = 0
+        f.bow_draw = 0
+        run.keep_bag(f)
         if level:
             f.forge[weapon.name] = [level, enchant]
         run.fused_phase = run.phase_index

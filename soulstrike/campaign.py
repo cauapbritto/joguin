@@ -18,7 +18,7 @@ from .enemies import BIG_KINDS, CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_ene
 from .matches import Match, Result, _separate
 from .net.remote import hub
 from .ui import darken
-from .data import RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
+from .data import BAG_SIZE, CHARACTERS, RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
 from .armario import RACK_SIZE, token_of, weapon_of
 from .dungeon import ExitDoor, GroundWeapon, PhasePortal, StartButton
 from .hazards import make_hazard
@@ -46,7 +46,7 @@ CORPSE_FADE = 32              # últimos quadros do corpo: vai sumindo
 SOLO_DAMAGE = 0.85
 WEAPON_DROP = 0.04             # chance de um inimigo comum derrubar a arma de outro herói
 ELITE_WEAPON_DROP = 0.4       # ... e de um elite (golem, sombra)
-MAX_GROUND = 8                # armas no chão ao mesmo tempo (a mais velha some)
+MAX_GROUND = 12               # armas soltas no chão (de inimigo, baú, banca); as que um jogador largou não contam
 
 @dataclass(frozen=True)
 class Level:
@@ -335,9 +335,8 @@ class CampaignRun:
         self.frames = 0
         self.stage = LOBBY_START
         self.chest_open = False
-        self.relics = {s: None for s in self.slots}       # arma rara do baú de cada jogador
+        self.bags = {s: None for s in self.slots}         # bolsa de cada jogador (armario.token_of); None = as do herói
         self.held = {s: 0 for s in self.slots}            # arma na mão de uma etapa para a outra
-        self.loadouts = {s: None for s in self.slots}     # armas comuns que pegou no chão (de tiro, de perto)
         self.souls = {s: 0 for s in self.slots}           # carteira de almas de cada jogador (moeda do mercado)
         self.forge = {s: {} for s in self.slots}          # ferreiro: nome da arma -> [nível, encanto]
         self.rerolls = {s: 0 for s in self.slots}         # trocas das melhorias compradas na loja
@@ -441,7 +440,7 @@ class CampaignRun:
     def _state(self):
         return {k: copy.deepcopy(getattr(self, k))
                 for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames",
-                          "stage", "chest_open", "relics", "held", "loadouts", "souls", "forge", "rerolls",
+                          "stage", "chest_open", "bags", "held", "souls", "forge", "rerolls",
                           "fused_phase", "curse", "start_chapter", "rack", "armor")}
 
     # ── almas ────────────────────────────────
@@ -475,13 +474,12 @@ class CampaignRun:
     def prepare(self, fighter):
         """Aplica as melhorias, a arma rara do baú e a vida que sobrou da etapa anterior."""
         fighter.forge = self.forge.setdefault(fighter.slot, {})      # o mesmo dicionário: o ferreiro mexe nele
-        names = self.loadouts.get(fighter.slot)
-        if names:
-            fighter.loadout = tuple(common_weapon(n) for n in names)
+        tokens = self.bags.get(fighter.slot)
+        if tokens is None:
+            fighter.bag = list(fighter.stats.weapons)
+        else:
+            fighter.bag = [w for w in (weapon_of(t) for t in tokens) if w is not None][:BAG_SIZE]
         apply_all(fighter, self.upgrades.get(fighter.slot, ()))
-        relic = RARE_WEAPONS.get(self.relics.get(fighter.slot))
-        if relic is not None:
-            fighter.relic = relic                    # direto: com a forjada, o loadout salvo são as comuns ao lado dela
         fighter.weapon_index = min(self.held.get(fighter.slot, 0), len(fighter.weapons) - 1)
         fighter.hp = max(1, round(fighter.max_hp * self.hp_ratio.get(fighter.slot, 1.0)))
         # armadura de Uno: só vale no capítulo 1 (ficou na floresta)
@@ -497,13 +495,17 @@ class CampaignRun:
             self.kills[f.slot] += f.kills
             self.damage[f.slot] += f.damage_dealt
             self.held[f.slot] = f.weapon_index
-            self.relics[f.slot] = relic_key(f.relic)
-            self.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
+            self.keep_bag(f)
             if f.uno_hits > 0 and self.chapter == 1:
                 self.armor[f.slot] = f.uno_hits
             else:
                 self.armor.pop(f.slot, None)
         self.frames += match.frame
+
+    def keep_bag(self, f):
+        """Anota a bolsa do jogador (vai para a próxima etapa e para o save)."""
+        if f.bag is not None and f.slot in self.bags:
+            self.bags[f.slot] = [token_of(w) for w in f.bag]
 
     def finish_phase(self, match):
         """Fim da fase (portal): leva tudo e ainda recupera um pouco da vida."""
@@ -516,13 +518,13 @@ class CampaignRun:
             self.hp_ratio[f.slot] = min(1.0, ratio + self.level.phase_heal)
 
     # ── salvar entre fases ───────────────────
-    SAVE_VERSION = 2              # 2: almas por jogador (no 1 eram do grupo)
-    _BY_SLOT = ("upgrades", "hp_ratio", "kills", "damage", "relics", "held")
+    SAVE_VERSION = 3              # 2: almas por jogador (no 1 eram do grupo); 3: bolsa de 3 armas
+    _BY_SLOT = ("upgrades", "hp_ratio", "kills", "damage", "held")
 
     def to_save(self):
         """O estado do começo da fase, num formato que cabe no progresso.json."""
         state = self._state()
-        for k in self._BY_SLOT + ("loadouts", "forge", "rerolls", "souls"):
+        for k in self._BY_SLOT + ("bags", "forge", "rerolls", "souls"):
             state[k] = {str(s): v for s, v in state[k].items()}
         return {"versao": self.SAVE_VERSION, "dificuldade": self.session.difficulty,
                 "jogadores": [{"slot": s.slot, "char": s.char, "weapon": s.weapon} for s in self.session.slots],
@@ -535,7 +537,7 @@ class CampaignRun:
         from .session import Session, SlotSetup
         from .upgrades import UPGRADES
         try:
-            if data.get("versao") not in (1, cls.SAVE_VERSION) or data.get("dificuldade") not in DIFFICULTY:
+            if data.get("versao") not in (1, 2, cls.SAVE_VERSION) or data.get("dificuldade") not in DIFFICULTY:
                 return None
             slots = []
             for p in data["jogadores"]:
@@ -554,8 +556,6 @@ class CampaignRun:
                 setattr(run, k, values)
             if any(u not in UPGRADES for ups in run.upgrades.values() for u in ups):
                 return None
-            if any(r is not None and r not in RARE_WEAPONS for r in run.relics.values()):
-                return None
             run.hp_ratio = {s: min(1.0, max(0.05, float(r))) for s, r in run.hp_ratio.items()}
             run.phase_index = int(state["phase_index"])
             if not 0 <= run.phase_index < len(PHASES):
@@ -565,17 +565,20 @@ class CampaignRun:
             run.kills = {s: int(v) for s, v in run.kills.items()}
             run.damage = {s: int(v) for s, v in run.damage.items()}
             run.held = {s: int(v) for s, v in run.held.items()}
-            loadouts = {int(s): v for s, v in state.get("loadouts", {}).items()}   # saves antigos não têm
-            for s in run.slots:
-                names = loadouts.get(s)
-                if names is not None:
-                    weapons = [common_weapon(n) for n in names]
-                    # 2 = (de tiro, de perto) no lugar das do herói; com a forjada, 1 ou 2 comuns ao lado dela
-                    if (len(weapons) not in (1, 2) or None in weapons
-                            or (len(weapons) == 2 and [w.is_melee for w in weapons] != [False, True])):
+            if "bags" in state:
+                for k, tokens in state["bags"].items():
+                    if int(k) not in run.slots:
                         return None
-                    names = list(names)
-                run.loadouts[s] = names
+                    if tokens is not None:
+                        tokens = [str(t) for t in tokens]
+                        if len(tokens) > BAG_SIZE or any(weapon_of(t) is None for t in tokens):
+                            return None
+                    run.bags[int(k)] = tokens
+            else:
+                bags = _old_bags(state, {sl.slot: CHARACTERS[sl.char] for sl in slots})
+                if bags is None:
+                    return None
+                run.bags.update(bags)
             souls = state.get("souls", 0)
             if isinstance(souls, dict):
                 for s, n in souls.items():
@@ -619,6 +622,36 @@ class CampaignRun:
 
     def advance(self):
         self.phase_index += 1
+
+
+def _old_bags(state, chars):
+    """Save de antes da bolsa: a arma rara do baú (relics) e as comuns pegas no chão (loadouts)
+    viram a bolsa. Com a forjada, as comuns salvas eram as que estavam ao lado dela."""
+    relics = {int(k): v for k, v in state.get("relics", {}).items()}
+    loadouts = {int(k): v for k, v in state.get("loadouts", {}).items()}
+    out = {}
+    for slot, char in chars.items():
+        key, names = relics.get(slot), loadouts.get(slot)
+        relic = RARE_WEAPONS.get(key) if key is not None else None
+        if key is not None and relic is None:
+            return None
+        commons = [common_weapon(n) for n in names] if names else []
+        if None in commons or len(commons) > 2:
+            return None
+        if relic is not None and relic.forjada:
+            bag = commons + [relic]
+        elif relic is None and not commons:
+            out[slot] = None
+            continue
+        else:
+            base = list(char.weapons)
+            for c in commons:
+                i = next((k for k, w in enumerate(base) if w.is_melee == c.is_melee), None)
+                if i is not None:
+                    base[i] = c
+            bag = base + ([relic] if relic is not None else [])
+        out[slot] = [token_of(w) for w in bag[:BAG_SIZE]]
+    return out
 
 
 def relic_key(weapon):
@@ -885,77 +918,31 @@ class CoopMatch(Match):
 
     # ── armas no chão ────────────────────────
     def pick_ground(self, f):
-        """Pega a arma do chão mais perto. A rara troca com a rara; a comum troca com a arma do
-        herói do mesmo tipo (de tiro ou de perto). A que ele tinha fica no lugar (a do próprio
-        herói, não: essa volta para a mochila)."""
+        """Pega a arma do chão mais perto. Com vaga na bolsa ela só entra; com a bolsa cheia troca
+        pela da mão, que fica no lugar dela (qualquer arma, até a do próprio herói)."""
         near = [g for g in self.ground if g.alive and g.can_pick(f)]
         if not near:
             return False
         item = min(near, key=f.distance_to)
         item.alive = False
         self.ground.remove(item)
-        if item.weapon.rare:
-            self.give_relic(f, item.weapon, drop_at=(item.x, item.y))
-        elif self.give_common(f, item.weapon, drop_at=(item.x, item.y)) is False:
-            item.alive = True                        # não pegou: a arma fica onde estava
-            self.ground.append(item)
+        if item in self.props:
+            self.props.remove(item)
+        self.give_weapon(f, item.weapon, drop_at=(item.x, item.y))
         return True
 
-    def give_relic(self, fighter, weapon, drop_at=None):
-        """Arma rara na mão. Só dá para ter uma: a que ele tinha cai no chão (ATACAR pega de volta)."""
-        old = fighter.give_relic(weapon)
-        self.run.relics[fighter.slot] = relic_key(weapon)
-        self.run.loadouts[fighter.slot] = [w.name for w in fighter.loadout] if fighter.loadout else None
+    def give_weapon(self, fighter, weapon, drop_at=None):
+        """A arma vai para a bolsa e para a mão; a que ela trocou (bolsa cheia) cai no chão."""
+        old = fighter.take(weapon)
+        self.run.keep_bag(fighter)
         if old is not None and old is not weapon:
             self.drop_weapon(fighter, old, drop_at)
         self._got_weapon(fighter, weapon)
-
-    def give_common(self, fighter, weapon, drop_at=None):
-        """Arma de outro herói: entra no lugar da de mesmo tipo e já vem na mão."""
-        if fighter.fused:                            # com a forjada: entra ao lado dela
-            old = self.give_extra(fighter, weapon)
-            if old is False:
-                return False
-            if old is not None and old is not weapon:
-                self.drop_weapon(fighter, old, drop_at)
-            self._got_weapon(fighter, weapon)
-            return None
-        base = list(fighter.base_weapons)
-        i = next((k for k, w in enumerate(base) if w.is_melee == weapon.is_melee), None)
-        if i is None:                                # herói sem arma desse tipo (só joga bola): não pega
-            return False
-        old = base[i]
-        base[i] = weapon
-        fighter.loadout = None if tuple(base) == fighter.stats.weapons else tuple(base)
-        fighter.clips.pop(old, None)
-        fighter.weapon_index = i
-        fighter.bow_draw = 0
-        self.run.loadouts[fighter.slot] = [w.name for w in fighter.loadout] if fighter.loadout else None
-        # a arma do próprio herói não vai para o chão: volta para a mochila (LARGAR ARMA traz ela de
-        # volta). Se fosse para o chão, largando a outra ela voltava para a mão E continuava no chão.
-        if old is not weapon and old not in fighter.stats.weapons:
-            self.drop_weapon(fighter, old, drop_at)
-        self._got_weapon(fighter, weapon)
-
-    def give_extra(self, fighter, weapon):
-        """Com a forjada na mão, a comum vai junto dela (uma de tiro e uma de perto, no máximo).
-        Devolve a comum do mesmo tipo que ela trocou (ou None), ou False se o herói não usa esse tipo."""
-        if not any(w.is_melee == weapon.is_melee for w in fighter.stats.weapons):
-            return False
-        extras = list(fighter.extras)
-        i = next((k for k, w in enumerate(extras) if w.is_melee == weapon.is_melee), None)
-        old = None
-        if i is None:
-            extras.append(weapon)
-            extras.sort(key=lambda w: w.is_melee)    # sempre (de tiro, de perto), como no save
-        else:
-            old, extras[i] = extras[i], weapon
-            fighter.clips.pop(old, None)
-        fighter.loadout = tuple(extras)
-        fighter.weapon_index = extras.index(weapon)
-        fighter.bow_draw = 0
-        self.run.loadouts[fighter.slot] = [w.name for w in fighter.loadout]
         return old
+
+    # nomes antigos (loja, testes): agora tudo entra na bolsa do mesmo jeito
+    give_relic = give_weapon
+    give_common = give_weapon
 
     def _got_weapon(self, fighter, weapon):
         color = rarity_color(weapon)
@@ -970,11 +957,14 @@ class CoopMatch(Match):
             at = (fighter.x - fx * 52, fighter.y - fy * 52 + 10)
         x, y = self.arena.free_spot(at[0], at[1], 16)
         item = GroundWeapon(weapon, start or (fighter.x, fighter.y - 20), (x, y))
+        item.by_player = fighter in self.players       # arma que um jogador largou nunca some sozinha
         self.ground.append(item)
         self.props.append(item)
-        while len(self.ground) > MAX_GROUND:
-            # some a mais velha, mas as comuns antes das raras (as do baú não somem por causa delas)
-            old = next((g for g in self.ground if not g.weapon.rare), self.ground[0])
+        loose = [g for g in self.ground if not g.by_player]
+        while len(loose) > MAX_GROUND:
+            # some a mais velha das que caíram de inimigo/banca, as comuns antes das raras
+            old = next((g for g in loose if not g.weapon.rare), loose[0])
+            loose.remove(old)
             self.ground.remove(old)
             old.alive = False
             if old in self.props:
@@ -1035,47 +1025,21 @@ class CoopMatch(Match):
         return None
 
     def droppable(self, f):
-        """A arma da mão pode sair? (a rara do baú ou a de outro herói; a dele, não)."""
-        weapon = f.weapon
-        return f.fused or (f.relic is not None and weapon is f.relic) or weapon not in f.stats.weapons
+        """Tem arma na mão para largar? (bolsa vazia = soco)"""
+        return bool(f.bag)
 
     def _take_out(self, f):
-        """Tira a arma da mão (sem jogar no chão) e devolve ela, ou None se for a do herói."""
-        weapon = f.weapon
-        if f.relic is not None and weapon is f.relic:
-            extras = f.extras
-            f.relic = None
-            f.clips.pop(weapon, None)
-            f.weapon_index = 0
-            self.run.relics[f.slot] = None
-            if weapon.forjada:                       # as comuns que estavam com ela vão para o lugar das do herói
-                f.settle_extras(extras)
-                self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
-        elif f.fused:                                # uma comum que estava com a forjada
-            f.loadout = tuple(w for w in f.extras if w is not weapon) or None
-            f.clips.pop(weapon, None)
-            f.weapon_index = len(f.weapons) - 1
-            self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
-        elif weapon not in f.stats.weapons:
-            base = list(f.base_weapons)
-            i = base.index(weapon)
-            own = next(w for w in f.stats.weapons if w.is_melee == weapon.is_melee)
-            base[i] = own
-            f.loadout = None if tuple(base) == f.stats.weapons else tuple(base)
-            f.clips.pop(weapon, None)
-            f.weapon_index = i
-            self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
-        else:
-            return None
-        f.bow_draw = 0
+        """Tira a arma da mão da bolsa (sem jogar no chão) e devolve ela, ou None se não tem."""
+        weapon = f.take_out()
+        if weapon is not None:
+            self.run.keep_bag(f)
         return weapon
 
     def drop_held(self, f):
-        """Larga a arma da mão: a rara do baú sai da 3ª vaga; a de outro herói volta a ser a arma
-        dele do mesmo tipo. A arma do próprio herói não sai (ele precisa de uma de cada tipo)."""
+        """Larga a arma da mão no chão e abre uma vaga na bolsa (qualquer arma, até a do herói)."""
         weapon = self._take_out(f)
         if weapon is None:
-            self.popup(f.x, f.y - 80, "ESSA É A SUA ARMA", theme.MUTED)
+            self.popup(f.x, f.y - 80, "BOLSA VAZIA", theme.MUTED)
             return False
         self.drop_weapon(f, weapon)
         self.popup(f.x, f.y - 80, "LARGOU " + weapon.name.upper(), theme.BONE)
@@ -1086,7 +1050,7 @@ class CoopMatch(Match):
     def store_in_rack(self, f):
         """Pendura a arma da mão no armário (cabem RACK_SIZE)."""
         if not self.droppable(f):
-            self.popup(f.x, f.y - 80, "ESSA É A SUA ARMA", theme.MUTED)
+            self.popup(f.x, f.y - 80, "BOLSA VAZIA", theme.MUTED)
             return False
         if len(self.run.rack) >= RACK_SIZE:
             self.popup(f.x, f.y - 80, "ARMÁRIO CHEIO", theme.MUTED)
@@ -1098,34 +1062,15 @@ class CoopMatch(Match):
         return True
 
     def take_from_rack(self, f):
-        """Pega a primeira arma do armário. A que ele tinha no lugar (rara, ou comum de outro herói)
-        vai para o fim da fila do armário; a dele mesmo só volta para a mochila."""
+        """Pega a primeira arma do armário para a bolsa. Com a bolsa cheia, a da mão vai para o fim
+        da fila do armário."""
         if not self.run.rack:
             return False
         weapon = weapon_of(self.run.rack.pop(0))
         if weapon is None:
             return False
-        if weapon.rare:
-            old = f.give_relic(weapon)
-            self.run.relics[f.slot] = relic_key(weapon)
-            self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
-        elif f.fused:                                # com a forjada: a comum entra ao lado dela
-            old = self.give_extra(f, weapon)
-            if old is False:
-                self.run.rack.insert(0, token_of(weapon))
-                return False
-        else:
-            base = list(f.base_weapons)
-            i = next(k for k, w in enumerate(base) if w.is_melee == weapon.is_melee)
-            old = base[i]
-            base[i] = weapon
-            f.loadout = None if tuple(base) == f.stats.weapons else tuple(base)
-            f.clips.pop(old, None)
-            f.weapon_index = i
-            f.bow_draw = 0
-            self.run.loadouts[f.slot] = [w.name for w in f.loadout] if f.loadout else None
-            if old in f.stats.weapons:
-                old = None
+        old = f.take(weapon)
+        self.run.keep_bag(f)
         if old is not None and old is not weapon:
             self.run.rack.append(token_of(old))
         self._got_weapon(f, weapon)
@@ -1133,6 +1078,9 @@ class CoopMatch(Match):
 
     def rack_prompt(self, f):
         """O que ATACAR faz no armário para este jogador."""
+        if self.run.rack and len(f.bag or ()) < BAG_SIZE:
+            w = weapon_of(self.run.rack[0])
+            return "ATACAR: PEGAR " + w.name.upper() if w is not None else ""
         if self.droppable(f) and len(self.run.rack) < RACK_SIZE:
             return "ATACAR: GUARDAR " + f.weapon.name.upper()
         if self.run.rack:
@@ -1404,7 +1352,8 @@ class CoopMatch(Match):
         n = len(self.players)
         regions = [pygame.Rect(W // 2 - 230, 0, 460, 74), pygame.Rect(W - 190, 0, 190, 60)]
         for i in range(n):
-            regions.append(pygame.Rect(*hud.campaign_block_rect(i, n)).inflate(8, 8))
+            block = pygame.Rect(*hud.campaign_block_rect(i, n))
+            regions.append(block.inflate(8, 8).union(block.move(0, -hud.BAG_SLOT_H - 4)))
         return regions
 
 

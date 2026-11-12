@@ -7,7 +7,7 @@ import pygame
 from . import config, theme
 from . import rumble
 from .abilities import create_ability
-from .data import shot_sound
+from .data import BAG_SIZE, PUNCH, shot_sound
 from .entities import Entity, Particle, hostile
 from . import energia, forged, gadgets, rare_fx, skins
 from .market import BURN_TICK, FORGE_DAMAGE, FORGE_MAG, enchant_hit
@@ -353,7 +353,8 @@ class Fighter(Entity):
         self.aim_timer = 0              # olhando para o alvo do último ataque
         self._dir = "direita" if self.facing[0] >= 0 else "esquerda"
         # munição das armas de tiro: um pente por arma (pente, recarga e o arco tensionando)
-        self.relic = None               # arma rara do baú (campanha): vira a 3ª arma
+        self.relic = None               # arma rara (treino): vira a 3ª arma
+        self.bag = None                 # campanha: a bolsa com até BAG_SIZE armas de qualquer tipo
         self.forge = {}                 # ferreiro (campanha): nome da arma -> [nível, encanto]
         self.burn_timer = 0             # encanto de fogo: queima aos poucos
         self.burn_damage = 0
@@ -422,6 +423,8 @@ class Fighter(Entity):
 
     @property
     def weapons(self):
+        if self.bag is not None:
+            return tuple(self.bag) or (PUNCH,)
         if self.fused:
             return self.extras + (self.relic,)
         if self.relic is not None:
@@ -433,8 +436,38 @@ class Fighter(Entity):
         weapons = self.weapons
         return weapons[self.weapon_index % len(weapons)]
 
+    # ── bolsa da campanha ────────────────────
+    def take(self, weapon):
+        """Põe a arma na bolsa e na mão. Com a bolsa cheia ela troca pela da mão, que é devolvida
+        (quem chamou joga no chão ou guarda); com vaga, devolve None."""
+        old = None
+        if len(self.bag) < BAG_SIZE:
+            self.bag.append(weapon)
+            i = len(self.bag) - 1
+        else:
+            i = self.weapon_index % len(self.bag)
+            old = self.bag[i]
+            self.bag[i] = weapon
+            self.clips.pop(old, None)
+        self.weapon_index = i
+        self.bow_draw = 0
+        return old
+
+    def take_out(self):
+        """Tira a arma da mão da bolsa e devolve ela (None se a bolsa está vazia)."""
+        if not self.bag:
+            return None
+        i = self.weapon_index % len(self.bag)
+        weapon = self.bag.pop(i)
+        self.clips.pop(weapon, None)
+        self.weapon_index = min(i, max(0, len(self.bag) - 1))
+        self.bow_draw = 0
+        return weapon
+
     def give_relic(self, weapon):
         """Arma rara do baú: entra como 3ª arma (troca a anterior, se tinha) e já vem na mão."""
+        if self.bag is not None:                    # campanha: entra na bolsa como qualquer arma
+            return self.take(weapon)
         old = self.relic
         if old is not None:
             self.clips.pop(old, None)

@@ -12,6 +12,20 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.50.0": [
+        {"title": "BOLSA DE 3 ARMAS", "scene": "hud", "lines": [
+            "Cada jogador agora tem uma BOLSA com 3 vagas, e cabe qualquer arma: comum, rara ou forjada.",
+            "Começa com as 2 do herói e uma vaga livre. Pegou outra arma? Ela entra na vaga.",
+            "Bolsa cheia: a arma nova troca pela da mão, e a da mão fica no chão para quem quiser.",
+            "As 3 vagas aparecem em cima do seu quadro na TV, com a da mão marcada na sua cor.",
+        ]},
+        {"title": "ARMA NÃO SOME MAIS", "scene": "loja", "lines": [
+            "Acabou a mochila invisível: a arma do herói que você trocou fica no chão, onde dá para ver.",
+            "Arma que um jogador largou nunca some sozinha, nem com o mapa cheio de armas de inimigo.",
+            "Dá para largar até a arma do próprio herói, e um amigo pode pegar ela. Bolsa vazia: é no soco.",
+            "A forjada usa as 3 armas da bolsa e ocupa uma vaga só: sobram 2 para pegar mais armas.",
+        ]},
+    ],
     "1.46.0": [
         {"title": "FORJADA COM COMPANHIA", "scene": "loja", "lines": [
             "Fundiu as três armas? Agora dá para pegar arma comum de novo, ao lado da forjada.",
