@@ -20,9 +20,9 @@ SPORT_POSES = (("pulo", 2), ("arremesso", 3), ("enterrada", 3), ("toco", 2), ("c
                ("comemora", 2), ("bate", 4), ("espera", 2), ("mergulho", 2))
 SHEET_FACTOR = 2                 # a arte é ampliada 2x sem suavizar
 TEAM_KITS = ("azul", "vermelho")  # uniforme do time 0 e do time 1 no futebol (characters/uniformes)
-MUSIC_FILES = {"menu": "bgm.ogg", "battle": "battle_bgm.mp3", "camp": "camp_bgm.ogg", "boss": "boss_bgm.ogg", "boss_lag": "boss_lag_bgm.ogg"}
+MUSIC_FILES = {"menu": "trilha_menu.ogg", "battle": "battle_bgm.mp3", "camp": "camp_bgm.ogg", "boss": "boss_bgm.ogg", "boss_lag": "boss_lag_bgm.ogg"}
 # música em camadas: base + camadas que a luta liga (Assets.music_intensity). Sem os arquivos, toca MUSIC_FILES.
-MUSIC_LAYERS = {}
+MUSIC_LAYERS = {"boss_final": ("trilha_chefe_final_1.ogg", "trilha_chefe_final_2.ogg", "trilha_chefe_final_3.ogg")}
 
 
 class SpriteSet:
@@ -273,6 +273,11 @@ class Assets:
     def stinger(self, name, volume=0.7):
         """Vinheta curta por cima da música (que abaixa enquanto ela toca)."""
         return self.mixer.stinger(name, volume)
+
+    def fanfare(self, name, fallback=None, volume=0.5):
+        """Vinheta da trilha; sem o arquivo dela, toca o efeito antigo (`fallback`)."""
+        if self.mixer.stinger(name) is None and fallback:
+            self.play(fallback, volume)
 
     def listen(self, left, width):
         self.mixer.listen(left, width)

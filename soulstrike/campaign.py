@@ -286,6 +286,8 @@ MIDDLE = {
                                ((("popup_iara", 3), ("projetor", 1)),
                                 (("arquivo_aco", 1), ("impressora", 1), ("popup_iara", 2)))),
 }
+# música de cada chefão (assets.MUSIC_FILES / MUSIC_LAYERS); o resto toca "boss"
+BOSS_MUSIC = {"borba": "boss_lag", "cauanzera": "boss_final"}
 CHAPTER_START = {ch: next(i for i, p in enumerate(PHASES) if p.chapter == ch) for ch in (1, 2, 3, 4)}
 RUSH_PHASES = tuple(i for i, p in enumerate(PHASES) if p.dungeons[-1].boss_spot)   # salas dos 4 chefes
 RUSH_UPGRADES = 4             # Reunião dos Corrompidos: melhorias sorteadas antes do primeiro chefe
@@ -1485,6 +1487,20 @@ class CampaignMatch(CoopMatch):
         if self.state_timer > 0:
             self.state_timer -= 1
         super().step()
+        self._boss_music()
+
+    def _boss_music(self):
+        """A trilha do chefão cresce com a luta: fase com raiva ou etapa nova liga a camada de cima."""
+        if self.boss is None or self.boss.hp <= 0:
+            return
+        brain = self.controllers.get(self.boss)
+        stage = getattr(brain, "stage", None)
+        level = min(2, stage - 1) if isinstance(stage, int) else 1 if getattr(brain, "enraged", False) else 0
+        if level > getattr(self, "_music_level", 0):
+            self.assets.stinger("vinheta_fase", 0.6)
+        if level != getattr(self, "_music_level", 0):
+            self._music_level = level
+            self.assets.music_intensity(level)
 
     def update_stage(self):
         if self.hazard is not None and self.state in ("fight", "between"):
@@ -1607,7 +1623,9 @@ class CampaignMatch(CoopMatch):
             from .boss import spawn_boss
             enemy, brain = spawn_boss(self, x, y, self.dungeon.boss)
             self.boss = enemy
-            self.assets.music("boss_lag" if self.dungeon.boss == "borba" else "boss")
+            self._music_level = 0
+            self.assets.music(BOSS_MUSIC.get(self.dungeon.boss, "boss"))
+            self.assets.stinger("vinheta_chefe")
         else:
             enemy, brain = spawn_enemy(self, kind, x, y)
         scale = elite_hp_scale(kind, len(self.players))
@@ -1831,7 +1849,7 @@ class CampaignMatch(CoopMatch):
                     self.state, self.state_timer = "gameover", GAMEOVER_FRAMES
                     self._set_banner("FIM DE JOGO", "SEM CONTINUES", theme.BLOOD)
                     self.assets.stop_music(1500)
-                    self.assets.play("gameover", 0.5)
+                    self.assets.fanfare("vinheta_derrota", "gameover")
         elif state == "clear":
             if timer == 0:
                 self._open_exit()
@@ -1872,7 +1890,7 @@ class CampaignMatch(CoopMatch):
                      "A IARA FOI DESLIGADA!" if self.dungeon.boss == "cauanzera" else "O CRISTAL ESTÁ LIVRE!")
             self._set_banner(title, self.phase.name, theme.MOSS)
             self.assets.stop_music(1500)
-            self.assets.play("victory", 0.5)
+            self.assets.fanfare("vinheta_vitoria", "victory")
         else:
             self._set_banner("MASMORRA LIMPA!", self.dungeon.name, theme.MOSS)
             self.assets.play("select", 0.6)

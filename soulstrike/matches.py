@@ -499,7 +499,8 @@ class BattleMatch(Match):
             self.assets.stop_music(1500)
             champion = max(self.sides(), key=lambda s: self.wins[s])
             human_won = any(not f.is_cpu for f in self.members(champion))
-            self.assets.play("victory" if human_won else "gameover", 0.5)
+            self.assets.fanfare("vinheta_vitoria" if human_won else "vinheta_derrota",
+                                "victory" if human_won else "gameover")
         else:
             self.assets.play("hit", 0.6)
 

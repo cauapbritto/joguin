@@ -241,8 +241,9 @@ class MotorDeSomTest(unittest.TestCase):
         full = self.mixer.music_volume()
         sound = mock.Mock()
         sound.get_num_channels.return_value = 0
-        with mock.patch.dict(self.mixer.sounds, {"explosion": sound}):
-            self.mixer.play("explosion")
+        with mock.patch.dict(self.mixer.sounds, {"teste_estrondo": sound}), \
+                mock.patch.dict(self.som.DUCK, {"teste_estrondo": self.som.DUCK["explosion"]}):
+            self.mixer.play("teste_estrondo")
         self.assertLess(self.mixer.music_volume(), full)
         for _ in range(200):
             self.mixer.tick()
@@ -297,3 +298,75 @@ class MotorDeSomTest(unittest.TestCase):
         self.mixer.ear = None
         match.update()
         self.assertIsNotNone(self.mixer.ear)
+
+
+class TrilhaTest(unittest.TestCase):
+    """Faixas novas (tools/gerar_trilha.py): arquivos, camadas do chefão final e vinhetas."""
+
+    def test_camadas_existem_e_tem_o_mesmo_tamanho(self):
+        from soulstrike.assets import MUSIC_LAYERS
+        import pygame
+        for name, files in MUSIC_LAYERS.items():
+            sizes = set()
+            for f in files:
+                path = config.SOUNDS_DIR / f
+                self.assertTrue(path.is_file(), f)
+                if pygame.mixer.get_init():
+                    sizes.add(round(pygame.mixer.Sound(str(path)).get_length(), 2))
+            self.assertLessEqual(len(sizes), 1, name)              # tocam juntas, em sincronia
+
+    def test_vinhetas_carregam(self):
+        sounds = game().assets.sounds
+        import pygame
+        if pygame.mixer.get_init():
+            for name in ("vinheta_vitoria", "vinheta_derrota", "vinheta_chefe", "vinheta_fase"):
+                self.assertIn(name, sounds, name)
+
+    def test_vinheta_sem_arquivo_toca_o_som_antigo(self):
+        assets = game().assets
+        with mock.patch.object(assets.mixer, "stinger", return_value=None), Gravador() as g:
+            assets.fanfare("vinheta_que_nao_existe", "victory")
+        self.assertEqual(g.sons, ["victory"])
+
+    def test_chefe_final_tem_musica_em_camadas_que_cresce(self):
+        from test_mansao import masmorra
+        from soulstrike.campaign import BOSS_MUSIC
+        self.assertEqual(BOSS_MUSIC["cauanzera"], "boss_final")
+        match = masmorra("mansao_gabinete", 3)
+        assets = game().assets
+        with mock.patch.object(assets, "music") as music, mock.patch.object(assets, "music_intensity") as level, \
+                mock.patch.object(assets, "stinger") as stinger:
+            match._spawn("chefe", 800, 360)
+            music.assert_called_with("boss_final")
+            stinger.assert_called_with("vinheta_chefe")
+            brain = match.controllers[match.boss]
+            brain.stage = 2
+            match._boss_music()
+            level.assert_called_with(1)
+            stinger.assert_called_with("vinheta_fase", 0.6)
+            brain.stage = 4
+            match._boss_music()
+            level.assert_called_with(2)
+
+    def test_chefe_comum_cresce_com_a_raiva(self):
+        match, boss, ai = ChefaoTest()._chefe()
+        assets = game().assets
+        with mock.patch.object(assets, "music_intensity") as level, mock.patch.object(assets, "stinger"):
+            ai.enraged = True
+            match._boss_music()
+        level.assert_called_with(1)
+
+    def test_musica_em_camadas_toca_de_verdade(self):
+        import pygame
+        if not pygame.mixer.get_init():
+            self.skipTest("sem áudio")
+        assets = game().assets
+        assets._music = None
+        assets.music("boss_final")
+        self.assertEqual(len(assets.mixer.layers), 3)
+        self.assertTrue(pygame.mixer.Channel(3).get_busy())
+        assets.music_intensity(2)
+        self.assertEqual(assets.mixer.intensity, 2)
+        assets.stop_music(0)
+        assets.mixer.stop_layers(0)
+        self.assertEqual(assets.mixer.layers, [])

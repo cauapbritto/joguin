@@ -100,7 +100,7 @@ class Mixer:
     def load(self, folder):
         if not self.init():
             return
-        for path in sorted(folder.glob("*.wav")):
+        for path in sorted(folder.glob("*.wav")) + sorted(folder.glob("vinheta_*.ogg")):
             try:
                 sound = pygame.mixer.Sound(str(path))
             except pygame.error:
