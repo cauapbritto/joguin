@@ -279,6 +279,9 @@ class Match(ABC):
         cam.end(view, screen)
         for f in self.fighters:
             f.draw_overlay(screen, cam, ui, show_hp=not self.session.soccer)
+        for p in getattr(self, "props", ()):
+            if hasattr(p, "draw_talk"):
+                p.draw_talk(screen, cam, ui)            # balão de fala dos pets
         for p in self.popups:
             sx, sy = cam.to_screen(p.x, p.y)
             color = p.color if p.life > 8 or p.life % 2 else theme.FAINT

@@ -502,6 +502,52 @@ def lag_music():
     encode("boss_lag_bgm", boss, 9)
 
 
+def pet_effects():
+    """Os somzinhos dos pets, tocados baixinho junto com o balão de fala (semente própria)."""
+    r = random.Random(47)
+
+    def miau(f0, f1, f2, dur):
+        return mix(tone(f0, dur * 0.4, "saw", 0.35, slide=f1, attack=0.03, curve=0.8, vibrato=0.01),
+                   tone(f1, dur * 0.6, "saw", 0.35, slide=f2, attack=0.01, curve=2.0, vibrato=0.02),
+                   tone(f0 * 2, dur, "sine", 0.15, slide=f2 * 2, attack=0.04, curve=2.0), at=[0, dur * 0.4, 0])
+
+    def au(f, dur=0.12):
+        return mix(tone(f, dur, "square", 0.5, slide=f * 0.6, attack=0.005, curve=3),
+                   noise(dur * 0.6, 0.35, rng=r, attack=0.003, curve=4, lowpass=0.25))
+
+    def hm(f, dur=0.35):
+        return mix(tone(f, dur, "sine", 0.8, slide=f * 0.9, attack=0.06, curve=1.6, vibrato=0.015),
+                   tone(f * 2, dur, "triangle", 0.2, slide=f * 1.8, attack=0.08, curve=2.0))
+
+    def guincho(f, n=2):
+        return mix(*[tone(f, 0.07, "sine", 0.6, slide=f * 1.45, attack=0.005, curve=2) for _ in range(n)],
+                   at=[i * 0.09 for i in range(n)])
+
+    def bico(n=3):
+        return mix(*[mix(noise(0.03, 0.8, rng=r, attack=0.001, curve=6, lowpass=0.5),
+                         tone(900, 0.03, "square", 0.2, curve=6)) for _ in range(n)], at=[i * 0.07 for i in range(n)])
+
+    sons = {
+        "pet_gato_1": miau(520, 760, 480, 0.42), "pet_gato_2": miau(620, 820, 700, 0.28),
+        "pet_cachorro_1": au(330), "pet_cachorro_2": mix(au(360), au(320), at=[0, 0.16]),
+        "pet_papagaio_1": mix(tone(1300, 0.18, "saw", 0.4, slide=1700, curve=1.5, vibrato=0.06),
+                              noise(0.18, 0.3, rng=r, curve=2, lowpass=0.6)),
+        "pet_papagaio_2": mix(tone(1100, 0.1, "saw", 0.4, slide=1500, curve=2, vibrato=0.05),
+                              tone(1400, 0.14, "saw", 0.4, slide=1000, curve=2, vibrato=0.05), at=[0, 0.12]),
+        "pet_capivara_1": hm(150), "pet_capivara_2": mix(hm(160, 0.2), hm(140, 0.3), at=[0, 0.22]),
+        "pet_mico_1": guincho(1900, 2), "pet_mico_2": guincho(2200, 3),
+        "pet_tuiuiu_1": bico(3), "pet_tuiuiu_2": mix(bico(2), tone(600, 0.15, "triangle", 0.3, slide=800), at=[0, 0.16]),
+        "pet_jabuti_1": hm(105, 0.45), "pet_jabuti_2": hm(95, 0.3),
+        "pet_drone_1": mix(tone(880, 0.07, "square", 0.3, curve=4), tone(660, 0.09, "square", 0.3, curve=4), at=[0, 0.09]),
+        "pet_drone_2": mix(*[tone(f, 0.06, "square", 0.28, curve=4) for f in (990, 1320, 1760)], at=[0, 0.07, 0.14]),
+        "pet_caquinho_1": mix(tone(2093, 0.3, "sine", 0.6, curve=5), tone(3136, 0.22, "sine", 0.3, curve=6), at=[0, 0.02]),
+        "pet_caquinho_2": mix(tone(2637, 0.18, "sine", 0.5, curve=5), tone(3520, 0.25, "sine", 0.4, curve=5), at=[0, 0.08]),
+    }
+    for name, samples in sons.items():
+        save_wav(name, samples, peak=0.6)
+        print("som", name)
+
+
 if __name__ == "__main__":
     effects()
     basketball_effects()
@@ -509,5 +555,6 @@ if __name__ == "__main__":
     sport_effects()
     lag_effects()
     clinic_effects()
+    pet_effects()
     music()
     lag_music()

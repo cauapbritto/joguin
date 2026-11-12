@@ -12,6 +12,23 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.48.0": [
+        {"title": "PETS COM VIDA", "scene": "casa", "lines": [
+            "Os 9 pets foram redesenhados com 6 jeitos: parado, andando, feliz, susto, dormindo e uma graça só deles.",
+            "A capivara ganha um passarinho na laranja, o caramelo dá a pata e o jabuti some no casco.",
+            "Na Casa, ficou parado uns 30 segundos? O pet tira um cochilo do seu lado.",
+        ]},
+        {"title": "O PET FALA", "scene": "casa", "lines": [
+            "Agora eles falam num balãozinho, com som: miado, latido, bip, tlin...",
+            "Falam quando você cai, levanta, fica parado, acha o chefe, pega arma rara ou limpa a sala.",
+            "No máximo uma fala a cada 20 segundos por pet. Em OPÇÕES > FALAS DOS PETS dá para deixar POUCAS ou DESLIGADAS.",
+        ]},
+        {"title": "O PET AJUDA UM POUCO", "scene": "casa", "lines": [
+            "A cada 4 segundos o pet busca um item caído perto de você: vida, fúria, munição ou orbe de energia.",
+            "Antes do golpe forte do chefe, ele leva um susto e solta um \"!\": é a hora de desviar.",
+            "A ajuda é igual para todos os pets, da Casa ou da loja de CACOS.",
+        ]},
+    ],
     "1.47.0": [
         {"title": "IBRAHIN COM N", "scene": "loja", "lines": [
             "A dificuldade agora se escreve do jeito certo: IBRAHIN, com N no final.",

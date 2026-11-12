@@ -1,4 +1,4 @@
-"""Opções do jogador (volume, tela cheia, vsync, tremor, duplo toque), salvas no computador.
+"""Opções do jogador (volume, tela cheia, vsync, tremor, duplo toque, falas dos pets), salvas no computador.
 
 Ficam em opcoes.json, na mesma pasta do progresso (veja progress.py). Valor faltando ou
 estragado no arquivo volta ao padrão, então um arquivo antigo ou editado à mão não quebra o jogo.
@@ -23,7 +23,8 @@ DEFAULTS = {
     "ultimo_modo": "",      # último modo jogado: a tela de modos já abre nele
     "controles": {},        # botões trocados por controle: {nome: {perfil, luta, bola, zona}} (pad_profiles.py)
     "vibracao": True,       # controle e celular vibram ao apanhar, no gol/cesta, no SUPER e nas portas (rumble.py)
-    "uniforme": False,      # crachá da Mansão do Carimbo nos jogadores (recompensa do capítulo 4)
+    "uniforme": False,
+    "falas_pets": "normal",     # balão de fala dos pets: normal, poucas (no máximo 1 a cada 40 s) ou desligadas      # crachá da Mansão do Carimbo nos jogadores (recompensa do capítulo 4)
 }
 VOLUME_KEYS = ("volume_geral", "volume_musica", "volume_efeitos")
 VOLUME_STEP = 0.1
