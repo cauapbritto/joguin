@@ -509,7 +509,8 @@ def _bag_tab(screen, f, rect):
             continue
         w = bag[i]
         screen.fill(rarity_color(w), (box.x + 2, box.bottom - 3, box.w - 4, 1))
-        img = weapon_art.icon(w.name)
+        level, enchant = (getattr(f, "forge", None) or {}).get(w.name, (0, None))
+        img = weapon_art.icon(weapon_art.styled(w.name, level, enchant))
         if img is not None:
             if img.get_width() > box.w - 4 or img.get_height() > box.h - 4:
                 k = min((box.w - 4) / img.get_width(), (box.h - 4) / img.get_height())

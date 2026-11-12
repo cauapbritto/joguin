@@ -1409,6 +1409,13 @@ class Fighter(Entity):
         Arco: vazio depois de soltar ou recarregando, com a flecha encaixada e cada vez mais
         puxado enquanto tensiona. Armas de arremesso somem da mão quando acaba a munição, e a
         Corrente some enquanto a bola está no ar."""
+        name = self._plain_art_name()
+        if name is None or not self.forge:
+            return name
+        level, enchant = self.forge.get(self.weapon.name, (0, None))
+        return weapon_art.styled(name, level, enchant)        # o visual do ferreiro (+1/+2/+3, encanto)
+
+    def _plain_art_name(self):
         w = self.weapon
         if w.is_melee or not self.mag:
             return w.name

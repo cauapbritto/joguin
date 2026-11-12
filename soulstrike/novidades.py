@@ -12,6 +12,14 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.53.0": [
+        {"title": "ARMA COM CARA DE EVOLUÍDA", "scene": "loja", "lines": [
+            "Agora dá para ver o ferreiro na arma: no +1 o metal brilha mais, no +2 ganha contorno de ouro.",
+            "No +3 o contorno fica dourado claro e a arma ganha uma aura de luz em volta.",
+            "Encantou? FOGO deixa a lâmina em brasa, GELO deixa azul gelado e RAIO deixa amarelo elétrico.",
+            "Vale na mão do herói e nas vagas da bolsa, em cima do seu quadro na TV.",
+        ]},
+    ],
     "1.52.0": [
         {"title": "46 ARMAS NOVAS", "scene": "loja", "lines": [
             "Chegaram 39 armas raras e roubadas novas nos baús: Tocha, Bisturi, Fax Lança-Papéis, Cadeira Gamer...",
