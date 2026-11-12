@@ -67,24 +67,93 @@ FORGED = {
 RECIPES = {"corte": "lamina_solar", "impacto": "martelo_trovao", "flecha": "arco_mil_almas",
            "explosao": "canhao_vazio", "gelo": "coracao_inverno", "fogo": "lanca_dragao",
            "raio": "cetro_tempestade", "alma": "foice_ceifador"}
-RARE_WEAPONS.update(FORGED)          # entram na vaga da rara (e no salvo) como as do baú
+PURE = set(FORGED)                   # as 8 puras (uma por família)
+
+# as 41 novas: híbridas, secretas e de assinatura (forjadas_novas.py)
+from . import armas_novas, forjadas_novas as _novas  # noqa: E402
+
+FORGED.update(_novas.NEW_FORGED)
+for _fam, _names in _novas.FAMILIES.items():
+    FAMILY_OF.update({n: _fam for n in _names})
+armas_novas.HEAVY.update(_novas.HEAVY)
+RARE_WEAPONS.update(FORGED)          # entram na bolsa (e no salvo) como as do baú
 
 
 def family(weapon):
     return FAMILY_OF.get(weapon.name, "corte")
 
 
-def recipe(weapons):
-    """A forjada que sai destas armas: (chave, nível inicial, encanto). A família que mais aparece
-    decide; no empate, vale a da arma mais rara (a rara do baú vem por último na lista)."""
+def recipe(weapons, owner=None):
+    """A forjada que sai destas armas: (chave, nível inicial, encanto). Na ordem: receita secreta,
+    assinatura do herói (as 2 dele + uma rara), híbrida (2 de uma família + 1 de outra) e pura
+    (a família que mais aparece; no empate, vale a da arma mais rara)."""
     count = {}
     for w in weapons:
         count[family(w)] = count.get(family(w), 0) + 1
     rank = lambda w: (count[family(w)], 2 if w.roubada else 1 if w.rare else 0)
     best = family(max(weapons, key=rank))
+    key = _special_recipe(weapons, count, owner) or RECIPES[best]
     if any(w.roubada for w in weapons):
-        return RECIPES[best], 2, FAMILY_ENCHANT[best]
-    return RECIPES[best], 1 if any(w.rare for w in weapons) else 0, None
+        return key, 2, FAMILY_ENCHANT[best]
+    return key, 1 if any(w.rare for w in weapons) else 0, None
+
+
+def _special_recipe(weapons, count, owner):
+    names = {w.name for w in weapons}
+    for key, need in _novas.SECRETS.items():
+        if need == "gelo*3" and count.get("gelo") == 3 and len(weapons) == 3:
+            return key
+        if isinstance(need, set) and names == need:
+            return key
+    if owner is not None and len(weapons) == 3:
+        own = set(owner.stats.weapons)
+        if own and own <= set(weapons) and any(w.rare and w not in own for w in weapons):
+            sig = _novas.SIGNATURES.get(owner.stats.key)
+            if sig:
+                return sig
+    if len(count) == 2:
+        (a, na), (b, nb) = sorted(count.items(), key=lambda kv: -kv[1])
+        if na == 2:
+            return _novas.HYBRIDS.get((a, b)) or _novas.HYBRIDS.get((b, a))
+    return None
+
+
+def kind_label(key):
+    """Que tipo de forjada é (aparece no ferreiro e no livro de receitas)."""
+    fam = next((f for f, k in RECIPES.items() if k == key), None)
+    if fam is not None:
+        return FAMILY_NAMES[fam]
+    pair = next((p for p, k in _novas.HYBRIDS.items() if k == key), None)
+    if pair is not None:
+        return f"{FAMILY_NAMES[pair[0]]} + {FAMILY_NAMES[pair[1]]}"
+    if key in _novas.SECRETS:
+        return "SECRETA"
+    return "ASSINATURA"
+
+
+def hint(key):
+    """Como se chega nesta forjada (a dica do livro de receitas)."""
+    fam = next((f for f, k in RECIPES.items() if k == key), None)
+    if fam is not None:
+        return f"3 armas de {FAMILY_NAMES[fam]} (ou a maioria)"
+    pair = next((p for p, k in _novas.HYBRIDS.items() if k == key), None)
+    if pair is not None:
+        return f"2 de {FAMILY_NAMES[pair[0]]} + 1 de {FAMILY_NAMES[pair[1]]}, ou o contrário"
+    if key in _novas.SECRETS:
+        return _novas.SECRET_HINTS[key]
+    from .data import CHARACTERS
+    hero = next((c.name for c in CHARACTERS if _novas.SIGNATURES.get(c.key) == key), "?")
+    return f"as 2 armas do {hero} + 1 rara"
+
+
+def recipe_book(known):
+    """As linhas do livro: (nome ou ???, tipo, dica), as descobertas primeiro."""
+    rows = []
+    for key in FORGED:
+        name = FORGED[key].name.upper() if key in known else "???"
+        rows.append((key in known, name, kind_label(key), hint(key)))
+    rows.sort(key=lambda r: not r[0])
+    return [r[1:] for r in rows]
 
 
 def discovered():
@@ -148,6 +217,10 @@ def on_swing(fighter, weapon, match, hits, damage):
         match.camera.shake(6)
         match.dust(fighter.x + fighter.facing[0] * 30, fighter.y + 14, 10)
         match.assets.play("explosion", 0.3)
+    elif style == "fm":                          # forjadas novas de perto (tiros_novos.forged_swing)
+        from .tiros_novos import forged_swing
+        fighter.forged_count += 1
+        forged_swing(fighter, weapon, match, hits, damage, fighter.forged_count % 3 == 0)
     elif style == "ceifador":
         boss = getattr(match, "boss", None)
         if boss is not None and boss in hits and boss.vulnerability < 1:

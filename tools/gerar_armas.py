@@ -1262,8 +1262,9 @@ def _novas():
             return surf, ((k * (gx * DETAIL + 3) - 3) / DETAIL, (k * (gy * DETAIL + 3) - 3) / DETAIL)
         return big
 
-    table = {name: make(name, rows) for name, rows in A.GRIDS.items()}
+    table = {name: make(name, rows) for name, rows in {**A.GRIDS, **A.FORGED_GRIDS}.items()}
     table["Excalitora"] = giant(table["Excalitora"])
+    table["Espada do Fim do Mundo"] = giant(table["Espada do Fim do Mundo"], 2)
     return table
 
 

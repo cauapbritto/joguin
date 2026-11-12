@@ -62,6 +62,9 @@ COSTS = {
 from .armas_novas import COSTS as _NEW_COSTS, SPECIAL_COSTS as _NEW_SPECIAL  # noqa: E402
 
 COSTS.update(_NEW_COSTS)
+from .forjadas_novas import COSTS as _FORGED_COSTS  # noqa: E402
+
+COSTS.update(_FORGED_COSTS)
 
 # armas de perto que gastam a cada golpe (as outras de perto só gastam no efeito especial)
 PAY_EVERY_SWING = {"Foice do Ceifador"}

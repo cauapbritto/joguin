@@ -486,7 +486,27 @@ class MarketMenu:
         fusion = self._fusion_entry()
         if fusion is not None:
             out.append(fusion)
+        out.append(self._book_entry())
         return out
+
+    def _book_entry(self):
+        """Livro de receitas: quantas forjadas a turma já descobriu e a dica da próxima."""
+        from .forged import FORGED, discovered, recipe_book
+        known = discovered()
+        rows = recipe_book(known)
+        missing = [r for r in rows if r[0] == "???"]
+        page = self.__dict__.setdefault("book_page", 0)
+        if missing:
+            name, kind, tip = missing[page % len(missing)]
+            desc = f"dica ({kind.lower()}): {tip}"
+        else:
+            desc = "todas descobertas!"
+        return Entry(f"LIVRO DE RECEITAS {len(known & set(FORGED))}/{len(FORGED)}", 0, desc, bool(missing),
+                     self._next_hint, theme.BRASS, "livro")
+
+    def _next_hint(self):
+        self.book_page = self.__dict__.get("book_page", 0) + 1
+        return "OUTRA DICA"
 
     def _fusion_entry(self):
         """Fusão: as três armas da bolsa viram uma forjada (uma vez por mercado; forjada não entra
@@ -496,8 +516,8 @@ class MarketMenu:
         bag = f.bag or []
         if len(bag) < BAG_SIZE or any(w.forjada for w in bag):
             return None
-        from .forged import FAMILY_NAMES, RECIPES
-        key, level, enchant = recipe(bag)
+        from .forged import kind_label
+        key, level, enchant = recipe(bag, f)
         known = key in discovered()
         name, note = preview_text(key, discovered())
         done = run.fused_phase == run.phase_index
@@ -506,17 +526,16 @@ class MarketMenu:
         card = weapon_card(f, weapon, level, enchant)
         if not known:
             card["name"] = "???"
-        fam = next((k for k, v in RECIPES.items() if v == key), None)
         info = {"type": "fusao", "sub": "JÁ FUNDIU AQUI" if done else "VIRA 1 FORJADA",
                 "inputs": [weapon_card(f, w) for w in bag], "next": card, "known": known,
-                "note": note.upper(), "family": FAMILY_NAMES.get(fam, "")}
+                "note": note.upper(), "family": kind_label(key)}
         return Entry("FUNDIR AS 3 ARMAS", FUSION_COST, desc, not done, self._fuse, rarity_color(FORGED[key]),
                      "fundir", info)
 
     def _fuse(self):
         from .forged import FORGED, discover, recipe
         f, run = self.fighter, self.run
-        key, level, enchant = recipe(f.bag)
+        key, level, enchant = recipe(f.bag, f)
         weapon = FORGED[key]
         for w in f.bag:
             f.forge.pop(w.name, None)               # as três voltam ao +0 (se alguém pegar outra igual)

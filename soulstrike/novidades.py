@@ -12,6 +12,19 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.54.0": [
+        {"title": "41 FORJADAS NOVAS", "scene": "loja", "lines": [
+            "O ferreiro agora conhece 49 forjadas. Dá para fundir sem repetir a mesma de sempre.",
+            "HÍBRIDAS: 2 armas de uma família e 1 de outra. Corte com fogo vira a Katana Brasa.",
+            "ASSINATURA: as 2 armas do seu herói e mais uma rara viram a forjada só dele.",
+            "SECRETAS: receitas exatas, como Lança-chamas, Maçarico e Secador. Vira o Bafo do Dragão.",
+        ]},
+        {"title": "LIVRO DE RECEITAS", "scene": "loja", "lines": [
+            "No ferreiro tem o LIVRO DE RECEITAS: mostra quantas a turma já descobriu, das 49.",
+            "Cada vez que você abre, ele dá uma dica de uma forjada que ainda falta.",
+            "A forjada descoberta fica salva para sempre, em todas as campanhas.",
+        ]},
+    ],
     "1.53.0": [
         {"title": "ARMA COM CARA DE EVOLUÍDA", "scene": "loja", "lines": [
             "Agora dá para ver o ferreiro na arma: no +1 o metal brilha mais, no +2 ganha contorno de ouro.",

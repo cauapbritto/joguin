@@ -402,11 +402,11 @@ class LojaNoCelularTest(unittest.TestCase):
         self.assertEqual([c["name"] for c in info["inputs"]], ["ARCO", "ESPADA", "BESTA"])
         self.assertFalse(info["known"])
         self.assertEqual(info["next"]["name"], "???")
-        self.assertEqual(info["next"]["icon"], "arco_das_mil_almas.png")  # o celular mostra a silhueta
-        self.assertEqual(info["family"], "FLECHA")
-        with mock.patch("soulstrike.forged.discovered", return_value={"arco_mil_almas"}):
+        self.assertEqual(info["next"]["icon"], "espada_do_primeiro_guerreiro.png")  # o celular mostra a silhueta
+        self.assertEqual(info["family"], "ASSINATURA")                 # as 2 do guerreiro + uma rara
+        with mock.patch("soulstrike.forged.discovered", return_value={"espada_primeiro"}):
             info = next(e for e in menu.entries() if e.key == "fundir").info
-        self.assertEqual(info["next"]["name"], "ARCO DAS MIL ALMAS")
+        self.assertEqual(info["next"]["name"], "ESPADA DO PRIMEIRO GUERREIRO")
 
     def test_rota_da_imagem_da_arma(self):
         from soulstrike.net import server

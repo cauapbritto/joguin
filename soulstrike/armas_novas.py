@@ -176,3 +176,28 @@ SOUNDS = {
     "n_tinta": "arco", "n_caca": "tiro_forte", "n_fax": "arremesso", "n_pasta": "arremesso", "n_sugador": "magia",
     "n_escopeta": "tiro_forte", "n_carabina": "tiro_forte", "n_prego": "arremesso",
 }
+
+# forjadas novas (forjadas_novas.py): o som dos tiros e o brilho
+SOUNDS.update({
+    "f_fenix": "fogo", "f_boreal": "gelo", "f_espectral": "magia", "f_tesla": "eletrico", "f_morteiro": "gelo",
+    "f_aurora": "gelo", "f_infernal": "fogo", "f_sino": "magia", "f_usina": "eletrico", "f_era": "gelo",
+    "f_chuva": "arco", "f_exercito": "plasma", "f_furacao": "arremesso", "f_tempestade": "eletrico",
+    "f_duelo": "tiro_forte", "f_semfim": "tiro_forte", "f_moto": "tiro_forte", "f_navio": "tiro_forte",
+    "f_zero": "gelo", "f_servidor": "bip", "f_tentaculos": "eletrico",
+})
+ACCENT.update({
+    "Katana Brasa": (255, 140, 50), "Lâmina Glacial": (170, 225, 255), "Espada Relâmpago": (255, 236, 90),
+    "Martelo Vulcânico": (255, 110, 40), "Maça Avalanche": (200, 235, 255), "Marreta de Dinamite": (255, 150, 60),
+    "Arco Fênix": (255, 140, 50), "Besta Boreal": (170, 225, 255), "Arco Espectral": (190, 150, 255),
+    "Granada Tesla": (255, 236, 90), "Morteiro de Neve": (220, 240, 255), "Cetro Aurora": (170, 255, 220),
+    "Lanterna Infernal": (200, 90, 255), "Sino das Almas": (210, 180, 255), "Usina Ambulante": (255, 236, 90),
+    "Era do Gelo": (170, 225, 255), "Espada do Fim do Mundo": (255, 120, 40), "Chuva de Flechas": (236, 230, 220),
+    "Exército de Bolso": (120, 240, 200), "Furacão de Lâminas": (220, 230, 255), "Bafo do Dragão": (255, 110, 40),
+    "Tempestade Completa": (140, 200, 255), "Martelo de Demolição": (255, 170, 80), "Duelo ao Meio-dia": (255, 230, 140),
+    "Espada do Primeiro Guerreiro": (150, 190, 255), "Rifle Sem Fim": (110, 220, 230), "Aríete": (200, 210, 220),
+    "Lâmina das Mil Sombras": (140, 110, 200), "Garras do Cometa": (255, 236, 90), "Moto-Bomba": (255, 150, 60),
+    "Foice da Morte": (190, 150, 255), "Corrente do Titã": (240, 200, 90), "Canhão do Navio": (230, 90, 100),
+    "Cetro do Zero Absoluto": (210, 240, 255), "Martelo da Roleta Sombria": (170, 90, 230),
+    "Servidor de Mão": (96, 226, 226), "Notebook Gamer RGB": (255, 120, 220), "Exo-Punho Mk II": (255, 140, 100),
+    "Punho do Colapso": (140, 100, 220), "Carimbo INDEFERIDO": (255, 110, 190), "Tentáculos do Lag": (60, 230, 255),
+})
