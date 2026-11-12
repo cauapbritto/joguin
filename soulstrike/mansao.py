@@ -764,6 +764,7 @@ class QueueLanes:
     MOVE = 100
     CALL = (220, 300)
     PUSH = 2.6
+    PATIENCE = 4 * 60            # segredo: parado na fila esse tanto
     LANES = ((180, 300, 1240, 70, (1, 0)), (180, 1060, 1240, 70, (-1, 0)),
              (460, 360, 70, 560, (0, -1)), (1070, 360, 70, 560, (0, 1)))
 
@@ -775,8 +776,11 @@ class QueueLanes:
         self.state = "calm"
         self.timer = 150
         self.ticket = rng.randint(100, 180)
+        self.waiting = {}            # segredo: jogador -> (x, y, quadros parado numa faixa)
+        self.called = set()
 
     def update(self, match):
+        self._wait_in_line(match)
         self.timer -= 1
         if self.state == "calm" and self.timer <= 0:
             self.state, self.timer = "warn", self.WARN
@@ -799,6 +803,23 @@ class QueueLanes:
             if self.timer <= 0:
                 self.state, self.timer = "calm", self.rng.randint(*self.CALL)
                 self.active = []
+
+    def _wait_in_line(self, match):
+        """Segredo: quem fica parado numa faixa da fila, educadamente, é chamado pela senha."""
+        from . import segredos
+        for p in getattr(match, "players", ()):
+            x, y, n = self.waiting.get(p, (None, None, 0))
+            here = (round(p.x), round(p.y))
+            if p in self.called or not p.alive_in_match or here != (x, y) \
+                    or not any(rect.collidepoint(p.x, p.y) for rect, _ in self.lanes):
+                self.waiting[p] = (*here, 0)
+                continue
+            self.waiting[p] = (x, y, n + 1)
+            if n + 1 >= self.PATIENCE:
+                self.called.add(p)
+                text = f"SENHA {self.ticket + 1:03d}... {p.label}?"
+                segredos.hint(match, p.x, p.y - config.SPRITE_HEIGHT - 10, text, (255, 236, 120), life=110)
+                segredos.find("senha", match, p.x, p.y - config.SPRITE_HEIGHT - 40)
 
     def draw(self, view, cam, frame):
         for i, (rect, (dx, dy)) in enumerate(self.lanes):

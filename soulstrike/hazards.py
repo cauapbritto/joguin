@@ -349,6 +349,8 @@ class LaserTiles:
         self.age = 0
         self.timer = 120
         self.hit = set()
+        self.ever_hit = set()        # segredo: quem pisou em algum ladrilho aceso na sala inteira
+        self.fired = False
 
     @property
     def burning(self):
@@ -362,12 +364,14 @@ class LaserTiles:
             self.age += 1
             if self.age == self.WARN:
                 match.assets.play("laser", 0.3)
+                self.fired = True
             if self.burning:
                 lit = set(self.lit)
                 for f in match.fighters:
                     if f in self.hit or not f.alive_in_match or f.lift > 0 or self.cell_of(f) not in lit:
                         continue
                     self.hit.add(f)
+                    self.ever_hit.add(f)
                     if f.take_damage(round(self.DAMAGE * match.enemy_dmg), f.x, f.y, match=match):
                         match.burst(f.x, f.y - 10, CLEPA, 6, speed=3)
             if self.age >= self.WARN + self.BURN:

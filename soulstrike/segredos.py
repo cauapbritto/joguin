@@ -27,8 +27,33 @@ SECRETS = (
     ("espantalho", "CASA", "O ESPANTALHO SENTIU", "ELE NÃO ESPANTA NADA"),
     ("mangueira", "CASA", "MOLHOU O AMIGO", "A MANGUEIRA TEM PRESSÃO"),
     ("city", "CASA", "O CITY ENGASGOU", "NEM SEMPRE ELE PEGA DE PRIMEIRA"),
+    ("espelho", "CAMPANHA", "O ORIGINAL SOU EU", "ENFRENTE A SUA PRÓPRIA SOMBRA"),
+    ("panico", "CAMPANHA", "O ÚLTIMO TREMEU", "SOBROU UM SÓ NA ONDA"),
+    ("senha", "CAMPANHA", "SENHA CHAMADA", "ESPERE NA FILA DA MANSÃO"),
+    ("laser", "CAMPANHA", "SEM UM ARRANHÃO", "A SALA DO LASER, LIMPINHA"),
+    ("ninguem", "CAMPANHA", "...NINGUÉM?", "DEIXE O CHEFE DESCANSAR"),
+    ("high_five", "CAMPANHA", "TOCA AQUI", "LEVANTOU? COMEMOREM JUNTOS"),
 )
 BY_KEY = {s[0]: s for s in SECRETS}
+
+
+# o herói enfrentando a própria sombra (ou o próprio chefe corrompido): o que a cópia fala
+MIRROR_LINES = {
+    "velocista": "CHEGUEI PRIMEIRO. DE NOVO.", "ninja": "VOCÊ TAMBÉM NÃO ME VIU?",
+    "tanque": "PODE ATIRAR. EU TAMBÉM DEVOLVO.", "fantasma": "QUAL DE NÓS ESTÁ ASSOMBRANDO?",
+    "geada": "QUE FRIO... DE MIM MESMO.", "albeguinio": "OI SUMIDO. EU MESMO.",
+    "cauanzera": "ABRE UM CHAMADO CONTRA MIM.", "aryel": "SE FALA. SE FALA.",
+    "borba": "EU ME INVENTEI DE NOVO?", "paredao": "AQUI NÃO PASSA. NEM EU.",
+}
+MIRROR_DEFAULT = "QUAL DE NÓS É O ORIGINAL?"
+# o herói da turma que cada chefe corrompido era (e a versão corrompida jogável dele)
+BOSS_HERO = {"aryel": ("aryel", "aryel_corrompido"), "borba": ("borba", "borba_corrompido"),
+             "albeguinio": ("albeguinio", "albeguinio_corrompido"),
+             "cauanzera": ("cauanzera", "cauanzera_corrompido")}
+
+
+def mirror_line(hero):
+    return MIRROR_LINES.get(hero, MIRROR_DEFAULT)
 
 
 def _hour():

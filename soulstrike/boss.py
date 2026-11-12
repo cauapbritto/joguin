@@ -118,7 +118,15 @@ class BossAI(EnemyAI):
         if which in self.said or which >= len(self.LINES) or not hasattr(match, "popups"):
             return
         self.said.add(which)
-        match.popups.append(BossLine(me, self.LINES[which], self.LINE_COLOR))
+        text = self.LINES[which]
+        if which == 0:                         # segredo: alguém joga com o herói que o chefe era
+            from . import segredos
+            hero = getattr(getattr(match, "dungeon", None), "boss", None) or "aryel"
+            keys = segredos.BOSS_HERO.get(hero, ())
+            if any(p.stats.key in keys for p in getattr(match, "players", ())):
+                text = segredos.mirror_line(hero)
+                segredos.find("espelho", match, me.x, me.y - 200)
+        match.popups.append(BossLine(me, text, self.LINE_COLOR))
 
     @property
     def speed(self):
@@ -131,6 +139,8 @@ class BossAI(EnemyAI):
         self.state = state
         self.timer = frames
         me.vulnerability = 1.6 if state == "tired" else self.ARMOR if self.enraged else 1.0
+        if state == "tired":
+            self.tired_hp = me.hp                # segredo: ninguém bateu no cansaço, ele boceja
         me.phase_label = {"tired": self.TIRED_LABEL, "roar": self.ROAR_LABEL}.get(
             state, self.ARMOR_LABEL if self.enraged else "")
 
@@ -191,6 +201,10 @@ class BossAI(EnemyAI):
                 match.popup(me.x, me.y - 120, self.TIRED_POPUP, theme.MUTED)
             self._tired_tick(me, match)
             if self.timer <= 0:
+                if me.hp >= getattr(self, "tired_hp", -1) and hasattr(match, "popups"):
+                    from . import segredos
+                    segredos.hint(match, me.x, me.y - 150, "...NINGUÉM?", theme.MUTED)
+                    segredos.find("ninguem", match, me.x, me.y - 176)
                 self._set(me, "walk", self._wait(120))
         elif state == "jump":
             me.steer(0, 0)
