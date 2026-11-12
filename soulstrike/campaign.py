@@ -16,7 +16,7 @@ from .ai import FighterAI
 from .entities import Particle, Pickup
 from .enemies import BIG_KINDS, CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_enemy
 from .matches import Match, Result, _separate
-from .net.remote import hub
+from .net.remote import hand_card, hub
 from .ui import darken
 from .data import RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
 from .armario import RACK_SIZE, token_of, weapon_of
@@ -1167,7 +1167,8 @@ class CoopMatch(Match):
                 continue
             mag = f.mag if not f.weapon.is_melee else 0
             hub.publish_slot(f.slot, ammo=f.ammo, mag=mag, reload=f.reload_ratio if f.reloading else 0.0,
-                             energy=f.energy or 0, emax=f.energy_max, ecost=energia.cost(f, f.weapon))
+                             energy=f.energy or 0, emax=f.energy_max, ecost=energia.cost(f, f.weapon),
+                             hand=hand_card(f.weapon))
 
     def publish_souls(self):
         """Manda o saldo de almas de cada jogador para o celular dele."""

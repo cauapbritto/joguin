@@ -74,6 +74,7 @@ class SlotInfo:
         self.ecost = 0
         self.shop = None      # menu da banca aberto (MarketMenu.snapshot) ou None
         self.penalty = None   # pênaltis: {"role": "bate" / "defende" / "espera", "hero": nome} ou None
+        self.hand = None      # arma na mão: {"name", "icon"} (o ATACAR do celular mostra o desenho e o nome)
 
     @property
     def claimed(self):
@@ -300,7 +301,7 @@ class RemoteHub:
             for name, value in fields.items():
                 if name not in ("char", "weapon", "ready", "team", "cooldown", "stamina", "tired",
                                 "options", "choice", "ammo", "mag", "reload", "souls", "shop", "penalty",
-                                "energy", "emax", "ecost"):
+                                "energy", "emax", "ecost", "hand"):
                     raise ValueError(name)
                 setattr(info, name, value)
 
@@ -360,9 +361,19 @@ class RemoteHub:
                     "souls": mine.souls if self._mode == "campaign" else None,
                     "shop": mine.shop if self._mode == "campaign" else None,
                     "penalty": mine.penalty if self._phase == "penalty" else None,
+                    "hand": mine.hand,
                     "playing": slot in self._active,
                 }
             return data
+
+
+
+def hand_card(weapon):
+    """A arma na mão como o botão ATACAR do celular mostra: nome e arquivo do desenho."""
+    if weapon is None:
+        return None
+    from ..weapon_art import icon_file
+    return {"name": weapon.name.upper(), "icon": icon_file(weapon.name)}
 
 
 hub = RemoteHub()
