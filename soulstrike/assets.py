@@ -27,6 +27,11 @@ MUSIC_LAYERS = {name: tuple(f"trilha_{file}_{i}.ogg" for i in (1, 2, 3)[:count])
     ("cap1", "cap1", 2), ("templo", "templo", 2), ("cap2", "cap2", 2), ("cap3", "cap3", 2), ("cap4", "cap4", 2),
     ("boss", "chefe_templo", 2), ("boss_lag", "chefe_lag", 2), ("boss_clinica", "chefe_clinica", 2),
     ("boss_final", "chefe_final", 3), ("penaltis", "penaltis", 2))}
+# som de fundo que acompanha cada música (tools/gerar_efeitos.py)
+AMBIENCE = {"cap1": "ambiente_floresta", "templo": "ambiente_templo", "boss": "ambiente_templo",
+            "cap2": "ambiente_escritorio", "boss_lag": "ambiente_escritorio", "cap3": "ambiente_clinica",
+            "boss_clinica": "ambiente_clinica", "cap4": "ambiente_mansao", "boss_final": "ambiente_mansao",
+            "casa": "ambiente_quintal"}
 
 
 class SpriteSet:
@@ -302,6 +307,7 @@ class Assets:
             return
         self._music = name
         self.mixer.music_name = name
+        self.mixer.ambience(AMBIENCE.get(name))
         layers = [config.SOUNDS_DIR / f for f in MUSIC_LAYERS.get(name, ())]
         path = config.SOUNDS_DIR / MUSIC_FILES[name] if name in MUSIC_FILES else None
         try:
@@ -337,6 +343,7 @@ class Assets:
     def stop_music(self, fade_ms=1200):
         self._music = None
         self.mixer.music_name = None
+        self.mixer.ambience(None)
         if pygame.mixer.get_init():
             pygame.mixer.music.fadeout(fade_ms)
             self.mixer.stop_layers(fade_ms)

@@ -23,7 +23,9 @@ from . import config, settings
 CHANNELS = 32
 PRIORITY_CHANNELS = (0, 1, 2)          # guardados para som importante e vinhetas
 LAYER_CHANNELS = (3, 4, 5)             # camadas da música (base + até 2 por cima)
-RESERVED = 6
+AMBIENT_CHANNEL = 6                    # som de fundo do lugar (vento, grilos, ar-condicionado...)
+RESERVED = 7
+AMBIENT_VOLUME = 0.35                  # o fundo fica baixinho, abaixo dos efeitos
 MUSIC_VOLUME = 0.3                     # música com o volume das opções no máximo
 MAX_SAME_SOUND = 3                     # o mesmo efeito tocando junto no máximo (contando as versões)
 PAN_FLOOR = 0.35                       # o lado de longe nunca fica mudo (som no canto ainda se ouve nos dois)
@@ -84,6 +86,8 @@ class Mixer:
         self.intensity = 0        # camadas ligadas acima da base
         self._layer_fade = 0.0    # fade de entrada (0..1) e de saída
         self._layer_out = False
+        self.ambient_name = None
+        self._ambient_cache = {}
 
     # ── carga ────────────────────────────────
     @staticmethod
@@ -189,6 +193,33 @@ class Mixer:
         self._duck_hold = 0
         self.apply_volume()
 
+    def ambience(self, name, folder=None):
+        """Som de fundo do lugar, em loop (None = silêncio). Troca com fade."""
+        if name == self.ambient_name or pygame.mixer.get_init() is None:
+            return
+        self.ambient_name = name
+        try:
+            channel = pygame.mixer.Channel(AMBIENT_CHANNEL)
+            channel.fadeout(800)
+            if name is None:
+                return
+            if name not in self._ambient_cache:
+                path = (folder or config.SOUNDS_DIR) / f"{name}.ogg"
+                self._ambient_cache[name] = pygame.mixer.Sound(str(path)) if path.is_file() else None
+            sound = self._ambient_cache[name]
+            if sound is not None:
+                channel.play(sound, loops=-1, fade_ms=1500)
+                self._apply_ambient()
+        except pygame.error:
+            pass
+
+    def _apply_ambient(self):
+        try:
+            volume = 0.0 if self.paused else AMBIENT_VOLUME * settings.sfx_volume()
+            pygame.mixer.Channel(AMBIENT_CHANNEL).set_volume(volume)
+        except pygame.error:
+            pass
+
     def music_volume(self):
         if self.paused:
             return 0.0
@@ -200,6 +231,7 @@ class Mixer:
         volume = self.music_volume()
         pygame.mixer.music.set_volume(volume)
         self._apply_layers(volume)
+        self._apply_ambient()
 
     def _apply_layers(self, volume):
         fade = self._layer_fade

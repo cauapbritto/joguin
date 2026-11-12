@@ -297,7 +297,7 @@ def save(song, layers):
                 w.writeframes((np.clip(x, -1, 1) * 32767).astype("<i2").tobytes())
             subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav_path), "-c:a", "libvorbis",
                             "-q:a", "1.5" if not song.stinger else "3", "-map_metadata", "-1",
-                            str(OUT / f"{name}.ogg")], check=True)
+                            "-fflags", "+bitexact", "-flags:a", "+bitexact", str(OUT / f"{name}.ogg")], check=True)
         print(f"{name}.ogg  {len(x) / RATE:.1f} s")
 
 

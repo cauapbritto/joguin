@@ -412,3 +412,48 @@ class TrilhaDasTelasTest(unittest.TestCase):
         with mock.patch.object(game().assets, "fanfare") as fanfare:
             match._goal(0)
         fanfare.assert_called_with("vinheta_gol", "victory")
+
+
+class EfeitosEmCamadasTest(unittest.TestCase):
+    """tools/gerar_efeitos.py: efeitos refeitos em camadas e o som de fundo de cada lugar."""
+
+    def test_efeitos_refeitos_estao_no_registro(self):
+        import json
+        done = json.loads((config.SOUNDS_DIR / "camadas.json").read_text())
+        for name in ("hit", "golpe", "shoot", "explosion", "ability", "bau", "alma"):
+            self.assertIn(name, done, name)
+
+    def test_cada_ambiente_existe(self):
+        from soulstrike.assets import AMBIENCE, MUSIC_FILES, MUSIC_LAYERS
+        for music, name in AMBIENCE.items():
+            self.assertTrue((config.SOUNDS_DIR / f"{name}.ogg").is_file(), name)
+            self.assertTrue(music in MUSIC_FILES or music in MUSIC_LAYERS, music)
+
+    def test_musica_do_lugar_liga_o_fundo(self):
+        assets = game().assets
+        with mock.patch.object(assets.mixer, "ambience") as ambience:
+            assets._music = None
+            assets.music("casa")
+            ambience.assert_called_with("ambiente_quintal")
+            assets.music("arena")
+            ambience.assert_called_with(None)
+            assets.stop_music(0)
+            ambience.assert_called_with(None)
+
+    def test_fundo_toca_e_cala_na_pausa(self):
+        import pygame
+        if not pygame.mixer.get_init():
+            self.skipTest("sem áudio")
+        m = game().assets.mixer
+        m.ambience("ambiente_templo")
+        self.assertTrue(pygame.mixer.Channel(self.som().AMBIENT_CHANNEL).get_busy())
+        m.paused = True
+        m.apply_volume()
+        self.assertEqual(pygame.mixer.Channel(self.som().AMBIENT_CHANNEL).get_volume(), 0.0)
+        m.paused = False
+        m.ambience(None)
+
+    @staticmethod
+    def som():
+        from soulstrike import som
+        return som
