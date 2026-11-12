@@ -115,8 +115,8 @@ class Match(ABC):
             self.particles.append(Particle(x, y, math.cos(a) * s, math.sin(a) * s, color,
                                            random.randint(14, 34), size, gravity))
 
-    def popup(self, x, y, text, color):
-        self.popups.append(FloatingText(x, y, text, color))
+    def popup(self, x, y, text, color, life=40):
+        self.popups.append(FloatingText(x, y, text, color, life))
 
     def dust(self, x, y, count):
         for _ in range(count):

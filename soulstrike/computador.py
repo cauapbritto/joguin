@@ -19,7 +19,7 @@ import unicodedata
 
 import pygame
 
-from . import config, progress, theme
+from . import config, progress, segredos, theme
 
 STICK = 0.5
 CURSOR_SPEED = 7            # px por quadro da setinha no analógico todo para um lado
@@ -241,6 +241,8 @@ class Computer:
         self.buffer = ""
         if name == "navegador":
             self.page = 0
+        if name == "caderno":
+            self.index = 0
         if name == "terminal":
             self.focus = "terminal"
             if not self.lines:
@@ -558,6 +560,8 @@ class Computer:
             self.draw_browser(s, ui, r)
         elif self.screen == "terminal":
             self.draw_terminal(s, ui, r)
+        elif self.screen == "caderno":
+            self.draw_notebook(s, ui, r)
         self.taskbar(s, ui, r)
         if self.focus is not None:
             self.draw_keyboard(s, ui, r)
@@ -586,7 +590,8 @@ class Computer:
         ui.text(s, "03:00", theme.XS, theme.BONE, (bar.right - 18, bar.centery), shadow=False)
 
     def desktop_items(self):
-        return (("arquivos", "ARQUIVOS"), ("terminal", "TERMINAL"), ("navegador", "NAVEGADOR"))
+        return (("arquivos", "ARQUIVOS"), ("terminal", "TERMINAL"), ("navegador", "NAVEGADOR"),
+                ("caderno", "CADERNO"))
 
     def draw_desktop(self, s, ui, r):
         for i, (key, label) in enumerate(self.desktop_items()):
@@ -640,6 +645,9 @@ class Computer:
         ui.text(s, text, theme.XS, (30, 30, 40), (prev.x + 8, prev.y + 26), anchor="midleft", shadow=False)
 
     def page_lines(self):
+        if getattr(self.match, "wifi_down", 0) > 0:          # o roteador apanhou (segredo da Casa)
+            return ("SEM INTERNET", "NÃO FOI POSSÍVEL CONECTAR.", "", "TENTE REINICIAR O ROTEADOR.",
+                    "OU PERGUNTE PRO ALBEGUINIO.")
         if self.page is None:
             return ("PÁGINA NÃO ENCONTRADA", f"ENDEREÇO: {self.missing}", "",
                     "ERRO 404: O CRISTAL QUEBROU AQUI TAMBÉM.", "TENTE: SOULWIKI, PADARIA, LAGLOBBY...")
@@ -680,6 +688,34 @@ class Computer:
         if self.page is None:
             from .scenes.campaign import draw_crystal
             draw_crystal(s, (page.right - 60, page.bottom - 50), 26, self.match.frame, broken=True)
+
+    def draw_notebook(self, s, ui, r):
+        """O CADERNO DE SEGREDOS: uma aba por lugar; o que a turma já achou com o nome, o resto ???."""
+        have, total = segredos.count()
+        win = self.app(s, ui, self.app_rect(r), f"CADERNO DE SEGREDOS · {have} DE {total}", r.topleft)
+        s.fill((248, 242, 214), win)
+        for y in range(win.y + 40, win.bottom, 18):                    # pauta do caderno
+            pygame.draw.line(s, (200, 214, 230), (win.x, y + 8), (win.right, y + 8))
+        pygame.draw.line(s, (230, 150, 150), (win.x + 22, win.y + 20), (win.x + 22, win.bottom))
+        pages = [(place, lines) for place, lines in segredos.notebook().items() if lines]
+        tab = self.index % len(pages)
+        x = win.x + 4
+        for i, (place, lines) in enumerate(pages):
+            got = sum(1 for ok, _ in lines if ok)
+            label = f"{place} {got}/{len(lines)}"
+            w = ui.assets.text_width(label, theme.XS) + 12
+            box = pygame.Rect(x, win.y + 3, w, 14)
+            s.fill((170, 190, 230) if i == tab else (210, 214, 224), box)
+            ui.text(s, label, theme.XS, (40, 40, 60), box.center, shadow=False)
+            self.spot(box, f"arq:{i}", r.topleft)
+            x += w + 4
+        for i, (ok, text) in enumerate(pages[tab][1]):
+            y = win.y + 30 + i * 18
+            if ok:
+                pygame.draw.line(s, (60, 150, 80), (win.x + 8, y + 1), (win.x + 11, y + 4), 2)
+                pygame.draw.line(s, (60, 150, 80), (win.x + 11, y + 4), (win.x + 17, y - 4), 2)
+            ui.text(s, text, theme.XS, (40, 40, 60) if ok else (150, 150, 160), (win.x + 30, y),
+                    anchor="midleft", shadow=False)
 
     def draw_terminal(self, s, ui, r):
         win = self.app(s, ui, self.app_rect(r), "TERMINAL", r.topleft)
@@ -803,7 +839,14 @@ class HackerNotebook(Computer):
         if command in ("ls", "dir"):
             self.say("  invasao.sh  (SÓ ISSO. O RESTO É SEGREDO.)", HK)
             return
+        if command == "wifi --reiniciar" and getattr(self.match, "wifi_down", 0) > 0:
+            self.say("  O ROTEADOR APANHOU. QUEM FOI?", AMBER, 10)
+            self.say("  LIGANDO... FUNCIONOU.", HK, 10, action=self._wifi_back)
+            return
         super().run(command)
+
+    def _wifi_back(self):
+        self.match.wifi_down = 0
 
     def run_unlock(self):
         """A invasão do cristal: conexão, despejo de memória, quebra da senha, capítulos um a um e os
@@ -934,6 +977,12 @@ def _icon(s, kind, x, y):
         s.fill((60, 60, 70), (x - 14, y + 2, 28, 4))
         s.fill(HK, (x - 9, y + 12, 6, 2))
         s.fill(HK, (x - 1, y + 18, 8, 2))
+    elif kind == "caderno":
+        s.fill((170, 60, 60), (x - 12, y + 2, 24, 26))
+        s.fill((248, 242, 214), (x - 8, y + 4, 18, 22))
+        for k in range(3):
+            s.fill((150, 170, 200), (x - 6, y + 9 + k * 5, 14, 1))
+        s.fill((120, 40, 40), (x - 12, y + 2, 4, 26))
     elif kind == "navegador":
         pygame.draw.circle(s, (60, 140, 220), (x, y + 14), 13)
         pygame.draw.circle(s, (90, 200, 120), (x - 4, y + 10), 5)

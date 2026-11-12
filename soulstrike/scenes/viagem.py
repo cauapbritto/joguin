@@ -9,7 +9,7 @@ import random
 
 import pygame
 
-from .. import casa_art, config, pecas, theme
+from .. import casa_art, config, pecas, segredos, theme
 from ..net.remote import hub
 from .base import Scene
 
@@ -18,6 +18,8 @@ COUGH = 270            # começa a falhar
 PUFF = 340             # PUFF: parou
 END = 450              # fim da cena
 CAR_SCALE = 2
+STALL_CHANCE = 0.25    # segredo: às vezes o carro engasga duas vezes antes de sair
+STALL = (8, 22)        # quadros dos dois engasgos (o carro ainda fora da tela, só a fumacinha preta)
 
 # por capítulo: céu, chão, cor das coisas da beira da estrada e a frase do carro quebrando
 CHAPTERS = {
@@ -111,6 +113,7 @@ class CarTripScene(Scene):
         self.door = None                              # a porta do Uno caindo: [x, y, vy, giro]
         self.smoke = []                       # [x, y, raio, vida]
         self.scroll = 0.0
+        self.stall = self.vehicle != "moto" and random.random() < STALL_CHANCE
         rng = random.Random(self.chapter)
         self.roadside = [(rng.randint(0, 1400), rng.randint(0, 2)) for _ in range(14)]
         self.clouds = [(rng.randint(0, 1600), rng.randint(30, 170), rng.randint(3, 6)) for _ in range(8)]
@@ -160,6 +163,13 @@ class CarTripScene(Scene):
         self.scroll += self.speed
         cx = self.car_x
         ground = self.ground_y
+        if self.stall and self.ticks in STALL:              # engasgou: pó preto do escapamento, na esquerda
+            for _ in range(5):
+                self.smoke.append([max(30, cx + 20) + random.uniform(-8, 8), ground - 24 + random.uniform(-4, 4),
+                                   random.uniform(4, 8), 40])
+            self.sfx("hit", 0.2)
+            if self.ticks == STALL[1]:
+                segredos.find("city")
         if COUGH <= self.ticks < END and (self.ticks % (3 if self.ticks >= PUFF else 7) == 0):
             # fumaça saindo do capô (frente do carro, à direita)
             self.smoke.append([cx + self.car.get_width() - 40 + random.uniform(-10, 10),

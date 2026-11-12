@@ -11,7 +11,7 @@ import random
 import pygame
 
 from . import casa_art as art
-from . import computador, config, crt, luz_casa, mascotes, progress, skins, theme
+from . import computador, config, crt, luz_casa, mascotes, progress, segredos, skins, theme
 from .guarda_roupa import Lockers, WardrobeMenu
 from .loja import ShopMenu, ShopStand
 from .arena import MAPS_BY_KEY
@@ -141,6 +141,19 @@ SCREEN_EVERY = 12                     # quadros entre uma cópia da tela do comp
 DOOR_REACH = 96
 FLOWER_COLORS = ((240, 110, 150), (250, 200, 80), (170, 120, 240), (250, 250, 250))
 
+# ── segredos da Casa (segredos.py): sem aviso na tela, só reação ──
+WIFI_DOWN = 8 * config.FPS            # o roteador apanhou: o Wi-Fi fica fora esse tanto
+STREAK_ANGRY = 10                     # falar seguido com o mesmo da vitrine: o "DE NOVO?!"
+STREAK_TIRED = 15
+NAP_FRAMES = 4 * config.FPS           # parado do lado do sofá esse tanto: cochila
+NAP_REACH = 34
+SCARE_HITS = 5                        # pancadas seguidas no espantalho
+WOBBLE = 34                           # quadros do espantalho balançando
+SPRAY_FRAMES = 50                     # o jato da mangueira
+SPRAY_REACH = 170
+WET_FRAMES = 3 * config.FPS           # o amigo molhado fica pingando
+SONO = ("VAI DORMIR, RAPAZ.", "(BOCEJO)... OI.", "ISSO É HORA DE JOGAR?", "TÔ ACORDADO. JURO.")
+
 
 def door_open(key):
     """Porta trancada da casa já destravada pelo progresso salvo (ou pelo LIBERAR TUDO)."""
@@ -191,16 +204,26 @@ class Decor(Entity):
         self.baked = baked
         self.flat = flat
         self.foot_y = y + baked.bottom - 8 if foot_y is None else foot_y
+        self.wobble = 0                 # balançando no pé (o espantalho que apanhou)
 
     @property
     def sort_y(self):
         return self.foot_y
 
     def update(self, match):
-        pass
+        if self.wobble > 0:
+            self.wobble -= 1
 
     def draw(self, surf, camera):
         b = self.baked
+        if self.wobble > 0:                 # gira em volta do ponto (x, y), que é o pé da peça
+            angle = math.sin(self.wobble * 0.55) * 9 * self.wobble / WOBBLE
+            img = pygame.transform.rotate(b.image, angle)
+            center = pygame.math.Vector2(b.dx + b.image.get_width() / 2, b.dy + b.image.get_height() / 2)
+            center = center.rotate(-angle)
+            rect = img.get_rect(center=(round(self.x + center.x - camera.x), round(self.y + center.y - camera.y)))
+            surf.blit(img, rect)
+            return
         surf.blit(b.image, (round(self.x + b.dx - camera.x), round(self.y + b.dy - camera.y)))
 
 
@@ -223,9 +246,25 @@ class Speaker:
         return p.alive_in_match and math.hypot(p.x - self.x, p.y - self.y) < TALK_REACH
 
     def say(self, match):
-        """ATACAR perto: a próxima frase (mesmo que a anterior ainda esteja no balão)."""
-        self.line = self.lines[self.index % len(self.lines)]
-        self.index += 1
+        """ATACAR perto: a próxima frase (mesmo que a anterior ainda esteja no balão).
+        Segredos: de madrugada a primeira frase de cada um sai com sono, e quem insiste demais na
+        mesma pessoa ouve um "DE NOVO?!"."""
+        last, streak = getattr(match, "talk_streak", (None, 0))
+        streak = streak + 1 if last is self else 1
+        match.talk_streak = (self, streak)
+        yawned = getattr(match, "yawned", None)
+        if yawned is not None and self not in yawned and segredos.madrugada():
+            yawned.add(self)
+            self.line = SONO[sum(map(ord, self.key)) % len(SONO)]
+            segredos.find("madrugada", match, self.x, self.head_y - 50)
+        elif streak == STREAK_ANGRY:
+            self.line = "DE NOVO?!"
+            segredos.find("de_novo", match, self.x, self.head_y - 50)
+        elif streak == STREAK_TIRED:
+            self.line = "VOU COBRAR POR FRASE."
+        else:
+            self.line = self.lines[self.index % len(self.lines)]
+            self.index += 1
         self.talk = TALK_FRAMES
         for o in match.speakers:              # um balão por vez ali perto
             if o is not self and o.talk > 0 and abs(o.x - self.x) < BUBBLE_ROOM \
@@ -655,6 +694,14 @@ class HubMatch(CoopMatch):
         self.notebook_open = False                          # senha do notebook já digitada nesta visita
         self.freeing = 0                                    # LIBERAR TUDO: quadros da tela branca
         self.reload = False
+        # segredos (segredos.py): nada disso aparece como dica na tela
+        self.wifi_down = 0                                  # quadros com o Wi-Fi fora (o roteador apanhou)
+        self.talk_streak = (None, 0)                        # quem da vitrine falou por último e quantas seguidas
+        self.yawned = set()                                 # quem já bocejou nesta visita (de madrugada)
+        self.still = {}                                     # jogador -> (x, y, quadros parado)
+        self.scare_hits = 0                                 # pancadas seguidas no espantalho
+        self.spray = None                                   # o jato da mangueira: [x, y, dx, dy, quadros]
+        self.wet = {}                                       # jogador molhado -> quadros pingando
         self._furnish()
         # a saída é o City do João: o grupo entra no carro (todos em volta dele) e vai de carro
         cx, cy = CITY_AT
@@ -698,6 +745,7 @@ class HubMatch(CoopMatch):
             put(art.chair, 21 * T + 20 + k * 56, OY + 9 * T + 4, foot=((2, 10, 16, 14),))
         put(art.sofa, 18 * T, OY + 11 * T + 30, 150, foot=((0, 6, 150, 38),))
         put(art.sofa, 27 * T, OY + 11 * T + 30, 150, (120, 70, 90), foot=((0, 6, 150, 38),))
+        self.sofas = [pygame.Rect(x, OY + 11 * T + 36, 150, 38) for x in (18 * T, 27 * T)]
         for x, y in ((16 * T + 20, OY + 4 * T + 20), (32 * T, OY + 4 * T + 20)):
             put(art.lamp, x, y, foot=((-8, 22, 16, 10),), foot_y=y + 30)
         for i, (x, y) in enumerate(((12 * T, OY + 3 * T), (36 * T, OY + 3 * T), (16 * T, OY + 13 * T + 20),
@@ -735,6 +783,7 @@ class HubMatch(CoopMatch):
         put(art.office_desk, 4 * T, OY + 11 * T, foot=((0, 20, 140, 18), (58, 52, 24, 18)))
         self.computers.append(("notebook", pygame.Rect(4 * T, OY + 11 * T + 20, 140, 18), (4 * T + 70, OY + 11 * T - 30)))
         put(art.router, 9 * T, OY + 10 * T + 10)
+        self.router = pygame.Rect(9 * T, OY + 10 * T - 4, 34, 26)
         # canto do Borba Jr (embaixo à direita): retrato, a padaria do João, o forno e o exo
         put(art.easel_portrait, 46 * T, OY + 8 * T, "borba", foot=((-20, 70, 40, 12),))
         self.speakers.append(Speaker("borba", 46 * T, OY + 10 * T, head_y=OY + 8 * T - 34))
@@ -753,8 +802,10 @@ class HubMatch(CoopMatch):
         self.flower_at = (6 * T + 24, QY + 3 * T + 40)
         put(art.sign, 7 * T + 20, QY + 7 * T, "HORTA", foot=((-4, 12, 8, 10),))
         put(art.watering_can, 11 * T, QY + 7 * T)
-        put(art.scarecrow, T + 30, QY + 3 * T + 10, foot=((-4, -8, 8, 10),))
+        self.scarecrow = put(art.scarecrow, T + 30, QY + 3 * T + 10, foot=((-4, -8, 8, 10),))
+        self.scarecrow_rect = pygame.Rect(T + 6, QY + 3 * T - 70, 48, 82)
         put(art.hose, 4 * T + 10, QY + 7 * T + 16)
+        self.hose = pygame.Rect(4 * T - 8, QY + 7 * T + 8, 50, 22)
         self._door("garagem", art.garage_front, 39 * T, QY + 5 * T - 20, w=100, inside=art.inside_garagem)
         self.parked = put(art.city_car, *CITY_AT, foot=((-86, -24, 172, 26),))
         self.parked_moto = None
@@ -954,6 +1005,7 @@ class HubMatch(CoopMatch):
                 self.reload = True
                 self._finish(won=True)
             return
+        self._secret_step()
         if not self.big_flower and self.beds and all(b.watered > 0 for b in self.beds):
             self.big_flower = True                    # os quatro canteiros regados juntos: a flor grande
             x, y = self.flower_at
@@ -1018,11 +1070,100 @@ class HubMatch(CoopMatch):
         if bed is not None:
             bed.water(self)
             return True
+        if self._secret_touch(f):
+            return True
         speaker = self.speaker_near(f)
         if speaker is not None:
             speaker.say(self)
             return True
         return self.pick_ground(f)
+
+    # ── segredos da Casa ─────────────────────
+    def _secret_touch(self, f):
+        """ATACAR nas coisas que não têm aviso: o roteador, o espantalho e a mangueira."""
+        if _near_rect(f, self.router):
+            if self.wifi_down <= 0:
+                self.wifi_down = WIFI_DOWN
+                self.burst(self.router.centerx, self.router.y, (90, 240, 120), 6, speed=1.5)
+                segredos.hint(self, self.router.centerx, self.router.y - 20, "SEM SINAL", theme.MUTED)
+                friend = min((s for s in self.speakers if s.key == "albeguinio"),
+                             key=lambda s: math.hypot(s.x - self.router.x, s.y - self.router.y), default=None)
+                if friend is not None:
+                    friend.line, friend.talk = "JÁ REINICIOU O WI-FI?", TALK_FRAMES
+                segredos.find("wifi", self, self.router.centerx, self.router.y - 44)
+            self.assets.play("click", 0.3)
+            return True
+        if _near_rect(f, self.scarecrow_rect):
+            self.scarecrow.wobble = WOBBLE
+            self.scare_hits += 1
+            self.burst(self.scarecrow.x, self.scarecrow.y - 50, (230, 200, 110), 4, speed=1.5, gravity=0.1)
+            if self.scare_hits == SCARE_HITS:
+                segredos.hint(self, self.scarecrow.x, self.scarecrow.y - 96, "AI.", theme.BONE)
+                segredos.find("espantalho", self, self.scarecrow.x, self.scarecrow.y - 120)
+            self.assets.play("hit", 0.15)
+            return True
+        if _near_rect(f, self.hose):
+            if self.spray is None:
+                dx, dy = f.facing
+                self.spray = [self.hose.right - 10, self.hose.centery, dx, dy, SPRAY_FRAMES, f]
+            return True
+        return False
+
+    def _secret_step(self):
+        if self.wifi_down > 0:
+            self.wifi_down -= 1
+        if not (self.talk_streak[0] and any(self.talk_streak[0].near(p) for p in self.alive_players)):
+            self.talk_streak = (None, 0)                    # foi embora: a conta da insistência zera
+        if self.scare_hits and not any(_near_rect(p, self.scarecrow_rect, 90) for p in self.alive_players):
+            self.scare_hits = 0
+        self._nap()
+        self._hose()
+
+    def _nap(self):
+        """Parado do lado do sofá por uns segundos: o herói cochila (uns zezinhos subindo)."""
+        for p in self.alive_players:
+            x, y, n = self.still.get(p, (None, None, 0))
+            if p in self.menus or (x, y) != (round(p.x), round(p.y)) \
+                    or not any(_near_rect(p, r, NAP_REACH) for r in self.sofas):
+                self.still[p] = (round(p.x), round(p.y), 0)
+                continue
+            n += 1
+            self.still[p] = (x, y, n)
+            if n >= NAP_FRAMES and (n - NAP_FRAMES) % 45 == 0:
+                z = "z" if (n - NAP_FRAMES) % 90 else "Z"
+                segredos.hint(self, p.x + 14, p.y - config.SPRITE_HEIGHT - 6, z, theme.MUTED, life=60)
+                if n == NAP_FRAMES:
+                    segredos.find("cochilo", self, p.x, p.y - config.SPRITE_HEIGHT - 40)
+
+    def _hose(self):
+        """O jato da mangueira: gotas para a frente de quem ligou; molhou um amigo, ele fica pingando."""
+        if self.spray is not None:
+            x, y, dx, dy, left, who = self.spray
+            for _ in range(3):
+                spread = random.uniform(-0.25, 0.25)
+                speed = random.uniform(5, 8)
+                self.particles.append(Particle(x, y - 10, (dx - dy * spread) * speed, (dy + dx * spread) * speed - 1,
+                                               (120, 190, 250), random.randint(16, 26), 3, gravity=0.12))
+            for p in self.alive_players:
+                if p is who or p in self.wet:
+                    continue
+                vx, vy = p.x - x, p.y - y
+                dist = math.hypot(vx, vy)
+                if 0 < dist < SPRAY_REACH and (vx * dx + vy * dy) / dist > 0.8:
+                    self.wet[p] = WET_FRAMES
+                    segredos.hint(self, p.x, p.y - config.SPRITE_HEIGHT - 10, "TÁ GELADA!", (150, 200, 250))
+                    segredos.find("mangueira", self, p.x, p.y - config.SPRITE_HEIGHT - 34)
+            self.spray[4] -= 1
+            if self.spray[4] <= 0:
+                self.spray = None
+        for p, left in list(self.wet.items()):
+            if left % 9 == 0:
+                self.particles.append(Particle(p.x + random.uniform(-12, 12), p.y - random.uniform(10, 40),
+                                               0, 0.6, (120, 190, 250), 18, 2, gravity=0.15))
+            if left <= 1:
+                del self.wet[p]
+            else:
+                self.wet[p] = left - 1
 
     def _finish(self, won):
         """Saindo da casa: nada passa para a fase (nem o tempo; o relógio da campanha começa na sala inicial)."""
