@@ -89,6 +89,16 @@ def pet_picture(name):
                                max_age=86400)
 
 
+@app.route("/npc/<name>")
+def npc_picture(name):
+    """Quem atende na banca (assets/pecas/npc_<nome>_parado<0|1>.png), parado e mexendo, para o celular."""
+    from ..pecas import NPCS
+    base, _, frame = name.removesuffix(".png").rpartition("_")
+    if not name.endswith(".png") or base not in set(NPCS.values()) or frame not in ("0", "1"):
+        abort(404)
+    return send_from_directory(config.ROOT / "assets" / "pecas", f"npc_{base}_parado{frame}.png", max_age=86400)
+
+
 @app.route("/sprite/<int:index>.png")
 def sprite(index):
     data = _previews.get(index)
@@ -196,8 +206,11 @@ def release_all():
 
 @app.get("/api/roster")
 def roster():
+    from ..weapon_art import icon_file
     data = roster_for_web()
     for entry, stats in zip(data, CHARACTERS):
+        for w in entry.get("weapons", []):        # desenho da arma no botão ARMA da seleção
+            w["icon"] = icon_file(w.get("name", ""))
         power = SOCCER_POWERS[stats.key]
         entry["soccer_power"] = power.name
         entry["soccer_desc"] = power.description
