@@ -382,3 +382,33 @@ class TrilhaTest(unittest.TestCase):
         assets.stop_music(0)
         assets.mixer.stop_layers(0)
         self.assertEqual(assets.mixer.layers, [])
+
+
+class TrilhaDasTelasTest(unittest.TestCase):
+    """Cada lugar com a sua faixa: arena, futebol, basquete, pênaltis, Casa, garagem, City e plantão."""
+
+    def test_cada_lugar_tem_faixa(self):
+        from soulstrike.assets import MUSIC_FILES
+        from soulstrike.basketball import BasketballMatch
+        from soulstrike.casa import HubMatch
+        from soulstrike.garagem import GarageMatch
+        from soulstrike.matches import BattleMatch, SoccerMatch
+        from soulstrike.scenes.penalty import PenaltyScene
+        from soulstrike.scenes.plantao import ArchiveScene, NewsScene
+        from soulstrike.scenes.viagem import CarTripScene
+        esperado = {BattleMatch: "arena", SoccerMatch: "futebol", BasketballMatch: "basquete", HubMatch: "casa",
+                    GarageMatch: "garagem", CarTripScene: "city", NewsScene: "plantao", ArchiveScene: "plantao"}
+        for cls, name in esperado.items():
+            self.assertEqual(cls.music, name, cls.__name__)
+            self.assertIn(name, MUSIC_FILES)
+        self.assertEqual(PenaltyScene.music, "penaltis")
+
+    def test_musicas_antigas_sairam(self):
+        for old in ("bgm.ogg", "battle_bgm.mp3", "camp_bgm.ogg", "boss_bgm.ogg", "boss_lag_bgm.ogg"):
+            self.assertFalse((config.SOUNDS_DIR / old).is_file(), old)
+
+    def test_gol_toca_a_vinheta(self):
+        match, _ = futebol()
+        with mock.patch.object(game().assets, "fanfare") as fanfare:
+            match._goal(0)
+        fanfare.assert_called_with("vinheta_gol", "victory")

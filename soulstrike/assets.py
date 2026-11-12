@@ -6,8 +6,8 @@ import unicodedata
 
 import pygame
 
-from . import config, settings
-from .som import MAX_SAME_SOUND, MUSIC_VOLUME, Mixer  # noqa: F401  (MAX_SAME_SOUND/MUSIC_VOLUME: testes)
+from . import config
+from .som import MAX_SAME_SOUND, Mixer  # noqa: F401  (MAX_SAME_SOUND: usado nos testes)
 from .data import CHARACTERS, SHADOW_CHARACTERS
 
 DIRECTIONS = ("frente", "costas", "direita", "esquerda")
@@ -20,12 +20,13 @@ SPORT_POSES = (("pulo", 2), ("arremesso", 3), ("enterrada", 3), ("toco", 2), ("c
                ("comemora", 2), ("bate", 4), ("espera", 2), ("mergulho", 2))
 SHEET_FACTOR = 2                 # a arte é ampliada 2x sem suavizar
 TEAM_KITS = ("azul", "vermelho")  # uniforme do time 0 e do time 1 no futebol (characters/uniformes)
-MUSIC_FILES = {"menu": "trilha_menu.ogg", "battle": "battle_bgm.mp3", "camp": "camp_bgm.ogg"}
+MUSIC_FILES = {name: f"trilha_{name}.ogg" for name in ("menu", "casa", "garagem", "city", "arena", "futebol", "basquete",
+                                                    "plantao")}
 # música em camadas: base + camadas que a luta liga (Assets.music_intensity). Sem os arquivos, toca MUSIC_FILES.
 MUSIC_LAYERS = {name: tuple(f"trilha_{file}_{i}.ogg" for i in (1, 2, 3)[:count]) for name, file, count in (
     ("cap1", "cap1", 2), ("templo", "templo", 2), ("cap2", "cap2", 2), ("cap3", "cap3", 2), ("cap4", "cap4", 2),
     ("boss", "chefe_templo", 2), ("boss_lag", "chefe_lag", 2), ("boss_clinica", "chefe_clinica", 2),
-    ("boss_final", "chefe_final", 3))}
+    ("boss_final", "chefe_final", 3), ("penaltis", "penaltis", 2))}
 
 
 class SpriteSet:

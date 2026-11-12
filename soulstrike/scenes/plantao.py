@@ -550,6 +550,7 @@ class NewsScene(_InfoScene):
     (back = função que monta a tela de volta) vai direto para a primeira notícia."""
     heading = "NOVIDADES"
     phase = "news"
+    music = "plantao"
 
     def __init__(self, game, news, back=None):
         super().__init__(game)
@@ -790,6 +791,7 @@ class ArchiveScene(_InfoScene):
     """OPÇÕES > NOVIDADES: todas as edições, da mais nova para a mais velha, com a reprise na TV."""
     heading = "NOVIDADES"
     phase = "news"
+    music = "plantao"
     ROW_H = 32
     LIST = pygame.Rect(32, 66, 360, 410)
 

@@ -632,7 +632,7 @@ class HubMatch(CoopMatch):
     no CONTINUAR vai direto."""
 
     lobby = True
-    music = "camp"
+    music = "casa"
 
     def __init__(self, game, run, story=True, walk=False, arrive=None):
         self.story = story

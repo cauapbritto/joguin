@@ -78,6 +78,7 @@ class Song:
         self.mode, self.stinger, self.layers = mode, stinger, layers
         self.rng = random.Random(seed)
         self.parts = []
+        self.level = 1.0                    # volume relativo (música calma fica mais baixa)
 
     def part(self, name, program, layer=0, vol=100, pan=64, reverb=70, chorus=20, drums=False):
         p = Part(self, name, layer, program, vol, pan, reverb, chorus, drums)
@@ -277,7 +278,7 @@ def render(song, only_layers=None):
     # com camadas, a base sozinha já tem o volume certo (as de cima somam por cima, como reforço)
     ref = out[0] if len(out) > 1 else sum(out)
     rms = float(np.sqrt(np.mean(ref ** 2))) or 1.0
-    gain = TARGET_RMS / rms * (0.75 if song.stinger else 1.0)
+    gain = TARGET_RMS / rms * (0.75 if song.stinger else 1.0) * song.level
     # camadas de cima um pouco mais baixas: somam reforço sem dar um pulo de volume
     return [0.98 * np.tanh(x * gain * (1.0 if i == 0 else 0.75) / 0.98) for i, x in enumerate(out)]
 
@@ -737,7 +738,215 @@ def chefe_clinica():
     return s
 
 
-SONGS = [menu, chefe_final, cap1, cap1_templo, cap2, cap3, cap4, chefe_templo, chefe_lag, chefe_clinica, vinheta_vitoria, vinheta_derrota, vinheta_chefe, vinheta_fase]
+# ── esportes, casa e telas (etapa 4) ──────────────────────
+E_PIANO, AGOGO = 4, 113
+
+
+def casa():
+    """Casa da turma e quintal: calmo, de lar (sol maior, 84 bpm), o tema em versão feliz."""
+    s = Song("trilha_casa", 84, 32, key="G", mode="major", seed=41)
+    s.level = 0.7
+    a, b = ["I", "vi", "IV", "V"], ["IV", "I", "ii", "V"]
+    sec = [(a, range(0, 16)), (b, range(16, 24)), (a, range(24, 32))]
+    piano = s.part("piano", PIANO, vol=92, reverb=90)
+    over(sec, arp, piano, 0, step=0.5, order=(0, 1, 2, 3, 2, 1, 2, 1), vel=58)
+    gtr = s.part("violão", NYLON, vol=88, reverb=70, pan=40)
+    over(sec, steps, gtr, "x..x..x.x..x..x.", tones=(0, 1, 2, 1, 2), octave=0, vel=62, accent=0)
+    strings = s.part("cordas", SLOW_STRINGS, vol=80, reverb=100)
+    over(sec, pad, strings, 0, 48)
+    flute = s.part("flauta", FLUTE, vol=92, reverb=100, pan=82)
+    for bar in (0, 8, 24):
+        theme(flute, bar * 4, octave=2, vel=72, answer=((0, 2), (4, 1), (5, 1), (4, 4)))
+        melody(flute, [(2, 2), (4, 2), (5, 4), (4, 2), (2, 2), (1, 4)], 2, bar * 4 + 16, 70)
+    melody(flute, [(4, 4), (5, 2), (4, 2), (2, 4), (1, 4), (2, 4), (4, 2), (5, 2), (4, 8)], 2, 16 * 4, 66)
+    bass = s.part("baixo", ACOUSTIC_BASS, vol=86, reverb=40)
+    over(sec, hits, bass, (0, 2.5), -1, 72, dur=1.4)
+    kit = s.part("chocalho", 0, drums=True, vol=70, reverb=60)
+    drums(kit, {SHAKER: "x.x.x.x.x.x.x.x.", RIM: "....x.......x..."}, bars=range(8, 32), vel=52)
+    return s
+
+
+def garagem():
+    """Garagem: pesado, de oficina (mi menor, 96 bpm), guitarra grave e bigorna."""
+    s = Song("trilha_garagem", 96, 24, key="E", seed=42)
+    a = ["i", "i", "VI", "VII"]
+    gtr = s.part("guitarra", OVERDRIVE, vol=90, reverb=40, pan=44)
+    steps(gtr, a, "X..x..X.x.X..x..", tones=(0, 0, 0, 3, 0), octave=-1, vel=88)
+    gtr2 = s.part("guitarra 2", OVERDRIVE, vol=82, reverb=40, pan=84)
+    steps(gtr2, a, "X..x..X.x.X..x..", tones=(2,), octave=-1, vel=80)
+    bass = s.part("baixo", FINGER_BASS, vol=92, reverb=20)
+    steps(bass, a, "X..x..X.x.X..x..", tones=(0,), octave=-2, vel=90)
+    kit = s.part("bateria", 0, drums=True, vol=96, reverb=40)
+    drums(kit, {KICK: "X.....X.X.......", SNARE: "....X.......X...", HAT: "x.x.x.x.x.x.x.x.",
+                COWBELL: "..........x....."}, vel=90)
+    anvil = s.part("bigorna", AGOGO, vol=84, reverb=70)
+    hits(anvil, a, (3,), 1, 84, dur=0.3)
+    brass = s.part("metais", SYNTH_BRASS, vol=90, reverb=60)
+    for bar in (4, 12, 20):
+        theme(brass, bar * 4, octave=1, vel=90, answer=((0, 4), (None, 4)))
+    return s
+
+
+def city():
+    """A viagem no City do João: urbano e leve (ré maior, 116 bpm)."""
+    s = Song("trilha_city", 116, 16, key="D", mode="major", seed=43)
+    a = ["I", "V", "vi", "IV"]
+    ep = s.part("piano elétrico", E_PIANO, vol=88, reverb=70)
+    steps(ep, a, "x..x..x...x..x..", tones=(0, 1, 2, 1, 2, 0), octave=0, vel=64, accent=0)
+    bass = s.part("baixo", FINGER_BASS, vol=90, reverb=20)
+    steps(bass, a, "X..x..x.X..x.x..", tones=(0, 0, 2, 0), octave=-2, vel=82)
+    kit = s.part("bateria", 0, drums=True, vol=90, reverb=40)
+    drums(kit, {KICK: "X.....x.X.......", SNARE: "....X.......X...", HAT: "x.xxx.xxx.xxx.xx"}, vel=82)
+    lead = s.part("sintetizador", SQUARE_LEAD, vol=66, reverb=60, pan=80)
+    for bar in (0, 8):
+        theme(lead, bar * 4, octave=1, vel=78, answer=((0, 2), (4, 1), (5, 1), (4, 4)))
+        melody(lead, [(4, 2), (5, 2), (7, 4), (5, 4), (4, 4)], 1, bar * 4 + 16, 74)
+    p = s.part("pad", PAD_WARM, vol=70, reverb=90)
+    pad(p, a, 0, 52)
+    return s
+
+
+def arena():
+    """Arena (luta): ação rápida (lá menor, 150 bpm), cordas, taikos e sintetizador; cresce no fim."""
+    s = Song("trilha_arena", 150, 40, key="A", seed=44)
+    a, b = ["i", "VI", "VII", "i"], ["iv", "VI", "V", "V"]
+    sec = [(a, range(0, 16)), (b, range(16, 24)), (a, range(24, 40))]
+    st = s.part("cordas ostinato", STRINGS, vol=100, reverb=60)
+    over(sec, steps, st, "XxxxXxxxXxxxXxxx", tones=(0, 0, 3, 0, 2, 0, 3, 2), octave=0, vel=78)
+    bass = s.part("baixo sintetizado", SYNTH_BASS2, vol=94, reverb=20)
+    over(sec, steps, bass, "X.xxX.x.X.xxX.xx", tones=(0,), octave=-2, vel=88)
+    kit = s.part("bateria", 0, drums=True, vol=98, reverb=40)
+    drums(kit, {KICK: "X.....x.X.x.....", SNARE: "....X.......X...", HAT: "x.x.x.x.x.x.x.x."}, vel=94)
+    drums(kit, {CRASH: "X..............."}, bars=range(0, 40, 8), vel=98)
+    taiko = s.part("taiko", TAIKO, vol=104, reverb=60)
+    over(sec, hits, taiko, (0, 0.75, 2, 3), -1, 100)
+    brass = s.part("metais", BRASS, vol=106, reverb=80)
+    for bar in (0, 8, 24, 32):
+        theme(brass, bar * 4, octave=1, vel=104, answer=((0, 2), (4, 1), (5, 1), (6, 2), (4, 2)))
+    melody(brass, [(5, 4), (6, 4), (7, 6), (6, 2), (5, 4), (4, 4), (3, 4), (4, 4)], 1, 16 * 4, 104)
+    choir = s.part("coro", CHOIR, vol=90, reverb=100)
+    over(sec[2:], pad, choir, 1, 80)
+    lead = s.part("arpejo", SAW_LEAD, vol=62, reverb=50, pan=40)
+    over(sec[1:], arp, lead, 1, step=0.25, order=(0, 1, 2, 3, 2, 1, 0, 1), vel=56)
+    return s
+
+
+def futebol():
+    """Futebol: hino de estádio (fá maior, 128 bpm), metais, bumbo de arquibancada e caixa de banda."""
+    s = Song("trilha_futebol", 128, 32, key="F", mode="major", seed=45)
+    a, b = ["I", "V", "vi", "IV"], ["IV", "V", "I", "I"]
+    sec = [(a, range(0, 16)), (b, range(16, 24)), (a, range(24, 32))]
+    brass = s.part("metais", BRASS, vol=110, reverb=80)
+    for bar in (0, 8, 24):
+        theme(brass, bar * 4, octave=1, vel=104, answer=((0, 2), (4, 1), (5, 1), (4, 4)))
+        melody(brass, [(4, 2), (5, 2), (7, 4), (6, 2), (5, 2), (4, 4)], 1, bar * 4 + 16, 102)
+    melody(brass, [(2, 2), (4, 2), (5, 4), (4, 2), (5, 2), (7, 4), (9, 4), (8, 4), (7, 8)], 1, 16 * 4, 106)
+    tr = s.part("trompetes", TRUMPET, vol=96, reverb=80, pan=80)
+    over(sec, hits, tr, (1.5, 3.5), 1, 90, dur=0.3, tone=2)
+    st = s.part("cordas", STRINGS, vol=94, reverb=70)
+    over(sec, steps, st, "X.x.X.x.X.x.X.x.", tones=(0, 2, 3, 2), octave=0, vel=74)
+    kit = s.part("bateria de banda", 0, drums=True, vol=100, reverb=60)
+    drums(kit, {KICK: "X...X...X...X...", SNARE: "..x...x.X.xx..x.", CLAP: "....X.......X..."}, vel=92)
+    drums(kit, {CRASH: "X..............."}, bars=range(0, 32, 8), vel=98)
+    bass = s.part("baixo", SYNTH_BASS, vol=88, reverb=20)
+    over(sec, steps, bass, "X.x.X.x.X.x.X.x.", tones=(0,), octave=-2, vel=82, accent=0)
+    timp = s.part("tímpano", TIMPANI, vol=104, reverb=80)
+    over(sec, hits, timp, (0,), -1, 96)
+    return s
+
+
+def basquete():
+    """Basquete: groove de quadra (mi menor dórico, 96 bpm), baixo, bateria e metais curtos."""
+    s = Song("trilha_basquete", 96, 32, key="E", mode="dorian", seed=46)
+    a, b = ["i", "IV", "i", "IV"], ["VII", "IV", "v", "i"]
+    sec = [(a, range(0, 16)), (b, range(16, 24)), (a, range(24, 32))]
+    bass = s.part("baixo", FINGER_BASS, vol=96, reverb=20)
+    over(sec, steps, bass, "X..x..x.X.x..xx.", tones=(0, 0, 3, 0, 2, 0), octave=-2, vel=92)
+    kit = s.part("bateria", 0, drums=True, vol=100, reverb=40)
+    drums(kit, {KICK: "X.....x...X..x..", SNARE: "....X.......X..o", HAT: "x.xxx.x.x.xxx.x."}, vel=94)
+    ep = s.part("piano elétrico", E_PIANO, vol=84, reverb=70)
+    over(sec, steps, ep, "..x...x...x..x..", tones=(0, 1, 2), octave=0, vel=62, accent=0)
+    stab = s.part("metais curtos", BRASS, vol=100, reverb=60)
+    over(sec, hits, stab, (1.5, 3.25), 0, 96, dur=0.25, tone=1)
+    lead = s.part("tema", SAW_LEAD, vol=72, reverb=60, pan=80)
+    for bar in (0, 8, 24):
+        theme(lead, bar * 4, octave=1, vel=88, answer=((0, 2), (4, 1), (5, 1), (4, 4)))
+    melody(lead, [(4, 1), (4, 1), (5, 2), (4, 2), (2, 2), (0, 4), (None, 4)] * 2, 1, 16 * 4, 84)
+    return s
+
+
+def penaltis():
+    """Pênaltis: suspense (ré menor, 80 bpm, coração grave); a camada 2 sobe na hora decisiva."""
+    s = Song("trilha_penaltis", 80, 16, key="D", layers=2, seed=47)
+    s.level = 0.85
+    a = ["i", "i", "VI", "V"]
+    trem = s.part("cordas tremolo", TREMOLO, vol=94, reverb=100)
+    pad(trem, a, -1, 64, spread=True)
+    heart = s.part("coração", 0, drums=True, vol=96, reverb=50)
+    drums(heart, {KICK: "X..x............"}, vel=92)
+    piano = s.part("piano grave", PIANO, vol=86, reverb=100)
+    hits(piano, a, (0,), -2, 80, dur=3)
+    # hora decisiva
+    hi = s.part("cordas agudas", STRINGS, 1, vol=96, reverb=90)
+    for bar in range(0, 16, 2):
+        melody(hi, [(4, 1), (5, 1), (4, 1), (3, 1), (4, 4)], 2, bar * 4, 80)
+    taiko = s.part("taiko", TAIKO, 1, vol=104, reverb=70)
+    hits(taiko, a, (0, 2, 3, 3.5), -1, 98)
+    timp = s.part("tímpano", TIMPANI, 1, vol=104, reverb=80)
+    for bar in range(3, 16, 4):
+        roll(timp, s.deg(0, -1), bar * 4, 4, 30, 110)
+    return s
+
+
+def plantao():
+    """Plantão Soul Strike (novidades): abertura de telejornal (dó maior, 120 bpm), metais e caixa de marcha."""
+    s = Song("trilha_plantao", 120, 16, key="C", mode="major", seed=48)
+    a = ["I", "IV", "V", "I"]
+    brass = s.part("metais", BRASS, vol=104, reverb=80)
+    theme(brass, 0, octave=1, vel=100, answer=((0, 2), (4, 1), (5, 1), (7, 4)))
+    melody(brass, [(4, 1), (4, 1), (5, 2), (7, 4), (None, 8)], 1, 32, 96)
+    ep = s.part("pad", PAD_WARM, vol=76, reverb=90)
+    pad(ep, a, 0, 56)
+    bass = s.part("baixo", SYNTH_BASS, vol=86, reverb=20)
+    steps(bass, a, "X.x.x.x.X.x.x.x.", tones=(0,), octave=-2, vel=78, accent=0)
+    kit = s.part("caixa de marcha", 0, drums=True, vol=90, reverb=50)
+    drums(kit, {SNARE: "x.xxx.x.x.xxx.xx", KICK: "X.......X......."}, vel=74)
+    bells = s.part("sinos", GLOCK, vol=80, reverb=100)
+    arp(bells, a, 2, step=0.5, order=(0, 2, 4, 2), vel=56)
+    return s
+
+
+def vinheta_gol():
+    s = Song("vinheta_gol", 128, 2, key="F", mode="major", stinger=True, seed=49)
+    brass = s.part("metais", BRASS, vol=118, reverb=90)
+    melody(brass, [(0, 0.5), (2, 0.5), (4, 0.5), (7, 2.5)], 1, 0, 116)
+    tr = s.part("trompetes", TRUMPET, vol=106, reverb=90)
+    melody(tr, [(None, 1.5), (9, 2.5)], 1, 0, 108)
+    timp = s.part("tímpano", TIMPANI, vol=112, reverb=80)
+    roll(timp, s.deg(0, -1), 0, 1.5, 60, 118)
+    timp.n(1.5, 2, s.deg(0, -1), 124)
+    kit = s.part("pratos", 0, drums=True, vol=100, reverb=90)
+    kit.n(1.5, 2, CRASH, 120)
+    return s
+
+
+def vinheta_cesta():
+    s = Song("vinheta_cesta", 96, 1, key="E", mode="dorian", stinger=True, seed=50)
+    stab = s.part("metais", BRASS, vol=114, reverb=70)
+    for k in s.chord("i", 1):
+        stab.n(0, 0.25, k, 112)
+        stab.n(0.75, 1.5, k, 116)
+    hit = s.part("golpe", ORCH_HIT, vol=110, reverb=80)
+    hit.n(0.75, 1, s.deg(0, 0), 118)
+    kit = s.part("bateria", 0, drums=True, vol=100, reverb=60)
+    kit.n(0, 0.25, KICK, 110)
+    kit.n(0.75, 0.25, KICK, 118)
+    kit.n(0.75, 1, CRASH, 112)
+    return s
+
+
+SONGS = [menu, chefe_final, cap1, cap1_templo, cap2, cap3, cap4, chefe_templo, chefe_lag, chefe_clinica,
+         casa, garagem, city, arena, futebol, basquete, penaltis, plantao, vinheta_gol, vinheta_cesta, vinheta_vitoria, vinheta_derrota, vinheta_chefe, vinheta_fase]
 
 
 def main(names=()):

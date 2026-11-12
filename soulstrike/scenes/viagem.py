@@ -90,7 +90,7 @@ class CarTripScene(Scene):
     """A cena do City indo para a aventura. ``then`` monta a cena seguinte (a fase)."""
 
     phase = "story"
-    music = None
+    music = "city"
 
     def __init__(self, game, sprites, chapter, then, vehicle="city"):
         super().__init__(game)

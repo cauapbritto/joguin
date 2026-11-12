@@ -37,7 +37,7 @@ class Result:
 
 class Match(ABC):
     min_zoom = 0.6
-    music = "battle"
+    music = "arena"
 
     def __init__(self, game, session, map_key, arena=None):
         self.game = game
@@ -1003,6 +1003,7 @@ def snapshot(obj):
 
 
 class SoccerMatch(Match):
+    music = "futebol"
     replays = True            # mostra o replay do gol (o treino desliga)
     min_zoom = 0.5            # bem de longe a arte fica no tamanho original (pixel por pixel)
     GOAL_TOP, GOAL_BOTTOM = Pitch.GOAL_TOP, Pitch.GOAL_BOTTOM
@@ -2354,7 +2355,7 @@ class SoccerMatch(Match):
         self.replay_pending = self.replays
         self.hit_pause(GOAL_HITSTOP)        # "tranco": o jogo para por um instante e depois vai em câmera lenta
         self.slowmo = max(self.slowmo, GOAL_SLOWMO)
-        self.assets.play("victory", 0.5)
+        self.assets.fanfare("vinheta_gol", "victory")
         self.assets.play("torcida", 0.45)
         self.assets.play("gol_rede", 0.55)
         if self.golden_goal or (self.win_score is not None and self.score[scoring_team] >= self.win_score):
