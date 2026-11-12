@@ -797,7 +797,19 @@ class CoopMatch(Match):
         return best
 
     def focus_points(self):
-        return [(p.x, p.y - 20) for p in self.players]
+        pts = [(p.x, p.y - 20) for p in self.players if not self.leash_free(p)]
+        return pts or [(p.x, p.y - 20) for p in self.players]
+
+    def leash_free(self, p):
+        """Quem está fora da corda do grupo e do enquadramento (na Casa: quem está numa janela)."""
+        return False
+
+    def window_warning(self, f):
+        """Aviso por cima da janela de ``f`` (na Casa: a turma saindo, o LIBERAR TUDO)."""
+        return None
+
+    def menu_closed(self, f):
+        """Depois que a janela de ``f`` fecha (na Casa: volta para perto do grupo se ficou longe)."""
 
     def world_entities(self):
         return self.fighters + self.pickups + [p for p in self.props if not getattr(p, "flat", False)]
@@ -995,6 +1007,7 @@ class CoopMatch(Match):
             f.steer(0, 0)                   # parado no balcão enquanto escolhe
             if not menu.handle(inp) or not f.alive_in_match:
                 del self.menus[f]
+                self.menu_closed(f)
             return
         f.steer(*inp.axis())
         if (inp.pressed("attack") or inp.pressed("confirm")) and self.interact(f):
@@ -1202,13 +1215,14 @@ class CoopMatch(Match):
         """Ninguém se afasta demais do grupo: todos cabem na câmera.
         A correção pequena (a de todo quadro) anda passo a passo, para ninguém atravessar parede.
         Quem fica forçando o limite vê a seta do grupo e, depois de um tempo, aparece ao lado dele."""
-        if len(self.players) < 2:
+        tied = [p for p in self.players if not self.leash_free(p)]
+        if len(tied) < 2:
             return
-        for p in self.players:
+        for p in tied:
             if not p.alive_in_match:
                 self.strain[p] = 0
                 continue
-            others = [q for q in self.players if q is not p]
+            others = [q for q in tied if q is not p]
             min_x, max_x = min(q.x for q in others), max(q.x for q in others)
             min_y, max_y = min(q.y for q in others), max(q.y for q in others)
             x = min(max(p.x, max_x - LEASH_X), min_x + LEASH_X)
@@ -1225,6 +1239,15 @@ class CoopMatch(Match):
                 self.arena.resolve(p)
             else:
                 p._move(self, x - p.x, y - p.y)
+
+    def far_from_group(self, p):
+        """Fora da corda dos outros (os que não estão em janela)?"""
+        others = [q for q in self.players if q is not p and q.alive_in_match and not self.leash_free(q)]
+        if not others:
+            return False
+        min_x, max_x = min(q.x for q in others), max(q.x for q in others)
+        min_y, max_y = min(q.y for q in others), max(q.y for q in others)
+        return not (max_x - LEASH_X <= p.x <= min_x + LEASH_X and max_y - LEASH_Y <= p.y <= min_y + LEASH_Y)
 
     def group_center(self, p):
         others = [q for q in self.players if q is not p] or [p]
