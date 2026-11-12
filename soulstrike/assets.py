@@ -6,7 +6,8 @@ import unicodedata
 
 import pygame
 
-from . import config, settings
+from . import config
+from .som import MAX_SAME_SOUND, Mixer  # noqa: F401  (MAX_SAME_SOUND: usado nos testes)
 from .data import CHARACTERS, SHADOW_CHARACTERS
 
 DIRECTIONS = ("frente", "costas", "direita", "esquerda")
@@ -19,9 +20,18 @@ SPORT_POSES = (("pulo", 2), ("arremesso", 3), ("enterrada", 3), ("toco", 2), ("c
                ("comemora", 2), ("bate", 4), ("espera", 2), ("mergulho", 2))
 SHEET_FACTOR = 2                 # a arte é ampliada 2x sem suavizar
 TEAM_KITS = ("azul", "vermelho")  # uniforme do time 0 e do time 1 no futebol (characters/uniformes)
-MUSIC_VOLUME = 0.3               # música com o volume das opções no máximo
-MAX_SAME_SOUND = 3               # o mesmo efeito tocando junto no máximo (rajadas não viram parede de ruído)
-MUSIC_FILES = {"menu": "bgm.ogg", "battle": "battle_bgm.mp3", "camp": "camp_bgm.ogg", "boss": "boss_bgm.ogg", "boss_lag": "boss_lag_bgm.ogg"}
+MUSIC_FILES = {name: f"trilha_{name}.ogg" for name in ("menu", "casa", "garagem", "city", "arena", "futebol", "basquete",
+                                                    "plantao")}
+# música em camadas: base + camadas que a luta liga (Assets.music_intensity). Sem os arquivos, toca MUSIC_FILES.
+MUSIC_LAYERS = {name: tuple(f"trilha_{file}_{i}.ogg" for i in (1, 2, 3)[:count]) for name, file, count in (
+    ("cap1", "cap1", 2), ("templo", "templo", 2), ("cap2", "cap2", 2), ("cap3", "cap3", 2), ("cap4", "cap4", 2),
+    ("boss", "chefe_templo", 2), ("boss_lag", "chefe_lag", 2), ("boss_clinica", "chefe_clinica", 2),
+    ("boss_final", "chefe_final", 3), ("penaltis", "penaltis", 2))}
+# som de fundo que acompanha cada música (tools/gerar_efeitos.py)
+AMBIENCE = {"cap1": "ambiente_floresta", "templo": "ambiente_templo", "boss": "ambiente_templo",
+            "cap2": "ambiente_escritorio", "boss_lag": "ambiente_escritorio", "cap3": "ambiente_clinica",
+            "boss_clinica": "ambiente_clinica", "cap4": "ambiente_mansao", "boss_final": "ambiente_mansao",
+            "casa": "ambiente_quintal"}
 
 
 class SpriteSet:
@@ -84,13 +94,13 @@ class Assets:
     def __init__(self):
         self._fonts = {}
         self._text_cache = {}
-        self.sounds = {}
+        self.mixer = Mixer()
+        self.sounds = self.mixer.sounds
         self.sprites = {}
         self.backgrounds = {}
         self.wall_textures = {}
         self._qr = {}
         self._music = None
-        self.music_paused = False      # pausa do jogo: música muda
 
     # ── carga ────────────────────────────────
     def load_steps(self):
@@ -109,16 +119,7 @@ class Assets:
             pass
 
     def _load_sounds(self):
-        if pygame.mixer.get_init() is None:
-            try:
-                pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
-            except pygame.error:
-                return
-        for path in config.SOUNDS_DIR.glob("*.wav"):
-            try:
-                self.sounds[path.stem] = pygame.mixer.Sound(str(path))
-            except pygame.error:
-                pass
+        self.mixer.load(config.SOUNDS_DIR)
 
     def shadow_sprites(self, key):
         """Sprites da alma corrompida de um herói (gerados na primeira vez que alguém pede)."""
@@ -274,33 +275,61 @@ class Assets:
         return self.font(size).size(text)[0]
 
     # ── som ──────────────────────────────────
-    def play(self, name, volume=0.5):
-        sound = self.sounds.get(name)
-        if sound and sound.get_num_channels() < MAX_SAME_SOUND:
-            sound.set_volume(volume * settings.sfx_volume())
-            sound.play()
+    def play(self, name, volume=0.5, at=None):
+        """Toca um efeito. `at` = x no mundo: o som sai do lado da tela onde aconteceu."""
+        return self.mixer.play(name, volume, at)
+
+    def stinger(self, name, volume=0.7):
+        """Vinheta curta por cima da música (que abaixa enquanto ela toca)."""
+        return self.mixer.stinger(name, volume)
+
+    def fanfare(self, name, fallback=None, volume=0.5):
+        """Vinheta da trilha; sem o arquivo dela, toca o efeito antigo (`fallback`)."""
+        if self.mixer.stinger(name) is None and fallback:
+            self.play(fallback, volume)
+
+    def listen(self, left, width):
+        self.mixer.listen(left, width)
+
+    def music_intensity(self, level):
+        """Liga as camadas de cima da música atual (0 = só a base)."""
+        self.mixer.set_intensity(level)
+
+    def tick_audio(self):
+        self.mixer.tick()
+
+    @property
+    def music_paused(self):
+        return self.mixer.paused
 
     def music(self, name):
         if name == self._music or pygame.mixer.get_init() is None:
             return
-        path = config.SOUNDS_DIR / MUSIC_FILES[name] if name in MUSIC_FILES else None
         self._music = name
+        self.mixer.music_name = name
+        self.mixer.ambience(AMBIENCE.get(name))
+        layers = [config.SOUNDS_DIR / f for f in MUSIC_LAYERS.get(name, ())]
+        path = config.SOUNDS_DIR / MUSIC_FILES[name] if name in MUSIC_FILES else None
         try:
+            if layers and all(p.is_file() for p in layers):
+                pygame.mixer.music.fadeout(600)
+                self.mixer.paused = False
+                self.mixer.start_layers(layers)
+                return
+            self.mixer.stop_layers(600)
             if path is None or not path.is_file():
                 pygame.mixer.music.fadeout(600)
                 return
             pygame.mixer.music.load(str(path))
-            self.music_paused = False
-            pygame.mixer.music.set_volume(MUSIC_VOLUME * settings.music_volume())
+            self.mixer.paused = False
+            pygame.mixer.music.set_volume(self.mixer.music_volume())
             pygame.mixer.music.play(-1, fade_ms=600)
         except pygame.error:
             pass
 
     def apply_music_volume(self):
         """Volume da música mudou nas opções: vale já, sem recomeçar a faixa."""
-        if pygame.mixer.get_init():
-            volume = 0.0 if self.music_paused else MUSIC_VOLUME * settings.music_volume()
-            pygame.mixer.music.set_volume(volume)
+        self.mixer.apply_volume()
 
     def pause_music(self, paused):
         """Pausa: a música fica muda (sem parar a faixa).
@@ -308,13 +337,16 @@ class Assets:
         Não usa music.pause()/unpause(): no pygame 2.6 eles seguram o GIL enquanto esperam o
         áudio, e se um efeito terminar no mesmo instante o jogo trava para sempre.
         """
-        self.music_paused = paused
+        self.mixer.paused = paused
         self.apply_music_volume()
 
     def stop_music(self, fade_ms=1200):
         self._music = None
+        self.mixer.music_name = None
+        self.mixer.ambience(None)
         if pygame.mixer.get_init():
             pygame.mixer.music.fadeout(fade_ms)
+            self.mixer.stop_layers(fade_ms)
 
     # ── QR code ──────────────────────────────
     def qr(self, url, module=4, dark=(13, 11, 18), light=(234, 226, 206)):

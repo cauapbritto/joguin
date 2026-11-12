@@ -114,14 +114,14 @@ class PlayScene(Scene):
     qualquer um pausa). Um controle novo que aperta START assume uma CPU sem reiniciar."""
 
     phase = "playing"
-    music = "battle"
+    music = "arena"
     show_cursor = False
     REQUEST_FRAMES = 4 * config.FPS
 
     def __init__(self, game, match):
         super().__init__(game)
         self.match = match
-        self.music = getattr(match, "music", "battle")     # acampamento tem a sua música calma
+        self.music = getattr(match, "music", "arena")     # acampamento tem a sua música calma
         self.paused = False
         self.panel = "main"             # main | rules | som | confirm
         self.row = 0                    # linha das regras / do som

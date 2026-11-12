@@ -223,6 +223,7 @@ class HoopLayer(Entity):
 
 
 class BasketballMatch(Match):
+    music = "basquete"
     min_zoom = 0.6
     RIM_Z = Court.RIM_Z
 
@@ -347,7 +348,7 @@ class BasketballMatch(Match):
 
     def ball_bounced(self, ball):
         if ball.vz > 2:
-            self.assets.play("quique", min(0.45, ball.vz * 0.08))
+            self.assets.play("quique", min(0.45, ball.vz * 0.08), at=ball.x)
 
     # ── ações ────────────────────────────────
     def _give(self, f):
@@ -1399,6 +1400,8 @@ class BasketballMatch(Match):
             if shot.get("dunk"):
                 scorer.dunks += 1
         title = {3: "CESTA DE 3!", 4: "CESTA DE 4!", 5: "CESTA DE 5!"}.get(points, "CESTA!")
+        if points >= 3 and scorer is not None:
+            self.assets.stinger("vinheta_cesta", 0.6)
         if self.solo:
             ultra_rules.gain(self, scorer, "cesta")
             for f in self.fighters:

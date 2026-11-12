@@ -37,7 +37,7 @@ class Result:
 
 class Match(ABC):
     min_zoom = 0.6
-    music = "battle"
+    music = "arena"
 
     def __init__(self, game, session, map_key, arena=None):
         self.game = game
@@ -193,6 +193,7 @@ class Match(ABC):
     def update(self):
         if self.finished:
             return
+        self.assets.listen(self.camera.x, self.camera.view_size[0])     # som ganha lado pela tela
         if self.hitstop > 0:
             self.hitstop -= 1
             self.camera.focus(self.focus_points())
@@ -553,7 +554,8 @@ class BattleMatch(Match):
             self.assets.stop_music(1500)
             champion = max(self.sides(), key=lambda s: self.wins[s])
             human_won = any(not f.is_cpu for f in self.members(champion))
-            self.assets.play("victory" if human_won else "gameover", 0.5)
+            self.assets.fanfare("vinheta_vitoria" if human_won else "vinheta_derrota",
+                                "victory" if human_won else "gameover")
         else:
             self.assets.play("hit", 0.6)
 
@@ -1059,6 +1061,7 @@ def snapshot(obj):
 
 
 class SoccerMatch(Match):
+    music = "futebol"
     replays = True            # mostra o replay do gol (o treino desliga)
     min_zoom = 0.5            # bem de longe a arte fica no tamanho original (pixel por pixel)
     GOAL_TOP, GOAL_BOTTOM = Pitch.GOAL_TOP, Pitch.GOAL_BOTTOM
@@ -1375,8 +1378,8 @@ class SoccerMatch(Match):
             for k in range(5):
                 self.particles.append(Particle(ball.x - dx * 10 * k, ball.y - dy * 10 * k + random.uniform(-6, 6),
                                                -dx * 2, -dy * 2, (255, 250, 230), 10, 2))
-            self.assets.play("chute_forte", 0.45)
-        self.assets.play("chute", 0.3)
+            self.assets.play("chute_forte", 0.45, at=self.ball.x)
+        self.assets.play("chute", 0.3, at=self.ball.x)
         return True
 
     # ── marcar ───────────────────────────────
@@ -1471,7 +1474,7 @@ class SoccerMatch(Match):
         self.popup(f.x, f.y - 74, "AFASTOU", theme.BONE)
         self.burst(ball.x, ball.y, (236, 230, 220), 6, speed=3)
         self.camera.shake(2)
-        self.assets.play("chute", 0.35)
+        self.assets.play("chute", 0.35, at=self.ball.x)
         return True
 
     def incoming(self, f, horizon=24, reach=120):
@@ -1674,7 +1677,7 @@ class SoccerMatch(Match):
         f.facing = (dx, dy)
         self.last_touch = f
         self.popup(f.x, f.y - 74, "CRUZAMENTO", theme.BONE)
-        self.assets.play("chute", 0.3)
+        self.assets.play("chute", 0.3, at=self.ball.x)
         return True
 
     def pass_ball(self, f, high=False, direction=None, power=1.0):
@@ -1746,7 +1749,7 @@ class SoccerMatch(Match):
         ball.passer = f
         if mate is not None and not f.is_cpu:
             f.give_go = (mate, config.GIVE_GO_FRAMES)
-        self.assets.play("chute", 0.25)
+        self.assets.play("chute", 0.25, at=self.ball.x)
         return True
 
     def pass_target(self, f, mates, aim, cone):
@@ -1799,7 +1802,7 @@ class SoccerMatch(Match):
         mate.kick_cd, mate.kick_kind = 14, "chute"
         self.last_touch = mate
         self.popup(mate.x, mate.y - 74, "TABELA", theme.BONE)
-        self.assets.play("chute", 0.25)
+        self.assets.play("chute", 0.25, at=self.ball.x)
         return True
 
     def keeper_dive(self, f, stick=None):
@@ -2430,7 +2433,7 @@ class SoccerMatch(Match):
         self.replay_pending = self.replays
         self.hit_pause(GOAL_HITSTOP)        # "tranco": o jogo para por um instante e depois vai em câmera lenta
         self.slowmo = max(self.slowmo, GOAL_SLOWMO)
-        self.assets.play("victory", 0.5)
+        self.assets.fanfare("vinheta_gol", "victory")
         self.assets.play("torcida", 0.45)
         self.assets.play("gol_rede", 0.55)
         if self.golden_goal or (self.win_score is not None and self.score[scoring_team] >= self.win_score):

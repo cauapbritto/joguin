@@ -164,7 +164,7 @@ def goal_to_screen(x, y):
 class PenaltyScene(Scene):
     """Disputa (mode="penaltis"), treino sem fim (mode="treino_penaltis") ou desafio do goleiro."""
 
-    music = None
+    music = "penaltis"
     phase = "penalty"
     show_cursor = False
 
@@ -227,7 +227,6 @@ class PenaltyScene(Scene):
 
     def enter(self):
         super().enter()
-        self.assets.stop_music(600)
         self._publish()
 
     def phone_mode(self):
@@ -256,6 +255,8 @@ class PenaltyScene(Scene):
         else:
             kicker, keeper = s.kicker(), s.keeper()
         decisive = s.decisive() if self.mode == "penaltis" else False
+        # trilha: a camada de tensão entra na cobrança decisiva, nas alternadas e da 4ª em diante
+        self.assets.music_intensity(1 if decisive or s.sudden_death or s.number >= 4 else 0)
         self.kick = Kick(kicker, keeper, decisive=decisive)
         if not kicker.cpu:
             self.game.inputs[kicker.slot].set_layout("soccer")

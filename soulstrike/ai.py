@@ -118,10 +118,10 @@ class FighterAI:
         if threat and random.random() < cfg["dodge"]:
             bx, by = threat
             if me.dash((-by, bx) if random.random() < 0.5 else (by, -bx)):
-                match.assets.play("dash", 0.3)
+                match.assets.play("dash", 0.3, at=me.x)
         elif random.random() < cfg["dash"] and not reviving:
             if me.dash((ax, ay) if dist > 200 else (-ax, -ay)):
-                match.assets.play("dash", 0.3)
+                match.assets.play("dash", 0.3, at=me.x)
 
     def _manage_weapon(self, me, match, dist):
         """Sem munição e com o inimigo colado: troca para a arma de perto enquanto recarrega;

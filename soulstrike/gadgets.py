@@ -201,7 +201,7 @@ def on_melee(fighter, weapon, match, damage, special=True):
         from .enemies import Shockwave
         x, y = fighter.x + fx * 50, fighter.y + fy * 50
         match.add_effect(Shockwave(fighter, x, y, 110, round(damage * 0.7), stun=22, color=(90, 170, 255)))
-        match.assets.play("soco_metal", 0.5)
+        match.assets.play("soco_metal", 0.5, at=fighter.x)
 
 
 # ─────────────────────────────────────────────

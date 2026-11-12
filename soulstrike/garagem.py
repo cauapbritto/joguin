@@ -96,7 +96,7 @@ class GarageMatch(janelas.Janelas, CoopMatch):
     """A garagem lá embaixo. ``story`` e ``walk`` só passam adiante para a Casa na volta."""
 
     lobby = True
-    music = "camp"
+    music = "garagem"
     walk = False
 
     def __init__(self, game, run, story=False, walk=False):

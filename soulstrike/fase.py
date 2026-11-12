@@ -35,8 +35,6 @@ CHEST_STEP = 50               # uma sim outra não, mais para baixo
 class PhaseMatch(CampaignMatch):
     """A fase inteira. Fora das salas de luta é acampamento (sem ondas); dentro de uma, é masmorra."""
 
-    music = "camp"
-
     def __init__(self, game, run):
         self.layout = PhaseLayout.of(run.phase)
         arena = PhaseArena(self.layout, game.assets)
@@ -223,7 +221,7 @@ class PhaseMatch(CampaignMatch):
         self._set_banner(f"MASMORRA {room.order + 1}", title, theme.BLOOD if room.final else theme.BRASS)
         self.visited.add(room.key)
         self.assets.play("barrier", 0.5)
-        self.assets.music("battle")
+        self.assets.music(self.music)
         self.camera.shake(4)
 
     def _bring(self, p, leader):
@@ -270,7 +268,7 @@ class PhaseMatch(CampaignMatch):
         self.state = "explore"
         self.banner = None
         self.assets.play("barrier", 0.4)
-        self.assets.music("camp")
+        self.assets.music(self.music)
         if not self.rooms_left():
             final = self.layout.rooms["final"]
             for door in self.doors_of(final):
