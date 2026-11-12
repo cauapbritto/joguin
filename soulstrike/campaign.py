@@ -66,7 +66,7 @@ class Level:
     enrage: float = 0.2       # vida em que o chefão fica furioso
 
 
-# dificuldades da campanha (Ibrahim e Borba: piadas internas, cada uma mais difícil)
+# dificuldades da campanha (Ibrahin e Borba: piadas internas, cada uma mais difícil)
 LEVELS = {
     "facil": Level(0.75, 0.7, orbs=1.5, regen=2.0),
     "normal": Level(1.0, 1.0),
@@ -81,7 +81,7 @@ DIFFICULTY = {k: (v.hp, v.dmg) for k, v in LEVELS.items()}
 ORB_CHANCE = 0.35             # inimigo comum: chance de soltar um orbe de energia
 ELITE_ORBS = (3, 5)
 BOSS_ORBS = 18
-AFFIXES = {                   # poder extra (Ibrahim e Borba): brilho em volta de quem tem
+AFFIXES = {                   # poder extra (Ibrahin e Borba): brilho em volta de quem tem
     "blindado": ("BLINDADO", (150, 212, 240)),
     "veloz": ("VELOZ", (236, 198, 64)),
     "explosivo": ("EXPLOSIVO", (240, 96, 40)),
@@ -1632,7 +1632,7 @@ class CampaignMatch(CoopMatch):
         return enemy
 
     def _give_affix(self, enemy, affix):
-        """Ibrahim e Borba: o inimigo vem com um poder extra (e um brilho da cor dele)."""
+        """Ibrahin e Borba: o inimigo vem com um poder extra (e um brilho da cor dele)."""
         enemy.affix = affix
         enemy.aura = AFFIXES[affix][1]
         if affix == "blindado":

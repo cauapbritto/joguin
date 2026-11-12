@@ -14,7 +14,7 @@ DIFFICULTIES = {
                 "dash": 0.05, "ability": 0.2, "dodge": 0.6, "range": 200},
 }
 # dificuldades a mais, só na campanha (piadas internas do grupo); a CPU delas luta como a do difícil
-DIFFICULTIES["ibrahim"] = dict(DIFFICULTIES["dificil"], label="IBRAHIM", reaction=2, dodge=0.7,
+DIFFICULTIES["ibrahim"] = dict(DIFFICULTIES["dificil"], label="IBRAHIN", reaction=2, dodge=0.7,
                                tagline='"TOMA CUIDADO JOVI, ESSE É DIFÍCIL"')
 DIFFICULTIES["borba"] = dict(DIFFICULTIES["dificil"], label="BORBA", reaction=1, scatter=0.04, fire=0.95,
                              dodge=0.8, ability=0.3, tagline='"SENSACIONAL"')

@@ -97,7 +97,7 @@ class BossAI(EnemyAI):
     def __init__(self, difficulty="normal", players=1):
         super().__init__(difficulty)
         self.players = players
-        # Ibrahim e Borba: fica furioso mais cedo (no Borba, com metade da vida: é quase uma fase a mais)
+        # Ibrahin e Borba: fica furioso mais cedo (no Borba, com metade da vida: é quase uma fase a mais)
         from .campaign import LEVELS
         self.enrage_at = LEVELS[difficulty].enrage if difficulty in LEVELS else 0.2
         self.state = "walk"

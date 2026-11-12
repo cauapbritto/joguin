@@ -263,7 +263,7 @@ CPU. Um controle ou celular novo que aperta START numa vaga de CPU **entra no me
   e cada jogador escolhe **1 de 3 melhorias** (vida, dano, recarga, velocidade, tiros que
   atravessam, esquiva, vampirismo, escudo, munição ou energia), que se acumulam. Mais jogadores, mais inimigos.
   O jogador 1 sempre joga; o 2 entra pelo teclado (tecla `;`) ou celular; o 3 e o 4, pelo celular.
-  Escolha a dificuldade na seleção de personagem (TAB): **Fácil**, **Normal**, **Difícil**, **Ibrahim**
+  Escolha a dificuldade na seleção de personagem (TAB): **Fácil**, **Normal**, **Difícil**, **Ibrahin**
   (inimigos com poderes extras, só 1 continue, loja mais cara) ou **Borba** (ainda mais forte, sem cura
   entre as fases e cada um só levanta uma vez por masmorra). `tools/simular_campanha.py` compara as
   dificuldades com robôs. Zerar o capítulo 1 libera o **Aryel

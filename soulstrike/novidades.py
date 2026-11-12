@@ -12,6 +12,12 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.47.0": [
+        {"title": "IBRAHIN COM N", "scene": "loja", "lines": [
+            "A dificuldade agora se escreve do jeito certo: IBRAHIN, com N no final.",
+            "Nada muda no seu progresso: selos, cacos e recordes continuam lá.",
+        ]},
+    ],
     "1.46.0": [
         {"title": "FORJADA COM COMPANHIA", "scene": "loja", "lines": [
             "Fundiu as três armas? Agora dá para pegar arma comum de novo, ao lado da forjada.",
@@ -27,7 +33,7 @@ NEWS = {
         {"title": "ENERGIA NA LOJA", "scene": "loja", "lines": [
             "A loja da fase agora vende ENERGIA: 20 almas enchem 100 da barra, metade dela.",
             "Tem na lojinha da sala inicial e na loja completa, logo abaixo da poção de vida.",
-            "Barra cheia, a loja não deixa comprar. No Ibrahim e no Borba, fica mais cara como o resto.",
+            "Barra cheia, a loja não deixa comprar. No Ibrahin e no Borba, fica mais cara como o resto.",
             "Pelo celular também: o item aparece com um frasco azul.",
         ]},
     ],
@@ -444,8 +450,8 @@ NEWS = {
     ],
     "1.13.0": [
         {"title": "CINCO DIFICULDADES", "scene": "perigos", "lines": [
-            "A campanha agora tem FÁCIL, NORMAL, DIFÍCIL, IBRAHIM e BORBA.",
-            "IBRAHIM: toma cuidado jovi, esse é difícil. Inimigos com poderes extras e só 1 continue.",
+            "A campanha agora tem FÁCIL, NORMAL, DIFÍCIL, IBRAHIN e BORBA.",
+            "IBRAHIN: toma cuidado jovi, esse é difícil. Inimigos com poderes extras e só 1 continue.",
             "BORBA: sensacional. Sem cura entre as fases e cada um só é levantado uma vez por masmorra.",
         ]},
         {"title": "ENERGIA", "scene": "almas", "lines": [

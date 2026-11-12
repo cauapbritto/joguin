@@ -446,7 +446,7 @@ class CharSelectScene(_MenuScene):
 
     def _cycle_difficulty(self, step):
         s = self.game.session
-        order = CAMPAIGN_ORDER if self.campaign else DIFFICULTY_ORDER     # Ibrahim e Borba só na campanha
+        order = CAMPAIGN_ORDER if self.campaign else DIFFICULTY_ORDER     # Ibrahin e Borba só na campanha
         i = order.index(s.difficulty) if s.difficulty in order else 1
         s.difficulty = order[(i + step) % len(order)]
         self.sfx("click", 0.4)

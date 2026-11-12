@@ -359,7 +359,7 @@ class MarketMenu:
         if self.stall.kind == "altar":
             return self._altar()
         out = self._shop() if self.stall.kind == "loja" else self._forge()
-        mult = getattr(self.run, "price_mult", 1.0)          # Ibrahim e Borba: tudo mais caro
+        mult = getattr(self.run, "price_mult", 1.0)          # Ibrahin e Borba: tudo mais caro
         if mult != 1.0:
             for e in out:
                 if e.cost > 0:

@@ -223,7 +223,7 @@ class DificuldadesTest(unittest.TestCase):
         dmg = [LEVELS[k].dmg for k in CAMPAIGN_ORDER]
         self.assertEqual(hp, sorted(hp))
         self.assertEqual(dmg, sorted(dmg))
-        self.assertEqual(DIFFICULTIES["ibrahim"]["label"], "IBRAHIM")
+        self.assertEqual(DIFFICULTIES["ibrahim"]["label"], "IBRAHIN")
         self.assertIn("TOMA CUIDADO JOVI", DIFFICULTIES["ibrahim"]["tagline"])
         self.assertIn("SENSACIONAL", DIFFICULTIES["borba"]["tagline"])
 
