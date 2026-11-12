@@ -12,6 +12,63 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.56.0": [
+        {"title": "A MAIOR ATUALIZAÇÃO ATÉ AQUI", "scene": "novidades", "tv": "extra", "lines": [
+            "46 armas novas, 41 forjadas, 12 equipamentos, 9 pets com vida, 17 segredos e trilha nova.",
+            "E ainda: celular remasterizado, janelas pequenas na Casa e energia mais justa.",
+            "ENTER passa as notícias. Cada uma tem a sua edição completa em OPÇÕES > NOVIDADES.",
+        ]},
+        {"title": "46 ARMAS NOVAS E A EXCALITORA", "scene": "loja", "tv": "arsenal", "lines": [
+            "Tocha, Bisturi, Cadeira Gamer, Fax Lança-Papéis, Taser Elétrico Eletrizante e muitas mais.",
+            "Cada fase tem um baú com 5 armas só dele. Nenhuma repete de uma fase para outra.",
+            "No Gabinete da Mansão mora a EXCALITORA: enorme, alcança longe e não gasta energia.",
+        ]},
+        {"title": "BOLSA DE 3 ARMAS", "scene": "hud", "tv": "bolsa", "lines": [
+            "Cada jogador leva até 3 armas, de qualquer tipo: comum, rara ou forjada.",
+            "Bolsa cheia? A arma nova troca pela da mão, e a velha fica no chão, à vista de todo mundo.",
+            "Arma largada não some mais. Um amigo pode pegar de volta.",
+        ]},
+        {"title": "ENERGIA QUE VOLTA LUTANDO", "scene": "hud", "tv": "energia", "lines": [
+            "Golpe normal de arma rara de perto agora é de graça. Só o efeito especial gasta.",
+            "Depois da habilidade, cada acerto devolve +3. Elites e chefões soltam orbe de +15.",
+            "Segure LARGAR perto de um amigo para passar 20 de energia para ele.",
+        ]},
+        {"title": "41 FORJADAS NOVAS", "scene": "loja", "tv": "forja", "lines": [
+            "O ferreiro agora conhece 49 forjadas: híbridas, de assinatura do herói e secretas.",
+            "O LIVRO DE RECEITAS mostra quantas a turma já descobriu e dá dica das que faltam.",
+            "E a arma mostra o ferreiro: brilha no +1, contorno de ouro no +2 e aura no +3.",
+        ]},
+        {"title": "12 EQUIPAMENTOS", "scene": "almas", "tv": "equipamento", "lines": [
+            "Cada herói ganhou uma vaga de EQUIPAMENTO, ao lado da bolsa de armas.",
+            "Mochila Grande dá uma 4ª vaga, Bota de Mola alonga a esquiva, Presa de Vampiro devolve vida...",
+            "E a Capa da IARA segura o golpe que derrubaria você, uma vez por etapa.",
+        ]},
+        {"title": "PETS COM VIDA", "scene": "casa", "tv": "pets", "lines": [
+            "Os 9 pets foram redesenhados com 6 jeitos: parado, andando, feliz, susto, dormindo e uma graça só deles.",
+            "Eles falam num balãozinho, com som, e buscam vida, munição ou energia caída perto de você.",
+            "Antes do golpe forte do chefe, o pet leva um susto e solta um \"!\": é a hora de desviar.",
+        ]},
+        {"title": "TRILHA NOVA, COM ORQUESTRA", "scene": "novidades", "tv": "trilha", "lines": [
+            "Mais de 20 faixas novas com orquestra, coro, taikos e sintetizador, todas com o mesmo tema.",
+            "Cada capítulo tem a sua música, que cresce quando a sala de luta fecha e de novo na fúria do chefão.",
+            "Os efeitos foram refeitos em camadas e saem do lado da tela onde aconteceram.",
+        ]},
+        {"title": "TEM SEGREDO POR AÍ", "scene": "casa", "tv": "segredos", "lines": [
+            "17 detalhezinhos escondidos na Casa, na campanha e nos modos. O jogo não avisa nada.",
+            "Achou um? Aparece um textinho pequeno e entram 5 CACOS no pote, na primeira vez.",
+            "O CADERNO DE SEGREDOS, no computador do Cauanzera, mostra o que falta com uma dica vaga.",
+        ]},
+        {"title": "CELULAR REMASTERIZADO", "scene": "controle", "tv": "celular_novo", "lines": [
+            "Todas as telas do celular foram refeitas: letra nítida, molduras de pixel e tudo cabendo.",
+            "Loja, ferreiro, altar e armário em grade de cartões, com quem atende a banca aparecendo.",
+            "O ATACAR mostra a arma na mão, e o botão TESTAR VIBRAÇÃO diz por que o celular não vibra.",
+        ]},
+        {"title": "JANELAS PEQUENAS NA CASA", "scene": "casa", "tv": "janelas", "lines": [
+            "Computador, loja de CACOS, armário e garagem abrem numa janela pequena ao lado de quem abriu.",
+            "Quem está na janela sai da corda do grupo: o resto da turma anda livre.",
+            "O computador virou lista: nada de digitar. E a dificuldade agora é IBRAHIN, com N.",
+        ]},
+    ],
     "1.55.0": [
         {"title": "VAGA DE EQUIPAMENTO", "scene": "hud", "lines": [
             "Cada herói ganhou uma vaga de EQUIPAMENTO, ao lado da bolsa de armas. Um por vez.",
@@ -816,7 +873,27 @@ def pending(seen, current=__version__):
         return [(current, NEWS[current])] if current in NEWS else []
     last = parse_version(seen)
     found = [(v, lines) for v, lines in NEWS.items() if last < parse_version(v) <= now]
-    return sorted(found, key=lambda item: parse_version(item[0]), reverse=True)
+    return sorted(_covered(found), key=lambda item: parse_version(item[0]), reverse=True)
+
+
+# edições extraordinárias: uma versão que conta sozinha tudo o que mudou desde outra
+# (quem atualiza de antes dela vê só a extraordinária; as edições do meio ficam no ARQUIVO)
+SPECIAL = {"1.56.0": "1.46.0"}
+
+
+def special(version):
+    return version in SPECIAL
+
+
+def _covered(found):
+    """Tira as versões que uma edição extraordinária da lista já conta."""
+    out = []
+    for version, entry in found:
+        covered = any(parse_version(SPECIAL[v]) < parse_version(version) < parse_version(v)
+                      for v, _ in found if v in SPECIAL)
+        if not covered:
+            out.append((version, entry))
+    return out
 
 
 def to_show():

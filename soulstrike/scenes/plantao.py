@@ -15,6 +15,7 @@ import pygame
 
 from .. import config, novidades, theme
 from ..updater import parse_version
+from . import plantao_extra
 from .menus import NEWS_SCENES, _InfoScene, cover_image
 
 W, H = config.SCREEN_W, config.SCREEN_H
@@ -36,6 +37,7 @@ REVEAL_EVERY = 14         # na abertura, uma manchete a cada tanto de quadros
 TOPICS = {
     "campanha": ("CAMPANHA", theme.MOSS), "celular": ("CELULAR", theme.SKY), "futebol": ("FUTEBOL", (96, 200, 120)),
     "basquete": ("BASQUETE", theme.EMBER), "jogo": ("JOGO", theme.BRASS), "plantao": ("PLANTÃO", RED),
+    "armas": ("ARSENAL", (240, 150, 70)), "som": ("TRILHA", (170, 120, 250)), "casa": ("CASA", theme.MOSS),
 }
 SCENE_TOPIC = {
     "almas": "campanha", "loja": "campanha", "lag": "campanha", "perigos": "campanha", "chefao_lag": "campanha",
@@ -493,6 +495,8 @@ def tv_mansao(screen, ui, rect, t):
 
 
 FOOTAGE = {"vibra": tv_vibra, "porta": tv_porta, "fase": tv_fase, "batalha": tv_batalha, "mansao": tv_mansao}
+FOOTAGE.update(plantao_extra.FOOTAGE)                    # a edição extraordinária da 1.56.0
+TV_TOPIC.update(plantao_extra.TOPIC)
 
 
 def draw_footage(screen, ui, story, rect, t):
@@ -556,14 +560,15 @@ class NewsScene(_InfoScene):
         super().__init__(game)
         self.news = list(news) if back is not None else list(news)[:MAX_AUTO]
         self.back = back
-        self.opening = back is None and bool(self.news)
+        self.special = bool(self.news) and novidades.special(self.news[0][0])
+        self.opening = back is None and bool(self.news) and not self.special
         self.stories = [s for version, entry in self.news for s in stories_of(self.ui, version, entry)]
         # pages: o que ENTER/setas percorrem (a abertura é a página 0 quando existe)
         self.pages = ([None] if self.opening else []) + self.stories
         self.page = 0
         self.age = 0
         self.seen = {0}
-        self.reveal = 0 if self.opening else len(self.stories)
+        self.reveal = 0 if self.opening or (self.special and back is None) else len(self.stories)
         self.ticker = old_editions_text(self.news[-1][0]) if self.news else ""
         self.summary = [line for _, entry in self.news[:1] for line in novidades.summary(entry)]
 
@@ -695,12 +700,14 @@ class NewsScene(_InfoScene):
             body(screen, ui, BODY, [f"O jogo foi atualizado: {what}, com {n} novidade{'s' if n > 1 else ''}.",
                                     "ENTER mostra uma por uma. ESC pula direto para o jogo."], self.age)
         else:
-            header(screen, ui, t, f"EDIÇÃO {story.version}", f"NOTÍCIA {self.story_index + 1} DE {n}")
+            edition = "EDIÇÃO EXTRAORDINÁRIA" if novidades.special(story.version) else f"EDIÇÃO {story.version}"
+            header(screen, ui, t, edition, f"NOTÍCIA {self.story_index + 1} DE {n}")
             static = max(0.0, 1 - self.age / STATIC_FRAMES) * 0.9 if self.age < STATIC_FRAMES else 0
             draw_tv(screen, ui, TV, story, t, "AO VIVO" if self.back is None else "REPRISE",
                     f"{self.story_index + 1}/{n}", static)
             name, color = story.topic
-            lower_third(screen, ui, TV, f"VERSÃO {story.version} · {name}", story.label, color,
+            kicker = "URGENTE" if story.tv == "extra" else f"VERSÃO {story.version} · {name}"
+            lower_third(screen, ui, TV, kicker, story.label, RED if story.tv == "extra" else color,
                         (self.age - STATIC_FRAMES // 2) / SLIDE_FRAMES)
             body(screen, ui, BODY, story.lines, self.age - STATIC_FRAMES // 2)
         self.draw_rundown(screen)
