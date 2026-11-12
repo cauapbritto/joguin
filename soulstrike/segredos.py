@@ -33,6 +33,10 @@ SECRETS = (
     ("laser", "CAMPANHA", "SEM UM ARRANHÃO", "A SALA DO LASER, LIMPINHA"),
     ("ninguem", "CAMPANHA", "...NINGUÉM?", "DEIXE O CHEFE DESCANSAR"),
     ("high_five", "CAMPANHA", "TOCA AQUI", "LEVANTOU? COMEMOREM JUNTOS"),
+    ("feno", "MODOS", "FAROESTE", "NO DUELO, NINGUÉM SE MEXE"),
+    ("trave", "MODOS", "SÓCIO DA TRAVE", "A TRAVE GOSTA DE ALGUÉM"),
+    ("cuiaba", "MODOS", "FOI PRA CUIABÁ", "ISOLE UM PÊNALTI. BEM ALTO."),
+    ("estouro", "MODOS", "NO ESTOURO", "DE 3 COM O RELÓGIO ACABANDO"),
 )
 BY_KEY = {s[0]: s for s in SECRETS}
 

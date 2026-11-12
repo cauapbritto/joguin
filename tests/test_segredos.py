@@ -240,3 +240,101 @@ class Campanha(unittest.TestCase):
         self.assertFalse(segredos.is_found("high_five"))
         match._high_five(b)
         self.assertTrue(segredos.is_found("high_five"))
+
+
+class Modos(unittest.TestCase):
+    def setUp(self):
+        reset_progress()
+
+    def test_duelo_parado_passa_o_feno(self):
+        from soulstrike.matches import STANDOFF_FRAMES, BattleMatch, Tumbleweed
+        from soulstrike.session import Session, SlotSetup
+        from apoio import FakeInput
+        g = game()
+        g.session = Session("duel", [SlotSetup(1, char=0), SlotSetup(2, char=1)])
+        match = BattleMatch(g, g.session)
+        for f in match.fighters:
+            match.controllers[f] = FakeInput()
+        for _ in range(config.ROUND_INTRO_FRAMES + STANDOFF_FRAMES + 5):
+            match.update()
+        self.assertTrue(any(isinstance(e, Tumbleweed) for e in match.effects))
+        self.assertTrue(segredos.is_found("feno"))
+        match.draw(g.screen, g.ui)
+
+    def test_duelo_com_alguem_andando_nao_tem_feno(self):
+        from soulstrike.matches import STANDOFF_FRAMES, BattleMatch
+        from soulstrike.session import Session, SlotSetup
+        from apoio import FakeInput
+        g = game()
+        g.session = Session("duel", [SlotSetup(1, char=0), SlotSetup(2, char=1)])
+        match = BattleMatch(g, g.session)
+        inp = FakeInput()
+        for f in match.fighters:
+            match.controllers[f] = FakeInput()
+        match.controllers[match.fighters[0]] = inp
+        inp.stick = (1.0, 0.0)
+        for _ in range(config.ROUND_INTRO_FRAMES + STANDOFF_FRAMES + 5):
+            match.update()
+        self.assertFalse(segredos.is_found("feno"))
+
+    def test_socio_da_trave(self):
+        from apoio import futebol
+        from soulstrike.matches import POST_CLUB
+        match, _ = futebol()
+        f = match.fighters[0]
+        g = match.goals[1]
+        for _ in range(POST_CLUB):
+            match.last_touch = f
+            ball = match.ball
+            ball.x, ball.y = g.rect.x - 4, g.rect.y
+            ball.vx, ball.vy = 1.0, 0.0
+            match._post_check(ball, (-8.0, 0.0))
+        self.assertTrue(segredos.is_found("trave"))
+
+    def test_bola_devagar_nao_e_trave(self):
+        from apoio import futebol
+        match, _ = futebol()
+        match.last_touch = match.fighters[0]
+        g = match.goals[1]
+        for _ in range(5):
+            match.ball.x, match.ball.y = g.rect.x - 4, g.rect.y
+            match._post_check(match.ball, (-1.0, 0.0))
+        self.assertFalse(segredos.is_found("trave"))
+
+    def test_de_tres_no_estouro(self):
+        from test_basquete import arremesso, basquete
+        match, _ = basquete()
+        match.clock = 2 * config.FPS
+        side = match.hoop_of(0)
+        from soulstrike.arena import Court
+        hx = Court.hoop_x(side)
+        x = hx + (560 if side == 0 else -560)
+        arremesso(match, 0, x, Court.MID_Y)
+        self.assertGreater(match.score[0], 0)
+        self.assertTrue(segredos.is_found("estouro"))
+
+    def test_de_tres_no_meio_do_jogo_nao_conta(self):
+        from test_basquete import arremesso, basquete
+        from soulstrike.arena import Court
+        match, _ = basquete()
+        side = match.hoop_of(0)
+        hx = Court.hoop_x(side)
+        arremesso(match, 0, hx + (560 if side == 0 else -560), Court.MID_Y)
+        self.assertFalse(segredos.is_found("estouro"))
+
+    def test_penalti_foi_pra_cuiaba(self):
+        from soulstrike import penalty as P
+        from soulstrike.scenes import penalty as S
+        from test_penaltis import cena
+        teams = [[S.Taker("matador", 0, slot=1, cpu=False)], [S.Taker("paredao", 1)]]
+        scene = cena(teams, inputs=(1,))
+        scene._next_kick()
+        k = scene.kick
+        k.shot = P.Shot(0.5, 1.5, 30, kind="isolou")
+        scene.rng.random = lambda: 0.0
+        scene._resolve()
+        self.assertTrue(getattr(k, "cuiaba", False))
+        self.assertTrue(segredos.is_found("cuiaba"))
+        for _ in range(40):
+            scene.update()
+            scene.draw(game().screen)
