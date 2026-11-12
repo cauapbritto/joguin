@@ -530,6 +530,8 @@ body.lefty #stick-base { left: auto; right: calc(var(--pad) + 30px); }
 #hud-bar .btn.small { min-height: 30px; padding: 4px 8px 2px; font-size: 9px; }
 #hud-bar .btn:disabled { opacity: .4; }
 #hud-sel { min-width: 15ch; color: var(--brass); }
+#hud-test-msg { color: var(--brass); }
+#hud-test-msg:empty { display: none; }
 .hud-group { display: inline-flex; align-items: center; gap: 4px; }
 .hud-group i { font-style: normal; color: var(--muted); }
 .hud-group b { font-weight: normal; min-width: 4ch; text-align: center; }

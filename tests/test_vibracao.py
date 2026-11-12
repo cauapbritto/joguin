@@ -62,6 +62,12 @@ class HubTest(unittest.TestCase):
             self.assertTrue(hub.buzz(3, "hit"))
             self.assertEqual(cel.buzz, [n + 3, "hit"])
 
+    def test_status_diz_se_a_opcao_esta_ligada(self):
+        with Celular(3) as cel, mock.patch.object(settings, "get", side_effect=lambda k: k != "vibracao"):
+            self.assertIs(hub.status(3, cel.token)["me"]["vibracao"], False)
+        with Celular(3) as cel, mock.patch.object(settings, "get", return_value=True):
+            self.assertIs(hub.status(3, cel.token)["me"]["vibracao"], True)
+
     def test_sem_celular_nao_vibra(self):
         self.assertFalse(hub.buzz(4, "hit"))
 
