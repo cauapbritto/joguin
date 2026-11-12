@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import pygame
 
-from . import config, energia, hud, rumble, theme
+from . import config, energia, equipamento, hud, rumble, theme
 from .ai import FighterAI
 from .entities import Particle, Pickup
 from .enemies import BIG_KINDS, CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_enemy
@@ -345,6 +345,7 @@ class CampaignRun:
         self.start_chapter = 1                            # 2: começou direto no capítulo 2 (sem recorde de tempo)
         self.rack = []                                    # armário do acampamento: armas guardadas (armario.token_of)
         self.armor = {}                                   # armadura de Uno (capítulo 1): slot -> golpes que segura
+        self.gear = {s: None for s in self.slots}         # equipamento de cada jogador (equipamento.GEAR)
         self.vehicle = "city"                             # com o que o grupo sai da Casa (garagem)
         self.rush = bool(getattr(session, "rush", False))   # Reunião dos Corrompidos (só os chefes)
         self._snapshot = None
@@ -441,7 +442,7 @@ class CampaignRun:
         return {k: copy.deepcopy(getattr(self, k))
                 for k in ("phase_index", "continues", "upgrades", "hp_ratio", "kills", "damage", "frames",
                           "stage", "chest_open", "bags", "held", "souls", "forge", "rerolls",
-                          "fused_phase", "curse", "start_chapter", "rack", "armor")}
+                          "fused_phase", "curse", "start_chapter", "rack", "armor", "gear")}
 
     # ── almas ────────────────────────────────
     def wallet(self, slot):
@@ -478,8 +479,12 @@ class CampaignRun:
         if tokens is None:
             fighter.bag = list(fighter.stats.weapons)
         else:
-            fighter.bag = [w for w in (weapon_of(t) for t in tokens) if w is not None][:BAG_SIZE]
+            fighter.bag = [w for w in (weapon_of(t) for t in tokens) if w is not None]
         apply_all(fighter, self.upgrades.get(fighter.slot, ()))
+        fighter.gear = self.gear.get(fighter.slot)
+        if fighter.gear is not None:
+            equipamento.apply(fighter, fighter.gear)
+        fighter.bag = fighter.bag[:fighter.bag_size]
         fighter.weapon_index = min(self.held.get(fighter.slot, 0), len(fighter.weapons) - 1)
         fighter.hp = max(1, round(fighter.max_hp * self.hp_ratio.get(fighter.slot, 1.0)))
         # armadura de Uno: só vale no capítulo 1 (ficou na floresta)
@@ -496,6 +501,7 @@ class CampaignRun:
             self.damage[f.slot] += f.damage_dealt
             self.held[f.slot] = f.weapon_index
             self.keep_bag(f)
+            self.gear[f.slot] = f.gear
             if f.uno_hits > 0 and self.chapter == 1:
                 self.armor[f.slot] = f.uno_hits
             else:
@@ -571,7 +577,7 @@ class CampaignRun:
                         return None
                     if tokens is not None:
                         tokens = [str(t) for t in tokens]
-                        if len(tokens) > BAG_SIZE or any(weapon_of(t) is None for t in tokens):
+                        if len(tokens) > BAG_SIZE + 1 or any(weapon_of(t) is None for t in tokens):
                             return None
                     run.bags[int(k)] = tokens
             else:
@@ -609,6 +615,10 @@ class CampaignRun:
             if any(weapon_of(t) is None for t in rack):
                 return None
             run.rack = rack
+            for s, key in {int(k): v for k, v in state.get("gear", {}).items()}.items():    # saves antigos não têm
+                if s not in run.slots or (key is not None and key not in equipamento.GEAR):
+                    return None
+                run.gear[s] = key
             for s, n in {int(k): v for k, v in state.get("rerolls", {}).items()}.items():
                 if s not in run.slots:
                     return None
@@ -778,6 +788,7 @@ class CoopMatch(Match):
         self.pickups = []
         self.props = []                 # entrada, fogueira, baú, porta, portal...
         self.ground = []                # armas no chão (largadas ou derrubadas por inimigos)
+        self.gear_items = []            # equipamentos no chão
         self.menus = {}                 # menu do mercado aberto, por jogador
         self.revive_progress = {f: 0.0 for f in self.players}
         self.strain = {f: 0 for f in self.players}     # quadros forçando o limite do grupo
@@ -920,6 +931,15 @@ class CoopMatch(Match):
     def pick_ground(self, f):
         """Pega a arma do chão mais perto. Com vaga na bolsa ela só entra; com a bolsa cheia troca
         pela da mão, que fica no lugar dela (qualquer arma, até a do próprio herói)."""
+        gear = [g for g in self.gear_items if g.alive and g.can_pick(f)]
+        if gear:
+            item = min(gear, key=f.distance_to)
+            item.alive = False
+            self.gear_items.remove(item)
+            if item in self.props:
+                self.props.remove(item)
+            self.equip(f, item.key, drop_at=(item.x, item.y))
+            return True
         near = [g for g in self.ground if g.alive and g.can_pick(f)]
         if not near:
             return False
@@ -943,6 +963,36 @@ class CoopMatch(Match):
     # nomes antigos (loja, testes): agora tudo entra na bolsa do mesmo jeito
     give_relic = give_weapon
     give_common = give_weapon
+
+    # ── equipamento ──────────────────────────
+    def equip(self, f, key, drop_at=None):
+        """Coloca o equipamento na vaga; o que estava lá cai no chão (no lugar do novo)."""
+        old = f.gear
+        if old is not None:
+            equipamento.remove(f, old)
+            self.drop_gear(f, old, at=drop_at)
+        f.gear = key
+        equipamento.apply(f, key, live=True)
+        if key == "mochila" or old == "mochila":
+            while f.bag is not None and len(f.bag) > f.bag_size:      # sem a mochila, a 4ª cai no chão
+                f.weapon_index = len(f.bag) - 1
+                self.drop_weapon(f, f.take_out())
+            self.run.keep_bag(f)
+        self.run.gear[f.slot] = key
+        g = equipamento.GEAR[key]
+        self.popup(f.x, f.y - 80, g.name.upper(), g.color)
+        self.burst(f.x, f.y - 20, g.color, 18, speed=4)
+        self.assets.play("select", 0.5)
+
+    def drop_gear(self, owner, key, at=None, start=None):
+        if at is None:
+            fx, fy = getattr(owner, "facing", (0, 1))
+            at = (owner.x - fx * 52, owner.y - fy * 52 + 10)
+        x, y = self.arena.free_spot(at[0], at[1], 16)
+        item = equipamento.GroundGear(key, start or (owner.x, owner.y - 20), (x, y))
+        self.gear_items.append(item)
+        self.props.append(item)
+        return item
 
     def _got_weapon(self, fighter, weapon):
         color = rarity_color(weapon)
@@ -976,7 +1026,11 @@ class CoopMatch(Match):
             items = [g for g in self.ground if g.can_pick(p)]
             if items:
                 nearest.add(min(items, key=p.distance_to))
-        for item in self.ground:
+        for p in self.alive_players:
+            items = [g for g in self.gear_items if g.can_pick(p)]
+            if items:
+                nearest.add(min(items, key=p.distance_to))
+        for item in self.ground + self.gear_items:
             item.draw_prompt(screen, cam, ui, self.frame, item in nearest)
 
     def _human(self, f, inp):
@@ -1100,7 +1154,7 @@ class CoopMatch(Match):
 
     def rack_prompt(self, f):
         """O que ATACAR faz no armário para este jogador."""
-        if self.run.rack and len(f.bag or ()) < BAG_SIZE:
+        if self.run.rack and len(f.bag or ()) < f.bag_size:
             w = weapon_of(self.run.rack[0])
             return "ATACAR: PEGAR " + w.name.upper() if w is not None else ""
         if self.droppable(f) and len(self.run.rack) < RACK_SIZE:
@@ -1119,7 +1173,13 @@ class CoopMatch(Match):
             self.arena.resolve(f)
 
     def _regen_energy(self):
-        """No Fácil a energia volta sozinha, devagar."""
+        """No Fácil a energia volta sozinha, devagar. A Pilha Recarregável enche parado."""
+        for f in self.alive_players:
+            if f.gear != "pilha":
+                continue
+            f.still_frames = f.still_frames + 1 if math.hypot(*f.input) < 0.1 else 0
+            if f.still_frames and f.still_frames % equipamento.BATTERY_EVERY == 0:
+                energia.gain(f, 1)
         regen = self.run.level.regen
         if regen <= 0 or self.lobby:
             return
@@ -1658,13 +1718,17 @@ class CampaignMatch(CoopMatch):
         killer = e.last_attacker if e.last_attacker in self.players else None
         alive = [p.slot for p in self.players if p.alive_in_match]
         gains = soul_split(getattr(e, "kind", ""), killer.slot if killer else None, alive)
+        lucky = {p.slot for p in self.players if p.gear == "talisma"}
         for slot, souls in gains.items():
-            self.run.earn(slot, souls)
+            self.run.earn(slot, round(souls * equipamento.TALISMAN_SOULS) if slot in lucky else souls)
         best = gains.get(killer.slot) if killer else max(gains.values(), default=0)
         brain = self.controllers.get(e)
         if hasattr(brain, "on_death"):
             brain.on_death(e, self)              # o Processo se desmonta em Apensos
         self._drop_orbs(e)
+        if is_elite(getattr(e, "kind", "")) and random.random() < equipamento.ELITE_CHANCE:
+            held = {p.gear for p in self.players} | {g.key for g in self.gear_items}
+            self.drop_gear(e, equipamento.pick_random(held), at=(e.x, e.y + 20), start=(e.x, e.y - 20))
         if getattr(e, "affix", None) == "explosivo":
             from .entities import Explosion
             self.add_effect(Explosion(e, e.x, e.y, round(AFFIX_EXPLOSION * self.enemy_dmg), radius=78))
@@ -1704,6 +1768,12 @@ class CampaignMatch(CoopMatch):
         Também segura o chefe que só cai de um jeito (o Cauanzera só cai tirando da tomada)."""
         brain = self.controllers.get(fighter)
         if brain is not None and getattr(brain, "unkillable", False):
+            return True
+        if fighter in self.players and fighter.gear == "capa" and not fighter.cape_used:
+            fighter.cape_used = True                     # Capa da IARA: segura o golpe uma vez por etapa
+            fighter.invulnerable_timer = max(fighter.invulnerable_timer, LAST_BREATH_FRAMES)
+            self.popup(fighter.x, fighter.y - 80, "CAPA DA IARA!", equipamento.GEAR["capa"].color)
+            self.burst(fighter.x, fighter.y - 16, equipamento.GEAR["capa"].color, 24, speed=5)
             return True
         if self.run.players != 1 or self.breath_used or fighter not in self.players:
             return False

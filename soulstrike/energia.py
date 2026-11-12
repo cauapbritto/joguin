@@ -110,6 +110,8 @@ def cost(fighter, weapon):
         return 0
     if weapon in fighter.stats.weapons:
         return 0                                   # a arma do próprio herói nunca gasta
+    if getattr(fighter, "gear", None) == "luva" and not weapon.rare:
+        return 0                                   # Luva de Ferreiro: arma de outro herói de graça
     return base_cost(weapon)
 
 
@@ -176,6 +178,9 @@ def on_damage(attacker, victim, dealt, match):
         got += gain(attacker, max(1, round(dealt * attacker.siphon)))
     if victim.hp <= 0 and attacker.weapon.is_melee and attacker.melee_flash > 0:
         got += gain(attacker, MELEE_KILL)
+    if victim.hp <= 0 and getattr(attacker, "gear", None) == "presa":     # Presa de Vampiro
+        got += gain(attacker, 3)
+        attacker.hp = min(attacker.max_hp, attacker.hp + 2)
     if got and match is not None:
         match.particles.append(Particle(attacker.x, attacker.y - 30, 0, -1.0, ENERGY_COLOR, 18, 3))
 
@@ -183,13 +188,17 @@ def on_damage(attacker, victim, dealt, match):
 def on_ability(fighter):
     """Usou a habilidade: os acertos dos próximos 2 s enchem um pouco a barra."""
     if enabled(fighter):
+        if getattr(fighter, "gear", None) == "ampulheta" and fighter.energy <= 0 and not fighter.hourglass_used:
+            fighter.hourglass_used = True                  # Ampulheta do Templo: uma vez por etapa
+            gain(fighter, 30)
         fighter.ability_energy_timer = ABILITY_WINDOW
         fighter.ability_energy_left = ABILITY_MAX
 
 
 def on_perfect_dodge(fighter, match):
-    if gain(fighter, PERFECT_DODGE) and match is not None:
-        match.popup(fighter.x, fighter.y - 78, f"+{PERFECT_DODGE} ENERGIA", ENERGY_COLOR)
+    amount = PERFECT_DODGE * (2 if getattr(fighter, "gear", None) == "bota" else 1)     # Bota de Mola: o dobro
+    if gain(fighter, amount) and match is not None:
+        match.popup(fighter.x, fighter.y - 78, f"+{amount} ENERGIA", ENERGY_COLOR)
 
 
 def pass_to(giver, friend, match):

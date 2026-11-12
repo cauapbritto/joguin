@@ -356,6 +356,9 @@ class Fighter(Entity):
         # munição das armas de tiro: um pente por arma (pente, recarga e o arco tensionando)
         self.relic = None               # arma rara (treino): vira a 3ª arma
         self.bag = None                 # campanha: a bolsa com até BAG_SIZE armas de qualquer tipo
+        self.gear = None                # campanha: o equipamento (equipamento.py), um por vez
+        self.cape_used = self.hourglass_used = False
+        self.still_frames = 0           # Pilha Recarregável: quadros parado
         self.forge = {}                 # ferreiro (campanha): nome da arma -> [nível, encanto]
         self.burn_timer = 0             # encanto de fogo: queima aos poucos
         self.burn_damage = 0
@@ -440,11 +443,16 @@ class Fighter(Entity):
         return weapons[self.weapon_index % len(weapons)]
 
     # ── bolsa da campanha ────────────────────
+    @property
+    def bag_size(self):
+        """Vagas da bolsa (a Mochila Grande dá uma 4ª)."""
+        return BAG_SIZE + (1 if self.gear == "mochila" else 0)
+
     def take(self, weapon):
         """Põe a arma na bolsa e na mão. Com a bolsa cheia ela troca pela da mão, que é devolvida
         (quem chamou joga no chão ou guarda); com vaga, devolve None."""
         old = None
-        if len(self.bag) < BAG_SIZE:
+        if len(self.bag) < self.bag_size:
             self.bag.append(weapon)
             i = len(self.bag) - 1
         else:
@@ -809,6 +817,8 @@ class Fighter(Entity):
         self.on_moto = frames is None and self.ability.moto          # só a esquiva normal vira moto
         if frames is None:
             frames = MOTO_FRAMES if self.on_moto else config.DASH_FRAMES
+            if self.gear == "bota":
+                frames = round(frames * 1.35)                    # Bota de Mola: esquiva mais longa
         dx, dy = direction or self.input
         if not (dx or dy):
             dx, dy = self.facing
@@ -854,6 +864,8 @@ class Fighter(Entity):
     def switch_weapon(self):
         if len(self.weapons) < 2:
             return False
+        if self.gear == "coldre":
+            self.clips.pop(self.weapon, None)        # Coldre Duplo: a que sai volta de pente cheio
         self.weapon_index = (self.weapon_index + 1) % len(self.weapons)
         self.attack_cd = max(self.attack_cd, 10)
         self.bow_draw = 0

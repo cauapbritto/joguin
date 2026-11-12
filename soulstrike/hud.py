@@ -498,7 +498,17 @@ def _bag_tab(screen, f, rect):
     if bag is None:
         return
     hand = f.weapon_index % len(bag) if bag else -1
-    for i in range(BAG_SIZE):
+    slots = getattr(f, "bag_size", BAG_SIZE)
+    gear = getattr(f, "gear", None)
+    if gear is not None:                                  # o equipamento, num quadradinho depois das armas
+        from . import equipamento
+        box = pygame.Rect(rect.x + 8 + slots * (BAG_SLOT_W + 3) + 4, rect.y - BAG_SLOT_H - 2, BAG_SLOT_H, BAG_SLOT_H)
+        screen.fill(theme.SHADOW, box.move(1, 1))
+        screen.fill((26, 22, 34), box)
+        pygame.draw.rect(screen, equipamento.GEAR[gear].color, box, 1)
+        img = equipamento.icon(gear, 1)
+        screen.blit(img, img.get_rect(center=box.center))
+    for i in range(slots):
         box = pygame.Rect(rect.x + 8 + i * (BAG_SLOT_W + 3), rect.y - BAG_SLOT_H - 2, BAG_SLOT_W, BAG_SLOT_H)
         screen.fill(theme.SHADOW, box.move(1, 1))
         screen.fill((26, 22, 34), box)

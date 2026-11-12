@@ -401,7 +401,19 @@ class MarketMenu:
                   used < MAX_REROLLS, self._reroll, key="trocar",
                   info={"sub": f"{used} DE {MAX_REROLLS} USADAS"}),
             self._continue_entry(),
+            self._gear_entry(),
         ] + gifts
+
+    def _gear_entry(self):
+        from . import equipamento
+        return Entry("EQUIPAMENTO SURPRESA", equipamento.SHOP_COST, "um equipamento cai no chão", True,
+                     self._gear, (120, 230, 140), "equipamento", {"sub": "CAI NO CHÃO"})
+
+    def _gear(self):
+        from . import equipamento
+        held = {p.gear for p in self.match.players} | {g.key for g in self.match.gear_items}
+        s = self.stall
+        self.match.drop_gear(s, equipamento.pick_random(held), at=(s.x, s.y + 56), start=(s.x, s.y - 30))
 
     def _energy_entry(self):
         """ENERGIA: enche metade da barra das armas fortes (só na campanha, onde a barra existe)."""
@@ -440,7 +452,7 @@ class MarketMenu:
             sold = w.name in self.stall.sold
             mine = any(x.name == w.name for x in f.weapons)
             bag = f.bag if f.bag is not None else list(f.weapons)
-            swap = f.weapon if len(bag) >= BAG_SIZE and bag else None
+            swap = f.weapon if len(bag) >= f.bag_size and bag else None
             sub = "VENDIDA" if sold else "VOCÊ JÁ TEM" if mine else f"DONO: {owner}"
             desc = (f"troca pela {swap.name.lower()} da mão (ela fica no chão)" if swap is not None
                     else "entra na vaga livre da bolsa")
@@ -514,8 +526,9 @@ class MarketMenu:
         from .forged import FORGED, FUSION_COST, discovered, preview_text, recipe
         f, run = self.fighter, self.run
         bag = f.bag or []
-        if len(bag) < BAG_SIZE or any(w.forjada for w in bag):
+        if len(bag) < BAG_SIZE or any(w.forjada for w in bag[:BAG_SIZE]):
             return None
+        bag = bag[:BAG_SIZE]                        # com a Mochila Grande, a 4ª fica de fora
         from .forged import kind_label
         key, level, enchant = recipe(bag, f)
         known = key in discovered()
@@ -535,13 +548,14 @@ class MarketMenu:
     def _fuse(self):
         from .forged import FORGED, discover, recipe
         f, run = self.fighter, self.run
-        key, level, enchant = recipe(f.bag, f)
+        three, rest = f.bag[:BAG_SIZE], f.bag[BAG_SIZE:]
+        key, level, enchant = recipe(three, f)
         weapon = FORGED[key]
-        for w in f.bag:
+        for w in three:
             f.forge.pop(w.name, None)               # as três voltam ao +0 (se alguém pegar outra igual)
             f.clips.pop(w, None)
         # as três somem dentro da forjada: ela fica sozinha na bolsa, com 2 vagas livres
-        f.bag = [weapon]
+        f.bag = [weapon] + rest
         f.weapon_index = 0
         f.bow_draw = 0
         run.keep_bag(f)

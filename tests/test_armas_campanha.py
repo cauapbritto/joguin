@@ -150,7 +150,7 @@ class TrocaTest(unittest.TestCase):
         match, _ = campanha()
         match.run.begin_phase()
         data = json.loads(json.dumps(match.run.to_save()))
-        data["estado"]["bags"] = {"1": ["comum:Arco"] * 4}
+        data["estado"]["bags"] = {"1": ["comum:Arco"] * 5}              # nem com a Mochila Grande cabem 5
         self.assertIsNone(CampaignRun.from_save(data))
 
 

@@ -12,6 +12,20 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.55.0": [
+        {"title": "VAGA DE EQUIPAMENTO", "scene": "hud", "lines": [
+            "Cada herói ganhou uma vaga de EQUIPAMENTO, ao lado da bolsa de armas. Um por vez.",
+            "Pegou outro? Troca, e o velho fica no chão para você ou um amigo pegar de volta.",
+            "Vem do baú das recompensas, às vezes de elites e da loja: EQUIPAMENTO SURPRESA.",
+            "O quadradinho dele aparece na TV, depois das armas. Ele vai junto para as próximas etapas.",
+        ]},
+        {"title": "12 EQUIPAMENTOS", "scene": "almas", "lines": [
+            "Amuleto do Cristal, Pilha Recarregável, Presa de Vampiro, Luva de Ferreiro, Mochila Grande...",
+            "...Coldre Duplo, Bota de Mola, Coração de Pedra, Crachá da Lag Lobby e Ampulheta do Templo.",
+            "O Talismã da Sorte põe uma arma a mais no baú e dá mais almas.",
+            "E a Capa da IARA segura o golpe que derrubaria você, uma vez por etapa.",
+        ]},
+    ],
     "1.54.0": [
         {"title": "41 FORJADAS NOVAS", "scene": "loja", "lines": [
             "O ferreiro agora conhece 49 forjadas. Dá para fundir sem repetir a mesma de sempre.",
