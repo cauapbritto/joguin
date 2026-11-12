@@ -12,6 +12,19 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.52.0": [
+        {"title": "46 ARMAS NOVAS", "scene": "loja", "lines": [
+            "Chegaram 39 armas raras e roubadas novas nos baús: Tocha, Bisturi, Fax Lança-Papéis, Cadeira Gamer...",
+            "E as redundantes: Taser Elétrico Eletrizante, Cajado do Gelo Gelado, Bomba Explosiva que Explode.",
+            "Muitas não gastam energia nenhuma, como o Estilingue, o Grampeador e a Pistola Atiradora de Tiros.",
+            "Inimigos agora também derrubam 7 armas de tiro de graça: escopeta, carabina, submetralhadora...",
+        ]},
+        {"title": "CADA BAÚ É ÚNICO", "scene": "mapa_fase", "lines": [
+            "Cada fase tem um baú com 5 armas que só ele tem. Nenhuma arma repete de uma fase para outra.",
+            "No Gabinete da Mansão, o baú guarda a EXCALITORA. Tirada da pedra de inscrição. A pedra veio junto.",
+            "Ela é enorme, alcança longe e não gasta energia, mas deixa o herói mais lento.",
+        ]},
+    ],
     "1.51.0": [
         {"title": "ENERGIA MAIS JUSTA", "scene": "hud", "lines": [
             "Armas raras e forjadas de perto: o golpe normal agora é de graça. Só o efeito especial gasta.",

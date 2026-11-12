@@ -9,7 +9,7 @@ from . import rumble
 from .abilities import create_ability
 from .data import BAG_SIZE, PUNCH, shot_sound
 from .entities import Entity, Particle, hostile
-from . import energia, forged, gadgets, rare_fx, skins
+from . import energia, forged, gadgets, rare_fx, skins, tiros_novos
 from .market import BURN_TICK, FORGE_DAMAGE, FORGE_MAG, enchant_hit
 from . import weapon_art
 
@@ -645,7 +645,7 @@ class Fighter(Entity):
             base *= RUSH_MULT
         if self.uno_hits > 0:
             base *= UNO_SLOW
-        return base * (2 if self.speed_timer > 0 else 1) * self.speed_mult
+        return base * (2 if self.speed_timer > 0 else 1) * self.speed_mult * tiros_novos.speed_mult(self)
 
     def slow(self, frames):
         """Fica lento (gelo). Invulnerável e zagueirão não são afetados."""
@@ -917,6 +917,7 @@ class Fighter(Entity):
                     if other.take_damage(damage, self.x, self.y, attacker=self, match=match):
                         hits.append(other)
                         enchant_hit(self, weapon, other, match, damage)
+                        tiros_novos.on_melee_hit(self, weapon, other, match, special)
                         if self.exo_timer > 0:
                             other.throw_from(self, match)
             if weapon.forjada and special:
@@ -1086,6 +1087,7 @@ class Fighter(Entity):
             if self.hp <= 0:
                 attacker.kills += 1
                 forged.on_kill(attacker, self, match)
+                tiros_novos.on_kill(attacker, self, match)
             energia.on_damage(attacker, self, dealt, match)
         if match is not None:
             match.popup(self.x, self.y - 46 * self.draw_scale, str(amount), theme.BONE if amount < 20 else theme.BRASS)

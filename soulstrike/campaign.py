@@ -18,7 +18,7 @@ from .enemies import BIG_KINDS, CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_ene
 from .matches import Match, Result, _separate
 from .net.remote import hub
 from .ui import darken
-from .data import BAG_SIZE, CHARACTERS, RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
+from .data import BAG_SIZE, CHARACTERS, FREE_GUNS, RARE_WEAPONS, common_weapon, duel_arsenal, rarity_color
 from .armario import RACK_SIZE, token_of, weapon_of
 from .dungeon import ExitDoor, GroundWeapon, PhasePortal, StartButton
 from .hazards import make_hazard
@@ -1693,7 +1693,7 @@ class CampaignMatch(CoopMatch):
         """O inimigo derruba a arma de outro herói: uma que ninguém do grupo está usando."""
         ranged, melee = duel_arsenal()
         held = {w.name for p in self.players for w in p.weapons} | {g.weapon.name for g in self.ground}
-        pool = [w for w in ranged + melee if w.name not in held]
+        pool = [w for w in ranged + melee + FREE_GUNS if w.name not in held]
         if not pool:
             return
         weapon = random.choice(pool)

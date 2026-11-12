@@ -58,6 +58,11 @@ COSTS = {
     "Cetro da Tempestade": 1, "Foice do Ceifador": 3,
 }
 
+# as armas novas (armas_novas.py) trazem os números delas
+from .armas_novas import COSTS as _NEW_COSTS, SPECIAL_COSTS as _NEW_SPECIAL  # noqa: E402
+
+COSTS.update(_NEW_COSTS)
+
 # armas de perto que gastam a cada golpe (as outras de perto só gastam no efeito especial)
 PAY_EVERY_SWING = {"Foice do Ceifador"}
 
@@ -69,6 +74,7 @@ SPECIAL_COSTS = {
     "Lâmina Solar": (2, 4),                  # a onda de luz; no 3º, onda e giro
     "Martelo do Trovão Eterno": (2, 6),      # o raio; no 3º, o arremesso do martelo
 }
+SPECIAL_COSTS.update(_NEW_SPECIAL)
 
 
 def enabled(fighter):

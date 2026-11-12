@@ -223,23 +223,33 @@ RARE_WEAPONS = {
     "manopla_exo": _melee("Manopla do Exo", 30, 64, cooldown=22, rare=True, roubada=True, special="onda",
                           note="O 3º soco seguido abre uma onda de choque no chão."),
 }
-# o baú de cada fase sorteia destas (as últimas são as roubadas)
+# armas novas (armas_novas.py): as do baú de cada fase, as redundantes de piada e as de tiro de graça
+from .armas_novas import build as _armas_novas  # noqa: E402
+
+_NOVAS, FREE_GUNS = _armas_novas(WeaponStats)
+RARE_WEAPONS.update(_NOVAS)
+from .armas_novas import SOUNDS as _SONS_NOVOS  # noqa: E402
+
+SHOT_SOUNDS.update(_SONS_NOVOS)
+
+# o baú de cada fase é único: 5 armas que só ele tem (nenhuma repete em outra fase). No Templo
+# Gelado, na Cobertura, na Suíte VIP e no Gabinete aparecem as roubadas.
 PHASE_RELICS = {
-    "floresta": ("colmeia", "arco_espinhos", "machado", "bumerangue", "besta"),
-    "calabouco": ("lanterna", "cranio", "foice_espectral", "lanca_chamas", "canhao"),
-    "templo": ("estalactites", "espelho", "bola_neve", "raio_supremo"),
-    # capítulo 2: as armas da Lag Lobby e algumas do capítulo 1 (quem começou direto no 2 nunca viu)
-    "recepcao": ("taser_rede", "teclado_mecanico", "besta", "cajado_raio"),
-    "datacenter": ("rifle_plasma", "drone_bolso", "escudo_choque", "lanca_chamas"),
-    "cobertura": ("manopla_exo", "bola_neve", "espelho", "raio_supremo"),
+    "floresta": ("colmeia", "arco_espinhos", "machado", "estilingue", "zarabatana"),
+    "calabouco": ("lanterna", "cranio", "foice_espectral", "tocha", "mangual_ossos"),
+    "templo": ("estalactites", "espelho", "bola_neve", "raio_supremo", "sino_funebre"),
+    # capítulo 2: Lag Lobby
+    "recepcao": ("taser_rede", "teclado_mecanico", "grampeador", "mouse_fio", "taser_eletrizante"),
+    "datacenter": ("rifle_plasma", "drone_bolso", "escudo_choque", "impressora", "pistola_tiros"),
+    "cobertura": ("manopla_exo", "cadeira_gamer", "rifle_spawner", "bomba_explosiva", "canhao"),
     # capítulo 3: Clínica Clepalovers
-    "clinica_recepcao": ("arco_espinhos", "taser_rede", "bumerangue", "colmeia"),
-    "procedimentos": ("bola_neve", "rifle_plasma", "foice_espectral", "lanca_chamas"),
-    "suite_vip": ("espelho", "raio_supremo", "manopla_exo", "canhao"),
+    "clinica_recepcao": ("secador", "pinca", "pistola_agua", "bisturi", "bumerangue"),
+    "procedimentos": ("pistola_botox", "espelho_selfie", "lanca_chamas", "macarico", "cajado_gelo"),
+    "suite_vip": ("laser_depilador", "fantasma_assustador", "patins_gelo", "espada_afiada", "besta"),
     # capítulo 4: Mansão do Carimbo
-    "mansao_sede": ("teclado_mecanico", "besta", "colmeia", "cajado_raio"),
-    "mansao_patio": ("drone_bolso", "escudo_choque", "lanca_chamas", "bola_neve"),
-    "mansao_gabinete": ("raio_supremo", "manopla_exo", "espelho", "rifle_plasma"),
+    "mansao_sede": ("carimbo_bolso", "boleto_bumerangue", "caneta", "cajado_raio", "rifle_caca"),
+    "mansao_patio": ("fax", "lanca_pastas", "martelo_martelador", "besta_repeticao", "martelo_pedra"),
+    "mansao_gabinete": ("guarda_chuva", "excalitora", "escudo_protetor", "sugador_almas", "bateria_portatil"),
 }
 
 UNLOCKABLE = "aryel_corrompido"
@@ -329,6 +339,6 @@ def rarity_color(weapon):
 
 
 def common_weapon(name):
-    """Arma comum (de herói) pelo nome, ou None."""
+    """Arma comum (de herói ou de tiro de graça) pelo nome, ou None."""
     ranged, melee = duel_arsenal()
-    return next((w for w in ranged + melee if w.name == name), None)
+    return next((w for w in ranged + melee + FREE_GUNS if w.name == name), None)

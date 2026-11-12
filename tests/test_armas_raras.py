@@ -67,7 +67,10 @@ class BauPorFaseTest(unittest.TestCase):
             todas = [k for ph in PHASES if ph.chapter == chapter for k in PHASE_RELICS[ph.key]]
             self.assertEqual(len(todas), len(set(todas)), chapter)
         self.assertTrue(all(RARE_WEAPONS[k].roubada for k in PHASE_RELICS["templo"]))
-        self.assertTrue(all(RARE_WEAPONS[k].roubada for k in PHASE_RELICS["cobertura"]))
+        self.assertTrue(sum(RARE_WEAPONS[k].roubada for k in PHASE_RELICS["cobertura"]) >= 4)
+        todas = [k for ks in PHASE_RELICS.values() for k in ks]                # baú único: nada repete
+        self.assertEqual(len(todas), len(set(todas)))
+        self.assertTrue(all(len(ks) == 5 for ks in PHASE_RELICS.values()))
         self.assertFalse(any(RARE_WEAPONS[k].roubada for k in PHASE_RELICS["floresta"] + PHASE_RELICS["calabouco"]))
 
     def test_bau_sorteia_da_fase(self):
