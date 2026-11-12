@@ -97,7 +97,7 @@ class BossAI(EnemyAI):
     def __init__(self, difficulty="normal", players=1):
         super().__init__(difficulty)
         self.players = players
-        # Ibrahim e Borba: fica furioso mais cedo (no Borba, com metade da vida: é quase uma fase a mais)
+        # Ibrahin e Borba: fica furioso mais cedo (no Borba, com metade da vida: é quase uma fase a mais)
         from .campaign import LEVELS
         self.enrage_at = LEVELS[difficulty].enrage if difficulty in LEVELS else 0.2
         self.state = "walk"
@@ -118,7 +118,15 @@ class BossAI(EnemyAI):
         if which in self.said or which >= len(self.LINES) or not hasattr(match, "popups"):
             return
         self.said.add(which)
-        match.popups.append(BossLine(me, self.LINES[which], self.LINE_COLOR))
+        text = self.LINES[which]
+        if which == 0:                         # segredo: alguém joga com o herói que o chefe era
+            from . import segredos
+            hero = getattr(getattr(match, "dungeon", None), "boss", None) or "aryel"
+            keys = segredos.BOSS_HERO.get(hero, ())
+            if any(p.stats.key in keys for p in getattr(match, "players", ())):
+                text = segredos.mirror_line(hero)
+                segredos.find("espelho", match, me.x, me.y - 200)
+        match.popups.append(BossLine(me, text, self.LINE_COLOR))
 
     @property
     def speed(self):
@@ -131,6 +139,8 @@ class BossAI(EnemyAI):
         self.state = state
         self.timer = frames
         me.vulnerability = 1.6 if state == "tired" else self.ARMOR if self.enraged else 1.0
+        if state == "tired":
+            self.tired_hp = me.hp                # segredo: ninguém bateu no cansaço, ele boceja
         me.phase_label = {"tired": self.TIRED_LABEL, "roar": self.ROAR_LABEL}.get(
             state, self.ARMOR_LABEL if self.enraged else "")
 
@@ -191,6 +201,10 @@ class BossAI(EnemyAI):
                 match.popup(me.x, me.y - 120, self.TIRED_POPUP, theme.MUTED)
             self._tired_tick(me, match)
             if self.timer <= 0:
+                if me.hp >= getattr(self, "tired_hp", -1) and hasattr(match, "popups"):
+                    from . import segredos
+                    segredos.hint(match, me.x, me.y - 150, "...NINGUÉM?", theme.MUTED)
+                    segredos.find("ninguem", match, me.x, me.y - 176)
                 self._set(me, "walk", self._wait(120))
         elif state == "jump":
             me.steer(0, 0)
@@ -231,7 +245,7 @@ class BossAI(EnemyAI):
             if self.timer <= 0:
                 self._set(me, "dashing", 44)
                 self.dash_hit = set()
-                match.assets.play("dash", 0.6)
+                match.assets.play("dash", 0.6, at=me.x)
         elif state == "dashing":
             self._dashing(me, match)
 
@@ -258,7 +272,7 @@ class BossAI(EnemyAI):
         me.windup = 0
         self.combo = []
         self._set(me, "roar", 70)
-        match.assets.play("explosion", 0.6)
+        match.assets.play("explosion", 0.6, at=me.x)
 
     def _walk(self, me, match, target, shoot=True):
         d = me.distance_to(target)
@@ -303,7 +317,7 @@ class BossAI(EnemyAI):
         for k in range(count):
             a = offset + k * math.tau / count
             match.spawn_bullet(me, math.cos(a), math.sin(a), speed, dmg, explosive=True)
-        match.assets.play("explosion", 0.4)
+        match.assets.play("explosion", 0.4, at=me.x)
         match.camera.shake(4)
 
     DASH_SPEED = 15
@@ -357,7 +371,7 @@ class BossAI(EnemyAI):
             me.ghost_walk = False
             arena.resolve(me)                         # se parou dentro de uma parede, sai dela
             match.camera.shake(7)
-            match.assets.play("passo_pesado", 0.6)
+            match.assets.play("passo_pesado", 0.6, at=me.x)
             match.dust(me.x, me.y + 30, 12)
             self._next(me, match, pause=30)
 
@@ -373,7 +387,7 @@ class BossAI(EnemyAI):
         me.armed = False
         match.add_effect(GroundMark(tx, ty, 140, self.AIR, (255, 90, 90)))
         match.dust(me.x, me.y + 30, 10)
-        match.assets.play("dash", 0.5)
+        match.assets.play("dash", 0.5, at=me.x)
         self._set(me, "air", self.AIR)
 
     def _fly(self, me, match):
@@ -392,7 +406,7 @@ class BossAI(EnemyAI):
             match.add_effect(Shockwave(me, me.x, me.y, 140, round(26 * me.damage_bonus), stun=36,
                                        color=self.LAND_COLOR))
             me.melee_flash = 12
-            match.assets.play("passo_pesado", 0.7)
+            match.assets.play("passo_pesado", 0.7, at=me.x)
             self._next(me, match, pause=36)
 
 
@@ -495,7 +509,7 @@ class BorbaBossAI(BossAI):
             match.spawn_projectile(me, self.cannon, (dx * c - dy * s_, dx * s_ + dy * c), dmg, power=2.0)
         me.knock = [-dx * 4, -dy * 4]
         match.camera.shake(6)
-        match.assets.play("explosion", 0.5)
+        match.assets.play("explosion", 0.5, at=me.x)
 
     def _punch(self, me, match, target):
         """Um passo para a frente e um soco em arco; o terceiro abre a onda de choque."""
@@ -507,7 +521,7 @@ class BorbaBossAI(BossAI):
         match.arena.resolve(me)
         fx, fy = me.x + dx * 56, me.y + dy * 56
         me.melee_flash = 10
-        match.assets.play("soco_metal", 0.5)
+        match.assets.play("soco_metal", 0.5, at=me.x)
         if self.punches == 0:
             match.add_effect(Shockwave(me, fx, fy, 130, round(22 * me.damage_bonus), stun=30, color=PULSE_BLUE))
             return
@@ -1009,7 +1023,7 @@ class CauanzeraBossAI(BossAI):
         for k in range(count):
             a = base + (k - (count - 1) / 2) * 0.2
             match.spawn_projectile(me, self.packet, (math.cos(a), math.sin(a)), dmg)
-        match.assets.play("plasma", 0.4)
+        match.assets.play("plasma", 0.4, at=me.x)
 
 
 BOSSES = {"aryel": (BOSS_STATS, "aryel", BossAI), "borba": (BORBA_STATS, "borba_exo", BorbaBossAI),

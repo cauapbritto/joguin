@@ -1005,7 +1005,7 @@ class IcicleDrop(GroundMark):
                     match.popup(f.x, f.y - 70, "CONGELADO", (170, 230, 255))
         match.burst(self.x, self.y, (220, 244, 255), 14, speed=5)
         match.camera.shake(3)
-        match.assets.play("hit", 0.35)
+        match.assets.play("hit", 0.35, at=self.x)
 
     def draw(self, surf, camera):
         super().draw(surf, camera)
@@ -1035,7 +1035,7 @@ class Icicles(Projectile):
             if not (20 < x < match.arena.width - 20 and 20 < y < match.arena.height - 20):
                 break
             match.add_effect(IcicleDrop(owner, x, y, 22 + i * 5, self.damage))
-        match.assets.play("barrier", 0.4)
+        match.assets.play("barrier", 0.4, at=self.x)
         self.alive = False
 
     def draw(self, surf, camera):
@@ -1132,7 +1132,7 @@ class Snowball(Projectile):
                 f.slow(90)
         match.burst(self.x, self.y, (235, 245, 255), 26, speed=6)
         match.camera.shake(6)
-        match.assets.play("explosion", 0.5)
+        match.assets.play("explosion", 0.5, at=self.x)
 
     def on_wall(self, wall, match):
         self._blow(match)
@@ -1447,3 +1447,7 @@ register_gadgets(PROJECTILES)
 
 def projectile_class(style):
     return PROJECTILES.get(style, Projectile)
+
+from .tiros_novos import register_projectiles as register_new  # noqa: E402  (armas novas dos baús)
+
+register_new(PROJECTILES)

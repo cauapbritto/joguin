@@ -12,7 +12,7 @@ import math
 import pygame
 
 from . import casa_art as art
-from . import config, crt, progress, theme
+from . import config, janelas, progress, theme
 from .arena import MAPS_BY_KEY
 from .campaign import CoopMatch, _spread
 from .casa import (CORROMPIDOS, MINI_TOP, MINI_W, VEHICLES, Decor, GarageMenu, Speaker, _bake, _near_rect, vehicle_ready)
@@ -92,11 +92,11 @@ def draw_bay(s, x, y, w, h, label):
     s.fill((220, 196, 80), (x, y, w, 4))
 
 
-class GarageMatch(CoopMatch):
+class GarageMatch(janelas.Janelas, CoopMatch):
     """A garagem lá embaixo. ``story`` e ``walk`` só passam adiante para a Casa na volta."""
 
     lobby = True
-    music = "camp"
+    music = "garagem"
     walk = False
 
     def __init__(self, game, run, story=False, walk=False):
@@ -216,14 +216,17 @@ class GarageMatch(CoopMatch):
         for s in self.speakers:
             s.update(self)
             s.waiting = s in waiting
+        self.update_windows()
         if self.leaving:
             return
 
     def interact(self, f):
         if self.ramp_near(f):
+            if self.leaving_in:
+                return True
             self.going_up = True
             self.assets.play("select", 0.45)
-            self.leave()
+            self.leave_soon(self.leave)
             return True
         key = self.car_near(f)
         if key is not None:
@@ -293,9 +296,7 @@ class GarageMatch(CoopMatch):
                 qx, qy = cam.to_screen(x, HALL_Y + 22)
                 ui.text(screen, f"ZERE O CAPÍTULO {chapter}", theme.XS, theme.FAINT, (round(qx), round(qy)))
         self.draw_ground(screen, cam, ui)
-        for f, menu in self.menus.items():
-            at = cam.to_screen(f.x, f.y)
-            crt.panel(screen, ("livro", f.slot), lambda s, menu=menu, at=at: menu.draw(s, ui, at))
+        janelas.draw(self, screen, ui)
 
 
     # ── minimapa ─────────────────────────────

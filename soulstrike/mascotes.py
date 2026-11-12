@@ -12,7 +12,7 @@ import random
 
 import pygame
 
-from . import cacos, pecas, progress, theme
+from . import cacos, pecas, pet_falas, progress, settings, theme
 from .entities import Entity, Particle
 from .skins import PETS as SHOP_PETS
 
@@ -24,7 +24,6 @@ PETS = {
     "cachorro": ("CACHORRO", False, ("AU AU!", "AU!", "*ABANA O RABO*")),
     "papagaio": ("PAPAGAIO", True, ("CURRUPACO!", "DÁ O PÉ, LOURO!", "GREEN!")),
 }
-TALK_EVERY = 900
 
 
 def owners():
@@ -46,14 +45,69 @@ def set_owner(pet, slot):
     return progress.save(data)
 
 
+# ── animação ─────────────────────────────────
+# 6 estados (tools/gerar_pets_anim.py): cada um é uma folha com os quadros lado a lado
+ANIMS = ("parado", "andando", "especial", "feliz", "susto", "dormindo")
+SPEED = {"parado": 14, "andando": 6, "especial": 10, "feliz": 6, "susto": 8, "dormindo": 36}   # ticks por quadro
+COUNT = {"parado": 4, "andando": 4, "feliz": 4, "susto": 2, "dormindo": 2}
+SPECIAL_COUNT = {"gato": 5, "cachorro": 5, "capivara": 5, "mico": 5}                        # os outros: 6
+ONESHOT_LOOPS = {"especial": 2, "feliz": 2, "susto": 3}
+_SHEETS = {}
+
+
+def frames(pet, anim):
+    """Os quadros de um estado (lista de Surfaces), ou [] se a folha não existe."""
+    key = (pet, anim)
+    if key not in _SHEETS:
+        sheet = pecas.image(f"pet_{pet}_{anim}")
+        out = []
+        if sheet is not None:
+            n = SPECIAL_COUNT.get(pet, 6) if anim == "especial" else COUNT[anim]
+            w, h = sheet.get_width() // n, sheet.get_height()
+            out = [sheet.subsurface((i * w, 0, w, h)) for i in range(n)]
+        _SHEETS[key] = out
+    return _SHEETS[key]
+
+
 def _frames(pet):
     sit = pecas.image(f"mascote_{pet}_sentado")
     walk = pecas.image(f"mascote_{pet}_andando")
     return sit, walk
 
 
+# ── falas ─────────────────────────────────────
+TALK_GAP = 20 * 60          # um pet fala no máximo uma vez a cada 20 s (no POUCAS, 40 s)
+TALK_GAP_FEW = 40 * 60
+BETWEEN_PETS = 6 * 60       # e os pets esperam 6 s entre a fala de um e a de outro
+BUBBLE_FRAMES = 150         # o balão fica uns 2,5 s
+URGENT = ("caiu", "levantou", "chefe", "vitoria", "parado")
+STILL_TALK = 10 * 60        # dono parado uns 10 s: o pet faz a graça dele e fala
+SLEEP_AFTER = 30 * 60       # na Casa, parado uns 30 s: o pet dorme
+LOW_HP = 0.3
+LOW_ENERGY = 0.15
+FALAS = ("normal", "poucas", "desligadas")
+
+# ── ajuda: busca do chão e aviso do chefe ─────
+FETCH_EVERY = 4 * 60        # a cada 4 s o pet pode buscar um item caído perto do dono
+FETCH_RANGE = 150           # uns 3 passos do dono
+FETCH_GIVE_UP = 5 * 60
+WARN_WINDUP = 30            # golpe do chefe com preparo longo (o golpe forte): o pet avisa
+WARN_RANGE = 560
+
+
+def talk_mode():
+    mode = settings.get("falas_pets")
+    return mode if mode in FALAS else "normal"
+
+
+def _clock(match, pet):
+    frame = getattr(match, "frame", None)
+    return frame if isinstance(frame, int) else pet.age
+
+
 class Pet(Entity):
-    """Um mascote: em casa (parado no cantinho) ou seguindo o dono."""
+    """Um mascote: em casa (parado no cantinho) ou seguindo o dono, com 6 estados de animação,
+    balãozinho de fala com som e a ajuda (busca itens caídos perto do dono, avisa o golpe forte)."""
 
     def __init__(self, pet, home, home_sort=None):
         super().__init__(*home)
@@ -71,6 +125,22 @@ class Pet(Entity):
         self.moving = 0.0
         self.facing = 1
         self.sit, self.walk = _frames(pet)
+        # animação
+        self.anim, self.anim_t = "parado", random.randrange(40)
+        self.oneshot = None                         # estado que toca uma vez e volta (especial, feliz, susto)
+        self.warn = 0                               # "!" do aviso do chefe
+        # o que ele vê do dono (para saber quando falar)
+        self.seen = {}
+        self.still = 0
+        self.last_pos = None
+        self.home_nap = random.randrange(600)
+        # fala
+        self.bubble, self.bubble_t = None, 0
+        self.next_talk = 0
+        # busca
+        self.fetch_cd = FETCH_EVERY
+        self.fetching, self.carry, self.fetch_t = None, None, 0
+        self._assets = None
 
     @property
     def sort_y(self):
@@ -80,13 +150,232 @@ class Pet(Entity):
 
     def follow(self, fighter):
         self.target = fighter
+        self.seen = {}
+        self.still = 0
 
     def stay(self):
+        self.drop()
         self.target = None
 
+    # ── animação ─────────────────────────────
+    def play(self, anim):
+        """Toca um estado uma vez (especial, feliz ou susto) e depois volta ao normal."""
+        if frames(self.pet, anim):
+            self.oneshot, self.anim, self.anim_t = anim, anim, 0
+
+    def _base_anim(self, match):
+        if self.target is None:                     # em casa: fica, cochila e às vezes faz a graça dele
+            cycle = (self.age + self.home_nap) % (40 * 60)
+            return "dormindo" if cycle > 26 * 60 else "parado"
+        if self.moving > 0.4 or self.fetching is not None:
+            return "andando"
+        if self.still >= SLEEP_AFTER and getattr(match, "pets", None) is not None and self.target.alive_in_match:
+            return "dormindo"                       # só na Casa (match.pets existe lá)
+        if self.flies and self.pet == "papagaio":
+            return "andando"                        # seguindo, o papagaio fica voando
+        return "parado"
+
+    def _animate(self, match):
+        self.anim_t += 1
+        if self.oneshot is not None:
+            n = len(frames(self.pet, self.oneshot)) or 1
+            if self.anim_t >= n * SPEED[self.oneshot] * ONESHOT_LOOPS.get(self.oneshot, 1):
+                self.oneshot = None
+            else:
+                return
+        base = self._base_anim(match)
+        if base != self.anim:
+            self.anim, self.anim_t = base, 0
+
+    def image(self):
+        """O quadro de agora (ou o desenho antigo, se a folha do estado não existe)."""
+        fr = frames(self.pet, self.anim)
+        if fr:
+            return fr[(self.anim_t // SPEED[self.anim]) % len(fr)]
+        return self.walk if self.anim == "andando" else self.sit
+
+    # ── fala ─────────────────────────────────
+    def say(self, match, moment):
+        """Fala uma frase do momento num balãozinho, com o somzinho do bicho. Respeita o limite
+        (uma fala a cada 20 s por pet, 6 s entre pets, um balão por vez) e a opção FALAS DOS PETS."""
+        mode = talk_mode()
+        if mode == "desligadas":
+            return False
+        now = _clock(match, self)
+        if now < self.next_talk:
+            return False
+        talk = getattr(match, "_pet_talk", None)
+        if talk is None:
+            talk = match._pet_talk = {"next": 0, "who": None}
+        if now < talk["next"] and moment not in URGENT:
+            return False
+        who = talk.get("who")
+        if who is not None and who is not self and who.bubble is not None:
+            if moment not in URGENT:
+                return False
+            who.bubble = None                       # um balão por vez: o urgente passa na frente
+        lines = pet_falas.LINES.get(self.pet, {}).get(moment) or self.lines
+        self.bubble, self.bubble_t = random.choice(lines), BUBBLE_FRAMES
+        self.next_talk = now + (TALK_GAP if mode == "normal" else TALK_GAP_FEW)
+        talk["next"], talk["who"] = now + BETWEEN_PETS, self
+        assets = getattr(match, "assets", None)
+        if assets is not None:
+            assets.play(f"pet_{self.pet}_{random.randint(1, 2)}", 0.35)
+        return True
+
+    def _watch(self, match):
+        """Olha o dono e a luta e decide quando falar e qual animação tocar."""
+        t = self.target
+        seen = self.seen
+        first = not seen
+        alive = t.alive_in_match
+        hp = t.hp / max(1, t.max_hp)
+        energy = None
+        if getattr(t, "energy", None) is not None and getattr(t, "energy_max", 0):
+            energy = t.energy / t.energy_max
+        relic = getattr(t, "relic", None)
+        boss = getattr(match, "boss", None)
+        boss_on = boss is not None and boss.alive_in_match
+        wins = len(getattr(match, "cleared", ()) or ()) + (1 if getattr(match, "slain_boss", False) else 0)
+        casa = getattr(match, "pets", None) is not None
+        # dono parado (nem andando nem batendo)
+        pos = (round(t.x), round(t.y))
+        if pos == self.last_pos and getattr(t, "attack_cd", 0) <= 0 and alive:
+            self.still += 1
+        else:
+            if self.still >= SLEEP_AFTER:
+                self.play("feliz")                  # acordou com o dono andando
+            self.still = 0
+        self.last_pos = pos
+        if first:
+            seen.update(alive=alive, low=hp < LOW_HP, empty=energy is not None and energy < LOW_ENERGY,
+                        relic=relic, boss=boss if boss_on else None, wins=wins, start=self.age)
+            return
+        if self.age - seen["start"] == 120 and not casa and getattr(match, "run", None) is not None:
+            self.say(match, "fase")
+        if seen["alive"] and not alive:
+            self.play("susto")
+            self.say(match, "caiu")
+        elif not seen["alive"] and alive:
+            self.play("feliz")
+            self.say(match, "levantou")
+        seen["alive"] = alive
+        low = hp < LOW_HP and alive
+        if low and not seen["low"]:
+            self.say(match, "vida")
+        seen["low"] = low
+        empty = energy is not None and energy < LOW_ENERGY and alive
+        if empty and not seen["empty"]:
+            self.say(match, "energia")
+        seen["empty"] = empty
+        if relic is not None and relic is not seen["relic"]:
+            self.play("feliz")
+            self.say(match, "arma")
+        seen["relic"] = relic
+        if boss_on and boss is not seen["boss"]:
+            self.play("susto")
+            self.say(match, "chefe")
+            seen["boss"] = boss
+        if wins > seen["wins"]:
+            self.play("feliz")
+            self.say(match, "vitoria")
+        seen["wins"] = wins
+        if self.still and self.still % (2 * STILL_TALK) == STILL_TALK and not (casa and self.still >= SLEEP_AFTER):
+            self.play("especial")
+            self.say(match, "casa" if casa else "parado")
+        self._warn(match, boss if boss_on else None)
+
+    def _warn(self, match, boss):
+        """Golpe forte do chefe chegando: susto com um "!" um instante antes (só a animação)."""
+        if boss is None:
+            self.seen["windup"] = 0
+            return
+        w = getattr(boss, "windup", 0)
+        prev = self.seen.get("windup", 0)
+        self.seen["windup"] = w
+        if w > prev and getattr(boss, "windup_total", 0) >= WARN_WINDUP and self.target.alive_in_match:
+            if math.hypot(boss.x - self.target.x, boss.y - self.target.y) < WARN_RANGE:
+                self.play("susto")
+                self.warn = 40
+
+    # ── busca ────────────────────────────────
+    def _useful(self, item, owner):
+        if not getattr(item, "alive", True) or getattr(item, "_pet", None) not in (None, self):
+            return False
+        kind = getattr(item, "kind", "")
+        if kind == "orbe":
+            return getattr(owner, "energy", None) is not None and owner.energy < owner.energy_max
+        if kind == "vida":
+            return owner.hp < owner.max_hp
+        return kind in ("furia", "energia", "municao")
+
+    def _pick_fetch(self, match):
+        t = self.target
+        items = getattr(match, "pickups", None)
+        if not items or not t.alive_in_match or getattr(match, "pets", None) is not None:
+            return
+        best, best_d = None, FETCH_RANGE
+        for item in items:
+            d = math.hypot(item.x - t.x, item.y - t.y)
+            if d < best_d and d > t.radius + item.radius + 10 and self._useful(item, t):
+                best, best_d = item, d
+        if best is not None:
+            best._pet = self
+            self.fetching, self.fetch_t = best, 0
+
+    def drop(self):
+        for item in (self.fetching, self.carry):
+            if item is not None and getattr(item, "_pet", None) is self:
+                item._pet = None
+        self.fetching = self.carry = None
+
+    def _fetch(self, match):
+        """Indo buscar (ou trazendo) um item: devolve o ponto aonde ir, ou None se não está buscando."""
+        t = self.target
+        self.fetch_t += 1
+        item = self.carry or self.fetching
+        if item is None:
+            return None
+        if not item.alive or self.fetch_t > FETCH_GIVE_UP or not t.alive_in_match:
+            self.drop()
+            self.fetch_cd = FETCH_EVERY
+            return None
+        if self.carry is None:
+            if math.hypot(item.x - self.x, item.y - self.y) < 14:
+                self.carry, self.fetching = item, None
+            return item.x, item.y
+        item.x, item.y = self.x, self.y - (30 if self.flies else 14)
+        if hasattr(item, "vx"):
+            item.vx = item.vy = 0.0
+        if math.hypot(t.x - self.x, t.y - self.y) < t.radius + 34:
+            self.drop()
+            self.fetch_cd = FETCH_EVERY
+            item.x, item.y = t.x, t.y
+            item.apply(t, match)
+            if not item.alive:
+                self.play("feliz")
+                self.say(match, "busca")
+            return None
+        return t.x, t.y
+
+    # ── quadro a quadro ──────────────────────
     def update(self, match):
         self.age += 1
-        if self.target is None:
+        self._assets = getattr(match, "assets", None)
+        goal, speed_cap = None, 7.0
+        if self.target is not None:
+            self._watch(match)
+            goal = self._fetch(match)
+            if goal is None and self.fetching is None and self.carry is None:
+                self.fetch_cd -= 1
+                if self.fetch_cd <= 0:
+                    self.fetch_cd = 30                  # nada por perto: olha de novo daqui a pouco
+                    self._pick_fetch(match)
+            if goal is not None:
+                speed_cap = 3.0 if self.pet in ("jabuti", "capivara") else 6.5
+        if goal is not None:
+            gx, gy = goal
+        elif self.target is None:
             gx, gy = self.home
         else:
             t = self.target
@@ -98,32 +387,54 @@ class Pet(Entity):
         if self.target is None and dist > 400:      # adotado em outra sala: aparece direto em casa
             self.x, self.y = gx, gy
             dist = 0
-        step = min(dist, 1.0 + dist * 0.07, 7.0)
+        step = min(dist, 1.0 + dist * 0.07, speed_cap)
         if dist > 3:
             self.x += dx / dist * step
             self.y += dy / dist * step
             if abs(dx) > 1:
                 self.facing = 1 if dx > 0 else -1
         self.moving = step if dist > 3 else 0.0
-        if self.age % TALK_EVERY == TALK_EVERY // 2 and self.target is not None:
-            match.popup(self.x, self.y - 60, random.choice(self.lines), theme.BONE)
+        if self.target is not None and self.anim not in ("andando",) and self.moving <= 0.4:
+            self.facing = 1 if self.target.x >= self.x else -1      # parado: olha para o dono
+        self._animate(match)
+        if self.bubble is not None:
+            self.bubble_t -= 1
+            if self.bubble_t <= 0:
+                self.bubble = None
+        if self.warn:
+            self.warn -= 1
         if self.pet == "cachorro" and self.moving and self.age % 14 == 0:
             match.particles.append(Particle(self.x - self.facing * 12, self.y, 0, -0.2, (150, 130, 100), 14, 2))
 
     def draw(self, surf, cam):
-        img = self.walk if (self.moving > 0.4 or (self.flies and self.target is not None)) else self.sit
+        img = self.image()
         if img is None:
             return
-        if img is self.walk and self.facing < 0:
+        if self.facing < 0:
             img = pygame.transform.flip(img, True, False)
         sx, sy = round(self.x - cam.x), round(self.y - cam.y)
-        if self.flies and self.target is not None:
+        airborne = self.flies and self.target is not None and self.anim != "dormindo"
+        if airborne:
             sy += round(math.sin(self.age * 0.18) * 4)
-        elif img is self.walk:
-            sy -= (self.age // 5) % 2                  # passinho
-        if not (self.flies and self.target is not None):
-            surf.blit(pecas.shadow(img.get_width() - 6, 8, 70), (sx - img.get_width() // 2 + 3, sy - 4))
+        if not airborne:
+            surf.blit(pecas.shadow(max(10, img.get_width() - 10), 8, 70), (sx - img.get_width() // 2 + 5, sy - 4))
         surf.blit(img, img.get_rect(midbottom=(sx, sy)))
+        if self.anim == "dormindo" and self._assets is not None:
+            z = "Z" if (self.age // 40) % 2 else "z"
+            surf.blit(self._assets.text(z, theme.XS, (200, 210, 255)), (sx + 8, sy - img.get_height() - 4 - (self.age // 6) % 6))
+
+    def draw_talk(self, screen, cam, ui):
+        """Por cima de tudo (na tela): o balão de fala e o "!" do aviso."""
+        if self.bubble is None and not self.warn:
+            return
+        img = self.image()
+        top = (img.get_height() if img is not None else 30) + (8 if self.flies and self.target is not None else 2)
+        sx, sy = cam.to_screen(self.x, self.y - top)
+        if self.warn and (self.warn // 4) % 2 == 0:
+            ui.text(screen, "!", theme.M, (255, 210, 60), (round(sx) + 18, round(sy) + 6))
+        if self.bubble is not None:
+            from .casa import draw_bubble
+            draw_bubble(screen, ui, ui.assets, self.bubble, round(sx), round(sy))
 
 
 # ── na Casa ──────────────────────────────────

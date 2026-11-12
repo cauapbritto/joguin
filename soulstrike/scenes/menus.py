@@ -1011,9 +1011,11 @@ class OptionsScene(_InfoScene):
         ("duplo_toque", "DUPLO TOQUE = ESQUIVA", "DUAS VEZES NA MESMA SETA"),
         ("controle_comeca_no_p2", "1º CONTROLE USB É O P2", "DESLIGADO: É O P1"),
         ("vibracao", "VIBRAÇÃO", "CONTROLE E CELULAR (ANDROID)"),
+        ("falas_pets", "FALAS DOS PETS", "BALÃOZINHO COM SOM: NORMAL, POUCAS OU DESLIGADAS"),
         ("novidades", "NOVIDADES", "O QUE MUDOU EM CADA VERSÃO"),
     ]
-    ROW_H = 36
+    ROW_H = 34
+    PET_TALK = ("normal", "poucas", "desligadas")
 
     def __init__(self, game):
         super().__init__(game)
@@ -1040,7 +1042,11 @@ class OptionsScene(_InfoScene):
                 self.sfx("hit", 0.5)            # amostra do volume novo
             self.assets.apply_music_volume()
             return
-        if key == "tela_cheia":
+        if key == "falas_pets":
+            modes = self.PET_TALK
+            now = value if value in modes else modes[0]
+            settings.change(key, modes[(modes.index(now) + (1 if step >= 0 else -1)) % len(modes)])
+        elif key == "tela_cheia":
             self.game.toggle_fullscreen()
         else:
             settings.change(key, not value)
@@ -1117,6 +1123,10 @@ class OptionsScene(_InfoScene):
                 self.ui.bar(screen, bar, value, theme.BRASS if chosen else theme.MUTED, ticks=10)
                 self.ui.text(screen, f"{round(value * 100)}%", theme.XS, color, (right, row.centery),
                              anchor="midright", shadow=False)
+            elif key == "falas_pets":
+                word = (value if value in self.PET_TALK else "normal").upper()
+                self.ui.text(screen, word, theme.XS, theme.MUTED if word == "DESLIGADAS" else theme.BRASS,
+                             (right, row.centery), anchor="midright", shadow=False)
             else:
                 word = "LIGADO" if value else "DESLIGADO"
                 self.ui.text(screen, word, theme.XS, theme.BRASS if value else theme.MUTED, (right, row.centery),

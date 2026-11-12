@@ -12,6 +12,161 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.56.0": [
+        {"title": "A MAIOR ATUALIZAÇÃO ATÉ AQUI", "scene": "novidades", "tv": "extra", "lines": [
+            "46 armas novas, 41 forjadas, 12 equipamentos, 9 pets com vida, 17 segredos e trilha nova.",
+            "E ainda: celular remasterizado, janelas pequenas na Casa e energia mais justa.",
+            "ENTER passa as notícias. Cada uma tem a sua edição completa em OPÇÕES > NOVIDADES.",
+        ]},
+        {"title": "46 ARMAS NOVAS E A EXCALITORA", "scene": "loja", "tv": "arsenal", "lines": [
+            "Tocha, Bisturi, Cadeira Gamer, Fax Lança-Papéis, Taser Elétrico Eletrizante e muitas mais.",
+            "Cada fase tem um baú com 5 armas só dele. Nenhuma repete de uma fase para outra.",
+            "No Gabinete da Mansão mora a EXCALITORA: enorme, alcança longe e não gasta energia.",
+        ]},
+        {"title": "BOLSA DE 3 ARMAS", "scene": "hud", "tv": "bolsa", "lines": [
+            "Cada jogador leva até 3 armas, de qualquer tipo: comum, rara ou forjada.",
+            "Bolsa cheia? A arma nova troca pela da mão, e a velha fica no chão, à vista de todo mundo.",
+            "Arma largada não some mais. Um amigo pode pegar de volta.",
+        ]},
+        {"title": "ENERGIA QUE VOLTA LUTANDO", "scene": "hud", "tv": "energia", "lines": [
+            "Golpe normal de arma rara de perto agora é de graça. Só o efeito especial gasta.",
+            "Depois da habilidade, cada acerto devolve +3. Elites e chefões soltam orbe de +15.",
+            "Segure LARGAR perto de um amigo para passar 20 de energia para ele.",
+        ]},
+        {"title": "41 FORJADAS NOVAS", "scene": "loja", "tv": "forja", "lines": [
+            "O ferreiro agora conhece 49 forjadas: híbridas, de assinatura do herói e secretas.",
+            "O LIVRO DE RECEITAS mostra quantas a turma já descobriu e dá dica das que faltam.",
+            "E a arma mostra o ferreiro: brilha no +1, contorno de ouro no +2 e aura no +3.",
+        ]},
+        {"title": "12 EQUIPAMENTOS", "scene": "almas", "tv": "equipamento", "lines": [
+            "Cada herói ganhou uma vaga de EQUIPAMENTO, ao lado da bolsa de armas.",
+            "Mochila Grande dá uma 4ª vaga, Bota de Mola alonga a esquiva, Presa de Vampiro devolve vida...",
+            "E a Capa da IARA segura o golpe que derrubaria você, uma vez por etapa.",
+        ]},
+        {"title": "PETS COM VIDA", "scene": "casa", "tv": "pets", "lines": [
+            "Os 9 pets foram redesenhados com 6 jeitos: parado, andando, feliz, susto, dormindo e uma graça só deles.",
+            "Eles falam num balãozinho, com som, e buscam vida, munição ou energia caída perto de você.",
+            "Antes do golpe forte do chefe, o pet leva um susto e solta um \"!\": é a hora de desviar.",
+        ]},
+        {"title": "TRILHA NOVA, COM ORQUESTRA", "scene": "novidades", "tv": "trilha", "lines": [
+            "Mais de 20 faixas novas com orquestra, coro, taikos e sintetizador, todas com o mesmo tema.",
+            "Cada capítulo tem a sua música, que cresce quando a sala de luta fecha e de novo na fúria do chefão.",
+            "Os efeitos foram refeitos em camadas e saem do lado da tela onde aconteceram.",
+        ]},
+        {"title": "TEM SEGREDO POR AÍ", "scene": "casa", "tv": "segredos", "lines": [
+            "17 detalhezinhos escondidos na Casa, na campanha e nos modos. O jogo não avisa nada.",
+            "Achou um? Aparece um textinho pequeno e entram 5 CACOS no pote, na primeira vez.",
+            "O CADERNO DE SEGREDOS, no computador do Cauanzera, mostra o que falta com uma dica vaga.",
+        ]},
+        {"title": "CELULAR REMASTERIZADO", "scene": "controle", "tv": "celular_novo", "lines": [
+            "Todas as telas do celular foram refeitas: letra nítida, molduras de pixel e tudo cabendo.",
+            "Loja, ferreiro, altar e armário em grade de cartões, com quem atende a banca aparecendo.",
+            "O ATACAR mostra a arma na mão, e o botão TESTAR VIBRAÇÃO diz por que o celular não vibra.",
+        ]},
+        {"title": "JANELAS PEQUENAS NA CASA", "scene": "casa", "tv": "janelas", "lines": [
+            "Computador, loja de CACOS, armário e garagem abrem numa janela pequena ao lado de quem abriu.",
+            "Quem está na janela sai da corda do grupo: o resto da turma anda livre.",
+            "O computador virou lista: nada de digitar. E a dificuldade agora é IBRAHIN, com N.",
+        ]},
+    ],
+    "1.55.0": [
+        {"title": "VAGA DE EQUIPAMENTO", "scene": "hud", "lines": [
+            "Cada herói ganhou uma vaga de EQUIPAMENTO, ao lado da bolsa de armas. Um por vez.",
+            "Pegou outro? Troca, e o velho fica no chão para você ou um amigo pegar de volta.",
+            "Vem do baú das recompensas, às vezes de elites e da loja: EQUIPAMENTO SURPRESA.",
+            "O quadradinho dele aparece na TV, depois das armas. Ele vai junto para as próximas etapas.",
+        ]},
+        {"title": "12 EQUIPAMENTOS", "scene": "almas", "lines": [
+            "Amuleto do Cristal, Pilha Recarregável, Presa de Vampiro, Luva de Ferreiro, Mochila Grande...",
+            "...Coldre Duplo, Bota de Mola, Coração de Pedra, Crachá da Lag Lobby e Ampulheta do Templo.",
+            "O Talismã da Sorte põe uma arma a mais no baú e dá mais almas.",
+            "E a Capa da IARA segura o golpe que derrubaria você, uma vez por etapa.",
+        ]},
+    ],
+    "1.54.0": [
+        {"title": "41 FORJADAS NOVAS", "scene": "loja", "lines": [
+            "O ferreiro agora conhece 49 forjadas. Dá para fundir sem repetir a mesma de sempre.",
+            "HÍBRIDAS: 2 armas de uma família e 1 de outra. Corte com fogo vira a Katana Brasa.",
+            "ASSINATURA: as 2 armas do seu herói e mais uma rara viram a forjada só dele.",
+            "SECRETAS: receitas exatas, como Lança-chamas, Maçarico e Secador. Vira o Bafo do Dragão.",
+        ]},
+        {"title": "LIVRO DE RECEITAS", "scene": "loja", "lines": [
+            "No ferreiro tem o LIVRO DE RECEITAS: mostra quantas a turma já descobriu, das 49.",
+            "Cada vez que você abre, ele dá uma dica de uma forjada que ainda falta.",
+            "A forjada descoberta fica salva para sempre, em todas as campanhas.",
+        ]},
+    ],
+    "1.53.0": [
+        {"title": "ARMA COM CARA DE EVOLUÍDA", "scene": "loja", "lines": [
+            "Agora dá para ver o ferreiro na arma: no +1 o metal brilha mais, no +2 ganha contorno de ouro.",
+            "No +3 o contorno fica dourado claro e a arma ganha uma aura de luz em volta.",
+            "Encantou? FOGO deixa a lâmina em brasa, GELO deixa azul gelado e RAIO deixa amarelo elétrico.",
+            "Vale na mão do herói e nas vagas da bolsa, em cima do seu quadro na TV.",
+        ]},
+    ],
+    "1.52.0": [
+        {"title": "46 ARMAS NOVAS", "scene": "loja", "lines": [
+            "Chegaram 39 armas raras e roubadas novas nos baús: Tocha, Bisturi, Fax Lança-Papéis, Cadeira Gamer...",
+            "E as redundantes: Taser Elétrico Eletrizante, Cajado do Gelo Gelado, Bomba Explosiva que Explode.",
+            "Muitas não gastam energia nenhuma, como o Estilingue, o Grampeador e a Pistola Atiradora de Tiros.",
+            "Inimigos agora também derrubam 7 armas de tiro de graça: escopeta, carabina, submetralhadora...",
+        ]},
+        {"title": "CADA BAÚ É ÚNICO", "scene": "mapa_fase", "lines": [
+            "Cada fase tem um baú com 5 armas que só ele tem. Nenhuma arma repete de uma fase para outra.",
+            "No Gabinete da Mansão, o baú guarda a EXCALITORA. Tirada da pedra de inscrição. A pedra veio junto.",
+            "Ela é enorme, alcança longe e não gasta energia, mas deixa o herói mais lento.",
+        ]},
+    ],
+    "1.51.0": [
+        {"title": "ENERGIA MAIS JUSTA", "scene": "hud", "lines": [
+            "Armas raras e forjadas de perto: o golpe normal agora é de graça. Só o efeito especial gasta.",
+            "O giro do machado, a onda da Lâmina Solar, o raio do Martelo do Trovão, o 3º golpe do teclado.",
+            "Sem energia, a arma ainda bate, só que sem o efeito. A Foice do Ceifador continua gastando.",
+        ]},
+        {"title": "ENERGIA QUE VOLTA LUTANDO", "scene": "almas", "lines": [
+            "Usou a habilidade? Cada acerto nos 2 segundos seguintes dá +3 de energia, até +15.",
+            "Derrubar inimigo com arma de perto dá +2, e esquiva perfeita dá +4.",
+            "Elites e chefões soltam um orbe grande de +15. Melhoria nova: SIFÃO, dano que vira energia.",
+            "Segure LARGAR perto de um amigo para passar 20 da sua energia para ele.",
+        ]},
+    ],
+    "1.50.0": [
+        {"title": "BOLSA DE 3 ARMAS", "scene": "hud", "lines": [
+            "Cada jogador agora tem uma BOLSA com 3 vagas, e cabe qualquer arma: comum, rara ou forjada.",
+            "Começa com as 2 do herói e uma vaga livre. Pegou outra arma? Ela entra na vaga.",
+            "Bolsa cheia: a arma nova troca pela da mão, e a da mão fica no chão para quem quiser.",
+            "As 3 vagas aparecem em cima do seu quadro na TV, com a da mão marcada na sua cor.",
+        ]},
+        {"title": "ARMA NÃO SOME MAIS", "scene": "loja", "lines": [
+            "Acabou a mochila invisível: a arma do herói que você trocou fica no chão, onde dá para ver.",
+            "Arma que um jogador largou nunca some sozinha, nem com o mapa cheio de armas de inimigo.",
+            "Dá para largar até a arma do próprio herói, e um amigo pode pegar ela. Bolsa vazia: é no soco.",
+            "A forjada usa as 3 armas da bolsa e ocupa uma vaga só: sobram 2 para pegar mais armas.",
+        ]},
+    ],
+    "1.48.0": [
+        {"title": "PETS COM VIDA", "scene": "casa", "lines": [
+            "Os 9 pets foram redesenhados com 6 jeitos: parado, andando, feliz, susto, dormindo e uma graça só deles.",
+            "A capivara ganha um passarinho na laranja, o caramelo dá a pata e o jabuti some no casco.",
+            "Na Casa, ficou parado uns 30 segundos? O pet tira um cochilo do seu lado.",
+        ]},
+        {"title": "O PET FALA", "scene": "casa", "lines": [
+            "Agora eles falam num balãozinho, com som: miado, latido, bip, tlin...",
+            "Falam quando você cai, levanta, fica parado, acha o chefe, pega arma rara ou limpa a sala.",
+            "No máximo uma fala a cada 20 segundos por pet. Em OPÇÕES > FALAS DOS PETS dá para deixar POUCAS ou DESLIGADAS.",
+        ]},
+        {"title": "O PET AJUDA UM POUCO", "scene": "casa", "lines": [
+            "A cada 4 segundos o pet busca um item caído perto de você: vida, fúria, munição ou orbe de energia.",
+            "Antes do golpe forte do chefe, ele leva um susto e solta um \"!\": é a hora de desviar.",
+            "A ajuda é igual para todos os pets, da Casa ou da loja de CACOS.",
+        ]},
+    ],
+    "1.47.0": [
+        {"title": "IBRAHIN COM N", "scene": "loja", "lines": [
+            "A dificuldade agora se escreve do jeito certo: IBRAHIN, com N no final.",
+            "Nada muda no seu progresso: selos, cacos e recordes continuam lá.",
+        ]},
+    ],
     "1.46.0": [
         {"title": "FORJADA COM COMPANHIA", "scene": "loja", "lines": [
             "Fundiu as três armas? Agora dá para pegar arma comum de novo, ao lado da forjada.",
@@ -27,7 +182,7 @@ NEWS = {
         {"title": "ENERGIA NA LOJA", "scene": "loja", "lines": [
             "A loja da fase agora vende ENERGIA: 20 almas enchem 100 da barra, metade dela.",
             "Tem na lojinha da sala inicial e na loja completa, logo abaixo da poção de vida.",
-            "Barra cheia, a loja não deixa comprar. No Ibrahim e no Borba, fica mais cara como o resto.",
+            "Barra cheia, a loja não deixa comprar. No Ibrahin e no Borba, fica mais cara como o resto.",
             "Pelo celular também: o item aparece com um frasco azul.",
         ]},
     ],
@@ -444,8 +599,8 @@ NEWS = {
     ],
     "1.13.0": [
         {"title": "CINCO DIFICULDADES", "scene": "perigos", "lines": [
-            "A campanha agora tem FÁCIL, NORMAL, DIFÍCIL, IBRAHIM e BORBA.",
-            "IBRAHIM: toma cuidado jovi, esse é difícil. Inimigos com poderes extras e só 1 continue.",
+            "A campanha agora tem FÁCIL, NORMAL, DIFÍCIL, IBRAHIN e BORBA.",
+            "IBRAHIN: toma cuidado jovi, esse é difícil. Inimigos com poderes extras e só 1 continue.",
             "BORBA: sensacional. Sem cura entre as fases e cada um só é levantado uma vez por masmorra.",
         ]},
         {"title": "ENERGIA", "scene": "almas", "lines": [
@@ -718,7 +873,27 @@ def pending(seen, current=__version__):
         return [(current, NEWS[current])] if current in NEWS else []
     last = parse_version(seen)
     found = [(v, lines) for v, lines in NEWS.items() if last < parse_version(v) <= now]
-    return sorted(found, key=lambda item: parse_version(item[0]), reverse=True)
+    return sorted(_covered(found), key=lambda item: parse_version(item[0]), reverse=True)
+
+
+# edições extraordinárias: uma versão que conta sozinha tudo o que mudou desde outra
+# (quem atualiza de antes dela vê só a extraordinária; as edições do meio ficam no ARQUIVO)
+SPECIAL = {"1.56.0": "1.46.0"}
+
+
+def special(version):
+    return version in SPECIAL
+
+
+def _covered(found):
+    """Tira as versões que uma edição extraordinária da lista já conta."""
+    out = []
+    for version, entry in found:
+        covered = any(parse_version(SPECIAL[v]) < parse_version(version) < parse_version(v)
+                      for v, _ in found if v in SPECIAL)
+        if not covered:
+            out.append((version, entry))
+    return out
 
 
 def to_show():

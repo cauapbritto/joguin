@@ -263,7 +263,7 @@ CPU. Um controle ou celular novo que aperta START numa vaga de CPU **entra no me
   e cada jogador escolhe **1 de 3 melhorias** (vida, dano, recarga, velocidade, tiros que
   atravessam, esquiva, vampirismo, escudo, munição ou energia), que se acumulam. Mais jogadores, mais inimigos.
   O jogador 1 sempre joga; o 2 entra pelo teclado (tecla `;`) ou celular; o 3 e o 4, pelo celular.
-  Escolha a dificuldade na seleção de personagem (TAB): **Fácil**, **Normal**, **Difícil**, **Ibrahim**
+  Escolha a dificuldade na seleção de personagem (TAB): **Fácil**, **Normal**, **Difícil**, **Ibrahin**
   (inimigos com poderes extras, só 1 continue, loja mais cara) ou **Borba** (ainda mais forte, sem cura
   entre as fases e cada um só levanta uma vez por masmorra). `tools/simular_campanha.py` compara as
   dificuldades com robôs. Zerar o capítulo 1 libera o **Aryel
@@ -597,7 +597,10 @@ web/                    página do controle no celular
 assets/                 sprites, tiles, sons e fonte
 tools/gerar_sprites.py  gera os sprites pixel art dos personagens e das criaturas
 tools/gerar_armas.py    gera os sprites das armas
-tools/gerar_sons.py     gera os efeitos novos (armas, futebol, campanha) e as músicas do acampamento e do chefão
+tools/gerar_sons.py     gera os efeitos novos (armas, futebol, campanha)
+tools/gerar_variacoes.py gera as versões dos efeitos que tocam muito (<nome>_v2/_v3, o jogo sorteia)
+tools/gerar_trilha.py   gera a trilha orquestral (partitura em código + SoundFont; precisa de fluidsynth, mido e numpy)
+tools/gerar_efeitos.py  refaz os efeitos em camadas (impacto + corpo + eco) e gera os sons de fundo dos lugares
 tools/build_exe.py      gera dist/SoulStrike.exe
 tools/build_deb.py      gera o pacote .deb para Linux
 tools/notas_release.py  texto da Release do GitHub a partir das novidades da versão

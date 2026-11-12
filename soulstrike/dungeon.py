@@ -314,13 +314,14 @@ def _beam(alpha):
 
 class GroundWeapon(Entity):
     """Arma no chão: a rara que alguém largou ou a comum que um inimigo derrubou. Perto dela,
-    ATACAR pega — e quem pega solta no lugar a que tinha do mesmo tipo (troca). O nome e o brilho
+    ATACAR pega — e quem pega com a bolsa cheia solta no lugar a arma da mão (troca). O nome e o brilho
     têm a cor da raridade (comum branca, rara azul, roubada dourada)."""
 
     REACH = 58
     TOSS = 22                    # quadros do arremesso até o chão
 
     def __init__(self, weapon, start, end):
+        self.by_player = False          # largada por um jogador (nunca some sozinha)
         super().__init__(*end)
         self.weapon = weapon
         self.start = start

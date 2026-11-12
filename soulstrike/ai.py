@@ -14,7 +14,7 @@ DIFFICULTIES = {
                 "dash": 0.05, "ability": 0.2, "dodge": 0.6, "range": 200},
 }
 # dificuldades a mais, só na campanha (piadas internas do grupo); a CPU delas luta como a do difícil
-DIFFICULTIES["ibrahim"] = dict(DIFFICULTIES["dificil"], label="IBRAHIM", reaction=2, dodge=0.7,
+DIFFICULTIES["ibrahim"] = dict(DIFFICULTIES["dificil"], label="IBRAHIN", reaction=2, dodge=0.7,
                                tagline='"TOMA CUIDADO JOVI, ESSE É DIFÍCIL"')
 DIFFICULTIES["borba"] = dict(DIFFICULTIES["dificil"], label="BORBA", reaction=1, scatter=0.04, fire=0.95,
                              dodge=0.8, ability=0.3, tagline='"SENSACIONAL"')
@@ -118,10 +118,10 @@ class FighterAI:
         if threat and random.random() < cfg["dodge"]:
             bx, by = threat
             if me.dash((-by, bx) if random.random() < 0.5 else (by, -bx)):
-                match.assets.play("dash", 0.3)
+                match.assets.play("dash", 0.3, at=me.x)
         elif random.random() < cfg["dash"] and not reviving:
             if me.dash((ax, ay) if dist > 200 else (-ax, -ay)):
-                match.assets.play("dash", 0.3)
+                match.assets.play("dash", 0.3, at=me.x)
 
     def _manage_weapon(self, me, match, dist):
         """Sem munição e com o inimigo colado: troca para a arma de perto enquanto recarrega;

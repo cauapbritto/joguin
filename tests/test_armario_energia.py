@@ -1,7 +1,7 @@
 """v1.13.0: armário de armas do acampamento, energia finita da campanha e as cinco dificuldades."""
 import unittest
 
-from apoio import FakeInput, game
+from apoio import FakeInput, com_rara, game
 
 from soulstrike import energia
 from soulstrike.ai import CAMPAIGN_ORDER, DIFFICULTIES
@@ -51,11 +51,11 @@ class ArmarioTest(unittest.TestCase):
         match.give_relic(p, RARE_WEAPONS["besta"])
         perto(match, p, match.armario)
         self.assertTrue(match.interact(p))                      # ATACAR perto: guarda
-        self.assertIsNone(p.relic)
+        self.assertNotIn(RARE_WEAPONS["besta"], p.weapons)
         self.assertEqual(match.run.rack, ["rara:besta"])
         perto(match, q, match.armario)
         self.assertTrue(match.interact(q))                      # o amigo pega
-        self.assertIs(q.relic, RARE_WEAPONS["besta"])
+        self.assertIs(q.weapon, RARE_WEAPONS["besta"])
         self.assertEqual(match.run.rack, [])
 
     def test_largar_perto_guarda(self):
@@ -78,11 +78,11 @@ class ArmarioTest(unittest.TestCase):
         match.run.rack = ["rara:canhao"]
         match.give_relic(p, RARE_WEAPONS["besta"])
         match.store_in_rack(p)                               # guarda a besta: fila canhão, besta
-        match.take_from_rack(p)                              # pega o canhão
-        self.assertIs(p.relic, RARE_WEAPONS["canhao"])
+        match.take_from_rack(p)                              # pega o canhão (vaga livre)
+        self.assertIs(p.weapon, RARE_WEAPONS["canhao"])
         self.assertEqual(match.run.rack, ["rara:besta"])
-        match.take_from_rack(p)                              # pega a besta, o canhão volta para a fila
-        self.assertIs(p.relic, RARE_WEAPONS["besta"])
+        match.take_from_rack(p)                              # bolsa cheia: pega a besta, o canhão volta para a fila
+        self.assertIs(p.weapon, RARE_WEAPONS["besta"])
         self.assertEqual(match.run.rack, ["rara:canhao"])
 
     def test_cheio(self):
@@ -91,7 +91,7 @@ class ArmarioTest(unittest.TestCase):
         match.run.rack = ["rara:canhao"] * RACK_SIZE
         match.give_relic(p, RARE_WEAPONS["besta"])
         self.assertFalse(match.store_in_rack(p))
-        self.assertIs(p.relic, RARE_WEAPONS["besta"])
+        self.assertIs(p.weapon, RARE_WEAPONS["besta"])
 
     def test_salvo_guarda_o_armario(self):
         _, run = corrida()
@@ -105,7 +105,7 @@ class ArmarioTest(unittest.TestCase):
 def masmorra(relic=None, difficulty="normal", chars=("guerreiro", "atirador")):
     g, run = corrida(chars=chars, stage=DUNGEON_1, difficulty=difficulty)
     if relic:
-        run.relics[1] = relic
+        com_rara(run, 1, relic)
         run.held[1] = 2
     match = CampaignMatch(g, run)
     match.state, match.state_timer, match.banner = "fight", 0, None
@@ -223,7 +223,7 @@ class DificuldadesTest(unittest.TestCase):
         dmg = [LEVELS[k].dmg for k in CAMPAIGN_ORDER]
         self.assertEqual(hp, sorted(hp))
         self.assertEqual(dmg, sorted(dmg))
-        self.assertEqual(DIFFICULTIES["ibrahim"]["label"], "IBRAHIM")
+        self.assertEqual(DIFFICULTIES["ibrahim"]["label"], "IBRAHIN")
         self.assertIn("TOMA CUIDADO JOVI", DIFFICULTIES["ibrahim"]["tagline"])
         self.assertIn("SENSACIONAL", DIFFICULTIES["borba"]["tagline"])
 

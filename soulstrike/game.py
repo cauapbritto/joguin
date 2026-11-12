@@ -141,6 +141,7 @@ class Game:
         for event in events:
             self.scene.handle(event)
         self.scene.update()
+        self.assets.tick_audio()
         if self._fade > 0:
             self._fade -= 1
         self.clock_ticks += 1

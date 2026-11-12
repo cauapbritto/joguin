@@ -3,7 +3,7 @@ fogueira e as armas no chão. O mapa da fase inteira fica em test_fase_mapa."""
 import math
 import unittest
 
-from apoio import FakeInput, game
+from apoio import FakeInput, com_rara, game
 
 from soulstrike import projectiles as P
 from soulstrike.arena import BATTLE_MAPS, MAPS_BY_KEY, Arena
@@ -150,7 +150,7 @@ class BauTest(unittest.TestCase):
 
     def test_bau_joga_as_armas_no_chao_sem_trocar_sozinho(self):
         match, inputs = self._abrir()
-        self.assertTrue(all(p.relic is None for p in match.players))    # ninguém trocou de arma sozinho
+        self.assertTrue(all(not any(w.rare for w in p.weapons) for p in match.players))    # ninguém trocou sozinho
         self.assertTrue(all(len(p.weapons) == 2 for p in match.players))
         items = list(match.ground)
         self.assertEqual(len(items), len(match.players) + 1)            # uma por jogador e mais uma
@@ -171,21 +171,20 @@ class BauTest(unittest.TestCase):
         inputs[1].tap("attack")
         inputs[2].tap("attack")
         passo(match, inputs, 1)
-        self.assertIs(p1.relic, a.weapon)
-        self.assertIs(p2.relic, b.weapon)
+        self.assertIs(p1.weapon, a.weapon)                    # já vem na mão
+        self.assertIs(p2.weapon, b.weapon)
         for p in (p1, p2):
-            self.assertIs(p.weapon, p.relic)                  # já vem na mão
-            self.assertEqual(len(p.weapons), 3)
-            self.assertEqual(match.run.relics[p.slot], next(k for k, w in RARE_WEAPONS.items() if w is p.relic))
+            self.assertEqual(len(p.weapons), 3)               # entrou na vaga livre da bolsa
+            key = next(k for k, w in RARE_WEAPONS.items() if w is p.weapon)
+            self.assertEqual(match.run.bags[p.slot][2], "rara:" + key)
         self.assertEqual(len(match.ground), 1)                # sobrou a outra no chão
 
     def test_arma_rara_continua_nas_proximas_etapas(self):
         g, run = corrida(stage=DUNGEON_2)
-        run.relics[1] = "besta"
+        com_rara(run, 1, "besta")
         run.held[1] = 2
         match = CampaignMatch(g, run)
         p1 = match.players[0]
-        self.assertIs(p1.relic, RARE_WEAPONS["besta"])
         self.assertIs(p1.weapon, RARE_WEAPONS["besta"])
         p1.switch_weapon()
         self.assertEqual(p1.weapon_index, 0)                   # TROCAR ARMA passa pelas três
@@ -200,24 +199,25 @@ class BauTest(unittest.TestCase):
 
 
 class ArmaNoChaoTest(unittest.TestCase):
-    """Só dá para ter uma arma rara: pegando outra, a antiga fica no chão e dá para pegar de volta."""
+    """Bolsa cheia: pegando outra arma, a da mão fica no chão e dá para pegar de volta."""
 
     def _bau_com_besta(self):
         g, run = corrida(chars=("guerreiro", "atirador"), stage=LOBBY_BACK)
-        run.relics[1] = "besta"                            # já tinha uma arma rara da fase anterior
+        com_rara(run, 1, "besta")                            # já tinha uma arma rara da fase anterior
+        run.held[1] = 2                                      # e está com ela na mão
         match = PhaseMatch(g, run)
         inputs = {}
         for f in match.players:
             inputs[f.slot] = match.controllers[f] = _Input()
         p1 = match.players[0]
-        self.assertIs(p1.relic, RARE_WEAPONS["besta"])
-        match.give_relic(p1, RARE_WEAPONS["canhao"])        # pegou outra rara: a besta cai
+        self.assertIs(p1.weapon, RARE_WEAPONS["besta"])
+        match.give_relic(p1, RARE_WEAPONS["canhao"])        # bolsa cheia: troca pela da mão, a besta cai
         passo(match, inputs, 40)
         return match, inputs, p1
 
     def test_quarta_arma_deixa_a_antiga_no_chao(self):
         match, inputs, p1 = self._bau_com_besta()
-        self.assertIsNot(p1.relic, RARE_WEAPONS["besta"])
+        self.assertNotIn(RARE_WEAPONS["besta"], p1.weapons)
         self.assertEqual(len(p1.weapons), 3)                   # continua com 3 armas
         self.assertEqual(len(match.ground), 1)
         item = match.ground[0]
@@ -226,16 +226,15 @@ class ArmaNoChaoTest(unittest.TestCase):
 
     def test_pega_de_volta_trocando(self):
         match, inputs, p1 = self._bau_com_besta()
-        new = p1.relic
+        new = p1.weapon
         item = match.ground[0]
         spot = (item.x, item.y)
         p1.x, p1.y = item.x + 20, item.y
         match.players[1].x += 300                              # o companheiro longe
         inputs[1].tap("attack")
         passo(match, inputs, 1)
-        self.assertIs(p1.relic, RARE_WEAPONS["besta"])
-        self.assertIs(p1.weapon, p1.relic)                     # volta para a mão
-        self.assertEqual(match.run.relics[1], "besta")
+        self.assertIs(p1.weapon, RARE_WEAPONS["besta"])        # volta para a mão
+        self.assertEqual(match.run.bags[1][2], "rara:besta")
         self.assertEqual(match.bullets, [])                    # o ATACAR pegou a arma (não atirou)
         self.assertEqual(len(match.ground), 1)
         swapped = match.ground[0]
@@ -247,14 +246,14 @@ class ArmaNoChaoTest(unittest.TestCase):
         match, inputs, p1 = self._bau_com_besta()
         p2 = match.players[1]
         match.give_relic(p2, RARE_WEAPONS["bumerangue"])
-        mine = p2.relic
+        mine = p2.weapon
         item = match.ground[0]
         p1.x += 300
         p2.x, p2.y = item.x - 20, item.y
         inputs[2].tap("attack")
         passo(match, inputs, 1)
-        self.assertIs(p2.relic, RARE_WEAPONS["besta"])
-        self.assertIs(match.ground[0].weapon, mine)
+        self.assertIs(p2.weapon, RARE_WEAPONS["besta"])
+        self.assertIn("rara:besta", match.run.bags[2])
 
     def test_nao_pega_enquanto_cai(self):
         match, inputs = acampamento(back=True)
@@ -275,7 +274,7 @@ class ArmasRarasTest(unittest.TestCase):
 
     def _campo(self, weapon_key):
         g, run = corrida(stage=DUNGEON_1)
-        run.relics[1] = weapon_key
+        com_rara(run, 1, weapon_key)
         run.held[1] = 2
         match = CampaignMatch(g, run)
         match.state, match.state_timer, match.banner = "fight", 0, None

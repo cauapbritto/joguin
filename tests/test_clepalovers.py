@@ -332,14 +332,14 @@ class LargarArmaTest(unittest.TestCase):
         match = masmorra()
         p = match.players[0]
         match.give_relic(p, RARE_WEAPONS["besta"])
-        self.assertIs(p.weapon, p.relic)
+        self.assertIs(p.weapon, RARE_WEAPONS["besta"])
         n = len(match.ground)
         self._apertar(match, p, "drop")
-        self.assertIsNone(p.relic)
-        self.assertIsNone(match.run.relics[p.slot])
+        self.assertNotIn(RARE_WEAPONS["besta"], p.weapons)
+        self.assertNotIn("rara:besta", match.run.bags[p.slot])
         self.assertEqual(len(match.ground), n + 1)
 
-    def test_arma_de_outro_volta_a_ser_a_dele(self):
+    def test_arma_de_outro_sai_da_bolsa(self):
         match = masmorra()
         p = match.players[0]
         rifle = next(c for c in CHARACTERS if c.key == "atirador").weapons[0]
@@ -348,7 +348,6 @@ class LargarArmaTest(unittest.TestCase):
         self._apertar(match, p, "drop")
         self.assertNotIn(rifle, p.weapons)
         self.assertEqual(p.base_weapons, p.stats.weapons)
-        self.assertIsNone(match.run.loadouts[p.slot])
 
     def test_segurar_trocar_so_troca(self):
         from soulstrike.data import RARE_WEAPONS
@@ -358,14 +357,16 @@ class LargarArmaTest(unittest.TestCase):
         before = p.weapon_index
         self._apertar(match, p, "switch", 40)      # segurar TROCAR ARMA não larga mais
         self.assertNotEqual(p.weapon_index, before)
-        self.assertIsNotNone(p.relic)
+        self.assertIn(RARE_WEAPONS["besta"], p.weapons)
 
-    def test_arma_propria_nao_sai(self):
+    def test_arma_propria_tambem_sai(self):
         match = masmorra()
         p = match.players[0]
+        mine = p.weapon
         n = len(match.ground)
-        self.assertFalse(match.drop_held(p))
-        self.assertEqual(len(match.ground), n)
+        self.assertTrue(match.drop_held(p))
+        self.assertEqual(len(match.ground), n + 1)
+        self.assertNotIn(mine, p.weapons)
 
 
 class AlbeguinioCorrompidoTest(unittest.TestCase):

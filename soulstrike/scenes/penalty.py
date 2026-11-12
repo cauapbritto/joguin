@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 import pygame
 
-from .. import config, crt, penalty as P, progress, theme
+from .. import config, crt, penalty as P, progress, segredos, theme
 from ..data import CHARACTERS
 from ..matches import Result
 from ..net.remote import hub
@@ -23,6 +23,7 @@ SPOT = (W // 2, 466)
 UP = 150                    # quanto a câmera sobe atrás da bola isolada
 KEEPER_SCALE = 1.5          # as folhas já vêm 2x: o goleiro fica 3x e quem bate 5x
 KICKER_SCALE = 2.5
+CUIABA_CHANCE = 0.25        # segredo: às vezes a bola isolada some no céu ("FOI PRA CUIABÁ")
 BALL_R = (22, 11)           # raio da bola na marca e chegando no gol
 KICK_FOOT = (W // 2 - 50, SPOT[1] + 30)   # onde quem bate pisa: o pé do chute encosta na bola no contato
 HIT_STOP = 3                # quadros congelados no contato
@@ -163,7 +164,7 @@ def goal_to_screen(x, y):
 class PenaltyScene(Scene):
     """Disputa (mode="penaltis"), treino sem fim (mode="treino_penaltis") ou desafio do goleiro."""
 
-    music = None
+    music = "penaltis"
     phase = "penalty"
     show_cursor = False
 
@@ -226,7 +227,6 @@ class PenaltyScene(Scene):
 
     def enter(self):
         super().enter()
-        self.assets.stop_music(600)
         self._publish()
 
     def phone_mode(self):
@@ -255,6 +255,8 @@ class PenaltyScene(Scene):
         else:
             kicker, keeper = s.kicker(), s.keeper()
         decisive = s.decisive() if self.mode == "penaltis" else False
+        # trilha: a camada de tensão entra na cobrança decisiva, nas alternadas e da 4ª em diante
+        self.assets.music_intensity(1 if decisive or s.sudden_death or s.number >= 4 else 0)
         self.kick = Kick(kicker, keeper, decisive=decisive)
         if not kicker.cpu:
             self.game.inputs[kicker.slot].set_layout("soccer")
@@ -608,6 +610,10 @@ class PenaltyScene(Scene):
         sub = out.text if out.goal else ""
         if out.result == "isolou":
             sub = "A TORCIDA FICOU COM A BOLA"
+            if not k.kicker.cpu and self.rng.random() < CUIABA_CHANCE:   # segredo: sumiu no céu
+                k.cuiaba = True
+                sub = "FOI PRA CUIABÁ"
+                segredos.find("cuiaba")
         if k.retake:
             sub = "2º AMARELO: VAI REPETIR!"
         # com a câmera perto do gol, o grito fica embaixo para não tapar o goleiro
@@ -1160,7 +1166,8 @@ class PenaltyScene(Scene):
         if self.state == "resultado":
             spin += self.t * 0.15
         self._draw_mini_ball(s, x, y + up, r, spin=spin)
-        if self.state == "resultado" and k.outcome.result == "isolou" and self.t > 24:
+        if self.state == "resultado" and k.outcome.result == "isolou" and self.t > 24 \
+                and not getattr(k, "cuiaba", False):
             fan = TEAM[1 - k.kicker.team]                  # um torcedor rival pega a bola
             fx, fy = round(x), round(y + up)
             s.fill((200, 150, 120), (fx - 4, fy + 6, 8, 7))
@@ -1185,6 +1192,8 @@ class PenaltyScene(Scene):
             side = 1 if k.shot.x >= 0 else -1
             return x + side * t * 3, y + min(60, t * t * 0.08) - t * 1.2, r
         if result == "isolou":
+            if getattr(k, "cuiaba", False):          # segredo: a bola vai sumindo no céu
+                return x + t * 0.4, y - t * 2.6, max(1, r - t * 0.06)
             return x + t * 0.6, y - min(t * 2, 60), r
         if result == "segurou":
             return W // 2 + k.keeper_x, LINE_Y - 60, 6

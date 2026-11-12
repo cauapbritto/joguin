@@ -7,9 +7,9 @@ import pygame
 from . import config, theme
 from . import rumble
 from .abilities import create_ability
-from .data import shot_sound
+from .data import BAG_SIZE, PUNCH, shot_sound
 from .entities import Entity, Particle, hostile
-from . import energia, forged, gadgets, rare_fx, skins
+from . import energia, forged, gadgets, rare_fx, skins, tiros_novos
 from .market import BURN_TICK, FORGE_DAMAGE, FORGE_MAG, enchant_hit
 from . import weapon_art
 
@@ -310,6 +310,7 @@ class Fighter(Entity):
         self.dash_cd_mult = 1.0         # recarga da esquiva
         self.pierce = 0                 # tiros atravessam tantos inimigos
         self.lifesteal = 0.0            # parte do dano que vira vida
+        self.siphon = 0.0               # melhoria SIFÃO: parte do dano que vira energia
         self.shield = 0                 # escudo que absorve dano
         self.draw_scale = 1.0           # tamanho do desenho (chefão)
         if self.ability.body_scale != 1.0:          # Baixinho (Aryel): menor e mais difícil de acertar
@@ -353,7 +354,11 @@ class Fighter(Entity):
         self.aim_timer = 0              # olhando para o alvo do último ataque
         self._dir = "direita" if self.facing[0] >= 0 else "esquerda"
         # munição das armas de tiro: um pente por arma (pente, recarga e o arco tensionando)
-        self.relic = None               # arma rara do baú (campanha): vira a 3ª arma
+        self.relic = None               # arma rara (treino): vira a 3ª arma
+        self.bag = None                 # campanha: a bolsa com até BAG_SIZE armas de qualquer tipo
+        self.gear = None                # campanha: o equipamento (equipamento.py), um por vez
+        self.cape_used = self.hourglass_used = False
+        self.still_frames = 0           # Pilha Recarregável: quadros parado
         self.forge = {}                 # ferreiro (campanha): nome da arma -> [nível, encanto]
         self.burn_timer = 0             # encanto de fogo: queima aos poucos
         self.burn_damage = 0
@@ -367,6 +372,8 @@ class Fighter(Entity):
         self.energy = None              # energia da campanha (energia.py); None = fora da campanha
         self.energy_max = 0
         self.energy_bonus = 0           # melhoria ENERGIA
+        self.ability_energy_timer = 0   # logo depois da habilidade: acertos dão energia
+        self.ability_energy_left = 0
         self.bash_timer = 0             # coronhada (arma de tiro sem energia vira de bater)
         self.ammo_mult = 1.0            # melhoria da campanha: pente maior
         self.reload_mult = 1.0          # e recarga mais rápida
@@ -422,6 +429,8 @@ class Fighter(Entity):
 
     @property
     def weapons(self):
+        if self.bag is not None:
+            return tuple(self.bag) or (PUNCH,)
         if self.fused:
             return self.extras + (self.relic,)
         if self.relic is not None:
@@ -433,8 +442,43 @@ class Fighter(Entity):
         weapons = self.weapons
         return weapons[self.weapon_index % len(weapons)]
 
+    # ── bolsa da campanha ────────────────────
+    @property
+    def bag_size(self):
+        """Vagas da bolsa (a Mochila Grande dá uma 4ª)."""
+        return BAG_SIZE + (1 if self.gear == "mochila" else 0)
+
+    def take(self, weapon):
+        """Põe a arma na bolsa e na mão. Com a bolsa cheia ela troca pela da mão, que é devolvida
+        (quem chamou joga no chão ou guarda); com vaga, devolve None."""
+        old = None
+        if len(self.bag) < self.bag_size:
+            self.bag.append(weapon)
+            i = len(self.bag) - 1
+        else:
+            i = self.weapon_index % len(self.bag)
+            old = self.bag[i]
+            self.bag[i] = weapon
+            self.clips.pop(old, None)
+        self.weapon_index = i
+        self.bow_draw = 0
+        return old
+
+    def take_out(self):
+        """Tira a arma da mão da bolsa e devolve ela (None se a bolsa está vazia)."""
+        if not self.bag:
+            return None
+        i = self.weapon_index % len(self.bag)
+        weapon = self.bag.pop(i)
+        self.clips.pop(weapon, None)
+        self.weapon_index = min(i, max(0, len(self.bag) - 1))
+        self.bow_draw = 0
+        return weapon
+
     def give_relic(self, weapon):
         """Arma rara do baú: entra como 3ª arma (troca a anterior, se tinha) e já vem na mão."""
+        if self.bag is not None:                    # campanha: entra na bolsa como qualquer arma
+            return self.take(weapon)
         old = self.relic
         if old is not None:
             self.clips.pop(old, None)
@@ -609,7 +653,7 @@ class Fighter(Entity):
             base *= RUSH_MULT
         if self.uno_hits > 0:
             base *= UNO_SLOW
-        return base * (2 if self.speed_timer > 0 else 1) * self.speed_mult
+        return base * (2 if self.speed_timer > 0 else 1) * self.speed_mult * tiros_novos.speed_mult(self)
 
     def slow(self, frames):
         """Fica lento (gelo). Invulnerável e zagueirão não são afetados."""
@@ -744,7 +788,8 @@ class Fighter(Entity):
                      "shoot_flash", "teleport_flash", "slow_timer", "pull_timer", "windup", "aim_timer",
                      "down_age", "bow_draw", "haste_timer", "idle_shot", "hack_timer", "type_timer",
                      "virus_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer",
-                     "perfect_flash", "burn_timer", "combo_timer", "combo_count", "guard_frames"):
+                     "perfect_flash", "burn_timer", "combo_timer", "combo_count", "guard_frames",
+                     "ability_energy_timer", "ability_energy_left"):
             setattr(self, name, 0)
         self.end_exo()
         self.clips.clear()                            # pentes cheios de novo
@@ -772,6 +817,8 @@ class Fighter(Entity):
         self.on_moto = frames is None and self.ability.moto          # só a esquiva normal vira moto
         if frames is None:
             frames = MOTO_FRAMES if self.on_moto else config.DASH_FRAMES
+            if self.gear == "bota":
+                frames = round(frames * 1.35)                    # Bota de Mola: esquiva mais longa
         dx, dy = direction or self.input
         if not (dx or dy):
             dx, dy = self.facing
@@ -797,6 +844,7 @@ class Fighter(Entity):
         self.ability_cd = max(0, self.ability_cd - round(self.ability_cooldown * config.PERFECT_DODGE_CHARGE))
         self.perfect_flash = 18
         match.popup(self.x, self.y - 60, "ESQUIVA PERFEITA!", (240, 248, 255))
+        energia.on_perfect_dodge(self, match)
         match.burst(self.x, self.y - 14, (230, 244, 255), 12, speed=4)
         match.assets.play("click", 0.5)
         return True
@@ -816,6 +864,8 @@ class Fighter(Entity):
     def switch_weapon(self):
         if len(self.weapons) < 2:
             return False
+        if self.gear == "coldre":
+            self.clips.pop(self.weapon, None)        # Coldre Duplo: a que sai volta de pente cheio
         self.weapon_index = (self.weapon_index + 1) % len(self.weapons)
         self.attack_cd = max(self.attack_cd, 10)
         self.bow_draw = 0
@@ -854,29 +904,37 @@ class Fighter(Entity):
         if weapon.is_melee:
             self.melee_flash = 12
             self.attack_cd = weapon.cooldown
-            match.assets.play("golpe", 0.45)
+            match.assets.play("golpe", 0.45, at=self.x)
             self._deflect_bullets(match)
-            rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
+            # raras/forjadas de perto: o golpe é de graça, o efeito especial gasta (sem energia, sai sem ele)
+            special = energia.pay_special(self, weapon, self._third_swing(weapon))
+            if not special and self.dry_click <= 0:
+                self.dry_click = 50
+                match.popup(self.x, self.y - 74, "SEM ENERGIA", energia.ENERGY_COLOR)
+            if special:
+                rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
             # acerta todos os adversários ao alcance na frente (no duelo, só existe um)
             fx, fy = self.facing
             reach = self.melee_reach(weapon)
             hits = []
             damage = round(weapon.damage * self.damage_mult * self.weapon_mult(weapon))
+            spin = weapon.spin and special
             for other in match.opponents_of(self):
                 if not other.alive_in_match:
                     continue
                 dx, dy = other.x - self.x, other.y - self.y
                 d = math.hypot(dx, dy)
-                in_front = weapon.spin or other is target or d < other.radius + 6 or (dx * fx + dy * fy) > -0.2 * d
+                in_front = spin or other is target or d < other.radius + 6 or (dx * fx + dy * fy) > -0.2 * d
                 if d <= reach + other.radius and in_front:
                     if other.take_damage(damage, self.x, self.y, attacker=self, match=match):
                         hits.append(other)
                         enchant_hit(self, weapon, other, match, damage)
+                        tiros_novos.on_melee_hit(self, weapon, other, match, special)
                         if self.exo_timer > 0:
                             other.throw_from(self, match)
-            if weapon.forjada:
+            if weapon.forjada and special:
                 forged.on_swing(self, weapon, match, hits, damage)
-            gadgets.on_melee(self, weapon, match, damage)
+            gadgets.on_melee(self, weapon, match, damage, special)
             energia.spend(self, weapon)
             return True
         base = proximity_damage(dist, weapon.damage) if weapon.close_bonus else weapon.damage
@@ -888,8 +946,16 @@ class Fighter(Entity):
         self.attack_cd = weapon.cooldown
         self.shoot_flash = 5
         rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
-        match.assets.play(shot_sound(weapon, match.frame), 0.3)
+        match.assets.play(shot_sound(weapon, match.frame), 0.3, at=self.x)
         return True
+
+    def _third_swing(self, weapon):
+        """Este golpe vai ser o 3º seguido (o que solta o efeito maior)?"""
+        if weapon.forjada:
+            return (self.forged_count + 1) % 3 == 0
+        if weapon.special:
+            return (self.combo_count + 1 if self.combo_timer > 0 else 1) >= 3
+        return False
 
     def _bash(self, match, target, weapon):
         """Sem energia: bate com a arma (a de tiro vira de perto; a rara de perto bate sem o efeito)."""
@@ -903,7 +969,7 @@ class Fighter(Entity):
         self.bash_timer = 12
         self.attack_cd = bash.cooldown
         self.bow_draw = 0
-        match.assets.play("golpe", 0.4)
+        match.assets.play("golpe", 0.4, at=self.x)
         fx, fy = self.facing
         reach = bash.reach * self.ability.reach_mult
         damage = round(bash.damage * self.damage_mult)
@@ -943,7 +1009,7 @@ class Fighter(Entity):
         rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
         self.aim_timer = max(self.aim_timer, AIM_HOLD)
         sound = "arco" if weapon.style in ("flecha", "") else shot_sound(weapon)
-        match.assets.play(sound, 0.45 if power >= 1 else 0.3)
+        match.assets.play(sound, 0.45 if power >= 1 else 0.3, at=self.x)
 
     def throw_from(self, attacker, match):
         """Golpe do exoesqueleto: voa longe (e se bater na parede fica tonto)."""
@@ -978,12 +1044,13 @@ class Fighter(Entity):
                 match.burst(b.x, b.y, (250, 240, 200), 6, speed=3)
         if blocked:
             match.popup(self.x, self.y - 46, "DEFESA", theme.SKY)
-            match.assets.play("barrier", 0.35)
+            match.assets.play("barrier", 0.35, at=self.x)
 
     def use_ability(self, match, target):
         if not self.ability_ready or self.busy:
             return False
         self.ability_cd = self.ability_cooldown
+        energia.on_ability(self)
         self.ability.use(self, match, target)
         return True
 
@@ -1032,11 +1099,13 @@ class Fighter(Entity):
             if self.hp <= 0:
                 attacker.kills += 1
                 forged.on_kill(attacker, self, match)
+                tiros_novos.on_kill(attacker, self, match)
+            energia.on_damage(attacker, self, dealt, match)
         if match is not None:
             match.popup(self.x, self.y - 46 * self.draw_scale, str(amount), theme.BONE if amount < 20 else theme.BRASS)
             match.burst(self.x, self.y - 10, (236, 230, 220), 5, speed=3)
             match.hit_feedback(self, amount)
-            match.assets.play("hit", 0.4)
+            match.assets.play("hit", 0.4, at=self.x)
         return True
 
     def _uno_hit(self, match):
@@ -1047,7 +1116,7 @@ class Fighter(Entity):
             return
         after = uno_pieces(self.uno_hits)
         match.burst(self.x, self.y - 16, UNO_WHITE, 6, speed=3)
-        match.assets.play("hit", 0.3)
+        match.assets.play("hit", 0.3, at=self.x)
         if after < before:
             for _ in range(10):                                  # a peça caindo, em pedacinhos
                 match.particles.append(Particle(self.x + random.uniform(-10, 10), self.y - 22,
@@ -1261,6 +1330,8 @@ class Fighter(Entity):
         held, self._attack_held = self._attack_held, False
         if self.combo_timer > 0:
             self.combo_timer -= 1
+        if self.ability_energy_timer > 0:
+            self.ability_energy_timer -= 1
         if self.guard_frames > 0 and (not held or self.stunned or self.weapon.special != "escudo"):
             if self.weapon.special == "escudo" and not self.stunned:
                 gadgets.shield_release(self, match)
@@ -1350,6 +1421,13 @@ class Fighter(Entity):
         Arco: vazio depois de soltar ou recarregando, com a flecha encaixada e cada vez mais
         puxado enquanto tensiona. Armas de arremesso somem da mão quando acaba a munição, e a
         Corrente some enquanto a bola está no ar."""
+        name = self._plain_art_name()
+        if name is None or not self.forge:
+            return name
+        level, enchant = self.forge.get(self.weapon.name, (0, None))
+        return weapon_art.styled(name, level, enchant)        # o visual do ferreiro (+1/+2/+3, encanto)
+
+    def _plain_art_name(self):
         w = self.weapon
         if w.is_melee or not self.mag:
             return w.name

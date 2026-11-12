@@ -109,6 +109,97 @@ def rotated(name, angle_deg, scale=SCALE):
     return img
 
 
+# ── visual que muda ao evoluir e encantar no ferreiro ─────────────────
+# encanto: a parte de metal ganha as cores do elemento, do escuro ao claro (rampa de 3 cores)
+ENCHANT_TINT = {"fogo": ((130, 28, 12), (238, 86, 22), (255, 214, 110)),
+                "gelo": ((34, 72, 140), (104, 186, 248), (232, 248, 255)),
+                "raio": ((128, 92, 12), (240, 196, 40), (255, 252, 196))}
+LEVEL_RIM = {2: (150, 104, 36), 3: (232, 178, 60)}        # contorno de ouro no +2 e no +3
+_styled = {}
+
+
+def styled(name, level=0, enchant=None):
+    """Nome do desenho da arma com o visual do ferreiro: +1 o metal brilha mais, +2 ganha contorno
+    de ouro, +3 contorno de ouro claro e uma aura; o encanto pinta a lâmina/o cano (fogo, gelo,
+    raio). A variante é feita uma vez, a partir da arte normal, e fica com nome próprio para todo
+    o resto (girar, desenhar na mão, ícone) funcionar igual."""
+    level = max(0, min(3, int(level or 0)))
+    if (not level and not enchant) or name not in _base:
+        return name
+    key = f"{name}|{level}|{enchant or ''}"
+    if key in _styled:
+        return key
+    img, grip = _base[name]
+    out = _restyle(img, level, ENCHANT_TINT.get(enchant))
+    detail = name in _hd
+    if detail:
+        _hd[key] = out
+        small = pygame.transform.scale(out, (out.get_width() // 2, out.get_height() // 2))
+    else:
+        small = _restyle(_icons[name], level, ENCHANT_TINT.get(enchant))
+    _icons[key] = small
+    gx, gy = grip
+    w, h = out.get_size()
+    _base[key] = (out, grip)
+    _variants[key] = {
+        "direita": (out, (gx, gy)),
+        "esquerda": (pygame.transform.flip(out, True, False), (w - 1 - gx, gy)),
+        "frente": (pygame.transform.rotate(out, -90), (h - 1 - gy, gx)),
+        "costas": (pygame.transform.rotate(out, 90), (gy, w - 1 - gx)),
+    }
+    _styled[key] = (name, level, enchant)
+    return key
+
+
+def _restyle(img, level, tint):
+    out = img.copy()
+    w, h = out.get_size()
+    src = pygame.PixelArray(img)
+    dst = pygame.PixelArray(out)
+
+    def rgba(x, y):
+        return img.unmap_rgb(src[x, y])
+
+    def solid(x, y):
+        return 0 <= x < w and 0 <= y < h and rgba(x, y).a > 0
+
+    for y in range(h):
+        for x in range(w):
+            c = rgba(x, y)
+            if c.a == 0:
+                continue
+            r, g, b = c.r, c.g, c.b
+            lum = (r * 3 + g * 6 + b) / 10
+            edge = not all(solid(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+            if edge and lum < 60:                              # o contorno escuro
+                if level in LEVEL_RIM:
+                    dst[x, y] = (*LEVEL_RIM[level], c.a)
+                continue
+            metal = max(r, g, b) - min(r, g, b) < 46 and lum > 70
+            if tint is not None and metal:
+                t = min(1.0, max(0.0, (lum - 70) / 170))
+                lo, hi, k = (tint[0], tint[1], t * 2) if t < 0.5 else (tint[1], tint[2], t * 2 - 1)
+                tr, tg, tb = (a + (b2 - a) * k for a, b2 in zip(lo, hi))
+                r, g, b = (round(a * 0.15 + c * 0.85) for a, c in ((r, tr), (g, tg), (b, tb)))
+            if level and metal:
+                boost = 1.06 + 0.05 * level
+                r, g, b = (min(255, round(v * boost)) for v in (r, g, b))
+            dst[x, y] = (r, g, b, c.a)
+    del src, dst
+    if level >= 3:                                             # aura: um pixel de luz em volta
+        glow = tint[1] if tint else (255, 220, 120)
+        halo = pygame.Surface((w, h), pygame.SRCALPHA)
+        for y in range(h):
+            for x in range(w):
+                if out.get_at((x, y)).a == 0 and any(
+                        0 <= x + dx < w and 0 <= y + dy < h and out.get_at((x + dx, y + dy)).a > 0
+                        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                    halo.set_at((x, y), (*glow, 110))
+        halo.blit(out, (0, 0))
+        out = halo
+    return out
+
+
 def hand_point(x, y, direction, bob):
     """Onde fica a mão que segura a arma, para cada direção do personagem."""
     if direction == "direita":

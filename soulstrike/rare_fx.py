@@ -28,6 +28,10 @@ ACCENT = {
     "Taser de Rede": (130, 200, 255), "Rifle de Plasma": (110, 255, 200), "Drone de Bolso": (130, 200, 255),
     "Teclado Mecânico": (60, 200, 230), "Escudo de Choque": (130, 200, 255), "Manopla do Exo": (90, 170, 255),
 }
+
+from .armas_novas import ACCENT as _NOVAS  # noqa: E402  (armas novas dos baús)
+
+ACCENT.update(_NOVAS)
 WHITE = (255, 255, 240)
 
 

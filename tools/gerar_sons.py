@@ -1,16 +1,13 @@
-"""Gera os efeitos sonoros novos e as músicas do acampamento e do chefão (síntese, sem samples).
+"""Gera os efeitos sonoros novos (síntese, sem samples). A trilha sai de tools/gerar_trilha.py.
 
 Uso:  python tools/gerar_sons.py
 
-Os efeitos saem em assets/sounds/<nome>.wav (mono, 44100 Hz, 16 bits, como os antigos). As
-músicas saem em .ogg (precisa do ffmpeg instalado; sem ele ficam em .wav, bem maiores). Tudo é
+Os efeitos saem em assets/sounds/<nome>.wav (mono, 44100 Hz, 16 bits, como os antigos). Tudo é
 determinístico (semente fixa): rodar de novo gera os mesmos arquivos.
 """
 import math
 import random
-import shutil
 import struct
-import subprocess
 import wave
 from pathlib import Path
 
@@ -391,115 +388,50 @@ def sport_effects():
 NOTE = {n: i for i, n in enumerate(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"])}
 
 
-def freq(note):
-    """'A4' -> 440 Hz."""
-    name, octave = note[:-1], int(note[-1])
-    return 440.0 * 2 ** ((NOTE[name] - 9) / 12 + (octave - 4))
+def pet_effects():
+    """Os somzinhos dos pets, tocados baixinho junto com o balão de fala (semente própria)."""
+    r = random.Random(47)
 
+    def miau(f0, f1, f2, dur):
+        return mix(tone(f0, dur * 0.4, "saw", 0.35, slide=f1, attack=0.03, curve=0.8, vibrato=0.01),
+                   tone(f1, dur * 0.6, "saw", 0.35, slide=f2, attack=0.01, curve=2.0, vibrato=0.02),
+                   tone(f0 * 2, dur, "sine", 0.15, slide=f2 * 2, attack=0.04, curve=2.0), at=[0, dur * 0.4, 0])
 
-def render(bpm, bars, chords, melody, bass_kind, lead_kind, drums, lead_vol=0.32, seed=3):
-    """Uma faixa em loop: acordes em arpejo, baixo, melodia e bateria de ruído."""
-    beat = 60 / bpm
-    step = beat / 4                                  # semicolcheia
-    total = int(bars * 16 * step * RATE)
-    out = [0.0] * total
-    rng = random.Random(seed)
+    def au(f, dur=0.12):
+        return mix(tone(f, dur, "square", 0.5, slide=f * 0.6, attack=0.005, curve=3),
+                   noise(dur * 0.6, 0.35, rng=r, attack=0.003, curve=4, lowpass=0.25))
 
-    def put(samples, t):
-        start = int(t * RATE)
-        for i, s in enumerate(samples):
-            if start + i < total:
-                out[start + i] += s
+    def hm(f, dur=0.35):
+        return mix(tone(f, dur, "sine", 0.8, slide=f * 0.9, attack=0.06, curve=1.6, vibrato=0.015),
+                   tone(f * 2, dur, "triangle", 0.2, slide=f * 1.8, attack=0.08, curve=2.0))
 
-    for bar in range(bars):
-        chord = chords[bar % len(chords)]
-        t0 = bar * 16 * step
-        # arpejo
-        for k in range(16):
-            note = chord[k % len(chord)]
-            put(tone(freq(note), step * 0.9, "pulse", 0.10, curve=2), t0 + k * step)
-        # baixo
-        root = chord[0][:-1] + str(int(chord[0][-1]) - 1)
-        for k in range(0, 16, 4 if bass_kind == "calmo" else 2):
-            put(tone(freq(root), step * (3.5 if bass_kind == "calmo" else 1.8), "triangle", 0.30, curve=1.5),
-                t0 + k * step)
-        # bateria
-        for k, hit in enumerate(drums):
-            if hit == "k":
-                put(tone(70, 0.15, "sine", 0.45, slide=40, curve=4), t0 + k * step)
-            elif hit == "s":
-                put(noise(0.12, 0.22, rng=rng, curve=4, lowpass=0.6), t0 + k * step)
-            elif hit == "h":
-                put(noise(0.03, 0.08, rng=rng, curve=4, lowpass=1.0), t0 + k * step)
-    # melodia: (nota ou None, duração em semicolcheias)
-    t = 0.0
-    while t < bars * 16 * step - 1e-6:
-        for note, length in melody:
-            if note:
-                put(tone(freq(note), length * step * 0.95, lead_kind, lead_vol, attack=0.01, curve=1.2,
-                         vibrato=0.004), t)
-            t += length * step
-    # fim do loop suave (sem estalo na emenda)
-    fade = int(0.01 * RATE)
-    for i in range(fade):
-        out[total - 1 - i] *= i / fade
-        out[i] *= i / fade
-    return out
+    def guincho(f, n=2):
+        return mix(*[tone(f, 0.07, "sine", 0.6, slide=f * 1.45, attack=0.005, curve=2) for _ in range(n)],
+                   at=[i * 0.09 for i in range(n)])
 
+    def bico(n=3):
+        return mix(*[mix(noise(0.03, 0.8, rng=r, attack=0.001, curve=6, lowpass=0.5),
+                         tone(900, 0.03, "square", 0.2, curve=6)) for _ in range(n)], at=[i * 0.07 for i in range(n)])
 
-def music():
-    # acampamento: calmo, em lá menor, 84 bpm
-    camp = render(
-        84, 16,
-        chords=[("A3", "C4", "E4"), ("F3", "A3", "C4"), ("C4", "E4", "G4"), ("G3", "B3", "D4")],
-        melody=[("E5", 4), ("D5", 2), ("C5", 2), ("A4", 8), (None, 4), ("C5", 2), ("D5", 2), ("E5", 4), ("G5", 4),
-                ("F5", 6), ("E5", 2), ("D5", 4), ("C5", 4), ("B4", 8), (None, 8)],
-        bass_kind="calmo", lead_kind="triangle",
-        drums=["k", "", "h", "", "", "", "h", "", "s", "", "h", "", "", "", "h", ""], lead_vol=0.28)
-    # chefão: tenso, em ré menor, 150 bpm
-    boss = render(
-        150, 16,
-        chords=[("D4", "F4", "A4"), ("D4", "F4", "A4"), ("A#3", "D4", "F4"), ("C4", "E4", "G4"),
-                ("D4", "F4", "A4"), ("D4", "F4", "A4"), ("G3", "A#3", "D4"), ("A3", "C#4", "E4")],
-        melody=[("D5", 2), ("D5", 2), ("F5", 2), ("D5", 2), ("A5", 4), ("G5", 2), ("F5", 2),
-                ("E5", 2), ("F5", 2), ("E5", 2), ("C5", 2), ("D5", 8),
-                ("A4", 2), ("D5", 2), ("F5", 2), ("A5", 2), ("A#5", 4), ("A5", 4),
-                ("G5", 2), ("F5", 2), ("E5", 2), ("C#5", 2), ("D5", 8)],
-        bass_kind="tenso", lead_kind="square",
-        drums=["k", "h", "h", "h", "s", "h", "k", "h", "k", "h", "h", "h", "s", "h", "h", "s"], lead_vol=0.22)
-    # ganho para ficar no mesmo volume percebido da música de batalha (o limitador segura os picos)
-    for name, samples, gain in (("camp_bgm", camp, 6), ("boss_bgm", boss, 9)):
-        encode(name, samples, gain)
-
-
-def encode(name, samples, gain):
-    """Salva a música em .ogg (o .wav de trabalho é apagado); sem ffmpeg, fica em .wav."""
-    tmp = OUT / f"_{name}.wav"
-    save_wav(f"_{name}", samples, peak=0.8)
-    if shutil.which("ffmpeg"):
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(tmp),
-                        "-af", f"volume={gain}dB,alimiter=limit=0.95", "-c:a", "libvorbis", "-q:a", "4",
-                        str(OUT / f"{name}.ogg")], check=True)
-        tmp.unlink()
-    else:
-        tmp.replace(OUT / f"{name}.wav")
-        print("ffmpeg não encontrado: música salva em .wav")
-    print("música", name)
-
-
-def lag_music():
-    """Chefão da Lag Lobby (Borba Jr Corrompido): mais eletrônico, em mi menor, 160 bpm."""
-    boss = render(
-        160, 16,
-        chords=[("E4", "G4", "B4"), ("E4", "G4", "B4"), ("C4", "E4", "G4"), ("D4", "F#4", "A4"),
-                ("E4", "G4", "B4"), ("E4", "G4", "B4"), ("A3", "C4", "E4"), ("B3", "D#4", "F#4")],
-        melody=[("E5", 2), ("E5", 2), ("G5", 2), ("E5", 2), ("B5", 2), ("A5", 2), ("G5", 2), ("F#5", 2),
-                ("E5", 2), ("F#5", 2), ("G5", 2), ("D5", 2), ("E5", 8),
-                ("B4", 2), ("E5", 2), ("G5", 2), ("B5", 2), ("C6", 4), ("B5", 4),
-                ("A5", 2), ("G5", 2), ("F#5", 2), ("D#5", 2), ("E5", 8)],
-        bass_kind="tenso", lead_kind="saw",
-        drums=["k", "h", "k", "h", "s", "h", "k", "h", "k", "h", "k", "h", "s", "h", "s", "s"], lead_vol=0.16, seed=18)
-    encode("boss_lag_bgm", boss, 9)
+    sons = {
+        "pet_gato_1": miau(520, 760, 480, 0.42), "pet_gato_2": miau(620, 820, 700, 0.28),
+        "pet_cachorro_1": au(330), "pet_cachorro_2": mix(au(360), au(320), at=[0, 0.16]),
+        "pet_papagaio_1": mix(tone(1300, 0.18, "saw", 0.4, slide=1700, curve=1.5, vibrato=0.06),
+                              noise(0.18, 0.3, rng=r, curve=2, lowpass=0.6)),
+        "pet_papagaio_2": mix(tone(1100, 0.1, "saw", 0.4, slide=1500, curve=2, vibrato=0.05),
+                              tone(1400, 0.14, "saw", 0.4, slide=1000, curve=2, vibrato=0.05), at=[0, 0.12]),
+        "pet_capivara_1": hm(150), "pet_capivara_2": mix(hm(160, 0.2), hm(140, 0.3), at=[0, 0.22]),
+        "pet_mico_1": guincho(1900, 2), "pet_mico_2": guincho(2200, 3),
+        "pet_tuiuiu_1": bico(3), "pet_tuiuiu_2": mix(bico(2), tone(600, 0.15, "triangle", 0.3, slide=800), at=[0, 0.16]),
+        "pet_jabuti_1": hm(105, 0.45), "pet_jabuti_2": hm(95, 0.3),
+        "pet_drone_1": mix(tone(880, 0.07, "square", 0.3, curve=4), tone(660, 0.09, "square", 0.3, curve=4), at=[0, 0.09]),
+        "pet_drone_2": mix(*[tone(f, 0.06, "square", 0.28, curve=4) for f in (990, 1320, 1760)], at=[0, 0.07, 0.14]),
+        "pet_caquinho_1": mix(tone(2093, 0.3, "sine", 0.6, curve=5), tone(3136, 0.22, "sine", 0.3, curve=6), at=[0, 0.02]),
+        "pet_caquinho_2": mix(tone(2637, 0.18, "sine", 0.5, curve=5), tone(3520, 0.25, "sine", 0.4, curve=5), at=[0, 0.08]),
+    }
+    for name, samples in sons.items():
+        save_wav(name, samples, peak=0.6)
+        print("som", name)
 
 
 if __name__ == "__main__":
@@ -509,5 +441,4 @@ if __name__ == "__main__":
     sport_effects()
     lag_effects()
     clinic_effects()
-    music()
-    lag_music()
+    pet_effects()

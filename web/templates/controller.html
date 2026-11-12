@@ -13,15 +13,15 @@
 
 <!-- Escolha de vaga -->
 <section id="view-join" class="view">
-  <header class="brand">SOUL STRIKE</header>
-  <p class="lead">Qual jogador é você?</p>
+  <img class="brand" src="/static/ic/logo.png" alt="SOUL STRIKE">
+  <p class="lead">QUAL JOGADOR É VOCÊ?</p>
   <div class="slot-grid">
     <button class="slot" data-slot="1">1</button>
     <button class="slot" data-slot="2">2</button>
     <button class="slot" data-slot="3">3</button>
     <button class="slot" data-slot="4">4</button>
   </div>
-  <p class="note" id="join-note">Use a mesma rede Wi-Fi do computador.</p>
+  <p class="note" id="join-note">MESMA REDE WI-FI DO COMPUTADOR · O NÚMERO É A SUA COR NA TV</p>
 </section>
 
 <!-- Espera (menu, conexão, resultado) -->
@@ -123,11 +123,17 @@
     <div class="tag" data-bind="tag">P1</div>
     <span class="muted" id="shop-title">LOJA</span>
     <span class="shop-wallet">
-      <span class="shop-energy" id="shop-energy" hidden><i class="bolt"></i> <span id="shop-energy-n">0/0</span></span>
-      <span class="shop-souls"><b class="gem"></b> <span id="shop-souls">0</span> <span id="shop-unit">ALMAS</span></span>
+      <span class="shop-energy" id="shop-energy" hidden><i class="bolt"></i><span id="shop-energy-n">0</span><span class="unit" id="shop-energy-max"></span></span>
+      <span class="shop-souls"><b class="gem"></b><span id="shop-souls">0</span><span class="unit" id="shop-unit" hidden>ALMAS</span></span>
     </span>
   </div>
   <div class="shop-body" id="shop-main">
+    <div class="shop-npc" id="shop-npc" hidden>
+      <div class="fala" id="shop-fala"></div>
+      <div class="npc-chao"></div>
+      <div class="npc-pic"><img id="npc-a" alt=""><img id="npc-b" alt=""></div>
+      <span class="npc-name" id="shop-npc-name"></span>
+    </div>
     <div class="shop-list" id="shop-list"></div>
     <div class="shop-side">
       <div class="shop-detail" id="shop-detail"></div>
@@ -176,18 +182,20 @@
     <span class="muted" data-bind="mode">DUELO</span>
     <span class="souls" id="souls" title="suas almas"><b class="gem"></b><span id="souls-n">0</span><em id="souls-gain"></em></span>
     <span class="net" id="net" title="qualidade da conexão">● --</span>
-    <button class="btn small" id="hud-btn" title="configurar os botões">HUD</button>
+    <button class="btn small" id="hud-btn" title="ajustes do controle">AJUSTES</button>
     <button class="btn small" data-tap="pause">II</button>
   </div>
   <!-- CONFIGURAR HUD: arraste os botões e o analógico; fica salvo neste celular -->
   <div id="hud-bar">
     <span id="hud-sel">TOQUE EM UM BOTÃO</span>
-    <span class="hud-group"><button class="btn small" id="hud-smaller">-</button><button class="btn small" id="hud-bigger">+</button></span>
-    <span class="hud-group"><i>OPAC.</i><button class="btn small" id="hud-op-down">-</button><b id="hud-op">100%</b><button class="btn small" id="hud-op-up">+</button></span>
-    <button class="btn small" id="hud-fixed">ANALÓG. SOLTO</button>
+    <span class="hud-group"><i>TAMANHO</i><button class="btn small" id="hud-smaller">-</button><button class="btn small" id="hud-bigger">+</button></span>
+    <span class="hud-group"><i>OPACIDADE</i><button class="btn small" id="hud-op-down">-</button><b id="hud-op">100%</b><button class="btn small" id="hud-op-up">+</button></span>
+    <button class="btn small" id="hud-fixed">ANALÓGICO SOLTO</button>
     <button class="btn small hud-toggle" id="hud-lefty">CANHOTO</button>
     <button class="btn small hud-toggle" id="hud-vibrate">VIBRAR</button>
+    <button class="btn small" id="hud-test-vibrate">TESTAR VIBRAÇÃO</button>
     <button class="btn small" id="hud-reset">RESTAURAR</button>
+    <span id="hud-test-msg"></span>
     <span class="hud-group end"><button class="btn small" id="hud-cancel">CANCELAR</button><button class="btn small btn-buy" id="hud-save">SALVAR</button></span>
   </div>
   <div id="stick-zone">
@@ -201,20 +209,20 @@
        próximo (não precisa acertar em cheio) e dá para deslizar de um para outro. -->
   <div id="btn-zone">
     <div class="pad-set battle-only">
-      <button class="pb pb-main" data-act="attack" data-pos="main">ATACAR</button>
-      <button class="pb" data-act="special" data-pos="w">HABILIDADE</button>
-      <button class="pb" data-act="switch" data-pos="nw">TROCAR ARMA</button>
-      <button class="pb" data-act="dodge" data-pos="n">ESQUIVA</button>
-      <button class="pb pb-small campaign-only" data-act="drop" data-pos="nn">LARGAR</button>
+      <button class="pb pb-main" data-act="attack" data-pos="main"><img class="pbi" id="atk-icon" src="/static/ic/i_atacar.png" alt=""><span class="pbl" id="atk-label">ATACAR</span></button>
+      <button class="pb" data-act="special" data-pos="w"><img class="pbi" src="/static/ic/i_habilidade.png" alt=""><span class="pbl" id="skill-label">HABILIDADE</span></button>
+      <button class="pb" data-act="switch" data-pos="nw"><img class="pbi" src="/static/ic/i_trocar.png" alt=""><span class="pbl">TROCAR ARMA</span></button>
+      <button class="pb" data-act="dodge" data-pos="n"><img class="pbi" src="/static/ic/i_esquiva.png" alt=""><span class="pbl">ESQUIVA</span></button>
+      <button class="pb pb-small campaign-only" data-act="drop" data-pos="nn"><img class="pbi" src="/static/ic/i_largar.png" alt=""><span class="pbl">LARGAR</span></button>
       <i id="ammo-badge"></i>
     </div>
     <div class="pad-set soccer-only">
-      <button class="pb pb-main" data-act="attack" data-pos="main">CHUTAR</button>
-      <button class="pb" data-act="special" data-pos="w">PASSE</button>
-      <button class="pb pb-mark" data-act="mark" data-pos="nw">MARCAR</button>
-      <button class="pb" data-act="dodge" data-pos="n">CORTE</button>
-      <button class="pb pb-small" data-act="dribble" data-pos="ww">COLADO</button>
-      <button class="pb pb-small pb-super" data-act="super" data-pos="nn" id="super-btn"><span id="super-label">SUPER</span></button>
+      <button class="pb pb-main" data-act="attack" data-pos="main"><img class="pbi" src="/static/ic/i_bola.png" alt=""><span class="pbl">CHUTAR</span></button>
+      <button class="pb pb-pass" data-act="special" data-pos="w"><img class="pbi" src="/static/ic/i_passe.png" alt=""><span class="pbl">PASSE</span></button>
+      <button class="pb pb-mark" data-act="mark" data-pos="nw"><img class="pbi" src="/static/ic/i_marcar.png" alt=""><span class="pbl">MARCAR</span></button>
+      <button class="pb" data-act="dodge" data-pos="n"><img class="pbi" src="/static/ic/i_corte.png" alt=""><span class="pbl">CORTE</span></button>
+      <button class="pb pb-small" data-act="dribble" data-pos="ww"><img class="pbi" src="/static/ic/i_colado.png" alt=""><span class="pbl">COLADO</span></button>
+      <button class="pb pb-small pb-super" data-act="super" data-pos="nn" id="super-btn"><img class="pbi" src="/static/ic/i_habilidade.png" alt=""><span class="pbl" id="super-label">SUPER</span></button>
     </div>
   </div>
   <!-- fim de fase da campanha: todos confirmam para ir para a próxima fase -->

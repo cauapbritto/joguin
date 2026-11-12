@@ -159,8 +159,9 @@ class IpDoCelularTest(unittest.TestCase):
 
 class MusicaTest(unittest.TestCase):
     def test_musicas_existem(self):
-        self.assertTrue((config.SOUNDS_DIR / "bgm.ogg").is_file())
-        self.assertTrue((config.SOUNDS_DIR / "battle_bgm.mp3").is_file())
+        from soulstrike.assets import MUSIC_FILES
+        for name, file in MUSIC_FILES.items():
+            self.assertTrue((config.SOUNDS_DIR / file).is_file(), name)
 
     def test_menu_toca_sem_erro(self):
         assets = game().assets

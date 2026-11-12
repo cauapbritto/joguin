@@ -14,6 +14,9 @@ from soulstrike.arena import Pitch  # noqa: E402
 from soulstrike.game import Game  # noqa: E402
 from soulstrike.matches import SoccerMatch  # noqa: E402
 from soulstrike.session import Session, SlotSetup  # noqa: E402
+from soulstrike import segredos  # noqa: E402
+
+segredos._hour = lambda: 12        # testes ao meio-dia: a vitrine não boceja de madrugada (segredo)
 
 _game = None
 
@@ -99,3 +102,11 @@ def run(match, frames, inputs=()):
         if match.frame != before:          # quadro de pausa de impacto não consome o toque
             for inp in (inputs.values() if isinstance(inputs, dict) else inputs):
                 inp.end_frame()
+
+
+def com_rara(run, slot, key):
+    """Campanha: começa a etapa com as armas do herói e a rara ``key`` na bolsa (3ª vaga)."""
+    from soulstrike.armario import token_of
+    from soulstrike.data import CHARACTERS
+    char = next(s.char for s in run.session.slots if s.slot == slot)
+    run.bags[slot] = [token_of(w) for w in CHARACTERS[char].weapons] + ["rara:" + key]

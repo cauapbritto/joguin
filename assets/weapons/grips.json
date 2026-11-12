@@ -542,5 +542,701 @@
    21
   ],
   "detail": 2
+ },
+ "Estilingue de Galho": {
+  "file": "estilingue_de_galho.png",
+  "grip": [
+   13,
+   25
+  ],
+  "detail": 2
+ },
+ "Zarabatana": {
+  "file": "zarabatana.png",
+  "grip": [
+   5,
+   7
+  ],
+  "detail": 2
+ },
+ "Rifle de Caça": {
+  "file": "rifle_de_caca.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Martelo de Pedra": {
+  "file": "martelo_de_pedra.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Tocha": {
+  "file": "tocha.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Mangual de Ossos": {
+  "file": "mangual_de_ossos.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Besta de Repetição": {
+  "file": "besta_de_repeticao.png",
+  "grip": [
+   5,
+   15
+  ],
+  "detail": 2
+ },
+ "Sino Fúnebre": {
+  "file": "sino_funebre.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Patins de Gelo": {
+  "file": "patins_de_gelo.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Grampeador Industrial": {
+  "file": "grampeador_industrial.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Mouse com Fio": {
+  "file": "mouse_com_fio.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Impressora de Bolso": {
+  "file": "impressora_de_bolso.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Cadeira Gamer": {
+  "file": "cadeira_gamer.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Rifle Spawner": {
+  "file": "rifle_spawner.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Taser Elétrico Eletrizante": {
+  "file": "taser_eletrico_eletrizante.png",
+  "grip": [
+   5,
+   7
+  ],
+  "detail": 2
+ },
+ "Pistola Atiradora de Tiros": {
+  "file": "pistola_atiradora_de_tiros.png",
+  "grip": [
+   5,
+   7
+  ],
+  "detail": 2
+ },
+ "Bomba Explosiva que Explode": {
+  "file": "bomba_explosiva_que_explode.png",
+  "grip": [
+   19,
+   19
+  ],
+  "detail": 2
+ },
+ "Secador de Cabelo": {
+  "file": "secador_de_cabelo.png",
+  "grip": [
+   9,
+   7
+  ],
+  "detail": 2
+ },
+ "Pinça Gigante": {
+  "file": "pinca_gigante.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Bisturi": {
+  "file": "bisturi.png",
+  "grip": [
+   5,
+   7
+  ],
+  "detail": 2
+ },
+ "Pistola de Água Molhada": {
+  "file": "pistola_de_agua_molhada.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Pistola de Botox": {
+  "file": "pistola_de_botox.png",
+  "grip": [
+   5,
+   7
+  ],
+  "detail": 2
+ },
+ "Espelho de Selfie": {
+  "file": "espelho_de_selfie.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Maçarico Quente de Fogo": {
+  "file": "macarico_quente_de_fogo.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Cajado do Gelo Gelado": {
+  "file": "cajado_do_gelo_gelado.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Laser Depilador": {
+  "file": "laser_depilador.png",
+  "grip": [
+   5,
+   7
+  ],
+  "detail": 2
+ },
+ "Fantasma Assombrado Assustador": {
+  "file": "fantasma_assombrado_assustador.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Espada Afiada Cortante": {
+  "file": "espada_afiada_cortante.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Carimbo de Bolso": {
+  "file": "carimbo_de_bolso.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Boleto Bumerangue": {
+  "file": "boleto_bumerangue.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Caneta-Tinteiro": {
+  "file": "caneta-tinteiro.png",
+  "grip": [
+   5,
+   7
+  ],
+  "detail": 2
+ },
+ "Fax Lança-Papéis": {
+  "file": "fax_lanca-papeis.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Lança-Pastas": {
+  "file": "lanca-pastas.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Martelo Martelador": {
+  "file": "martelo_martelador.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Guarda-chuva Executivo": {
+  "file": "guarda-chuva_executivo.png",
+  "grip": [
+   5,
+   7
+  ],
+  "detail": 2
+ },
+ "Escudo Protetor Defensivo": {
+  "file": "escudo_protetor_defensivo.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Sugador de Almas": {
+  "file": "sugador_de_almas.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Bateria Portátil": {
+  "file": "bateria_portatil.png",
+  "grip": [
+   5,
+   7
+  ],
+  "detail": 2
+ },
+ "Excalitora": {
+  "file": "excalitora.png",
+  "grip": [
+   15,
+   45
+  ],
+  "detail": 2
+ },
+ "Rifle de Ferrolho": {
+  "file": "rifle_de_ferrolho.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Submetralhadora": {
+  "file": "submetralhadora.png",
+  "grip": [
+   5,
+   7
+  ],
+  "detail": 2
+ },
+ "Escopeta Serrada": {
+  "file": "escopeta_serrada.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Revólver do Xerife": {
+  "file": "revolver_do_xerife.png",
+  "grip": [
+   5,
+   15
+  ],
+  "detail": 2
+ },
+ "Carabina": {
+  "file": "carabina.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Pistola de Pregos": {
+  "file": "pistola_de_pregos.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Arco Curto": {
+  "file": "arco_curto.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Katana Brasa": {
+  "file": "katana_brasa.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Lâmina Glacial": {
+  "file": "lamina_glacial.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Espada Relâmpago": {
+  "file": "espada_relampago.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Martelo Vulcânico": {
+  "file": "martelo_vulcanico.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Maça Avalanche": {
+  "file": "maca_avalanche.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Marreta de Dinamite": {
+  "file": "marreta_de_dinamite.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Arco Fênix": {
+  "file": "arco_fenix.png",
+  "grip": [
+   5,
+   15
+  ],
+  "detail": 2
+ },
+ "Besta Boreal": {
+  "file": "besta_boreal.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Arco Espectral": {
+  "file": "arco_espectral.png",
+  "grip": [
+   5,
+   15
+  ],
+  "detail": 2
+ },
+ "Granada Tesla": {
+  "file": "granada_tesla.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Morteiro de Neve": {
+  "file": "morteiro_de_neve.png",
+  "grip": [
+   5,
+   19
+  ],
+  "detail": 2
+ },
+ "Cetro Aurora": {
+  "file": "cetro_aurora.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Lanterna Infernal": {
+  "file": "lanterna_infernal.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Sino das Almas": {
+  "file": "sino_das_almas.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Usina Ambulante": {
+  "file": "usina_ambulante.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Era do Gelo": {
+  "file": "era_do_gelo.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Espada do Fim do Mundo": {
+  "file": "espada_do_fim_do_mundo.png",
+  "grip": [
+   10,
+   18
+  ],
+  "detail": 2
+ },
+ "Chuva de Flechas": {
+  "file": "chuva_de_flechas.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Exército de Bolso": {
+  "file": "exercito_de_bolso.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Furacão de Lâminas": {
+  "file": "furacao_de_laminas.png",
+  "grip": [
+   7,
+   17
+  ],
+  "detail": 2
+ },
+ "Bafo do Dragão": {
+  "file": "bafo_do_dragao.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Tempestade Completa": {
+  "file": "tempestade_completa.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Martelo de Demolição": {
+  "file": "martelo_de_demolicao.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Duelo ao Meio-dia": {
+  "file": "duelo_ao_meio-dia.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Espada do Primeiro Guerreiro": {
+  "file": "espada_do_primeiro_guerreiro.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Rifle Sem Fim": {
+  "file": "rifle_sem_fim.png",
+  "grip": [
+   5,
+   7
+  ],
+  "detail": 2
+ },
+ "Aríete": {
+  "file": "ariete.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Lâmina das Mil Sombras": {
+  "file": "lamina_das_mil_sombras.png",
+  "grip": [
+   5,
+   7
+  ],
+  "detail": 2
+ },
+ "Garras do Cometa": {
+  "file": "garras_do_cometa.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Moto-Bomba": {
+  "file": "moto-bomba.png",
+  "grip": [
+   5,
+   17
+  ],
+  "detail": 2
+ },
+ "Foice da Morte": {
+  "file": "foice_da_morte.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Corrente do Titã": {
+  "file": "corrente_do_tita.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Canhão do Navio": {
+  "file": "canhao_do_navio.png",
+  "grip": [
+   5,
+   15
+  ],
+  "detail": 2
+ },
+ "Cetro do Zero Absoluto": {
+  "file": "cetro_do_zero_absoluto.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Martelo da Roleta Sombria": {
+  "file": "martelo_da_roleta_sombria.png",
+  "grip": [
+   5,
+   11
+  ],
+  "detail": 2
+ },
+ "Servidor de Mão": {
+  "file": "servidor_de_mao.png",
+  "grip": [
+   5,
+   13
+  ],
+  "detail": 2
+ },
+ "Notebook Gamer RGB": {
+  "file": "notebook_gamer_rgb.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Exo-Punho Mk II": {
+  "file": "exo-punho_mk_ii.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Punho do Colapso": {
+  "file": "punho_do_colapso.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Carimbo INDEFERIDO": {
+  "file": "carimbo_indeferido.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
+ },
+ "Tentáculos do Lag": {
+  "file": "tentaculos_do_lag.png",
+  "grip": [
+   5,
+   9
+  ],
+  "detail": 2
  }
 }

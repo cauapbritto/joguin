@@ -453,7 +453,7 @@ class FluxoTest(unittest.TestCase):
                 passo(m, ins, PASSAGE_FRAMES + TELEPORT_FRAMES + 10)
                 self.assertTrue(m.finished and m.won, phase)
                 self.assertIsInstance(m.next_scene(), StoryScene if phase == 2 else UpgradeScene)
-                self.assertTrue(all(run.relics.values()))
+                self.assertTrue(all(run.bags.values()))
         finally:
             g.inputs = real
 

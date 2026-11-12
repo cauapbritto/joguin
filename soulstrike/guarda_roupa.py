@@ -11,10 +11,10 @@ import math
 
 import pygame
 
-from . import cacos, config, theme
+from . import cacos, theme
 from .entities import Entity, Wall
-from .loja import HERO_NAMES, STICK, ShopMenu, pet_image
-from .skins import CACO_COLOR, PETS, draw_back, draw_caco, draw_front, for_hero
+from .loja import HERO_NAMES, STICK, ShopMenu, _fit, pet_image
+from .skins import CACO_COLOR, PETS, draw_caco, for_hero
 
 SLOTS = 4
 W, H, GAP = 44, 84, 6          # cada armário (px no chão do quintal)
@@ -276,69 +276,65 @@ class WardrobeMenu(ShopMenu):
                 "unit": "CACOS", "picked": key, "mates": [], "items": items, "action": action}
 
     # ── TV ───────────────────────────────────
-    def draw(self, screen, ui, anchor):
+    W, H = 330, 214
+    SIZES = ((54, 66), (50, 52))              # cartas de roupa e de pet na janela pequena
+
+    def size(self, ui):
+        return self.W, self.H
+
+    def draw(self, screen, ui, cam, rect=None):
+        from . import janelas
         f = self.fighter
-        sizes = ((96, 116), (80, 84))
-        gap = 10
-        widest = max(len(self.line(r)) * sizes[r][0] + (len(self.line(r)) - 1) * gap for r in (0, 1))
-        w = max(560, widest + 120)
-        h = 380
-        x = max(8, min(config.SCREEN_W - w - 8, round(anchor[0]) - w // 2))
-        y = max(52, min(config.SCREEN_H - h - 64, round(anchor[1]) - h - 70))
-        rect = pygame.Rect(x, y, w, h)
-        color = theme.SLOT_COLORS.get(f.slot, theme.BONE)
-        ui.panel(screen, rect, fill=theme.INK_2, accent=color)
-        chip = pygame.Rect(rect.x + 12, rect.y + 10, 30, 20)
-        screen.fill(color, chip)
-        ui.text(screen, f"P{f.slot}", theme.XS, theme.INK, chip.center, shadow=False)
-        ui.text(screen, "ARMÁRIO · " + HERO_NAMES.get(self.hero, ""), theme.S, theme.BONE,
-                (rect.x + 52, rect.y + 20), anchor="midleft")
-        text, note = self.note
-        if text:
-            ui.text(screen, text, theme.XS, note, (rect.centerx, rect.y + 42))
-        top = rect.y + 54
+        if rect is None:
+            rect = janelas.default_rect(self.size(ui), cam, f)
+        janelas.panel(screen, ui, rect, f, "ARMÁRIO · " + HERO_NAMES.get(self.hero, ""))
+        gap = 6
+        top = rect.y + 30
+        room = rect.w - 16 - 44
         for row in (0, 1):
-            cw, ch = sizes[row]
+            cw, ch = self.SIZES[row]
             items = self.line(row)
             here = row == self.row
             ui.text(screen, self.ROWS[row], theme.XS, theme.BONE if here else theme.FAINT,
-                    (rect.x + 16, top + ch // 2), anchor="midleft")
-            x0 = rect.x + 70 + (w - 86 - (len(items) * cw + (len(items) - 1) * gap)) // 2
-            for i, (key, item) in enumerate(items):
+                    (rect.x + 10, top + ch // 2), anchor="midleft")
+            fit = max(1, (room + gap) // (cw + gap))
+            mark = self.marks[row] % len(items)
+            first = max(0, min(mark - fit // 2, len(items) - fit))     # a marcada fica sempre à vista
+            shown = items[first:first + fit]
+            x0 = rect.x + 52 + (room - (len(shown) * cw + (len(shown) - 1) * gap)) // 2
+            for i, (key, item) in enumerate(shown):
                 card = pygame.Rect(x0 + i * (cw + gap), top, cw, ch)
-                on = here and i == self.marks[row] % len(items)
+                on = here and first + i == mark
                 if on:
-                    card.move_ip(0, -3)
+                    card.move_ip(0, -2)
                 self._wardrobe_card(screen, ui, card, item, on, row)
-            top += ch + 14
+            for side, more in ((-1, first > 0), (1, first + fit < len(items))):
+                if more:
+                    ax = x0 - 7 if side < 0 else x0 + len(shown) * (cw + gap) + 1
+                    ay = top + ch // 2
+                    pygame.draw.polygon(screen, CACO_COLOR, [(ax + side * 4, ay), (ax - side * 2, ay - 6), (ax - side * 2, ay + 6)])
+            top += ch + 10
         key, item = self.current()
-        bar = pygame.Rect(rect.x + 12, top, w - 24, 46)
-        screen.fill((16, 14, 24), bar)
-        pygame.draw.rect(screen, theme.LINE, bar, 1)
         pet = self.row == 1
         name = item.name if item else ("SEM PET" if pet else "ROUPA DE SEMPRE")
-        ui.text(screen, name, theme.S if len(name) <= 22 else theme.XS, item.color if item else theme.BONE,
-                (bar.x + 10, bar.y + 14), anchor="midleft")
-        sub = item.blurb if item else ("NINGUÉM TE SEGUINDO" if pet else "SEM SKIN: O VISUAL ORIGINAL DO HERÓI")
-        button = pygame.Rect(bar.right - 130, bar.y + 8, 120, 30)
-        room = button.x - bar.x - 20
-        while len(sub) > 8 and ui.assets.text(sub, theme.XS, theme.MUTED).get_width() > room:
-            sub = sub[:-2].rstrip(" ,·") + "…"
-        ui.text(screen, sub, theme.XS, theme.MUTED, (bar.x + 10, bar.y + 32), anchor="midleft")
+        text, note = self.note
+        sub, sub_color = (text, note) if text else (
+            item.blurb if item else ("NINGUÉM TE SEGUINDO" if pet else "O VISUAL ORIGINAL DO HERÓI"), theme.MUTED)
+        width = rect.w - 20
+        ui.text(screen, _fit(ui, name, width), theme.XS, item.color if item else theme.BONE, (rect.x + 10, top + 2),
+                anchor="midleft")
+        ui.text(screen, _fit(ui, sub, width), theme.XS, sub_color, (rect.x + 10, top + 14), anchor="midleft")
         state = self.state(item)
-        label, fill, ink = {"vestida": ("COM VOCÊ" if pet else "VESTIDA", theme.LINE, theme.MUTED),
-                            "vestir": ("PEGAR" if pet else "VESTIR", theme.MOSS, theme.INK),
-                            "comprar": ("NA LOJA", theme.LINE, theme.MUTED),
-                            "cupom": ("SÓ COM CUPOM", theme.LINE, theme.MUTED)}[state]
-        self._button(screen, ui, button, label, fill, ink)
-        hint = "LADOS: ESCOLHER · CIMA/BAIXO: ROUPA OU PET · ATACAR: " + ("PEGAR" if pet else "VESTIR")
-        ui.text(screen, hint + " · ESQUIVA: FECHAR", theme.XS, (130, 126, 140), (rect.centerx, rect.bottom - 10))
+        action = {"vestida": "JÁ ESTÁ COM VOCÊ" if pet else "JÁ ESTÁ VESTIDA",
+                  "vestir": "ATACAR: " + ("PEGAR" if pet else "VESTIR"),
+                  "comprar": "COMPRE NA LOJA", "cupom": "SÓ COM CUPOM"}[state]
+        ui.text(screen, f"{action} · ESQUIVA: FECHAR", theme.XS, (130, 126, 140), (rect.centerx, rect.bottom - 9))
 
     def _wardrobe_card(self, screen, ui, card, item, on, row):
         t = self.match.frame
         state = self.state(item, row)
         mine = state in ("vestida", "vestir")
-        screen.fill((8, 6, 12), card.move(3, 4))
+        screen.fill((8, 6, 12), card.move(2, 3))
         if item is None:
             self._gradient(screen, card, (66, 62, 80), (30, 28, 40))
             tint = theme.BONE
@@ -352,43 +348,36 @@ class WardrobeMenu(ShopMenu):
         halo = pygame.Surface((card.width, card.width), pygame.SRCALPHA)
         for rad, alpha in ((card.width * 0.45, 26), (card.width * 0.32, 36), (card.width * 0.2, 46)):
             pygame.draw.circle(halo, (*tint, alpha), (card.width // 2, card.width // 2), round(rad))
-        screen.blit(halo, (card.x, card.y + 4))
+        screen.blit(halo, (card.x, card.y + 2))
         img = None
         if row == 0:
             sprites = (self.match.assets.sprites.get(self.hero) if item is None
                        else self.match.assets.skin_sprites(item.key))
             if sprites is not None:
                 img = sprites.frame("frente", t // 8 if on else 0)
-                img = pygame.transform.scale(img, (round(img.get_width() * 1.1), round(img.get_height() * 1.1)))
+                img = pygame.transform.scale(img, (img.get_width() * 3 // 4, img.get_height() * 3 // 4))
         elif item is not None:
             img = pet_image(item.key, on and (t // 20) % 2)
-            if img is not None:
-                img = pygame.transform.scale(img, (round(img.get_width() * 1.2), round(img.get_height() * 1.2)))
         else:                                                   # SEM PET: um X apagado
-            c = card.centerx, card.y + card.height // 2 - 10
-            pygame.draw.line(screen, theme.FAINT, (c[0] - 10, c[1] - 10), (c[0] + 10, c[1] + 10), 3)
-            pygame.draw.line(screen, theme.FAINT, (c[0] + 10, c[1] - 10), (c[0] - 10, c[1] + 10), 3)
+            c = card.centerx, card.y + card.height // 2 - 6
+            pygame.draw.line(screen, theme.FAINT, (c[0] - 7, c[1] - 7), (c[0] + 7, c[1] + 7), 2)
+            pygame.draw.line(screen, theme.FAINT, (c[0] + 7, c[1] - 7), (c[0] - 7, c[1] + 7), 2)
         if img is not None:
-            spot = img.get_rect(midbottom=(card.centerx, card.bottom - 26))
-            pygame.draw.ellipse(screen, (0, 0, 0), (spot.centerx - 18, spot.bottom - 4, 36, 8))
-            fx = on and row == 0 and item is not None and mine
-            if fx:
-                draw_back(screen, item.key, spot, t)
+            spot = img.get_rect(midbottom=(card.centerx, card.bottom - 14))
+            pygame.draw.ellipse(screen, (0, 0, 0), (spot.centerx - 12, spot.bottom - 3, 24, 6))
             if not mine:                                        # ainda não é seu: só a silhueta
                 img = img.copy()
                 img.fill((20, 18, 30, 255), special_flags=pygame.BLEND_RGBA_MULT)
             screen.blit(img, spot)
-            if fx:
-                draw_front(screen, item.key, spot, t)
-        strip = pygame.Rect(card.x, card.bottom - 20, card.width, 20)
+        strip = pygame.Rect(card.x, card.bottom - 13, card.width, 13)
         if state == "vestida":
             screen.fill(theme.MOSS, strip)
-            ui.text(screen, "COM VOCÊ" if row else "VESTIDA", theme.XS, theme.INK,
+            ui.text(screen, "USANDO", theme.XS, theme.INK,
                     (strip.centerx, strip.centery + 1), shadow=False)
         else:
             screen.fill((14, 12, 22), strip)
             if state in ("comprar", "cupom"):
-                label = ("LOJA" if row else "NA LOJA") if state == "comprar" else "CUPOM"
+                label = "LOJA" if state == "comprar" else "CUPOM"
                 half = (ui.assets.text(label, theme.XS, theme.MUTED).get_width() + 12) // 2
                 self._lock(screen, strip.centerx - half + 3, strip.centery)
                 ui.text(screen, label, theme.XS, theme.MUTED, (strip.centerx - half + 12, strip.centery + 1),

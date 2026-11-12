@@ -78,7 +78,7 @@ class Investida(Ability):
 
 class Rajada(Ability):
     def activate(self, user, match, target):
-        _fan(user, match, target, 5, 30, user.weapons[0].bullet_speed, user.stats.weapons[0].damage)
+        _fan(user, match, target, 5, 30, user.base_weapons[0].bullet_speed, user.stats.weapons[0].damage)
 
     def worth_using(self, user, target, dist):
         return dist < 420
@@ -98,7 +98,7 @@ class Muralha(Ability):
 class ShurikenTripla(Ability):
     """Ninja: leque de shurikens. Eram 3 de 12, abertas demais para acertar mais de uma de longe."""
     def activate(self, user, match, target):
-        _fan(user, match, target, 3, 24, user.weapons[0].bullet_speed + 2, 15)
+        _fan(user, match, target, 3, 24, user.base_weapons[0].bullet_speed + 2, 15)
 
     def worth_using(self, user, target, dist):
         return dist < 380
@@ -118,7 +118,7 @@ class Explosao(Ability):
     def activate(self, user, match, target):
         for k in range(8):
             a = k * math.pi / 4
-            match.spawn_bullet(user, math.cos(a), math.sin(a), user.weapons[0].bullet_speed, _dmg(user, 25),
+            match.spawn_bullet(user, math.cos(a), math.sin(a), user.base_weapons[0].bullet_speed, _dmg(user, 25),
                                explosive=True)
 
     def worth_using(self, user, target, dist):

@@ -103,7 +103,7 @@ class Novidades(unittest.TestCase):
     def test_abertura_e_todas_as_versoes_nao_vistas(self):
         from soulstrike.scenes import plantao
         g = game()
-        todas = novidades.history()
+        todas = [item for item in novidades.history() if not novidades.special(item[0])]
         scene = NewsScene(g, todas)
         self.assertTrue(scene.opening)
         self.assertIsNone(scene.pages[0])                     # a página 0 é a abertura dos âncoras
@@ -134,7 +134,7 @@ class Novidades(unittest.TestCase):
     def test_celular_vira_e_pula(self):
         from soulstrike.net.remote import hub
         g = game()
-        scene = NewsScene(g, novidades.pending(""))
+        scene = NewsScene(g, novidades.pending("", "1.55.0"))   # edição normal: começa na abertura
         g.change(scene)
         status = hub.status()
         self.assertEqual(status["news_page"]["index"], 0)      # abertura
@@ -164,6 +164,36 @@ class Novidades(unittest.TestCase):
         self.assertEqual(status["phase"], "news")
         self.assertTrue(status["news"])
         self.assertIn(__version__, status["banner"])
+
+
+class EdicaoExtraordinaria(unittest.TestCase):
+    def test_extraordinaria_conta_tudo_desde_a_rodada_anterior(self):
+        for seen in ("1.46.0", "1.47.0", "1.50.0", "1.55.0"):
+            self.assertEqual([v for v, _ in novidades.pending(seen, "1.56.0")], ["1.56.0"], seen)
+        older = [v for v, _ in novidades.pending("1.45.0", "1.56.0")]
+        self.assertEqual(older, ["1.56.0", "1.46.0"])            # o que veio antes da rodada continua
+        self.assertEqual(novidades.pending("1.56.0", "1.56.0"), [])
+        self.assertIn("1.50.0", dict(novidades.history()))        # as edições do meio ficam no arquivo
+
+    def test_abre_direto_na_primeira_noticia_com_imagem_propria(self):
+        from soulstrike.scenes import plantao
+        g = game()
+        scene = NewsScene(g, novidades.pending("1.46.0", "1.56.0"))
+        self.assertTrue(scene.special)
+        self.assertFalse(scene.opening)
+        self.assertEqual(scene.current.tv, "extra")
+        for story in scene.stories:
+            self.assertIn(story.tv, plantao.FOOTAGE, story.label)
+        for i in range(len(scene.pages)):
+            scene.page, scene.age = i, 30
+            for t in (0, 45, 95, 140, 199):
+                scene.ticks = t
+                scene.draw(g.screen)
+        scene.page = 0
+        while scene.reveal < len(scene.stories):                  # as manchetes entram uma a uma
+            scene.update()
+        scene.advance()
+        self.assertEqual(scene.page, 1)
 
 
 if __name__ == "__main__":

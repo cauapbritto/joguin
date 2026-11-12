@@ -87,6 +87,7 @@ class VolumeTest(OpcoesBase):
 
     def test_musica_muda_na_hora(self):
         assets = game().assets
+        assets.mixer.calm()                              # som de outro teste pode ter abaixado a música
         settings.change("volume_musica", 0.5)
         with mock.patch.object(pygame.mixer, "get_init", return_value=True), \
                 mock.patch.object(pygame.mixer.music, "set_volume") as set_volume:

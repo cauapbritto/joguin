@@ -1,4 +1,4 @@
-"""Fusão no ferreiro e as 8 armas forjadas."""
+"""Fusão no ferreiro, as 8 forjadas puras e as 41 novas (híbridas, secretas e de assinatura)."""
 import json
 import unittest
 
@@ -9,7 +9,7 @@ from test_mercado import abrir, acampamento, apertar
 from soulstrike import config, forged, progress
 from soulstrike.campaign import CampaignRun
 from soulstrike.data import RARE_WEAPONS, common_weapon, rarity
-from soulstrike.forged import FORGED, FUSION_COST, RECIPES, recipe
+from soulstrike.forged import FORGED, FUSION_COST, PURE, RECIPES, recipe
 from soulstrike.training import DummyAI
 from soulstrike import weapon_art
 
@@ -18,8 +18,8 @@ R = RARE_WEAPONS
 
 class ReceitaTest(unittest.TestCase):
     def test_oito_forjadas_uma_por_familia(self):
-        self.assertEqual(len(FORGED), 8)
-        self.assertEqual(set(RECIPES.values()), set(FORGED))
+        self.assertEqual(len(FORGED), 8 + 41)                 # as 8 puras e as 41 novas
+        self.assertEqual(set(RECIPES.values()), PURE)
         self.assertTrue(all(w.forjada and rarity(w) == "forjada" for w in FORGED.values()))
         best_rare = max(w.damage for w in R.values() if not w.forjada and w.is_melee)
         self.assertGreater(FORGED["lamina_solar"].damage, best_rare)
@@ -27,8 +27,8 @@ class ReceitaTest(unittest.TestCase):
     def test_familia_que_mais_aparece(self):
         w = [common_weapon("Arco"), common_weapon("Espada"), R["besta"]]
         self.assertEqual(recipe(w), ("arco_mil_almas", 1, None))
-        w = [common_weapon("Cristal"), common_weapon("Cajado"), R["bola_neve"]]
-        self.assertEqual(recipe(w), ("coracao_inverno", 2, "gelo"))
+        w = [common_weapon("Cristal"), common_weapon("Orbe"), R["bola_neve"]]
+        self.assertEqual(recipe(w), ("coracao_inverno", 2, "gelo"))     # gelo + alma: sem híbrida, sai a pura
         w = [common_weapon("Granada"), common_weapon("Capacete"), R["machado"]]
         self.assertEqual(recipe(w)[0], "lamina_solar")    # empate: vale a família da rara
 
@@ -37,6 +37,75 @@ class ReceitaTest(unittest.TestCase):
         weapon_art.load()
         for w in FORGED.values():
             self.assertIsNotNone(weapon_art.icon(w.name), w.name)
+
+
+class ReceitasNovasTest(unittest.TestCase):
+    def test_41_novas_com_arte_dica_e_tipo(self):
+        game()
+        weapon_art.load()
+        novas = [k for k in FORGED if k not in PURE]
+        self.assertEqual(len(novas), 41)
+        for k in novas:
+            w = FORGED[k]
+            self.assertTrue(w.forjada and w.note, k)
+            self.assertIsNotNone(weapon_art.icon(w.name), k)
+            self.assertTrue(forged.hint(k), k)
+            self.assertTrue(forged.kind_label(k), k)
+        self.assertEqual(len(forged.recipe_book(set())), 49)
+
+    def test_secreta_vem_antes_de_tudo(self):
+        w = [R["lanca_chamas"], R["macarico"], R["secador"]]
+        self.assertEqual(recipe(w)[0], "bafo_dragao")
+        w = [common_weapon("Cristal"), R["cajado_gelo"], R["bola_neve"]]
+        self.assertEqual(recipe(w)[0], "era_do_gelo")
+
+    def test_hibrida_duas_de_uma_e_uma_de_outra(self):
+        w = [common_weapon("Katana"), common_weapon("Faca"), R["lanca_chamas"]]
+        self.assertEqual(recipe(w), ("katana_brasa", 1, None))
+        w = [common_weapon("Granada"), R["canhao"], R["cajado_raio"]]
+        self.assertEqual(recipe(w)[0], "granada_tesla")
+
+    def test_assinatura_do_heroi(self):
+        from soulstrike.data import CHARACTERS
+        from soulstrike.forjadas_novas import SIGNATURES
+
+        class Dono:
+            pass
+        for c in CHARACTERS:
+            if c.key not in SIGNATURES:
+                continue
+            dono = Dono()
+            dono.stats = c
+            w = list(c.weapons) + [R["besta"]]
+            self.assertEqual(recipe(w, dono)[0], SIGNATURES[c.key], c.key)
+            self.assertNotEqual(recipe(list(c.weapons) + [common_weapon("Katana")], dono)[0], SIGNATURES[c.key])
+        self.assertEqual(len(SIGNATURES), 17)
+
+    def test_cada_forjada_nova_funciona(self):
+        for k in [k for k in FORGED if k not in PURE]:
+            match, p, _ = masmorra(k, enemies=())
+            e = inimigo(match, "golem", p.x + (50 if FORGED[k].is_melee else 140), p.y)
+            e.hp = e.max_hp = 100000
+            for _ in range(3):
+                p.attack_cd = 0
+                p.face(e)
+                p.attack(match, e)
+                for _ in range(20):
+                    match._update_bullets()
+                    for eff in list(match.effects):
+                        eff.update(match)
+                    match.effects = [x for x in match.effects if x.alive]
+            self.assertLess(e.hp, e.max_hp, k)
+
+    def test_livro_de_receitas_no_ferreiro(self):
+        match, inputs = acampamento(souls=100)
+        p, menu = abrir(match, inputs[1], "ferreiro")
+        book = next(e for e in menu.entries() if e.key == "livro")
+        self.assertIn("/49", book.label)
+        first = book.desc
+        menu.index = len(menu.entries()) - 1
+        apertar(match, inputs[1], "attack")
+        self.assertNotEqual(next(e for e in menu.entries() if e.key == "livro").desc, first)    # outra dica
 
 
 class FusaoTest(unittest.TestCase):
@@ -52,74 +121,74 @@ class FusaoTest(unittest.TestCase):
         p.forge["Arco"] = [2, None]
         p, menu = abrir(match, inputs[1], "ferreiro")
         entries = menu.entries()
-        self.assertEqual(entries[-1].label, "FUNDIR AS 3 ARMAS")
-        self.assertIn("???", entries[-1].desc)               # receita nova
-        menu.index = len(entries) - 1
+        self.assertEqual(entries[-2].label, "FUNDIR AS 3 ARMAS")
+        self.assertIn("???", entries[-2].desc)               # receita nova
+        self.assertEqual(entries[-1].key, "livro")           # e o livro de receitas, sempre por último
+        menu.index = len(entries) - 2
         apertar(match, inputs[1], "attack")
-        self.assertIs(p.relic, FORGED["arco_mil_almas"])
-        self.assertEqual(match.run.relics[1], "arco_mil_almas")
-        self.assertEqual(p.forge, {"Arco das Mil Almas": [1, None]})   # as do herói voltaram ao +0
+        self.assertIs(p.weapon, FORGED["espada_primeiro"])
+        self.assertEqual(match.run.bags[1], ["rara:espada_primeiro"])
+        self.assertEqual(p.forge, {"Espada do Primeiro Guerreiro": [1, None]})   # as do herói voltaram ao +0
         self.assertEqual(match.run.souls[1], 1000 - FUSION_COST)
-        self.assertIn("arco_mil_almas", forged.discovered())
+        self.assertIn("espada_primeiro", forged.discovered())    # as 2 do guerreiro + rara: assinatura
         self.assertIsNone(menu._fusion_entry())                # forjada não entra em outra fusão
-        self.assertEqual(p.weapons, (FORGED["arco_mil_almas"],))  # as três viraram uma só
-        self.assertIs(p.weapon, p.relic)
+        self.assertEqual(p.weapons, (FORGED["espada_primeiro"],))  # as três viraram uma só
         self.assertFalse(p.switch_weapon())                   # nada para trocar
         match.run.begin_phase()
         back = CampaignRun.from_save(json.loads(json.dumps(match.run.to_save())))
-        self.assertEqual(back.relics[1], "arco_mil_almas")
+        self.assertEqual(back.bags[1], ["rara:espada_primeiro"])
         self.assertEqual(back.fused_phase, 0)
 
-    def test_fusao_consome_arma_de_outro_heroi_e_largar_devolve_as_do_heroi(self):
+    def test_fusao_usa_as_3_da_bolsa_e_a_forjada_ocupa_uma_vaga(self):
         match, inputs = acampamento(souls=1000)
         p = match.players[0]
-        katana = common_weapon("Katana")
-        match.give_common(p, katana)
         p.give_relic(R["besta"])
         p, menu = abrir(match, inputs[1], "ferreiro")
-        menu.index = len(menu.entries()) - 1
+        menu.index = len(menu.entries()) - 2
         apertar(match, inputs[1], "attack")
-        self.assertTrue(p.fused)
-        self.assertEqual(len(p.weapons), 1)
-        self.assertIsNone(match.run.loadouts[1])              # a katana foi junto na fusão
+        forjada = p.weapon
+        self.assertTrue(forjada.forjada)
+        self.assertEqual(p.weapons, (forjada,))
         apertar(match, inputs[1], "dodge")
         n = len(match.ground)
-        machado = common_weapon("Maça")
-        match.give_common(p, machado)                          # com a forjada, a comum entra ao lado
-        self.assertTrue(p.fused)
-        self.assertEqual(p.weapons, (machado, p.relic))
-        self.assertIs(p.weapon, machado)
-        self.assertEqual(match.run.loadouts[1], ["Maça"])
-        match.give_common(p, katana)                           # outra de perto troca o machado
-        self.assertEqual(p.weapons, (katana, p.relic))
-        self.assertEqual(len(match.ground), n + 1)             # o machado caiu no chão
-        p.weapon_index = 1
-        match.drop_held(p)                                     # larga a forjada: volta o herói
-        self.assertFalse(p.fused)
-        own_ranged = next(w for w in p.stats.weapons if not w.is_melee)
-        self.assertEqual(p.weapons, (own_ranged, katana))      # a katana fica no lugar da de perto
-        self.assertEqual(len(match.ground), n + 2)
+        maca, katana, pistola = common_weapon("Maça"), common_weapon("Katana"), common_weapon("Pistola")
+        match.give_common(p, maca)                             # cabem mais 2 ao lado da forjada
+        match.give_common(p, katana)
+        self.assertEqual(p.weapons, (forjada, maca, katana))
+        self.assertEqual(len(match.ground), n)
+        match.give_common(p, pistola)                          # bolsa cheia: troca pela da mão
+        self.assertEqual(p.weapons, (forjada, maca, pistola))
+        self.assertEqual(len(match.ground), n + 1)             # a katana caiu no chão
+        p.weapon_index = 0
+        match.drop_held(p)                                     # larga a forjada: ela vai para o chão
+        self.assertEqual(p.weapons, (maca, pistola))
+        self.assertIn(forjada, [g.weapon for g in match.ground])
+
+    def test_sem_bolsa_cheia_nao_funde(self):
+        match, inputs = acampamento(souls=1000)
+        p, menu = abrir(match, inputs[1], "ferreiro")
+        self.assertIsNone(menu._fusion_entry())
 
     def test_forjada_com_comum_ao_lado_sobrevive_ao_save(self):
         match, inputs = acampamento(souls=1000)
         p = match.players[0]
         p.give_relic(R["besta"])
         p, menu = abrir(match, inputs[1], "ferreiro")
-        menu.index = len(menu.entries()) - 1
+        menu.index = len(menu.entries()) - 2
         apertar(match, inputs[1], "attack")
         apertar(match, inputs[1], "dodge")
+        forjada = p.weapon
         pistola, katana = common_weapon("Pistola"), common_weapon("Katana")
         match.give_common(p, pistola)
         match.give_common(p, katana)
-        self.assertEqual(p.weapons, (pistola, katana, p.relic))     # a forjada e mais uma de cada tipo
+        self.assertEqual(p.weapons, (forjada, pistola, katana))
         match.run.carry(match)
         back = CampaignRun.from_save(json.loads(json.dumps(match.run.to_save())))
-        self.assertEqual(back.loadouts[1], ["Pistola", "Katana"])
+        self.assertEqual(back.bags[1][1:], ["comum:Pistola", "comum:Katana"])
         f = match.players[0]
-        f.loadout, f.relic = None, None
+        f.bag = None
         back.prepare(f)
-        self.assertTrue(f.fused)
-        self.assertEqual(f.weapons, (pistola, katana, f.relic))
+        self.assertEqual(f.weapons, (forjada, pistola, katana))
 
     def test_uma_fusao_por_mercado(self):
         match, inputs = acampamento(souls=1000)
@@ -127,7 +196,7 @@ class FusaoTest(unittest.TestCase):
         p = match.players[0]
         p.give_relic(R["besta"])
         p, menu = abrir(match, inputs[1], "ferreiro")
-        self.assertFalse(menu.entries()[-1].ok)
+        self.assertFalse(menu.entries()[-2].ok)
 
 
 def masmorra(weapon_key, enemies=("esqueleto", "esqueleto", "esqueleto")):

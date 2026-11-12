@@ -1234,6 +1234,43 @@ WEAPONS = {
 }
 
 
+def _novas():
+    """As armas novas dos baús e as de tiro de graça (desenhos em armas_novas_arte.py)."""
+    import armas_novas_arte as A
+    pal = A.palette(FORGE, GREEN, GREEN_D, RED)
+    grips = {"Estilingue de Galho": (5, 11), "Bomba Explosiva que Explode": (8, 8)}
+
+    def make(name, rows):
+        def draw():
+            w = max(len(r) for r in rows)
+            grid = [r.ljust(w, ".") for r in rows]
+            s = Sprite(w, len(grid))
+            s.paint(grid, pal)
+            if name in grips:
+                return s.finish(), grips[name]
+            col = next(x for x in range(w) if any(r[x] != "." for r in grid))
+            ys = [y for y, r in enumerate(grid) if any(c != "." for c in r[col:col + 3])]
+            return s.finish(), (col + 1, ys[len(ys) // 2])
+        return draw
+
+    def giant(draw, k=3):
+        """Excalitora: a espada é umas 4 vezes o herói (o desenho sai ampliado k vezes)."""
+        def big():
+            surf, (gx, gy) = draw()
+            surf = pygame.transform.scale(surf, (surf.get_width() * k, surf.get_height() * k))
+            # build_all faz grip * DETAIL + 3: devolve um grip que, assim, cai no lugar ampliado
+            return surf, ((k * (gx * DETAIL + 3) - 3) / DETAIL, (k * (gy * DETAIL + 3) - 3) / DETAIL)
+        return big
+
+    table = {name: make(name, rows) for name, rows in {**A.GRIDS, **A.FORGED_GRIDS}.items()}
+    table["Excalitora"] = giant(table["Excalitora"])
+    table["Espada do Fim do Mundo"] = giant(table["Espada do Fim do Mundo"], 2)
+    return table
+
+
+WEAPONS.update(_novas())
+
+
 def file_name(name):
     import unicodedata
     plain = unicodedata.normalize("NFD", name).encode("ascii", "ignore").decode()
@@ -1245,7 +1282,7 @@ def build_all():
     result = {}
     for name, draw in WEAPONS.items():
         surf, (gx, gy) = draw()
-        result[name] = (surf, (gx * DETAIL + 3, gy * DETAIL + 3))   # centro do pixel da pegada, com a margem
+        result[name] = (surf, (round(gx * DETAIL + 3), round(gy * DETAIL + 3)))   # centro do pixel da pegada, com a margem
     return result
 
 
