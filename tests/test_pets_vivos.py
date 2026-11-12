@@ -160,6 +160,7 @@ class AjudaTest(unittest.TestCase):
             alive_in_match = True
             windup = 0
             windup_total = 60
+            hp = max_hp = 100
             x, y = p1.x + 200, p1.y
         match.boss = Chefe()
         passo(match, inputs, 2)
