@@ -1013,12 +1013,34 @@ class CoopMatch(Match):
         celular) larga a arma da mão no chão, ou guarda no armário se estiver perto dele."""
         if inp.pressed("switch") and f.switch_weapon():
             self.assets.play("click", 0.4)
+        holds = self.__dict__.setdefault("drop_holds", {})
         if inp.pressed("drop"):
             rack = self.rack_near(f)
             if rack is not None:
                 self.store_in_rack(f)
-            else:
+            elif self.energy_friend(f) is None:
                 self.drop_held(f)
+            else:
+                holds[f] = 1                # perto de um amigo: segurar passa energia, tocar larga
+        elif f in holds:
+            if inp.held("drop"):
+                holds[f] += 1
+                if holds[f] >= energia.PASS_HOLD:
+                    del holds[f]
+                    friend = self.energy_friend(f)
+                    if friend is not None:
+                        energia.pass_to(f, friend, self)
+            else:
+                del holds[f]
+                self.drop_held(f)
+
+    def energy_friend(self, f):
+        """O amigo mais perto que pode receber energia deste jogador (ou None)."""
+        if not energia.enabled(f) or f.energy <= 0:
+            return None
+        near = [p for p in self.alive_players if p is not f and energia.enabled(p) and p.energy < p.energy_max
+                and f.distance_to(p) < 110]
+        return min(near, key=f.distance_to) if near else None
 
     def rack_near(self, f):
         """O armário do corredor, se este jogador está perto dele (a masmorra não tem)."""
@@ -1115,7 +1137,7 @@ class CoopMatch(Match):
                 continue
             mag = f.mag if not f.weapon.is_melee else 0
             hub.publish_slot(f.slot, ammo=f.ammo, mag=mag, reload=f.reload_ratio if f.reloading else 0.0,
-                             energy=f.energy or 0, emax=f.energy_max, ecost=energia.cost(f, f.weapon))
+                             energy=f.energy or 0, emax=f.energy_max, ecost=energia.shown_cost(f, f.weapon))
 
     def publish_souls(self):
         """Manda o saldo de almas de cada jogador para o celular dele."""
@@ -1600,6 +1622,8 @@ class CampaignMatch(CoopMatch):
             n = 1 if random.random() < ORB_CHANCE * mult else 0
         for _ in range(n):
             self.pickups.append(energia.EnergyOrb(e.x, e.y - 10))
+        if e is self.boss or kind == "chefe" or is_elite(kind):
+            self.pickups.append(energia.EnergyOrb(e.x, e.y - 10, energia.BIG_ORB_ENERGY))    # o orbe grande
 
     def _update_corpses(self):
         for e in self.enemies:

@@ -310,6 +310,7 @@ class Fighter(Entity):
         self.dash_cd_mult = 1.0         # recarga da esquiva
         self.pierce = 0                 # tiros atravessam tantos inimigos
         self.lifesteal = 0.0            # parte do dano que vira vida
+        self.siphon = 0.0               # melhoria SIFÃO: parte do dano que vira energia
         self.shield = 0                 # escudo que absorve dano
         self.draw_scale = 1.0           # tamanho do desenho (chefão)
         if self.ability.body_scale != 1.0:          # Baixinho (Aryel): menor e mais difícil de acertar
@@ -368,6 +369,8 @@ class Fighter(Entity):
         self.energy = None              # energia da campanha (energia.py); None = fora da campanha
         self.energy_max = 0
         self.energy_bonus = 0           # melhoria ENERGIA
+        self.ability_energy_timer = 0   # logo depois da habilidade: acertos dão energia
+        self.ability_energy_left = 0
         self.bash_timer = 0             # coronhada (arma de tiro sem energia vira de bater)
         self.ammo_mult = 1.0            # melhoria da campanha: pente maior
         self.reload_mult = 1.0          # e recarga mais rápida
@@ -777,7 +780,8 @@ class Fighter(Entity):
                      "shoot_flash", "teleport_flash", "slow_timer", "pull_timer", "windup", "aim_timer",
                      "down_age", "bow_draw", "haste_timer", "idle_shot", "hack_timer", "type_timer",
                      "virus_timer", "rush_timer", "thrown_timer", "root_timer", "fear_timer", "frozen_timer",
-                     "perfect_flash", "burn_timer", "combo_timer", "combo_count", "guard_frames"):
+                     "perfect_flash", "burn_timer", "combo_timer", "combo_count", "guard_frames",
+                     "ability_energy_timer", "ability_energy_left"):
             setattr(self, name, 0)
         self.end_exo()
         self.clips.clear()                            # pentes cheios de novo
@@ -830,6 +834,7 @@ class Fighter(Entity):
         self.ability_cd = max(0, self.ability_cd - round(self.ability_cooldown * config.PERFECT_DODGE_CHARGE))
         self.perfect_flash = 18
         match.popup(self.x, self.y - 60, "ESQUIVA PERFEITA!", (240, 248, 255))
+        energia.on_perfect_dodge(self, match)
         match.burst(self.x, self.y - 14, (230, 244, 255), 12, speed=4)
         match.assets.play("click", 0.5)
         return True
@@ -889,27 +894,34 @@ class Fighter(Entity):
             self.attack_cd = weapon.cooldown
             match.assets.play("golpe", 0.45)
             self._deflect_bullets(match)
-            rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
+            # raras/forjadas de perto: o golpe é de graça, o efeito especial gasta (sem energia, sai sem ele)
+            special = energia.pay_special(self, weapon, self._third_swing(weapon))
+            if not special and self.dry_click <= 0:
+                self.dry_click = 50
+                match.popup(self.x, self.y - 74, "SEM ENERGIA", energia.ENERGY_COLOR)
+            if special:
+                rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
             # acerta todos os adversários ao alcance na frente (no duelo, só existe um)
             fx, fy = self.facing
             reach = self.melee_reach(weapon)
             hits = []
             damage = round(weapon.damage * self.damage_mult * self.weapon_mult(weapon))
+            spin = weapon.spin and special
             for other in match.opponents_of(self):
                 if not other.alive_in_match:
                     continue
                 dx, dy = other.x - self.x, other.y - self.y
                 d = math.hypot(dx, dy)
-                in_front = weapon.spin or other is target or d < other.radius + 6 or (dx * fx + dy * fy) > -0.2 * d
+                in_front = spin or other is target or d < other.radius + 6 or (dx * fx + dy * fy) > -0.2 * d
                 if d <= reach + other.radius and in_front:
                     if other.take_damage(damage, self.x, self.y, attacker=self, match=match):
                         hits.append(other)
                         enchant_hit(self, weapon, other, match, damage)
                         if self.exo_timer > 0:
                             other.throw_from(self, match)
-            if weapon.forjada:
+            if weapon.forjada and special:
                 forged.on_swing(self, weapon, match, hits, damage)
-            gadgets.on_melee(self, weapon, match, damage)
+            gadgets.on_melee(self, weapon, match, damage, special)
             energia.spend(self, weapon)
             return True
         base = proximity_damage(dist, weapon.damage) if weapon.close_bonus else weapon.damage
@@ -923,6 +935,14 @@ class Fighter(Entity):
         rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
         match.assets.play(shot_sound(weapon, match.frame), 0.3)
         return True
+
+    def _third_swing(self, weapon):
+        """Este golpe vai ser o 3º seguido (o que solta o efeito maior)?"""
+        if weapon.forjada:
+            return (self.forged_count + 1) % 3 == 0
+        if weapon.special:
+            return (self.combo_count + 1 if self.combo_timer > 0 else 1) >= 3
+        return False
 
     def _bash(self, match, target, weapon):
         """Sem energia: bate com a arma (a de tiro vira de perto; a rara de perto bate sem o efeito)."""
@@ -1017,6 +1037,7 @@ class Fighter(Entity):
         if not self.ability_ready or self.busy:
             return False
         self.ability_cd = self.ability_cooldown
+        energia.on_ability(self)
         self.ability.use(self, match, target)
         return True
 
@@ -1065,6 +1086,7 @@ class Fighter(Entity):
             if self.hp <= 0:
                 attacker.kills += 1
                 forged.on_kill(attacker, self, match)
+            energia.on_damage(attacker, self, dealt, match)
         if match is not None:
             match.popup(self.x, self.y - 46 * self.draw_scale, str(amount), theme.BONE if amount < 20 else theme.BRASS)
             match.burst(self.x, self.y - 10, (236, 230, 220), 5, speed=3)
@@ -1294,6 +1316,8 @@ class Fighter(Entity):
         held, self._attack_held = self._attack_held, False
         if self.combo_timer > 0:
             self.combo_timer -= 1
+        if self.ability_energy_timer > 0:
+            self.ability_energy_timer -= 1
         if self.guard_frames > 0 and (not held or self.stunned or self.weapon.special != "escudo"):
             if self.weapon.special == "escudo" and not self.stunned:
                 gadgets.shield_release(self, match)

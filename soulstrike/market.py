@@ -99,7 +99,7 @@ def weapon_card(fighter, weapon, level=None, enchant=None):
         "enchant": ENCHANTS[enchant][0] if enchant else None,
         "damage": round(weapon.damage * (1 + FORGE_DAMAGE * level)),
         "mag": mag_at(fighter, weapon, level),
-        "energy": energia.cost(fighter, weapon) if energia.enabled(fighter) else None,
+        "energy": energia.shown_cost(fighter, weapon) if energia.enabled(fighter) else None,
     }
 
 

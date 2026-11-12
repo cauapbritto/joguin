@@ -93,8 +93,16 @@ class Energia(Upgrade):
         fighter.energy_bonus += 50
 
 
+class Sifao(Upgrade):
+    key, name, description, color = ("sifao", "SIFÃO", "4% do dano que você causa vira energia.",
+                                     (70, 130, 230))
+
+    def apply(self, fighter):
+        fighter.siphon += 0.04
+
+
 UPGRADES = {cls.key: cls() for cls in (Vida, Dano, Recarga, Velocidade, Perfurar, Esquiva, Vampirismo, Escudo,
-                                       Municao, Energia)}
+                                       Municao, Energia, Sifao)}
 
 # desenho 7x7 de cada ícone ("#" = cor da melhoria, "+" = claro)
 ICONS = {
@@ -108,6 +116,7 @@ ICONS = {
     "escudo": ["#######", "#+++++#", "#+###+#", "#+###+#", ".#+#+#.", "..#+#..", "...#..."],
     "municao": ["..#.#..", ".##.##.", ".##.##.", ".+#.+#.", ".##.##.", ".##.##.", "###.###"],
     "energia": ["....##.", "...##..", "..##...", ".######", "...+#..", "..##...", ".##...."],
+    "sifao": ["..#....", ".###...", "#+#+#..", ".###.##", "..#.##.", "...##..", "..##..."],
 }
 
 

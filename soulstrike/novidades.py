@@ -12,6 +12,19 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.51.0": [
+        {"title": "ENERGIA MAIS JUSTA", "scene": "hud", "lines": [
+            "Armas raras e forjadas de perto: o golpe normal agora é de graça. Só o efeito especial gasta.",
+            "O giro do machado, a onda da Lâmina Solar, o raio do Martelo do Trovão, o 3º golpe do teclado.",
+            "Sem energia, a arma ainda bate, só que sem o efeito. A Foice do Ceifador continua gastando.",
+        ]},
+        {"title": "ENERGIA QUE VOLTA LUTANDO", "scene": "almas", "lines": [
+            "Usou a habilidade? Cada acerto nos 2 segundos seguintes dá +3 de energia, até +15.",
+            "Derrubar inimigo com arma de perto dá +2, e esquiva perfeita dá +4.",
+            "Elites e chefões soltam um orbe grande de +15. Melhoria nova: SIFÃO, dano que vira energia.",
+            "Segure LARGAR perto de um amigo para passar 20 da sua energia para ele.",
+        ]},
+    ],
     "1.50.0": [
         {"title": "BOLSA DE 3 ARMAS", "scene": "hud", "lines": [
             "Cada jogador agora tem uma BOLSA com 3 vagas, e cabe qualquer arma: comum, rara ou forjada.",
