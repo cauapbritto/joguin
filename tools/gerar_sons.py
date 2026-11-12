@@ -1,4 +1,4 @@
-"""Gera os efeitos sonoros novos e as músicas do acampamento e do chefão (síntese, sem samples).
+"""Gera os efeitos sonoros novos e a música do acampamento (síntese, sem samples; a trilha orquestral sai de tools/gerar_trilha.py).
 
 Uso:  python tools/gerar_sons.py
 
@@ -456,19 +456,8 @@ def music():
                 ("F5", 6), ("E5", 2), ("D5", 4), ("C5", 4), ("B4", 8), (None, 8)],
         bass_kind="calmo", lead_kind="triangle",
         drums=["k", "", "h", "", "", "", "h", "", "s", "", "h", "", "", "", "h", ""], lead_vol=0.28)
-    # chefão: tenso, em ré menor, 150 bpm
-    boss = render(
-        150, 16,
-        chords=[("D4", "F4", "A4"), ("D4", "F4", "A4"), ("A#3", "D4", "F4"), ("C4", "E4", "G4"),
-                ("D4", "F4", "A4"), ("D4", "F4", "A4"), ("G3", "A#3", "D4"), ("A3", "C#4", "E4")],
-        melody=[("D5", 2), ("D5", 2), ("F5", 2), ("D5", 2), ("A5", 4), ("G5", 2), ("F5", 2),
-                ("E5", 2), ("F5", 2), ("E5", 2), ("C5", 2), ("D5", 8),
-                ("A4", 2), ("D5", 2), ("F5", 2), ("A5", 2), ("A#5", 4), ("A5", 4),
-                ("G5", 2), ("F5", 2), ("E5", 2), ("C#5", 2), ("D5", 8)],
-        bass_kind="tenso", lead_kind="square",
-        drums=["k", "h", "h", "h", "s", "h", "k", "h", "k", "h", "h", "h", "s", "h", "h", "s"], lead_vol=0.22)
     # ganho para ficar no mesmo volume percebido da música de batalha (o limitador segura os picos)
-    for name, samples, gain in (("camp_bgm", camp, 6), ("boss_bgm", boss, 9)):
+    for name, samples, gain in (("camp_bgm", camp, 6),):
         encode(name, samples, gain)
 
 
@@ -487,21 +476,6 @@ def encode(name, samples, gain):
     print("música", name)
 
 
-def lag_music():
-    """Chefão da Lag Lobby (Borba Jr Corrompido): mais eletrônico, em mi menor, 160 bpm."""
-    boss = render(
-        160, 16,
-        chords=[("E4", "G4", "B4"), ("E4", "G4", "B4"), ("C4", "E4", "G4"), ("D4", "F#4", "A4"),
-                ("E4", "G4", "B4"), ("E4", "G4", "B4"), ("A3", "C4", "E4"), ("B3", "D#4", "F#4")],
-        melody=[("E5", 2), ("E5", 2), ("G5", 2), ("E5", 2), ("B5", 2), ("A5", 2), ("G5", 2), ("F#5", 2),
-                ("E5", 2), ("F#5", 2), ("G5", 2), ("D5", 2), ("E5", 8),
-                ("B4", 2), ("E5", 2), ("G5", 2), ("B5", 2), ("C6", 4), ("B5", 4),
-                ("A5", 2), ("G5", 2), ("F#5", 2), ("D#5", 2), ("E5", 8)],
-        bass_kind="tenso", lead_kind="saw",
-        drums=["k", "h", "k", "h", "s", "h", "k", "h", "k", "h", "k", "h", "s", "h", "s", "s"], lead_vol=0.16, seed=18)
-    encode("boss_lag_bgm", boss, 9)
-
-
 if __name__ == "__main__":
     effects()
     basketball_effects()
@@ -510,4 +484,3 @@ if __name__ == "__main__":
     lag_effects()
     clinic_effects()
     music()
-    lag_music()

@@ -287,7 +287,13 @@ MIDDLE = {
                                 (("arquivo_aco", 1), ("impressora", 1), ("popup_iara", 2)))),
 }
 # música de cada chefão (assets.MUSIC_FILES / MUSIC_LAYERS); o resto toca "boss"
-BOSS_MUSIC = {"borba": "boss_lag", "cauanzera": "boss_final"}
+BOSS_MUSIC = {"borba": "boss_lag", "albeguinio": "boss_clinica", "cauanzera": "boss_final"}
+FIGHT_STATES = ("intro", "ready", "fight", "between")      # luta: a camada de combate da trilha liga
+
+
+def area_music(phase):
+    """Trilha do lugar (base = explorar, camada de cima = luta): uma por capítulo, e a do Templo Gelado."""
+    return "templo" if phase.key == "templo" else f"cap{phase.chapter}"
 CHAPTER_START = {ch: next(i for i, p in enumerate(PHASES) if p.chapter == ch) for ch in (1, 2, 3, 4)}
 RUSH_PHASES = tuple(i for i, p in enumerate(PHASES) if p.dungeons[-1].boss_spot)   # salas dos 4 chefes
 RUSH_UPGRADES = 4             # Reunião dos Corrompidos: melhorias sorteadas antes do primeiro chefe
@@ -1489,9 +1495,19 @@ class CampaignMatch(CoopMatch):
         super().step()
         self._boss_music()
 
+    @property
+    def music(self):
+        return area_music(self.phase)
+
     def _boss_music(self):
-        """A trilha do chefão cresce com a luta: fase com raiva ou etapa nova liga a camada de cima."""
-        if self.boss is None or self.boss.hp <= 0:
+        """A trilha cresce com a luta: na sala, a camada de combate; no chefão, a fúria ou a etapa nova."""
+        if self.boss is None:
+            level = 1 if self.state in FIGHT_STATES else 0
+            if level != getattr(self, "_music_level", 0):
+                self._music_level = level
+                self.assets.music_intensity(level)
+            return
+        if self.boss.hp <= 0:
             return
         brain = self.controllers.get(self.boss)
         stage = getattr(brain, "stage", None)

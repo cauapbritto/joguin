@@ -295,7 +295,7 @@ def save(song, layers):
                 w.setframerate(RATE)
                 w.writeframes((np.clip(x, -1, 1) * 32767).astype("<i2").tobytes())
             subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav_path), "-c:a", "libvorbis",
-                            "-q:a", "2" if not song.stinger else "3", "-map_metadata", "-1",
+                            "-q:a", "1.5" if not song.stinger else "3", "-map_metadata", "-1",
                             str(OUT / f"{name}.ogg")], check=True)
         print(f"{name}.ogg  {len(x) / RATE:.1f} s")
 
@@ -473,7 +473,271 @@ def vinheta_fase():
     return s
 
 
-SONGS = [menu, chefe_final, vinheta_vitoria, vinheta_derrota, vinheta_chefe, vinheta_fase]
+# ── capítulos e chefões (etapa 3) ─────────────────────────
+HARPSICHORD, WOOD_HI, WOOD_LO, COWBELL, RIM = 6, 76, 77, 56, 37
+
+
+def over(sections, fn, part, *args, **kw):
+    """Aplica um padrão em várias seções: [(progressão, compassos), ...]."""
+    for prog, bars in sections:
+        fn(part, prog, *args, bars=bars, **kw)
+
+
+def waltz(part, prog, octave=0, vel=80, bars=None, accent=14):
+    """Valsa (3 por compasso): baixo no 1, acorde no 2 e no 3."""
+    s = part.song
+    for bar in bars_of(s, bars):
+        notes = s.chord(chord_at(prog, bar), octave)
+        part.n(bar * s.beats, 0.9, notes[0] - 12, vel + accent)
+        for b in (1, 2):
+            for k in notes[1:]:
+                part.n(bar * s.beats + b, 0.6, k, vel - 8)
+
+
+def cap1():
+    """Capítulo 1, Floresta e Calabouço: aventura sombria (mi menor, 100 bpm). Base = explorar, camada 2 = luta."""
+    s = Song("trilha_cap1", 100, 32, key="E", layers=2, seed=21)
+    a, b = ["i", "VI", "VII", "i"], ["iv", "VI", "III", "V"]
+    sec = [(a, range(0, 16)), (b, range(16, 24)), (a, range(24, 32))]
+    low = s.part("cordas graves", SLOW_STRINGS, vol=92, reverb=90)
+    over(sec, pad, low, -1, 62, spread=True)
+    harp = s.part("harpa", HARP, vol=88, reverb=90, pan=44)
+    over(sec, arp, harp, 1, step=0.5, order=(0, 1, 2, 3, 4, 3, 2, 1), vel=60)
+    flute = s.part("flauta", FLUTE, vol=96, reverb=100, pan=80)
+    for bar in (0, 8, 24):
+        theme(flute, bar * 4, octave=2, vel=78, answer=((0, 2), (4, 1), (5, 1), (4, 4)))
+        melody(flute, [(2, 2), (1, 2), (0, 4), (None, 8)], 2, bar * 4 + 16, 74)
+    melody(flute, [(3, 4), (4, 2), (5, 2), (4, 4), (2, 4), (3, 4), (4, 2), (6, 2), (4, 8)], 2, 16 * 4, 76)
+    choir = s.part("coro baixo", VOICE_OOH, vol=86, reverb=110)
+    over(sec, pad, choir, 0, 48)
+    atmos = s.part("pad", PAD_HALO, vol=72, reverb=110)
+    over(sec, pad, atmos, 0, 50)
+    # luta
+    st = s.part("cordas ostinato", STRINGS, 1, vol=100, reverb=70)
+    over(sec, steps, st, "X.xxX.xxX.xxX.x.", tones=(0, 0, 2, 0), octave=0, vel=78)
+    timp = s.part("tímpano", TIMPANI, 1, vol=110, reverb=80)
+    over(sec, hits, timp, (0, 2, 2.5), -1, 100)
+    taiko = s.part("taiko", TAIKO, 1, vol=104, reverb=70)
+    over(sec, hits, taiko, (0, 1.5, 3), -1, 96)
+    horn = s.part("trompas", HORN, 1, vol=106, reverb=90)
+    for bar in (0, 8, 16, 24):
+        theme(horn, bar * 4, octave=1, vel=100, answer=((0, 2), (4, 1), (5, 1), (6, 2), (4, 2)))
+    kit = s.part("tambores", 0, 1, drums=True, vol=96, reverb=60)
+    drums(kit, {KICK: "X.......X.x.....", TOM_LOW: "....x.......x..x", TAMB: "..x...x...x...x."}, vel=88)
+    return s
+
+
+def cap1_templo():
+    """Templo Gelado: místico e frio (fá sustenido menor, 90 bpm), sinos de gelo."""
+    s = Song("trilha_templo", 90, 32, key="F#", layers=2, seed=22)
+    a, b = ["i", "iv", "VI", "V"], ["VI", "VII", "i", "i"]
+    sec = [(a, range(0, 16)), (b, range(16, 24)), (a, range(24, 32))]
+    cel = s.part("celesta", CELESTA, vol=92, reverb=115, pan=50)
+    over(sec, arp, cel, 2, step=0.5, order=(0, 2, 1, 3, 2, 4, 3, 1), vel=62)
+    choir = s.part("coro feminino", VOICE_OOH, vol=94, reverb=120)
+    over(sec, pad, choir, 1, 60)
+    strings = s.part("cordas", SLOW_STRINGS, vol=90, reverb=110)
+    over(sec, pad, strings, -1, 58, spread=True)
+    bells = s.part("sinos", BELLS, vol=84, reverb=120, pan=80)
+    over(sec, hits, bells, (0,), 1, 70, dur=3)
+    glock = s.part("glockenspiel", GLOCK, vol=86, reverb=115)
+    for bar in (0, 16, 24):
+        theme(glock, bar * 4, octave=2, vel=70, answer=((0, 4), (None, 4)))
+    # luta
+    trem = s.part("cordas tremolo", TREMOLO, 1, vol=100, reverb=90)
+    over(sec, pad, trem, 0, 82, spread=True)
+    timp = s.part("tímpano", TIMPANI, 1, vol=110, reverb=90)
+    over(sec, hits, timp, (0, 1.5, 2, 3), -1, 98)
+    brass = s.part("metais", BRASS, 1, vol=106, reverb=95)
+    for bar in (0, 8, 16, 24):
+        theme(brass, bar * 4, octave=1, vel=100, answer=((5, 2), (4, 2), (3, 2), (2, 2)))
+    taiko = s.part("taiko", TAIKO, 1, vol=100, reverb=80)
+    over(sec, hits, taiko, (0, 2.5, 3.5), -1, 96)
+    return s
+
+
+def cap2():
+    """Capítulo 2, Lag Lobby: corporativo e tenso (si menor, 124 bpm), sintetizador e cordas."""
+    s = Song("trilha_cap2", 124, 40, key="B", layers=2, seed=23)
+    a, b = ["i", "i", "VI", "VII"], ["iv", "iv", "VI", "V"]
+    sec = [(a, range(0, 16)), (b, range(16, 24)), (a, range(24, 40))]
+    pad_ = s.part("pad", PAD_POLY, vol=80, reverb=90)
+    over(sec, pad, pad_, 0, 60)
+    bass = s.part("baixo pulsando", SYNTH_BASS, vol=90, reverb=20)
+    over(sec, steps, bass, "x.x.x.x.x.x.x.x.", tones=(0,), octave=-2, vel=76, accent=0)
+    seq = s.part("sequência", SQUARE_LEAD, vol=60, reverb=60, pan=40)
+    over(sec, arp, seq, 1, step=0.25, order=(0, 2, 1, 3, 0, 2, 4, 2), vel=50)
+    strings = s.part("cordas", STRINGS, vol=86, reverb=80)
+    over(sec, pad, strings, 0, 56)
+    kit = s.part("ritmo", 0, drums=True, vol=86, reverb=40)
+    drums(kit, {HAT: "..x...x...x...x.", RIM: "....x.......x..."}, vel=70)
+    # luta
+    kit2 = s.part("bateria", 0, 1, drums=True, vol=100, reverb=40)
+    drums(kit2, {KICK: "X...X...X...X...", SNARE: "....X.......X...", HAT: "xxxxxxxxxxxxxxxx"}, vel=94)
+    drums(kit2, {CRASH: "X..............."}, bars=range(0, 40, 8), vel=96)
+    lead = s.part("tema no sintetizador", SAW_LEAD, 1, vol=82, reverb=70, pan=80)
+    for bar in (0, 8, 24, 32):
+        theme(lead, bar * 4, octave=1, vel=92, answer=((0, 2), (4, 1), (5, 1), (4, 4)))
+    st = s.part("cordas ostinato", STRINGS, 1, vol=96, reverb=60)
+    over(sec, steps, st, "XxxxXxxxXxxxXxxx", tones=(0, 2, 3, 2), octave=0, vel=72)
+    stab = s.part("metais curtos", SYNTH_BRASS, 1, vol=96, reverb=60)
+    over(sec, hits, stab, (0, 0.75, 2.5), 0, 96, dur=0.4)
+    return s
+
+
+def cap3():
+    """Capítulo 3, Clínica Clepalovers: estranho e limpo demais (sol menor, valsa a 108 bpm)."""
+    s = Song("trilha_cap3", 108, 40, key="G", beats=3, layers=2, seed=24)
+    a, b = ["i", "iv", "V", "i"], ["VI", "III", "iv", "V"]
+    sec = [(a, range(0, 16)), (b, range(16, 24)), (a, range(24, 40))]
+    box = s.part("caixinha de música", MUSIC_BOX, vol=96, reverb=110, pan=50)
+    for bar in (0, 8, 24, 32):
+        melody(box, [(0, 1), (4, 1), (3, 1), (2, 3), (4, 1), (5, 1), (4, 1), (7, 3), (6, 1), (5, 1), (4, 1),
+                     (2, 3), (3, 2), (1, 1), (0, 3)], 2, bar * 3, 78)
+    melody(box, [(5, 3), (4, 3), (2, 3), (4, 3), (3, 3), (2, 3), (1, 3), (4, 3)], 2, 16 * 3, 72)
+    pizz = s.part("pizzicato", PIZZICATO, vol=92, reverb=80)
+    over(sec, waltz, pizz, 0, 70)
+    vib = s.part("vibrafone", VIBES, vol=80, reverb=110, pan=80)
+    over(sec, pad, vib, 1, 46)
+    cl = s.part("clarinete", CLARINET, vol=86, reverb=100)
+    melody(cl, [(None, 6), (2, 3), (1, 3), (0, 6), (None, 6)] * 2, 1, 16 * 3, 66)
+    kit = s.part("tique-taque", 0, drums=True, vol=80, reverb=70)
+    drums(kit, {WOOD_HI: "x...x...x...", WOOD_LO: "x..........."}, vel=60)
+    # luta
+    st = s.part("cordas em valsa", STRINGS, 1, vol=100, reverb=80)
+    over(sec, waltz, st, 0, 86)
+    organ = s.part("órgão", ORGAN, 1, vol=86, reverb=110)
+    over(sec, pad, organ, 0, 66)
+    timp = s.part("tímpano", TIMPANI, 1, vol=108, reverb=80)
+    over(sec, hits, timp, (0,), -1, 104)
+    brass = s.part("metais", BRASS, 1, vol=104, reverb=90)
+    for bar in (0, 16, 24):
+        melody(brass, [(0, 2), (None, 1), (4, 1), (3, 1), (2, 1), (2, 3), (None, 3)], 1, bar * 3, 98)
+    return s
+
+
+def cap4():
+    """Capítulo 4, Mansão do Carimbo: gótico e burocrático (lá menor, 112 bpm), órgão e cravo."""
+    s = Song("trilha_cap4", 112, 32, key="A", layers=2, seed=25)
+    a, b = ["i", "VII", "VI", "V"], ["iv", "i", "VI", "V"]
+    sec = [(a, range(0, 16)), (b, range(16, 24)), (a, range(24, 32))]
+    organ = s.part("órgão", ORGAN, vol=88, reverb=115)
+    over(sec, pad, organ, 0, 64, spread=True)
+    harpsi = s.part("cravo", HARPSICHORD, vol=90, reverb=80, pan=46)
+    over(sec, arp, harpsi, 1, step=0.25, order=(0, 1, 2, 1, 3, 2, 1, 2), vel=62)
+    choir = s.part("coro", CHOIR, vol=88, reverb=120)
+    over(sec, pad, choir, 1, 52)
+    clock = s.part("relógio", 0, drums=True, vol=84, reverb=70)
+    drums(clock, {WOOD_HI: "x...x...x...x...", WOOD_LO: "..x.......x....."}, vel=58)
+    bassoon = s.part("fagote", BASSOON, vol=90, reverb=90)
+    for bar in (0, 8, 24):
+        theme(bassoon, bar * 4, octave=0, vel=80, answer=((0, 2), (-1, 1), (-2, 1), (-3, 4)))
+    # luta
+    st = s.part("cordas ostinato", STRINGS, 1, vol=100, reverb=70)
+    over(sec, steps, st, "XxxxXxxxXxxxXxxx", tones=(0, 2, 0, 3), octave=0, vel=76)
+    taiko = s.part("taiko", TAIKO, 1, vol=106, reverb=70)
+    over(sec, hits, taiko, (0, 0.75, 2, 3.5), -1, 100)
+    brass = s.part("metais", BRASS, 1, vol=106, reverb=90)
+    for bar in (0, 8, 16, 24):
+        theme(brass, bar * 4, octave=1, vel=104, answer=((5, 2), (4, 1), (3, 1), (4, 4)))
+    kit = s.part("bateria", 0, 1, drums=True, vol=94, reverb=50)
+    drums(kit, {KICK: "X.....x.X.......", SNARE: "....X.......X...", COWBELL: "............x..."}, vel=88)
+    bass = s.part("baixo", SYNTH_BASS2, 1, vol=88, reverb=20)
+    over(sec, steps, bass, "X.x.X.x.X.x.X.xx", tones=(0,), octave=-2, vel=82, accent=8)
+    return s
+
+
+def chefe_templo():
+    """Chefão do Templo (o cristal): épico clássico (mi menor, 140 bpm), 2 camadas."""
+    s = Song("trilha_chefe_templo", 140, 32, key="E", layers=2, seed=31)
+    a, b = ["i", "i", "VI", "VI", "iv", "iv", "V", "V"], ["VI", "VII", "i", "V"]
+    sec = [(a, range(0, 16)), (b, range(16, 24)), (a, range(24, 32))]
+    st = s.part("cordas ostinato", STRINGS, vol=100, reverb=70)
+    over(sec, steps, st, "XxxxXxxxXxxxXxxx", tones=(0, 0, 3, 0, 2, 0, 3, 2), octave=0, vel=80)
+    low = s.part("cordas graves", STRINGS, vol=96, reverb=70)
+    over(sec, steps, low, "X.x.X.x.X.x.X.x.", tones=(0,), octave=-2, vel=84)
+    timp = s.part("tímpano", TIMPANI, vol=112, reverb=80)
+    over(sec, hits, timp, (0, 1.5, 3), -1, 104)
+    tbn = s.part("trombones", TROMBONE, vol=104, reverb=80)
+    over(sec, hits, tbn, (0,), -1, 98, dur=1.5)
+    choir = s.part("coro", CHOIR, vol=96, reverb=110)
+    over(sec, pad, choir, 0, 70)
+    kit = s.part("bateria", 0, drums=True, vol=94, reverb=50)
+    drums(kit, {KICK: "X.....x.X.......", SNARE: "....X.......X...", HAT: "x.x.x.x.x.x.x.x."}, vel=90)
+    # fúria
+    horn = s.part("trompas", HORN, 1, vol=110, reverb=90)
+    for bar in (0, 8, 24):
+        theme(horn, bar * 4, octave=1, vel=108, answer=((0, 2), (4, 1), (5, 1), (4, 4)))
+        melody(horn, [(5, 3), (4, 1), (3, 2), (2, 2), (1, 4), (4, 4)], 1, bar * 4 + 16, 104)
+    melody(horn, [(5, 4), (6, 4), (7, 6), (6, 2), (5, 4), (4, 4), (3, 4), (4, 4)], 1, 16 * 4, 108)
+    hi = s.part("coro agudo", CHOIR, 1, vol=100, reverb=110)
+    over(sec, pad, hi, 1, 84)
+    taiko = s.part("taiko", TAIKO, 1, vol=110, reverb=70)
+    over(sec, hits, taiko, (0, 0.75, 1.5, 2, 3, 3.5), -1, 106)
+    glock = s.part("sinos", GLOCK, 1, vol=86, reverb=110)
+    over(sec, arp, glock, 2, step=0.5, order=(0, 2, 4, 2), vel=70)
+    return s
+
+
+def chefe_lag():
+    """Borba Jr Corrompido: eletrônico pesado com orquestra (si menor, 160 bpm), 2 camadas."""
+    s = Song("trilha_chefe_lag", 160, 32, key="B", layers=2, seed=32)
+    a, b = ["i", "i", "VI", "VII"], ["iv", "V", "i", "V"]
+    sec = [(a, range(0, 16)), (b, range(16, 24)), (a, range(24, 32))]
+    bass = s.part("baixo sintetizado", SYNTH_BASS2, vol=96, reverb=20)
+    over(sec, steps, bass, "XxxxXxxxXxxxXxxx", tones=(0, 0, 3, 0), octave=-2, vel=90)
+    kit = s.part("bateria", 0, drums=True, vol=100, reverb=30)
+    drums(kit, {KICK: "X...X...X...X...", CLAP: "....X.......X...", HAT: "x.xxx.xxx.xxx.xx"}, vel=96)
+    drums(kit, {CRASH: "X..............."}, bars=range(0, 32, 8), vel=100)
+    gtr = s.part("guitarra distorcida", DIST_GTR, vol=86, reverb=40)
+    over(sec, steps, gtr, "X..x..x.X..x.x..", tones=(0,), octave=-1, vel=92)
+    over(sec, steps, gtr, "X..x..x.X..x.x..", tones=(2,), octave=-1, vel=86)
+    lead = s.part("arpejo", SAW_LEAD, vol=70, reverb=50, pan=40)
+    over(sec, arp, lead, 1, step=0.25, order=(0, 1, 2, 3, 2, 1, 0, 2), vel=60)
+    st = s.part("cordas", STRINGS, vol=90, reverb=70)
+    over(sec, pad, st, 0, 70)
+    # fúria
+    brass = s.part("metais", BRASS, 1, vol=112, reverb=80)
+    for bar in (0, 8, 16, 24):
+        theme(brass, bar * 4, octave=1, vel=110, answer=((0, 2), (4, 1), (5, 1), (6, 2), (4, 2)))
+    choir = s.part("coro", CHOIR, 1, vol=100, reverb=100)
+    over(sec, pad, choir, 1, 84)
+    taiko = s.part("taiko", TAIKO, 1, vol=110, reverb=60)
+    over(sec, hits, taiko, (0, 0.5, 1.5, 2, 3, 3.5), -1, 106)
+    stab = s.part("metais sintetizados", SYNTH_BRASS, 1, vol=96, reverb=50)
+    over(sec, hits, stab, (0, 1.5, 3), 0, 100, dur=0.3)
+    return s
+
+
+def chefe_clinica():
+    """Albeguinio Corrompido: valsa macabra (ré menor, 168 bpm em 3), 2 camadas."""
+    s = Song("trilha_chefe_clinica", 168, 48, key="D", beats=3, layers=2, seed=33)
+    a, b = ["i", "i", "iv", "iv", "V", "V", "i", "i"], ["VI", "VI", "III", "III", "iv", "iv", "V", "V"]
+    sec = [(a, range(0, 16)), (b, range(16, 32)), (a, range(32, 48))]
+    st = s.part("cordas em valsa", STRINGS, vol=100, reverb=80)
+    over(sec, waltz, st, 0, 88)
+    organ = s.part("órgão", ORGAN, vol=88, reverb=110)
+    over(sec, pad, organ, 0, 70, spread=True)
+    timp = s.part("tímpano", TIMPANI, vol=110, reverb=80)
+    over(sec, hits, timp, (0,), -1, 106)
+    pizz = s.part("pizzicato", PIZZICATO, vol=90, reverb=70)
+    over(sec, arp, pizz, 1, step=1, order=(0, 2, 1), vel=74)
+    kit = s.part("bateria", 0, drums=True, vol=90, reverb=50)
+    drums(kit, {KICK: "X...........", SNARE: "....x...x..."}, vel=86)
+    # fúria
+    choir = s.part("coro", CHOIR, 1, vol=104, reverb=110)
+    over(sec, pad, choir, 1, 86)
+    brass = s.part("metais", BRASS, 1, vol=110, reverb=90)
+    for bar in (0, 8, 32, 40):
+        melody(brass, [(0, 3), (4, 2), (3, 1), (2, 6), (4, 3), (5, 2), (4, 1), (7, 6)], 1, bar * 3, 106)
+    box = s.part("caixinha", MUSIC_BOX, 1, vol=96, reverb=110)
+    over(sec, arp, box, 2, step=0.5, order=(0, 2, 4, 2, 1, 3), vel=76)
+    taiko = s.part("taiko", TAIKO, 1, vol=108, reverb=70)
+    over(sec, hits, taiko, (0, 2), -1, 102)
+    return s
+
+
+SONGS = [menu, chefe_final, cap1, cap1_templo, cap2, cap3, cap4, chefe_templo, chefe_lag, chefe_clinica, vinheta_vitoria, vinheta_derrota, vinheta_chefe, vinheta_fase]
 
 
 def main(names=()):

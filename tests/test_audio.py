@@ -148,18 +148,30 @@ class FutebolTest(unittest.TestCase):
 
 
 class CampanhaTest(unittest.TestCase):
-    def test_acampamento_tem_musica_calma(self):
-        match, _ = acampamento()
-        self.assertEqual(PlayScene(match.game, match).music, "camp")
-
-    def test_masmorra_tem_musica_de_batalha(self):
+    def test_fase_toca_a_trilha_do_capitulo(self):
+        from soulstrike.assets import MUSIC_LAYERS
+        from soulstrike.campaign import PHASES, area_music
         match, _ = campanha()
-        self.assertEqual(PlayScene(match.game, match).music, "battle")
+        self.assertEqual(PlayScene(match.game, match).music, area_music(match.phase))
+        for phase in PHASES:
+            self.assertIn(area_music(phase), MUSIC_LAYERS, phase.key)
+        self.assertEqual({area_music(p) for p in PHASES}, {"cap1", "templo", "cap2", "cap3", "cap4"})
+
+    def test_luta_liga_a_camada_de_combate(self):
+        match, _ = campanha()
+        assets = game().assets
+        with mock.patch.object(assets, "music_intensity") as level:
+            match.state = "fight"
+            match._boss_music()
+            level.assert_called_with(1)
+            match.state = "clear"
+            match._boss_music()
+            level.assert_called_with(0)
 
     def test_chefao_troca_a_musica(self):
         with mock.patch.object(game().assets, "music") as music:
             ChefaoTest._chefe(None)
-        music.assert_called_with("boss")
+        music.assert_called_with("boss")                          # Templo Gelado: o chefão do cristal
 
     def test_levantar_tem_som(self):
         match, _ = campanha()
