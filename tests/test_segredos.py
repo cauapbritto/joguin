@@ -62,7 +62,7 @@ class Casa(unittest.TestCase):
         self.assertTrue(alb and alb[0].line == "JÁ REINICIOU O WI-FI?")
         pc = computador.make(self.match, self.p1, "pc", (0, 0))
         pc.open_app("navegador")
-        self.assertEqual(pc.page_lines()[0], "SEM INTERNET")
+        self.assertEqual(pc.page_lines(0)[0], "SEM INTERNET")
         nb = computador.make(self.match, self.p1, "notebook", (0, 0))
         nb.run("wifi --reiniciar")
         for _ in range(60):
@@ -119,10 +119,22 @@ class Casa(unittest.TestCase):
     def test_caderno_no_computador(self):
         segredos.find("wifi")
         pc = computador.make(self.match, self.p1, "pc", (0, 0))
-        self.assertIn(("caderno", "CADERNO"), pc.desktop_items())
-        pc.open_app("caderno")
+        self.assertIn("open:caderno", [k for k, _, _ in pc.rows()])
+        pc.press("open:caderno")
         surf = pygame.Surface((computador.INNER_W, computador.INNER_H))
         pc.draw_inner(surf, game().ui, surf.get_rect())
+        pc.press("cad:0")                                   # a página da CASA
+        self.assertEqual(pc.screen, "caderno_lugar")
+        rows = pc.rows()
+        self.assertEqual(rows[0][1:], ("O WI-FI CAIU", "OK"))
+        self.assertEqual(rows[1][1], "???")
+        pc.draw_inner(surf, game().ui, surf.get_rect())
+        pc.press("seg:1")                                   # o que falta mostra só a dica
+        self.assertTrue(pc.reading[1][0].startswith("DICA:"))
+        pc.draw_inner(surf, game().ui, surf.get_rect())
+        self.assertTrue(pc.back())                          # fecha a dica
+        self.assertTrue(pc.back())                          # volta para a lista de lugares
+        self.assertEqual(pc.screen, "caderno")
 
 
 if __name__ == "__main__":
