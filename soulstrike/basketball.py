@@ -9,7 +9,7 @@ import random
 
 import pygame
 
-from . import config, hud, theme
+from . import config, hud, segredos, theme
 from . import basket_ultra as ultra_rules
 from . import rumble
 from .ai import BALL_DIFFICULTIES, BasketballAI
@@ -22,6 +22,7 @@ from .matches import Match, Result, _bounce_off_walls, _separate
 from .net.remote import hub
 from .soccer_assist import pick_receiver, unit
 
+BUZZER_FRAMES = 3 * 60          # segredo: cesta de 3 arremessada com o relógio nos últimos 3 s
 HALF_SECONDS = 120              # dois tempos de 2 minutos
 WARMUP_SECONDS = 60             # aquecimento antes da bola ao alto: cada um com a sua bola
 WARM_STATE = ("ball", "holder", "shot", "no_catch", "catch_lock", "alley")   # o que cada bola tem
@@ -469,7 +470,8 @@ class BasketballMatch(Match):
         three = Court.is_three(side, f.x, f.y)
         tx, ty = aim_point(hx, hy, f.x, f.y, miss, random.choice((-1, 1)))
         self._launch(f, tx, ty, Court.RIM_Z + 2, flight_frames(dist), z0=HAND_Z + f.lift)
-        self.shot = {"team": f.team, "three": three, "shooter": f, "side": side, "ghost": f.ghost_timer > 0}
+        self.shot = {"team": f.team, "three": three, "shooter": f, "side": side, "ghost": f.ghost_timer > 0,
+                     "buzzer": three and not self.overtime and 0 < self.clock <= BUZZER_FRAMES}
         f.ghost_timer = 0
         if f.haunt_shots > 0:
             f.haunt_shots -= 1                   # Assombração: atravessa tudo, até o Paredão
@@ -1389,6 +1391,9 @@ class BasketballMatch(Match):
         self.score[team] += points
         rumble.team(self, team)
         scorer = shot["shooter"] if shot is not None and shot["team"] == team else None
+        if scorer is not None and shot.get("buzzer"):     # segredo: a de 3 nos últimos segundos
+            segredos.hint(self, scorer.x, scorer.y - config.SPRITE_HEIGHT - 20, "NO ESTOURO", theme.BRASS)
+            segredos.find("estouro", self, scorer.x, scorer.y - config.SPRITE_HEIGHT - 46)
         if scorer is not None:
             scorer.points += points
             if shot.get("dunk"):

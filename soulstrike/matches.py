@@ -8,7 +8,7 @@ from fractions import Fraction
 
 import pygame
 
-from . import config, hud, rare_fx, theme
+from . import config, hud, rare_fx, segredos, theme
 from . import crt, rumble
 from .ai import BALL_DIFFICULTIES, FighterAI, SoccerAI
 from .arena import MAPS_BY_KEY, SOCCER_MAP, SOCCER_MAPS, Arena, Pitch
@@ -115,8 +115,8 @@ class Match(ABC):
             self.particles.append(Particle(x, y, math.cos(a) * s, math.sin(a) * s, color,
                                            random.randint(14, 34), size, gravity))
 
-    def popup(self, x, y, text, color):
-        self.popups.append(FloatingText(x, y, text, color))
+    def popup(self, x, y, text, color, life=40):
+        self.popups.append(FloatingText(x, y, text, color, life))
 
     def dust(self, x, y, count):
         for _ in range(count):
@@ -328,6 +328,38 @@ class Match(ABC):
 # ─────────────────────────────────────────────
 #  DUELO
 # ─────────────────────────────────────────────
+STANDOFF_FRAMES = 3 * config.FPS     # segredo do duelo: todo mundo parado no lugar de largada
+STANDOFF_REACH = 8
+
+
+class Tumbleweed:
+    """Bolinha de feno de faroeste rolando de um lado ao outro entre os duelistas (segredo)."""
+
+    def __init__(self, match, y):
+        view_w = config.SCREEN_W / max(0.1, getattr(match.camera, "zoom", 1.0))
+        self.x = match.camera.x - 40
+        self.end = match.camera.x + view_w + 40
+        self.y = y
+        self.t = 0
+        self.alive = True
+
+    def update(self, match):
+        self.t += 1
+        self.x += 3.2
+        if self.x > self.end:
+            self.alive = False
+
+    def draw(self, view, cam):
+        hop = abs(math.sin(self.t * 0.12)) * 16
+        cx, cy = round(self.x - cam.x), round(self.y - cam.y - 14 - hop)
+        pygame.draw.ellipse(view, (40, 30, 20), (cx - 12, round(self.y - cam.y) - 4, 24, 8))
+        pygame.draw.circle(view, (170, 130, 70), (cx, cy), 13, 2)
+        for k in range(5):
+            a = self.t * 0.15 + k * math.tau / 5
+            pygame.draw.line(view, (150, 110, 60), (cx, cy), (cx + round(math.cos(a) * 12), cy + round(math.sin(a) * 12)), 1)
+        pygame.draw.circle(view, (190, 150, 90), (cx, cy), 7, 1)
+
+
 class BattleMatch(Match):
     """Duelo em melhor de 3 rounds, com relógio e itens aparecendo na arena.
 
@@ -386,6 +418,7 @@ class BattleMatch(Match):
         return sum(max(0, f.hp) for f in team) / max(1, sum(f.max_hp for f in team))
 
     def _start_round(self):
+        self.standoff = 0                     # segredo: quadros com todo mundo parado na largada
         self.intro = config.ROUND_INTRO_FRAMES
         self.time_left = config.ROUND_SECONDS * config.FPS
         self.round_end = 0
@@ -401,6 +434,23 @@ class BattleMatch(Match):
     def active(self):
         """Os lutadores podem agir (fora da apresentação e do fim de round)."""
         return self.intro <= 30 and not self.round_end
+
+    def _standoff(self):
+        """Segredo: no começo do round, ninguém sai do lugar nem atira por 3 s. Passa um feno."""
+        if self.standoff < 0:
+            return
+        still = not self.bullets and all(
+            math.hypot(f.x - x, f.y - y) < STANDOFF_REACH for f, (x, y, _) in self.starts.items())
+        if not still:
+            self.standoff = -1                # alguém se mexeu: neste round não passa mais
+            return
+        self.standoff += 1
+        if self.standoff >= STANDOFF_FRAMES:
+            self.standoff = -1
+            y = sum(f.y for f in self.fighters) / len(self.fighters) + 60
+            self.add_effect(Tumbleweed(self, y))
+            x = sum(f.x for f in self.fighters) / len(self.fighters)
+            segredos.find("feno", self, x, y - 120)
 
     @property
     def match_point(self):
@@ -460,6 +510,7 @@ class BattleMatch(Match):
         self.publish_ammo()
         if not active:
             return
+        self._standoff()
         down = [s for s in self.sides() if not any(f.alive_in_match for f in self.members(s))]
         if down:
             standing = [s for s in self.sides() if s not in down]
@@ -981,6 +1032,9 @@ class Goal(Entity):
             surf.fill((230, 230, 222), (r.x - 2, py, r.w + 22, 6))
 
 
+POST_SPEED = 4              # segredo da trave: bola rápida que bateu perto do poste e voltou
+POST_REACH = 28
+POST_CLUB = 3
 NET_BULGE = 40               # quadros que a rede fica estufada depois do gol
 CELEBRATE_FRAMES = 90        # o time que fez o gol comemora
 GOAL_HITSTOP = 10            # gol: o jogo congela por um instante...
@@ -1181,6 +1235,24 @@ class SoccerMatch(Match):
 
     def foes_of(self, f):
         return [o for o in self.fighters if o.team != f.team]
+
+    def _post_check(self, ball, v0):
+        """Segredo: quem acerta a trave três vezes na partida vira SÓCIO DA TRAVE."""
+        if math.hypot(*v0) < POST_SPEED or ball.vx * v0[0] + ball.vy * v0[1] >= 0:
+            return                            # devagar ou não voltou: não foi na trave
+        f = self.last_touch
+        if f is None:
+            return
+        for g in self.goals:
+            mx = g.rect.right if g.team == 0 else g.rect.x
+            if any(math.hypot(ball.x - mx, ball.y - py) < ball.radius + POST_REACH for py in (g.rect.y, g.rect.bottom)):
+                hits = getattr(self, "post_hits", {})
+                self.post_hits = hits
+                hits[f] = hits.get(f, 0) + 1
+                if hits[f] == POST_CLUB:
+                    segredos.hint(self, f.x, f.y - config.SPRITE_HEIGHT - 10, "SÓCIO DA TRAVE", theme.BONE)
+                    segredos.find("trave", self, f.x, f.y - config.SPRITE_HEIGHT - 36)
+                return
 
     def ball_bounced(self, ball):
         if ball.vz > 2:
@@ -2234,7 +2306,9 @@ class SoccerMatch(Match):
             self._nose_pull()
         x0, y0 = ball.x, ball.y
         ball.update(self)
+        v0 = (ball.vx, ball.vy)
         _bounce_off_walls(ball, self.arena.walls + self.ball_walls)
+        self._post_check(ball, v0)
         for f in self.fighters:
             if f is self.possessor or self._ghost_passes(f):
                 continue

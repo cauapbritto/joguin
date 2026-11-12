@@ -16,7 +16,7 @@ import unicodedata
 
 import pygame
 
-from . import config, progress, theme
+from . import config, progress, segredos, theme
 
 STICK = 0.5
 REPEAT = 9                  # quadros entre um passo e outro da lista com o analógico segurado
@@ -200,7 +200,14 @@ class Computer:
             return [("ler:voltar", "VOLTAR", "")]
         if self.screen == "inicio":
             return [("open:arquivos", "ARQUIVOS", f"{len(FILES)}"), ("open:navegador", "NAVEGADOR", "SITES"),
-                    ("open:terminal", "TERMINAL", ">_"), ("desligar", "DESLIGAR", "")]
+                    ("open:terminal", "TERMINAL", ">_"), ("open:caderno", "CADERNO", "%d/%d" % segredos.count()),
+                    ("desligar", "DESLIGAR", "")]
+        if self.screen == "caderno":                  # o CADERNO DE SEGREDOS: um lugar por linha
+            return [(f"cad:{i}", place, f"{sum(ok for ok, _ in lines)}/{len(lines)}")
+                    for i, (place, lines) in enumerate(self.notebook_pages())] + [("close", "VOLTAR", "")]
+        if self.screen == "caderno_lugar":
+            return [(f"seg:{k}", text if ok else "???", "OK" if ok else "")
+                    for k, (ok, text) in enumerate(self.notebook_page()[1])] + [("open:caderno", "VOLTAR", "")]
         if self.screen == "arquivos":
             return [(f"arq:{i}", name, "") for i, (name, _) in enumerate(FILES)] + [("close", "VOLTAR", "")]
         if self.screen == "navegador":
@@ -277,8 +284,23 @@ class Computer:
             i = int(key[4:]) % len(PAGES)
             name, url, color, _ = PAGES[i]
             self.reading = (name, (url,) + tuple(self.page_lines(i)[1:]), color)
+        elif key.startswith("cad:"):                    # abre a página de um lugar do caderno
+            self.place = int(key[4:])
+            self.go("caderno_lugar")
+        elif key.startswith("seg:"):                    # um segredo: achado mostra o nome; o resto, a dica
+            ok, text = self.notebook_page()[1][int(key[4:])]
+            self.reading = (text, ("ACHADO! +5 CACOS JÁ FORAM PRO POTE.",), (60, 130, 80)) if ok else \
+                ("???", ("DICA: " + text.split("· ", 1)[-1],), (150, 60, 60))
         elif key.startswith("cmd:"):
             self.enter_command(key[4:])
+
+    def notebook_page(self):
+        pages = self.notebook_pages()
+        return pages[getattr(self, "place", 0) % len(pages)]
+
+    def notebook_pages(self):
+        """As páginas do CADERNO DE SEGREDOS: (lugar, [(achado, texto), ...]), só lugares com segredo."""
+        return [(place, lines) for place, lines in segredos.notebook().items() if lines]
 
     def open_app(self, name):
         self.go(name)
@@ -290,6 +312,9 @@ class Computer:
         self.go(self.first_screen() if self.screen != "login" else "login")
 
     def page_lines(self, i):
+        if getattr(self.match, "wifi_down", 0) > 0:          # o roteador apanhou (segredo da Casa)
+            return ("SEM INTERNET", "NÃO FOI POSSÍVEL CONECTAR.", "TENTE REINICIAR O ROTEADOR.",
+                    "OU PERGUNTE PRO ALBEGUINIO.")
         name, _url, _color, lines = PAGES[i % len(PAGES)]
         return wiki_lines() if name == "SOULWIKI" else lines
 
@@ -345,6 +370,9 @@ class Computer:
             return True
         if self.screen in ("inicio", "login"):
             return False
+        if self.screen == "caderno_lugar":
+            self.open_app("caderno")
+            return True
         self.close_app()
         return True
 
@@ -556,7 +584,9 @@ class Computer:
         elif self.screen == "terminal":
             self.draw_terminal(s, ui, r)
         else:
-            title = {"inicio": self.title, "arquivos": "ARQUIVOS", "navegador": "NAVEGADOR"}.get(self.screen, self.title)
+            title = {"inicio": self.title, "arquivos": "ARQUIVOS", "navegador": "NAVEGADOR",
+                     "caderno": "CADERNO DE SEGREDOS · %d DE %d" % segredos.count(),
+                     "caderno_lugar": "CADERNO · " + self.notebook_page()[0]}.get(self.screen, self.title)
             body = self.bar(s, ui, r, title, (40, 70, 120))
             self.draw_rows(s, ui, body.inflate(-8, -4), r.topleft)
 
@@ -679,7 +709,14 @@ class HackerNotebook(Computer):
         if command in ("ls", "dir"):
             self.say("  invasao.sh  (O RESTO É SEGREDO.)", HK)
             return
+        if command == "wifi --reiniciar" and getattr(self.match, "wifi_down", 0) > 0:
+            self.say("  O ROTEADOR APANHOU. QUEM FOI?", AMBER, 10)
+            self.say("  LIGANDO... FUNCIONOU.", HK, 10, action=self._wifi_back)
+            return
         super().run(command)
+
+    def _wifi_back(self):
+        self.match.wifi_down = 0
 
     def run_unlock(self):
         """A invasão do cristal: conexão, despejo de memória, quebra da senha, capítulos um a um e os

@@ -827,11 +827,11 @@ class Pickup(Entity):
 class FloatingText:
     """Número de dano que sobe e some (desenhado por cima, na tela)."""
 
-    def __init__(self, x, y, text, color):
+    def __init__(self, x, y, text, color, life=40):
         self.x, self.y = x, y
         self.text = text
         self.color = color
-        self.life = 40
+        self.life = life
 
     def update(self):
         self.y -= 0.6

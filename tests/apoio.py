@@ -14,6 +14,9 @@ from soulstrike.arena import Pitch  # noqa: E402
 from soulstrike.game import Game  # noqa: E402
 from soulstrike.matches import SoccerMatch  # noqa: E402
 from soulstrike.session import Session, SlotSetup  # noqa: E402
+from soulstrike import segredos  # noqa: E402
+
+segredos._hour = lambda: 12        # testes ao meio-dia: a vitrine não boceja de madrugada (segredo)
 
 _game = None
 

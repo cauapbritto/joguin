@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import pygame
 
-from . import config, energia, hud, rumble, theme
+from . import config, energia, hud, rumble, segredos, theme
 from .ai import FighterAI
 from .entities import Particle, Pickup
 from .enemies import BIG_KINDS, CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_enemy
@@ -31,6 +31,10 @@ PHASE_HEAL = 0.35             # entre uma fase e outra, recupera esse tanto da v
 REVIVE_FRAMES = 120           # tempo perto de um companheiro caído para levantá-lo
 REVIVE_RADIUS = 56
 REVIVE_HP = 0.4
+HIGH_FIVE_FRAMES = 90         # segredo: depois de levantar, a dupla tem 1,5 s para bater a mão
+PANIC_FRAMES = 150            # segredo: o último da onda foge tremendo esse tanto
+PANIC_CROWD = 3               # ... se a onda veio com pelo menos esse tanto (sobrou um de muitos)
+STILL_KINDS = ("torreta", "daiwone")   # esses não fogem (parados ou nem lutam)
 CONTINUE_HP = 0.5
 LAST_BREATH_FRAMES = 90       # invencível depois do último fôlego (campanha solo)
 LEASH_X, LEASH_Y = 1500, 700  # quão longe os jogadores podem ficar uns dos outros (cabe na câmera a 50%)
@@ -854,6 +858,8 @@ class CoopMatch(Match):
                 f.steer(0, 0)
             elif f.team == PLAYERS:
                 self._human(f, ctrl)
+            elif getattr(f, "panic", 0) > 0:
+                self._flee(f)
             elif isinstance(ctrl, FighterAI):
                 target = self.nearest_player(f)
                 if target is None:
@@ -1010,6 +1016,8 @@ class CoopMatch(Match):
                 self.menu_closed(f)
             return
         f.steer(*inp.axis())
+        if inp.pressed("attack") and getattr(self, "high_fives", None):
+            self._high_five(f)
         if (inp.pressed("attack") or inp.pressed("confirm")) and self.interact(f):
             return
         target = self.aim_target(f)
@@ -1152,6 +1160,33 @@ class CoopMatch(Match):
             w = weapon_of(self.run.rack[0])
             return "ATACAR: PEGAR " + w.name.upper() if w is not None else ""
         return "SEGURE UMA ARMA PARA GUARDAR"
+
+    def _flee(self, e):
+        """Segredo: o último inimigo da onda, sozinho, foge tremendo de quem está mais perto."""
+        e.panic -= 1
+        target = self.nearest_player(e)
+        if target is None:
+            e.steer(0, 0)
+            return
+        dx, dy = e.x - target.x, e.y - target.y
+        mag = math.hypot(dx, dy) or 1
+        e.steer(dx / mag, dy / mag)
+        if e.panic % 4 == 0:
+            e.x += random.choice((-1.5, 1.5))           # tremendo
+
+    def _high_five(self, f):
+        """Segredo: logo depois de levantar, quem caiu e quem levantou apertam ATACAR juntos."""
+        for five in self.high_fives:
+            if f in five[0]:
+                five[1].add(f)
+                if five[1] >= five[0]:
+                    a, b = five[0]
+                    x, y = (a.x + b.x) / 2, min(a.y, b.y) - config.SPRITE_HEIGHT
+                    self.burst(x, y, (255, 230, 120), 8, speed=2)
+                    segredos.hint(self, x, y - 10, "TOCA AQUI", (255, 230, 120))
+                    segredos.find("high_five", self, x, y - 36)
+                    five[2] = 0
+        self.high_fives = [h for h in self.high_fives if h[2] > 0]
 
     def _separate_bodies(self):
         bodies = [f for f in self.fighters if f.alive_in_match and f.lift <= 0]
@@ -1454,6 +1489,7 @@ class CampaignMatch(CoopMatch):
         if self.run.players == 1:
             self.enemy_dmg *= SOLO_DAMAGE         # sozinho não tem quem levante: inimigos batem menos
         self.corpses = {}
+        self.high_fives = []            # segredo: [dupla, quem já apertou ATACAR, quadros que faltam]
         self.notices = []               # balões do "oi sumido" (capítulo 3), na tela
         self._vanished = []
         self.state_timer = 0
@@ -1520,6 +1556,28 @@ class CampaignMatch(CoopMatch):
         self._update_corpses()
         self._update_downed()
         self._update_state()
+        self._secrets()
+
+    # ── segredos (segredos.py) ───────────────
+    def _secrets(self):
+        for five in self.high_fives:
+            five[2] -= 1
+        self.high_fives = [h for h in self.high_fives if h[2] > 0]
+        if self.state != "fight" or self.portals or self.wave != len(self.waves) - 1 \
+                or getattr(self, "wave_size", 0) < PANIC_CROWD:
+            return
+        left = self.fighting_enemies()
+        if len(left) != 1:
+            return
+        e = left[0]
+        kind = getattr(e, "kind", "")
+        if e is self.boss or getattr(e, "panicked", False) or kind not in CREATURES or CREATURES[kind].elite \
+                or kind in STILL_KINDS:
+            return
+        e.panicked = True
+        e.panic = PANIC_FRAMES
+        segredos.hint(self, e.x, e.y - config.SPRITE_HEIGHT - 10, "!", theme.BONE, life=50)
+        segredos.find("panico", self, e.x, e.y - config.SPRITE_HEIGHT - 40)
 
     # ── ondas e inimigos ─────────────────────
     def _start_wave(self, index):
@@ -1529,6 +1587,7 @@ class CampaignMatch(CoopMatch):
             self.daiwone_at = self.frame + random.randint(5, 11) * config.FPS
         delay = 0
         level = self.run.level
+        self.wave_size = 0
         for kind, count in self.waves[index]:
             if level.elites and kind in CREATURES and CREATURES[kind].elite:
                 count += level.elites                      # Difícil para cima: elites a mais
@@ -1536,6 +1595,7 @@ class CampaignMatch(CoopMatch):
                 x, y = self._spawn_spot(kind)
                 self.portals.append(Portal(x, y, kind, delay))
                 delay += 14
+                self.wave_size += 1
         self.assets.play("ability", 0.4)
 
     def _spawn_spot(self, kind):
@@ -1652,6 +1712,10 @@ class CampaignMatch(CoopMatch):
         if kind.startswith("sombra:") or kind == "chefe":
             self.popup(x, y - 80, enemy.stats.name.upper(), SHADOW_AURA)
             self.camera.shake(5)
+        hero = kind[len("sombra:"):] if kind.startswith("sombra:") else None
+        if hero and any(p.stats.key == hero for p in self.players):    # segredo: a própria sombra fala
+            segredos.hint(self, x, y - 110, segredos.mirror_line(hero), SHADOW_AURA, life=150)
+            segredos.find("espelho", self, x, y - 136)
         return enemy
 
     def _give_affix(self, enemy, affix):
@@ -1792,6 +1856,7 @@ class CampaignMatch(CoopMatch):
             if prog >= 1:
                 self._revive(p, REVIVE_HP)
                 self.revived_once.add(p)
+                self.high_fives += [[frozenset((p, q)), set(), HIGH_FIVE_FRAMES] for q in helpers]
                 self.popup(p.x, p.y - 70, "DE PÉ!", theme.MOSS)
 
     def _use_continue(self):
@@ -1882,6 +1947,13 @@ class CampaignMatch(CoopMatch):
 
     def _clear(self):
         """Sala limpa: quem caiu levanta, e daqui a pouco aparece a porta (ou o portal)."""
+        hurt = getattr(self.hazard, "ever_hit", None)
+        if hurt is not None and getattr(self.hazard, "fired", False):
+            clean = [p for p in self.alive_players if p not in hurt]
+            if clean and len(clean) == len(self.players):     # ninguém pisou no laser aceso
+                for p in clean:
+                    segredos.hint(self, p.x, p.y - config.SPRITE_HEIGHT - 10, "SEM UM ARRANHÃO", theme.MOSS)
+                segredos.find("laser", self, clean[0].x, clean[0].y - config.SPRITE_HEIGHT - 40)
         self.state, self.state_timer = "clear", EXIT_DELAY
         self.daiwone_at = None
         self.bullets.clear()
