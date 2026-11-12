@@ -14,10 +14,10 @@ import random
 
 import pygame
 
-from . import config, crt, enfeites, hud, mascotes, theme
+from . import config, crt, enfeites, equipamento, hud, mascotes, theme
 from .armario import RACK_SIZE, Armario
 from .campaign import CampaignMatch, CoopMatch, _center, _spread
-from .data import PHASE_RELICS, RARE_WEAPONS
+from .data import BAG_SIZE, PHASE_RELICS, RARE_WEAPONS
 from .dungeon import Campfire, Chest
 from .hazards import make_hazard
 from .mapa_fase import PhaseArena, PhaseLayout, RoomDoor, draw_minimap, minimap_rect
@@ -296,6 +296,9 @@ class PhaseMatch(CampaignMatch):
             self.run.chest_open = True
             return True
         if self.armario.can_use(f):
+            # vaga na bolsa e arma no armário: pega; senão guarda a da mão (LARGAR também guarda)
+            if self.run.rack and len(f.bag or ()) < f.bag_size:
+                return self.take_from_rack(f) or True
             if self.droppable(f) and len(self.run.rack) < RACK_SIZE:
                 return self.store_in_rack(f)
             return self.take_from_rack(f) or True
@@ -311,17 +314,20 @@ class PhaseMatch(CampaignMatch):
         uma, para dar escolha. Ninguém troca de arma sozinho: cada um vai lá, olha o nome e pega
         (ATACAR) a que quiser; a que tinha fica no lugar. As armas são diferentes entre si e, se der,
         da lista da fase e que ninguém do grupo já tenha."""
-        held = {p.relic for p in self.players if p.relic is not None}
+        held = {w for p in self.players for w in p.weapons if w.rare}
         phase = [RARE_WEAPONS[k] for k in PHASE_RELICS.get(self.run.phase.key, RARE_WEAPONS)]
         extra = [w for w in RARE_WEAPONS.values() if not w.forjada and w not in phase]
         random.shuffle(extra)
         pool = [w for w in phase if w not in held]
         random.shuffle(pool)
         pool += [w for w in phase if w in held] + [w for w in extra if w not in held]
-        count = len(self.players) + 1
+        count = len(self.players) + 1 + (1 if any(p.gear == "talisma" for p in self.players) else 0)
         weapons = pool[:count]
-        for weapon, at in zip(weapons, self._chest_spots(chest, len(weapons))):
+        spots = self._chest_spots(chest, len(weapons) + 1)
+        for weapon, at in zip(weapons, spots):
             self.drop_weapon(chest, weapon, at=at, start=(chest.x, chest.y - 24))
+        held = {p.gear for p in self.players}            # e um equipamento que ninguém tem
+        self.drop_gear(chest, equipamento.pick_random(held), at=spots[-1], start=(chest.x, chest.y - 24))
         solo = len(self.players) == 1
         self.popup(chest.x, chest.y - 80, "ESCOLHA UMA ARMA" if solo else "ESCOLHAM AS ARMAS", theme.BRASS)
 

@@ -3,7 +3,7 @@
 import math
 import unittest
 
-from apoio import FakeInput, game
+from apoio import FakeInput, com_rara, game
 
 from soulstrike import projectiles as P
 from soulstrike import weapon_art
@@ -32,7 +32,7 @@ def corrida(chars=("guerreiro", "atirador"), phase=0, stage=DUNGEON_1):
 
 def campo(weapon_key, phase=0):
     g, run = corrida(phase=phase)
-    run.relics[1] = weapon_key
+    com_rara(run, 1, weapon_key)
     run.held[1] = 2
     match = CampaignMatch(g, run)
     match.state, match.state_timer, match.banner = "fight", 0, None
@@ -67,7 +67,10 @@ class BauPorFaseTest(unittest.TestCase):
             todas = [k for ph in PHASES if ph.chapter == chapter for k in PHASE_RELICS[ph.key]]
             self.assertEqual(len(todas), len(set(todas)), chapter)
         self.assertTrue(all(RARE_WEAPONS[k].roubada for k in PHASE_RELICS["templo"]))
-        self.assertTrue(all(RARE_WEAPONS[k].roubada for k in PHASE_RELICS["cobertura"]))
+        self.assertTrue(sum(RARE_WEAPONS[k].roubada for k in PHASE_RELICS["cobertura"]) >= 4)
+        todas = [k for ks in PHASE_RELICS.values() for k in ks]                # baú único: nada repete
+        self.assertEqual(len(todas), len(set(todas)))
+        self.assertTrue(all(len(ks) == 5 for ks in PHASE_RELICS.values()))
         self.assertFalse(any(RARE_WEAPONS[k].roubada for k in PHASE_RELICS["floresta"] + PHASE_RELICS["calabouco"]))
 
     def test_bau_sorteia_da_fase(self):

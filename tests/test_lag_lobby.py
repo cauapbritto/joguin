@@ -3,7 +3,7 @@ Corrompido, as armas novas, o caminho entre os capítulos e o Borba Jr Corrompid
 import random
 import unittest
 
-from apoio import FakeInput, game
+from apoio import FakeInput, com_rara, game
 
 from soulstrike import gadgets, progress
 from soulstrike.boss import BORBA_STATS, BorbaBossAI
@@ -31,7 +31,7 @@ def corrida(phase="recepcao", stage=DUNGEON_1, chars=("guerreiro", "atirador")):
 def masmorra(phase="recepcao", stage=DUNGEON_1, relic=None, waves=False):
     g, run = corrida(phase, stage)
     if relic:
-        run.relics[1] = relic
+        com_rara(run, 1, relic)
         run.held[1] = 2
     match = CampaignMatch(g, run)
     match.state, match.state_timer, match.banner = "fight", 0, None

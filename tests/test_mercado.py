@@ -207,8 +207,9 @@ class MercadoTest(unittest.TestCase):
         menu.pick(f"vitrine:{perto.name}")
         apertar(match, inputs[1], "attack")
         self.assertIs(p.weapon, perto)
-        self.assertNotIn(espada, p.weapons)
-        self.assertEqual(match.ground, [])                # a espada do herói volta para a mochila
+        self.assertIn(espada, p.weapons)                  # entrou na vaga livre da bolsa
+        self.assertEqual(len(p.weapons), 3)
+        self.assertEqual(match.ground, [])
         self.assertEqual(match.run.souls[1], 1000 - M.VITRINE_COST)
         e = next(e for e in menu.entries() if e.key == f"vitrine:{perto.name}")
         self.assertFalse(e.ok)                            # vendida: ninguém compra de novo
@@ -222,9 +223,9 @@ class MercadoTest(unittest.TestCase):
         menu.pick(f"vitrine:{perto.name}")
         apertar(match, inputs[1], "attack")
         apertar(match, inputs[1], "dodge")                # fecha a loja
-        p.weapon_index = p.base_weapons.index(perto)
+        p.weapon_index = p.weapons.index(perto)
         apertar(match, inputs[1], "drop")
-        self.assertIs(p.base_weapons[1], espada)          # a espada voltou para a mão
+        self.assertEqual(p.weapons[1], espada)            # a espada do herói continua na bolsa
         self.assertEqual([g.weapon for g in match.ground], [perto])    # e só a outra ficou no chão
 
     def test_ferreiro_sobe_ate_o_encanto(self):
@@ -339,7 +340,7 @@ class LojaNoCelularTest(unittest.TestCase):
         self.assertEqual(ids[4:7], ["arma", "trocar", "continue"])
         vitrine = shop["items"][2]["info"]
         self.assertTrue(vitrine["weapon"]["icon"].endswith(".png"))      # a imagem da arma
-        self.assertEqual(vitrine["out"]["name"], "ARCO")                 # o guerreiro troca o arco
+        self.assertIsNone(vitrine["out"])                                # bolsa com vaga: não troca nada
         self.assertEqual(vitrine["weapon"]["energy"], 1)                 # arma de tiro de outro: 1 por tiro
         self.assertIn("doar:2", ids)
         self.assertIsNone(self.hub.status(2)["me"]["shop"])      # o outro não abriu nada
@@ -401,11 +402,11 @@ class LojaNoCelularTest(unittest.TestCase):
         self.assertEqual([c["name"] for c in info["inputs"]], ["ARCO", "ESPADA", "BESTA"])
         self.assertFalse(info["known"])
         self.assertEqual(info["next"]["name"], "???")
-        self.assertEqual(info["next"]["icon"], "arco_das_mil_almas.png")  # o celular mostra a silhueta
-        self.assertEqual(info["family"], "FLECHA")
-        with mock.patch("soulstrike.forged.discovered", return_value={"arco_mil_almas"}):
+        self.assertEqual(info["next"]["icon"], "espada_do_primeiro_guerreiro.png")  # o celular mostra a silhueta
+        self.assertEqual(info["family"], "ASSINATURA")                 # as 2 do guerreiro + uma rara
+        with mock.patch("soulstrike.forged.discovered", return_value={"espada_primeiro"}):
             info = next(e for e in menu.entries() if e.key == "fundir").info
-        self.assertEqual(info["next"]["name"], "ARCO DAS MIL ALMAS")
+        self.assertEqual(info["next"]["name"], "ESPADA DO PRIMEIRO GUERREIRO")
 
     def test_rota_da_imagem_da_arma(self):
         from soulstrike.net import server

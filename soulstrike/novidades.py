@@ -12,6 +12,81 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.55.0": [
+        {"title": "VAGA DE EQUIPAMENTO", "scene": "hud", "lines": [
+            "Cada herói ganhou uma vaga de EQUIPAMENTO, ao lado da bolsa de armas. Um por vez.",
+            "Pegou outro? Troca, e o velho fica no chão para você ou um amigo pegar de volta.",
+            "Vem do baú das recompensas, às vezes de elites e da loja: EQUIPAMENTO SURPRESA.",
+            "O quadradinho dele aparece na TV, depois das armas. Ele vai junto para as próximas etapas.",
+        ]},
+        {"title": "12 EQUIPAMENTOS", "scene": "almas", "lines": [
+            "Amuleto do Cristal, Pilha Recarregável, Presa de Vampiro, Luva de Ferreiro, Mochila Grande...",
+            "...Coldre Duplo, Bota de Mola, Coração de Pedra, Crachá da Lag Lobby e Ampulheta do Templo.",
+            "O Talismã da Sorte põe uma arma a mais no baú e dá mais almas.",
+            "E a Capa da IARA segura o golpe que derrubaria você, uma vez por etapa.",
+        ]},
+    ],
+    "1.54.0": [
+        {"title": "41 FORJADAS NOVAS", "scene": "loja", "lines": [
+            "O ferreiro agora conhece 49 forjadas. Dá para fundir sem repetir a mesma de sempre.",
+            "HÍBRIDAS: 2 armas de uma família e 1 de outra. Corte com fogo vira a Katana Brasa.",
+            "ASSINATURA: as 2 armas do seu herói e mais uma rara viram a forjada só dele.",
+            "SECRETAS: receitas exatas, como Lança-chamas, Maçarico e Secador. Vira o Bafo do Dragão.",
+        ]},
+        {"title": "LIVRO DE RECEITAS", "scene": "loja", "lines": [
+            "No ferreiro tem o LIVRO DE RECEITAS: mostra quantas a turma já descobriu, das 49.",
+            "Cada vez que você abre, ele dá uma dica de uma forjada que ainda falta.",
+            "A forjada descoberta fica salva para sempre, em todas as campanhas.",
+        ]},
+    ],
+    "1.53.0": [
+        {"title": "ARMA COM CARA DE EVOLUÍDA", "scene": "loja", "lines": [
+            "Agora dá para ver o ferreiro na arma: no +1 o metal brilha mais, no +2 ganha contorno de ouro.",
+            "No +3 o contorno fica dourado claro e a arma ganha uma aura de luz em volta.",
+            "Encantou? FOGO deixa a lâmina em brasa, GELO deixa azul gelado e RAIO deixa amarelo elétrico.",
+            "Vale na mão do herói e nas vagas da bolsa, em cima do seu quadro na TV.",
+        ]},
+    ],
+    "1.52.0": [
+        {"title": "46 ARMAS NOVAS", "scene": "loja", "lines": [
+            "Chegaram 39 armas raras e roubadas novas nos baús: Tocha, Bisturi, Fax Lança-Papéis, Cadeira Gamer...",
+            "E as redundantes: Taser Elétrico Eletrizante, Cajado do Gelo Gelado, Bomba Explosiva que Explode.",
+            "Muitas não gastam energia nenhuma, como o Estilingue, o Grampeador e a Pistola Atiradora de Tiros.",
+            "Inimigos agora também derrubam 7 armas de tiro de graça: escopeta, carabina, submetralhadora...",
+        ]},
+        {"title": "CADA BAÚ É ÚNICO", "scene": "mapa_fase", "lines": [
+            "Cada fase tem um baú com 5 armas que só ele tem. Nenhuma arma repete de uma fase para outra.",
+            "No Gabinete da Mansão, o baú guarda a EXCALITORA. Tirada da pedra de inscrição. A pedra veio junto.",
+            "Ela é enorme, alcança longe e não gasta energia, mas deixa o herói mais lento.",
+        ]},
+    ],
+    "1.51.0": [
+        {"title": "ENERGIA MAIS JUSTA", "scene": "hud", "lines": [
+            "Armas raras e forjadas de perto: o golpe normal agora é de graça. Só o efeito especial gasta.",
+            "O giro do machado, a onda da Lâmina Solar, o raio do Martelo do Trovão, o 3º golpe do teclado.",
+            "Sem energia, a arma ainda bate, só que sem o efeito. A Foice do Ceifador continua gastando.",
+        ]},
+        {"title": "ENERGIA QUE VOLTA LUTANDO", "scene": "almas", "lines": [
+            "Usou a habilidade? Cada acerto nos 2 segundos seguintes dá +3 de energia, até +15.",
+            "Derrubar inimigo com arma de perto dá +2, e esquiva perfeita dá +4.",
+            "Elites e chefões soltam um orbe grande de +15. Melhoria nova: SIFÃO, dano que vira energia.",
+            "Segure LARGAR perto de um amigo para passar 20 da sua energia para ele.",
+        ]},
+    ],
+    "1.50.0": [
+        {"title": "BOLSA DE 3 ARMAS", "scene": "hud", "lines": [
+            "Cada jogador agora tem uma BOLSA com 3 vagas, e cabe qualquer arma: comum, rara ou forjada.",
+            "Começa com as 2 do herói e uma vaga livre. Pegou outra arma? Ela entra na vaga.",
+            "Bolsa cheia: a arma nova troca pela da mão, e a da mão fica no chão para quem quiser.",
+            "As 3 vagas aparecem em cima do seu quadro na TV, com a da mão marcada na sua cor.",
+        ]},
+        {"title": "ARMA NÃO SOME MAIS", "scene": "loja", "lines": [
+            "Acabou a mochila invisível: a arma do herói que você trocou fica no chão, onde dá para ver.",
+            "Arma que um jogador largou nunca some sozinha, nem com o mapa cheio de armas de inimigo.",
+            "Dá para largar até a arma do próprio herói, e um amigo pode pegar ela. Bolsa vazia: é no soco.",
+            "A forjada usa as 3 armas da bolsa e ocupa uma vaga só: sobram 2 para pegar mais armas.",
+        ]},
+    ],
     "1.48.0": [
         {"title": "PETS COM VIDA", "scene": "casa", "lines": [
             "Os 9 pets foram redesenhados com 6 jeitos: parado, andando, feliz, susto, dormindo e uma graça só deles.",

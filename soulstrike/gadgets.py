@@ -172,8 +172,9 @@ class AllyDrone(Entity):
 # ─────────────────────────────────────────────
 #  Golpes de perto (chamado a cada golpe)
 # ─────────────────────────────────────────────
-def on_melee(fighter, weapon, match, damage):
-    """Combo das armas de perto da Lag Lobby: o 3º golpe seguido tem o efeito especial."""
+def on_melee(fighter, weapon, match, damage, special=True):
+    """Combo das armas de perto da Lag Lobby: o 3º golpe seguido tem o efeito especial
+    (sem energia para pagar o efeito, o combo recomeça sem ele)."""
     if not weapon.special or weapon.special == "escudo":
         return
     if fighter.combo_timer > 0:
@@ -184,6 +185,8 @@ def on_melee(fighter, weapon, match, damage):
     if fighter.combo_count < 3:
         return
     fighter.combo_count = 0
+    if not special:
+        return
     fx, fy = fighter.facing
     if weapon.special == "teclas":
         base = math.atan2(fy, fx)

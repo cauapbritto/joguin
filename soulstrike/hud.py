@@ -487,7 +487,52 @@ def draw_campaign(screen, ui, match):
         _campaign_block(screen, ui, f, pygame.Rect(campaign_block_rect(i, n)), match)
 
 
+BAG_SLOT_W, BAG_SLOT_H = 36, 16
+
+
+def _bag_tab(screen, f, rect):
+    """Bolsa (campanha): as 3 vagas numa aba em cima do quadro, a da mão acesa na cor do jogador."""
+    from .data import BAG_SIZE, rarity_color
+    from . import weapon_art
+    bag = getattr(f, "bag", None)
+    if bag is None:
+        return
+    hand = f.weapon_index % len(bag) if bag else -1
+    slots = getattr(f, "bag_size", BAG_SIZE)
+    gear = getattr(f, "gear", None)
+    if gear is not None:                                  # o equipamento, num quadradinho depois das armas
+        from . import equipamento
+        box = pygame.Rect(rect.x + 8 + slots * (BAG_SLOT_W + 3) + 4, rect.y - BAG_SLOT_H - 2, BAG_SLOT_H, BAG_SLOT_H)
+        screen.fill(theme.SHADOW, box.move(1, 1))
+        screen.fill((26, 22, 34), box)
+        pygame.draw.rect(screen, equipamento.GEAR[gear].color, box, 1)
+        img = equipamento.icon(gear, 1)
+        screen.blit(img, img.get_rect(center=box.center))
+    for i in range(slots):
+        box = pygame.Rect(rect.x + 8 + i * (BAG_SLOT_W + 3), rect.y - BAG_SLOT_H - 2, BAG_SLOT_W, BAG_SLOT_H)
+        screen.fill(theme.SHADOW, box.move(1, 1))
+        screen.fill((26, 22, 34), box)
+        on = i == hand
+        border = f.color if on else (60, 54, 72)
+        pygame.draw.rect(screen, border, box, 1)
+        if i >= len(bag):
+            continue
+        w = bag[i]
+        screen.fill(rarity_color(w), (box.x + 2, box.bottom - 3, box.w - 4, 1))
+        level, enchant = (getattr(f, "forge", None) or {}).get(w.name, (0, None))
+        img = weapon_art.icon(weapon_art.styled(w.name, level, enchant))
+        if img is not None:
+            if img.get_width() > box.w - 4 or img.get_height() > box.h - 4:
+                k = min((box.w - 4) / img.get_width(), (box.h - 4) / img.get_height())
+                img = pygame.transform.scale(img, (max(1, round(img.get_width() * k)), max(1, round(img.get_height() * k))))
+            if not on:
+                img = img.copy()
+                img.set_alpha(150)
+            screen.blit(img, img.get_rect(center=(box.centerx, box.centery - 1)))
+
+
 def _campaign_block(screen, ui, f, rect, match):
+    _bag_tab(screen, f, rect)
     screen.fill(theme.SHADOW, rect.move(2, 2))
     ui.panel(screen, rect, shadow=False)
     screen.fill(f.color, (rect.x, rect.y + 1, 4, rect.h - 2))              # faixa da cor do jogador

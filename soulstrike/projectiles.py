@@ -1447,3 +1447,7 @@ register_gadgets(PROJECTILES)
 
 def projectile_class(style):
     return PROJECTILES.get(style, Projectile)
+
+from .tiros_novos import register_projectiles as register_new  # noqa: E402  (armas novas dos baús)
+
+register_new(PROJECTILES)
