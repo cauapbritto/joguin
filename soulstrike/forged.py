@@ -147,7 +147,7 @@ def on_swing(fighter, weapon, match, hits, damage):
                                                (other.x, other.y - 40), (other.x, other.y)]))
         match.camera.shake(6)
         match.dust(fighter.x + fighter.facing[0] * 30, fighter.y + 14, 10)
-        match.assets.play("explosion", 0.3)
+        match.assets.play("explosion", 0.3, at=fighter.x)
     elif style == "ceifador":
         boss = getattr(match, "boss", None)
         if boss is not None and boss in hits and boss.vulnerability < 1:
@@ -532,7 +532,7 @@ class VoidHole(Entity):
         if self.age >= self.FRAMES:
             self.alive = False
             match.add_effect(Explosion(self.owner, self.x, self.y, self.damage, 160))
-            match.assets.play("explosion", 0.5)
+            match.assets.play("explosion", 0.5, at=self.x)
             match.camera.shake(8)
 
     def draw(self, surf, camera):

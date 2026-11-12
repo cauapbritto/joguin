@@ -20,7 +20,7 @@ class Gravador:
         self.sons = []
 
     def __enter__(self):
-        self._patch = mock.patch.object(game().assets, "play", side_effect=lambda name, vol=0.5: self.sons.append(name))
+        self._patch = mock.patch.object(game().assets, "play", side_effect=lambda name, vol=0.5, at=None: self.sons.append(name))
         self._patch.start()
         return self
 
@@ -173,3 +173,127 @@ class CampanhaTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MotorDeSomTest(unittest.TestCase):
+    """Motor de som (soulstrike/som.py): lado da tela, versões, prioridade, música que abaixa e camadas."""
+
+    def setUp(self):
+        from soulstrike import som
+        self.som = som
+        self.mixer = game().assets.mixer
+        self.mixer.calm()
+
+    def test_32_canais_e_os_guardados(self):
+        import pygame
+        if pygame.mixer.get_init():
+            self.assertEqual(pygame.mixer.get_num_channels(), self.som.CHANNELS)
+
+    def test_lado_da_tela(self):
+        pan = self.som.pan
+        self.assertEqual(pan(None, (0, 960)), (1.0, 1.0))
+        self.assertEqual(pan(480, (0, 960)), (1.0, 1.0))           # meio: igual nos dois lados
+        left, right = pan(0, (0, 960))
+        self.assertEqual(left, 1.0)
+        self.assertAlmostEqual(right, self.som.PAN_FLOOR)          # canto: o outro lado baixo, não mudo
+        left, right = pan(5000, (1000, 960))                        # fora da tela: fica no canto
+        self.assertAlmostEqual(left, self.som.PAN_FLOOR)
+        self.assertEqual(right, 1.0)
+
+    def test_som_com_lugar_sai_do_lado_certo(self):
+        sound, channel = mock.Mock(), mock.Mock()
+        sound.get_num_channels.return_value = 0
+        sound.play.return_value = channel
+        self.mixer.listen(0, 960)
+        with mock.patch.dict(self.mixer.sounds, {"teste": sound}):
+            game().assets.play("teste", 0.5, at=960)
+        left, right = channel.set_volume.call_args[0]
+        self.assertLess(left, right)
+
+    def test_versoes_do_mesmo_som(self):
+        for name in ("hit", "shoot", "golpe", "chute"):
+            self.assertIn(name, self.mixer.variants, name)
+            self.assertGreaterEqual(len(self.mixer.variants[name]), 3, name)
+        picked = {id(self.mixer.pick("hit")) for _ in range(60)}
+        self.assertGreater(len(picked), 1)
+
+    def test_limite_conta_as_versoes_juntas(self):
+        a, b = mock.Mock(), mock.Mock()
+        a.get_num_channels.return_value = 2
+        b.get_num_channels.return_value = 1
+        with mock.patch.dict(self.mixer.variants, {"teste": [a, b]}), mock.patch.dict(self.mixer.sounds, {"teste": a}):
+            self.assertIsNone(self.mixer.play("teste"))
+        a.play.assert_not_called()
+        b.play.assert_not_called()
+
+    def test_som_importante_usa_canal_guardado(self):
+        sound, channel = mock.Mock(), mock.Mock()
+        sound.get_num_channels.return_value = 0
+        with mock.patch.dict(self.mixer.sounds, {"gol_rede": sound}), \
+                mock.patch.object(self.mixer, "_priority_channel", return_value=channel):
+            self.mixer.play("gol_rede")
+        channel.play.assert_called_once_with(sound)
+        sound.play.assert_not_called()
+        self.assertTrue(self.som.is_priority("comemora_ginga"))
+        self.assertFalse(self.som.is_priority("shoot"))
+
+    def test_explosao_abaixa_a_musica_e_ela_volta(self):
+        full = self.mixer.music_volume()
+        sound = mock.Mock()
+        sound.get_num_channels.return_value = 0
+        with mock.patch.dict(self.mixer.sounds, {"explosion": sound}):
+            self.mixer.play("explosion")
+        self.assertLess(self.mixer.music_volume(), full)
+        for _ in range(200):
+            self.mixer.tick()
+        self.assertAlmostEqual(self.mixer.music_volume(), full)
+
+    def test_abaixar_mais_fundo_vence(self):
+        self.mixer.duck_music(0.2, 10)
+        self.mixer.duck_music(0.6, 5)
+        self.assertAlmostEqual(self.mixer.duck, 0.6)
+        self.mixer.duck_music(0.1, 40)                               # mais raso não sobe a música
+        self.assertAlmostEqual(self.mixer.duck, 0.6)
+
+    def test_camadas_ligam_aos_poucos(self):
+        m = self.som.Mixer()
+        m.layers = [mock.Mock(), mock.Mock(), mock.Mock()]
+        m.layer_level = [1.0, 0.0, 0.0]
+        m._layer_fade = 1.0
+        m.set_intensity(1)
+        m.tick()
+        self.assertGreater(m.layer_level[1], 0.0)
+        self.assertLess(m.layer_level[1], 1.0)
+        for _ in range(200):
+            m.tick()
+        self.assertEqual(m.layer_level, [1.0, 1.0, 0.0])
+        m.set_intensity(9)                                           # passa do topo: fica na última
+        self.assertEqual(m.intensity, 2)
+        m.set_intensity(0)
+        for _ in range(400):
+            m.tick()
+        self.assertEqual(m.layer_level, [1.0, 0.0, 0.0])
+
+    def test_pausa_cala_as_camadas(self):
+        m = self.som.Mixer()
+        m.layers = [mock.Mock()]
+        m.layer_level = [1.0]
+        m._layer_fade = 1.0
+        m.paused = True
+        self.assertEqual(m.music_volume(), 0.0)
+
+    def test_vinheta_abaixa_a_musica(self):
+        sound, channel = mock.Mock(), mock.Mock()
+        sound.get_length.return_value = 2.0
+        with mock.patch.dict(self.mixer.sounds, {"vinheta_teste": sound}), \
+                mock.patch.object(self.mixer, "_priority_channel", return_value=channel):
+            game().assets.stinger("vinheta_teste")
+        channel.play.assert_called_once_with(sound)
+        self.assertGreater(self.mixer.duck, 0.5)
+        self.mixer.calm()
+
+    def test_partida_diz_onde_esta_a_tela(self):
+        match, _ = futebol()
+        self.mixer.ear = None
+        match.update()
+        self.assertIsNotNone(self.mixer.ear)

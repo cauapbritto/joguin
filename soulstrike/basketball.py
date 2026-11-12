@@ -346,7 +346,7 @@ class BasketballMatch(Match):
 
     def ball_bounced(self, ball):
         if ball.vz > 2:
-            self.assets.play("quique", min(0.45, ball.vz * 0.08))
+            self.assets.play("quique", min(0.45, ball.vz * 0.08), at=ball.x)
 
     # ── ações ────────────────────────────────
     def _give(self, f):

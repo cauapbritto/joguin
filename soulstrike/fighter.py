@@ -854,7 +854,7 @@ class Fighter(Entity):
         if weapon.is_melee:
             self.melee_flash = 12
             self.attack_cd = weapon.cooldown
-            match.assets.play("golpe", 0.45)
+            match.assets.play("golpe", 0.45, at=self.x)
             self._deflect_bullets(match)
             rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
             # acerta todos os adversários ao alcance na frente (no duelo, só existe um)
@@ -888,7 +888,7 @@ class Fighter(Entity):
         self.attack_cd = weapon.cooldown
         self.shoot_flash = 5
         rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
-        match.assets.play(shot_sound(weapon, match.frame), 0.3)
+        match.assets.play(shot_sound(weapon, match.frame), 0.3, at=self.x)
         return True
 
     def _bash(self, match, target, weapon):
@@ -903,7 +903,7 @@ class Fighter(Entity):
         self.bash_timer = 12
         self.attack_cd = bash.cooldown
         self.bow_draw = 0
-        match.assets.play("golpe", 0.4)
+        match.assets.play("golpe", 0.4, at=self.x)
         fx, fy = self.facing
         reach = bash.reach * self.ability.reach_mult
         damage = round(bash.damage * self.damage_mult)
@@ -943,7 +943,7 @@ class Fighter(Entity):
         rare_fx.on_attack(self, weapon, match, rare_fx.weapon_tip(self, weapon))
         self.aim_timer = max(self.aim_timer, AIM_HOLD)
         sound = "arco" if weapon.style in ("flecha", "") else shot_sound(weapon)
-        match.assets.play(sound, 0.45 if power >= 1 else 0.3)
+        match.assets.play(sound, 0.45 if power >= 1 else 0.3, at=self.x)
 
     def throw_from(self, attacker, match):
         """Golpe do exoesqueleto: voa longe (e se bater na parede fica tonto)."""
@@ -978,7 +978,7 @@ class Fighter(Entity):
                 match.burst(b.x, b.y, (250, 240, 200), 6, speed=3)
         if blocked:
             match.popup(self.x, self.y - 46, "DEFESA", theme.SKY)
-            match.assets.play("barrier", 0.35)
+            match.assets.play("barrier", 0.35, at=self.x)
 
     def use_ability(self, match, target):
         if not self.ability_ready or self.busy:
@@ -1036,7 +1036,7 @@ class Fighter(Entity):
             match.popup(self.x, self.y - 46 * self.draw_scale, str(amount), theme.BONE if amount < 20 else theme.BRASS)
             match.burst(self.x, self.y - 10, (236, 230, 220), 5, speed=3)
             match.hit_feedback(self, amount)
-            match.assets.play("hit", 0.4)
+            match.assets.play("hit", 0.4, at=self.x)
         return True
 
     def _uno_hit(self, match):
@@ -1047,7 +1047,7 @@ class Fighter(Entity):
             return
         after = uno_pieces(self.uno_hits)
         match.burst(self.x, self.y - 16, UNO_WHITE, 6, speed=3)
-        match.assets.play("hit", 0.3)
+        match.assets.play("hit", 0.3, at=self.x)
         if after < before:
             for _ in range(10):                                  # a peça caindo, em pedacinhos
                 match.particles.append(Particle(self.x + random.uniform(-10, 10), self.y - 22,

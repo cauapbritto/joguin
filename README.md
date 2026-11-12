@@ -598,6 +598,7 @@ assets/                 sprites, tiles, sons e fonte
 tools/gerar_sprites.py  gera os sprites pixel art dos personagens e das criaturas
 tools/gerar_armas.py    gera os sprites das armas
 tools/gerar_sons.py     gera os efeitos novos (armas, futebol, campanha) e as músicas do acampamento e do chefão
+tools/gerar_variacoes.py gera as versões dos efeitos que tocam muito (<nome>_v2/_v3, o jogo sorteia)
 tools/build_exe.py      gera dist/SoulStrike.exe
 tools/build_deb.py      gera o pacote .deb para Linux
 tools/notas_release.py  texto da Release do GitHub a partir das novidades da versão
