@@ -12,6 +12,8 @@ apertados desde o último quadro.
 import threading
 import time
 
+from .. import settings
+
 SLOTS = (1, 2, 3, 4)
 ACTIONS = (
     "up", "down", "left", "right",
@@ -355,6 +357,7 @@ class RemoteHub:
                     "emax": mine.emax if self._mode == "campaign" else 0,
                     "ecost": mine.ecost if self._mode == "campaign" else 0,
                     "buzz": list(mine.buzz),
+                    "vibracao": bool(settings.get("vibracao")),   # a opção do jogo (o TESTAR do celular avisa)
                     "options": mine.options,
                     "choice": mine.choice,
                     "souls": mine.souls if self._mode == "campaign" else None,

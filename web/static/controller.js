@@ -43,7 +43,7 @@
     });
   }
 
-  function buzz() { if (navigator.vibrate && !(hud && hud.vibrate === false)) navigator.vibrate(8); }
+  function buzz() { if (navigator.vibrate && !(hud && hud.vibrate === false)) navigator.vibrate(25); }
 
   // Vibração por evento: o jogo manda [contador, padrão] e o celular vibra quando o contador muda.
   // O iPhone não tem navigator.vibrate: aí nada acontece (e nada quebra). O botão VIBRAR vale aqui também.
@@ -604,6 +604,7 @@
     releaseAll();                    // nada fica segurado enquanto arruma
     if (stickId !== null) { stickId = null; knob.style.transform = ""; base.classList.remove("live"); }
     editing = true;
+    $("hud-test-msg").textContent = "";
     document.body.classList.add("editing");
     selectEdit(null);
   }
@@ -639,6 +640,21 @@
     applyHud();
   });
   hudButton("hud-vibrate", function () { hud.vibrate = hud.vibrate === false; renderHudBar(); });
+  // TESTAR VIBRAÇÃO: vibra e diz na tela por que não vibrou. Roda no click (depois de soltar o
+  // dedo), porque o Chrome só deixa vibrar depois de um toque completo na página.
+  var gameVibrate = true;            // a opção VIBRAÇÃO do jogo, vem no status
+  function testVibrate() {
+    var msg;
+    if (!navigator.vibrate) msg = "ESTE NAVEGADOR NÃO VIBRA (USE O CHROME NO ANDROID)";
+    else if (hud && hud.vibrate === false) msg = "VIBRAR ESTÁ DESLIGADO AQUI";
+    else if (navigator.userActivation && !navigator.userActivation.hasBeenActive) msg = "TOQUE NA TELA E TENTE DE NOVO";
+    else if (!navigator.vibrate([200, 100, 200])) msg = "O NAVEGADOR BLOQUEOU A VIBRAÇÃO";
+    else if (!gameVibrate) msg = "VIBROU? NO JOGO A VIBRAÇÃO ESTÁ DESLIGADA NAS OPÇÕES";
+    else msg = "VIBROU? SE NÃO, TIRE DO SILENCIOSO";
+    $("hud-test-msg").textContent = msg;
+  }
+  $("hud-test-vibrate").addEventListener("pointerdown", function (e) { e.preventDefault(); e.stopPropagation(); });
+  $("hud-test-vibrate").addEventListener("click", function (e) { e.stopPropagation(); testVibrate(); });
   hudButton("hud-reset", function () { hud = hudDefaults(); selectEdit(null); applyHud(); });
   hudButton("hud-cancel", function () { closeHudEditor(false); });
   hudButton("hud-save", function () { closeHudEditor(true); });
@@ -1408,6 +1424,7 @@
       renderAmmo(me, mode);
       renderSouls(me);
       vibrateFor(me.buzz);
+      if (me.vibracao !== undefined) gameVibrate = !!me.vibracao;
       var st = $("stick-stamina");
       st.style.setProperty("--st", (me.stamina === undefined ? 1 : me.stamina).toFixed(3));
       st.classList.toggle("tired", !!me.tired);
