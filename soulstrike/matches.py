@@ -19,7 +19,7 @@ from .fighter import Fighter
 from .market import enchant_hit
 from .progress import uniform_on
 from .skins import dress
-from .net.remote import hub
+from .net.remote import hand_card, hub
 from .projectiles import projectile_class
 from .soccer_assist import (ASSIST_LEVELS, closest_approach, pick_receiver, segment_contact, shot_assist,
                             unit)
@@ -234,7 +234,8 @@ class Match(ABC):
             if f.is_cpu or not f.slot:
                 continue
             mag = f.mag if not f.weapon.is_melee else 0
-            hub.publish_slot(f.slot, ammo=f.ammo, mag=mag, reload=f.reload_ratio if f.reloading else 0.0)
+            hub.publish_slot(f.slot, ammo=f.ammo, mag=mag, reload=f.reload_ratio if f.reloading else 0.0,
+                             hand=hand_card(f.weapon))
 
     def next_scene(self):
         """Tela depois do fim da partida (None = tela de resultado padrão)."""

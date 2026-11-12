@@ -333,6 +333,29 @@ class Stall(Entity):
 # ─────────────────────────────────────────────
 #  Menu da banca (um por jogador)
 # ─────────────────────────────────────────────
+# o que quem atende fala no celular (uma frase por vez, sorteada quando a banca abre)
+FALAS = {
+    "mascate": ("Vitrine nova, chefe! Tudo de herói.", "Olha o preço, olha o preço!", "Leva duas, paga duas."),
+    "ferreiro": ("Martelo quente! Qual eu afino?", "Traz que eu deixo nova.", "Fogo, gelo ou raio?"),
+    "tecnico": ("Já tentou desligar e ligar?", "Garantia de 3 dias.", "Tá tudo no sistema."),
+    "soldador": ("Três viram uma. Topa o risco?", "Solda forte, preço justo.", "Cuidado com a faísca!"),
+    "atendente": ("Senha 47? Pode vir!", "Aceitamos almas no débito.", "Sorria, você está sendo atendido."),
+    "esteticista": ("Um retoque nessa arma?", "Brilho garantido.", "Sua arma merece um spa."),
+    "mordomo": ("O senhor deseja algo?", "Tudo com carimbo oficial.", "A casa agradece."),
+    "ourives": ("Ouro de verdade, nada de lata.", "Cada pedra conta uma história.", "Lapido até alma."),
+}
+
+
+def npc_card(stall):
+    """Quem atende na banca, para o celular desenhar com a falinha (None no altar)."""
+    name = pecas.NPCS.get((stall.kind, pecas.chapter_of(stall.chapter)))
+    if not name:
+        return None
+    lines = FALAS.get(name, ("",))
+    return {"name": name, "label": name.upper().replace("TECNICO", "TÉCNICO"),
+            "fala": lines[(int(stall.x) // 7 + int(stall.y) // 11) % len(lines)]}
+
+
 class Entry:
     """Uma linha do menu. ``key`` é o id fixo que o celular usa para pedir a compra."""
 
@@ -444,7 +467,7 @@ class MarketMenu:
             swap = next((x for x in pool if x.is_melee == w.is_melee), None)
             sub = "VENDIDA" if sold else "VOCÊ JÁ TEM" if mine else f"DONO: {owner}"
             desc = ("seu herói não usa esse tipo de arma" if not kind_ok
-                    else f"vem para a mão no lugar da {swap.name.lower()}" if swap is not None
+                    else f"vem para a mão no lugar de: {swap.name.lower()}" if swap is not None
                     else "vem para a mão junto com a forjada")
             usable = kind_ok and (swap is not None or f.fused)
             info = {"type": "arma", "sub": sub, "owner": owner, "weapon": weapon_card(f, w),
@@ -616,6 +639,7 @@ class MarketMenu:
             "kind": self.stall.kind,
             "title": self.stall.title,
             "souls": wallet,
+            "npc": npc_card(self.stall),
             "picked": picked,
             "mates": [{"slot": m.slot, "label": m.label, "name": m.stats.name.upper(),
                        "souls": self.run.wallet(m.slot)}
@@ -645,31 +669,5 @@ class MarketMenu:
         return True
 
     def draw(self, screen, ui, anchor):
-        entries = self.entries()
-        f = self.fighter
-        w, row = 300, 26
-        h = 50 + row * len(entries) + 24
-        x = max(8, min(config.SCREEN_W - w - 8, round(anchor[0]) - w // 2))
-        y = max(60, min(config.SCREEN_H - h - 70, round(anchor[1]) - h - 70))
-        rect = pygame.Rect(x, y, w, h)
-        ui.panel(screen, rect, fill=theme.INK_2, accent=f.color)
-        ui.text(screen, f"{f.label} · {self.stall.title}", theme.XS, theme.BONE,
-                (rect.x + 10, rect.y + 14), anchor="midleft")
-        ui.text(screen, f"{self.run.wallet(f.slot)} ALMAS", theme.XS, SOUL_COLOR, (rect.right - 10, rect.y + 14),
-                anchor="midright")
-        for k, e in enumerate(entries):
-            r = pygame.Rect(rect.x + 6, rect.y + 28 + k * row, w - 12, row - 2)
-            picked = k == self.index % len(entries)
-            if picked:
-                screen.fill(theme.INK_3, r)
-                pygame.draw.rect(screen, f.color, r, 1)
-            afford = e.ok and self.run.wallet(f.slot) >= e.cost
-            color = e.color if afford else theme.FAINT
-            ui.text(screen, e.label, theme.XS, color, (r.x + 6, r.centery), anchor="midleft")
-            if e.cost:
-                ui.text(screen, str(e.cost), theme.XS, SOUL_COLOR if afford else theme.FAINT,
-                        (r.right - 6, r.centery), anchor="midright")
-        if entries:
-            e = entries[self.index % len(entries)]
-            ui.text(screen, e.desc.upper(), theme.XS, theme.MUTED, (rect.centerx, rect.bottom - 26))
-        ui.text(screen, "ATACAR: COMPRAR  ESQUIVA: FECHAR", theme.XS, theme.FAINT, (rect.centerx, rect.bottom - 12))
+        from . import market_ui
+        market_ui.draw(self, screen, ui, anchor)

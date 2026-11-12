@@ -238,17 +238,15 @@
   var MAGNET = 26;        // px fora do botão que ainda contam como toque nele
   var KEEP = 40;          // deslizando: até onde o dedo pode sair do botão sem soltar
   var soccerMode = false;
+  var faceChar = null;
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-  function fitLabel(el, text, size, maxFs) {
-    var lines = text.indexOf(" ") > 0 ? text.split(" ") : [text];
-    var longest = Math.max.apply(null, lines.map(function (l) { return l.length; }));
-    var margin = el.classList.contains("pb-super") ? 26 : 16;          // o anel do SUPER ocupa espaço
-    var fs = clamp(Math.floor((size - margin) / longest), 6, maxFs);   // fonte pixel: 1 caractere ≈ 1em
-    var target = el.querySelector("span") || el;
-    target.textContent = lines.join("\n");
-    el.style.setProperty("--fs", fs + "px");
+  // nome embaixo do botão (8 px, sempre legível) e o desenho dentro em escala inteira: 48 no grande, 32 nos outros
+  function setLabel(b, size) {
+    var lbl = b.querySelector(".pbl");
+    if (lbl && b.dataset.label && lbl.textContent !== b.dataset.label) lbl.textContent = b.dataset.label;
+    b.style.setProperty("--is", (size >= 96 ? 48 : 32) + "px");
   }
 
   function layoutButtons() {
@@ -293,10 +291,10 @@
         if (pos === "main" && set.classList.contains("battle-only")) {
           var badge = $("ammo-badge");           // contador de munição logo abaixo do ATACAR
           badge.style.left = x + "px";
-          badge.style.top = Math.min(zr.height - 26, y + size / 2 - 6) + "px";
+          badge.style.top = Math.max(0, y - size / 2 - 22) + "px";          // contador em cima; o nome vai embaixo
         }
-        if (!b.dataset.label) b.dataset.label = (b.querySelector("span") || b).textContent;
-        fitLabel(b, b.dataset.label, size, pos === "main" ? 15 : 10);
+        if (!b.dataset.label) b.dataset.label = (b.querySelector(".pbl") || b).textContent;
+        setLabel(b, size);
       });
     });
   }
@@ -664,7 +662,14 @@
   function renderSelect(me, mode) {
     var ch = roster[me.char];
     if (!ch) return;
-    $("portrait").src = "/sprite/" + me.char + ".png";
+    var por = $("portrait");
+    if (!por.classList.contains("ic")) {                 // herói em escala inteira no pedestal
+      por.classList.add("ic");
+      por.dataset.max = "3";
+      por.dataset.pad = "16";
+      por.addEventListener("load", function () { fitIcon(por); });
+    }
+    if (por.getAttribute("src") !== "/sprite/" + me.char + ".png") por.src = "/sprite/" + me.char + ".png";
     $("char-name").textContent = ch.name.toUpperCase();
     var maxHp = 250, maxSpeed = 5, maxDmg = 28;
     var rows = mode === "soccer"
@@ -672,7 +677,8 @@
       : [["VIDA", ch.hp / maxHp], ["VELOCIDADE", ch.speed / maxSpeed],
          ["DANO", Math.max.apply(null, ch.weapons.map(function (w) { return w.damage; })) / maxDmg]];
     $("stats").innerHTML = rows.map(function (r) {
-      return "<span>" + r[0] + '</span><span class="bar"><i style="width:' + Math.round(r[1] * 100) + '%"></i></span>';
+      var pct = Math.max(10, Math.round(Math.min(1, r[1]) * 10) * 10);      // em quadradinhos de 10%
+      return "<span>" + r[0] + '</span><span class="bar"><i style="width:' + pct + "%;--seg:" + (1000 / pct) + '%"></i></span>';
     }).join("");
     var weapon = ch.weapons[me.weapon] || ch.weapons[0];
     var gun = ch.weapons.filter(function (w) { return !w.melee; })[0];
@@ -686,12 +692,34 @@
       : "<b>" + ch.ability.toUpperCase() + "</b>" + ch.ability_desc +
         (gun && gun.note ? "<br><b>" + gun.name.toUpperCase() + " (" + gun.mag + " TIROS)</b>" + gun.note : "");
     $("weapon").style.display = mode === "soccer" ? "none" : "";
-    $("weapon").textContent = "ARMA: " + weapon.name.toUpperCase() + (weapon.melee ? " · CORPO A CORPO" : " · DISTÂNCIA");
+    var wkey = weapon.name + "|" + weapon.icon;
+    var wb = $("weapon");
+    if (wb.dataset.key !== wkey) {
+      wb.dataset.key = wkey;
+      wb.textContent = "";
+      if (weapon.icon) {
+        var ws = el("span", "slotpic");
+        ws.appendChild(pixImg("/arma/" + weapon.icon, { max: 1, pad: 4 }));
+        wb.appendChild(ws);
+      }
+      wb.appendChild(document.createTextNode(weapon.name.toUpperCase() + (weapon.melee ? " · PERTO" : " · TIRO")));
+    }
     var ready = $("ready-btn");
     ready.classList.toggle("is-ready", me.ready);
     ready.textContent = me.ready ? "PRONTO! (TOQUE P/ CANCELAR)" : "PRONTO";
     ready.dataset.tap = me.ready ? "cancel" : "confirm";
     document.querySelectorAll("#view-select .arrow, #weapon").forEach(function (b) { b.disabled = me.ready; });
+  }
+
+  // desenho da melhoria pelo que ela faz
+  function upgradeIcon(o) {
+    var t = ((o.name || "") + " " + (o.desc || "")).toUpperCase();
+    if (/VIDA|PELE|CURA|REGENER/.test(t)) return "coracao";
+    if (/ALMA/.test(t)) return "alma";
+    if (/ENERGIA|RAIO/.test(t)) return "raio";
+    if (/DANO|GOLPE|TIRO|ATIRA|PENTE|GATILHO/.test(t)) return "atacar";
+    if (/ESQUIV|VELOC|RÁPID|CORR/.test(t)) return "esquiva";
+    return "habilidade";
   }
 
   // ── campanha: escolha de melhoria ──────────
@@ -704,6 +732,7 @@
       b.querySelector("b").textContent = o.name;
       b.querySelector("span").textContent = o.desc;
       b.style.setProperty("--c", "rgb(" + o.color.join(",") + ")");
+      b.style.setProperty("--ic", "url(/static/ic/i_" + upgradeIcon(o) + ".png)");
       b.classList.toggle("on", i === me.choice);
       b.disabled = !!me.ready;
     });
@@ -792,16 +821,46 @@
     return e;
   }
 
+  // ── desenhos em pixel: sempre em escala inteira (1x, 2x, 3x...), do tamanho que couber ──
+  // Vale para qualquer arma (as de hoje e as novas), skin ou pet, de qualquer formato.
+  function fitIcon(img) {
+    var box = img.parentElement;
+    if (!box || !img.naturalWidth) return;
+    var pad = +(img.dataset.pad || 8), dv = +(img.dataset.div || 1), max = +(img.dataset.max || 4);
+    var bw = box.clientWidth - pad, bh = box.clientHeight - pad;
+    if (bw <= 0 || bh <= 0) return;
+    var nw = img.naturalWidth / dv, nh = img.naturalHeight / dv;
+    var k = Math.min(bw / nw, bh / nh, max);
+    k = k >= 1 ? Math.floor(k) : 1 / Math.ceil(1 / k);       // grande demais: reduz por um divisor inteiro
+    img.style.width = Math.round(nw * k) + "px";
+    img.style.height = Math.round(nh * k) + "px";
+  }
+  function fitIcons(root) {
+    (root || document).querySelectorAll("img.ic").forEach(fitIcon);
+  }
+  window.addEventListener("resize", function () { setTimeout(function () { fitIcons(); }, 60); });
+
+  function pixImg(src, opts) {
+    var img = el("img", "ic");
+    opts = opts || {};
+    if (opts.div) img.dataset.div = opts.div;
+    if (opts.max) img.dataset.max = opts.max;
+    if (opts.pad !== undefined) img.dataset.pad = opts.pad;
+    img.alt = "";
+    img.draggable = false;
+    img.addEventListener("load", function () { fitIcon(img); });
+    img.src = src;
+    return img;
+  }
+
+  // retratos das skins chegam ampliados 3x: o encaixe volta ao pixel de verdade
+  function picDiv(src) { return src && src.indexOf("/skin/") === 0 ? 3 : 1; }
+
   // imagem da arma num quadrinho (silhueta quando a receita da fusão ainda é segredo)
-  function weaponPic(card, cls, secret) {
+  function weaponPic(card, cls, secret, max) {
     var box = el("span", cls + (secret ? " sil" : ""));
-    if (card && card.icon) {
-      var img = el("img", "ic");
-      img.src = "/arma/" + card.icon;
-      img.alt = "";
-      img.draggable = false;
-      box.appendChild(img);
-    }
+    if (card && card.color) box.style.setProperty("--r", card.color);
+    if (card && card.icon) box.appendChild(pixImg("/arma/" + card.icon, { max: max || 3, pad: 6 }));
     return box;
   }
 
@@ -813,27 +872,15 @@
 
   function rowThumb(r) {
     var info = r.info || {};
-    if (info.type === "arma") return weaponPic(info.weapon, "thumb");
-    if (info.type === "forja" || info.type === "encanto") return weaponPic(info.weapon, "thumb");
+    if (info.type === "arma" || info.type === "forja" || info.type === "encanto") return weaponPic(info.weapon, "thumb");
     if (info.type === "fusao") return weaponPic(info.next, "thumb", !info.known);
-    if (info.type === "skin") {
-      var sk = el("span", "thumb skin-thumb");
-      var si = el("img", "ic");
-      si.src = info.img;
-      si.alt = "";
-      si.draggable = false;
-      sk.appendChild(si);
-      return sk;
-    }
     var box = el("span", "thumb");
-    if (info.type === "cupom") box.appendChild(el("b", "qmark", "#"));
-    else if (r.id === "pocao") box.appendChild(el("i", "potion"));
-    else if (r.id === "energia") box.appendChild(el("i", "potion energy-potion"));
-    else if (r.id === "arma") box.appendChild(el("b", "qmark", "?"));
-    else if (r.id === "trocar") box.appendChild(el("b", "qmark", "↻"));
-    else if (r.id === "doar") box.appendChild(el("b", "gem gift-gem"));
-    else if (r.id === "continue") box.appendChild(el("b", "gem"));
-    else box.appendChild(el("b", "dot"));
+    if (info.img) {
+      box.appendChild(pixImg(info.img, { div: picDiv(info.img), max: 3, pad: 6 }));
+      return box;
+    }
+    var kinds = { pocao: 1, energia: 1, arma: 1, trocar: 1, "continue": 1, doar: 1 };
+    box.appendChild(el("i", "pxi " + (info.type === "cupom" ? "cupom" : kinds[r.id] ? r.id : "outro")));
     return box;
   }
 
@@ -843,37 +890,89 @@
       var w = info.weapon;
       return w.name + (w.level ? " +" + w.level : "") + (w.enchant ? " " + w.enchant : "");
     }
+    if (info.type === "fusao") return "FUNDIR AS 3";
+    if (info.hero && r.label.indexOf(info.hero + " ") === 0) return r.label.slice(info.hero.length + 1);   // a skin sem o nome do herói
     return r.label;
   }
 
-  function rowSub(r) {
-    var info = r.info || {};
-    if (info.type === "forja" || info.type === "encanto") return levelPips(info.weapon.level);
-    return info.sub ? el("small", "", info.sub) : null;
+  // carimbo curto do que não dá para comprar
+  function stampOf(r) {
+    var sub = ((r.info && r.info.sub) || "").toUpperCase();
+    if (sub.indexOf("CHEIA") >= 0) return "CHEIA";
+    if (sub.indexOf("VENDIDA") >= 0) return "VENDIDA";
+    if (sub.indexOf("JÁ TEM") >= 0 && sub.indexOf("GRUPO") < 0) return "JÁ É SUA";
+    if (sub && sub.length <= 10) return sub;
+    return "NO MÁXIMO";
   }
 
-  function statLine(grid, name, before, after) {
+  function card(r, unit) {
+    var info = r.info || {};
+    var w = info.weapon || (info.type === "fusao" ? info.next : null);
+    var off = !(r.ok && r.afford);
+    var b = el("button", "shop-item" + (r.id === shopPick ? " on" : "") + (off ? " off" : ""));
+    b.style.setProperty("--c", r.color);
+    b.style.setProperty("--r", w ? w.color : r.color);
+    var thumb = rowThumb(r);
+    b.appendChild(thumb);
+    var rar = w ? w.rarity : info.tier === "rara" ? "RARA" : null;
+    if (rar && rar !== "COMUM") b.appendChild(el("span", "rar", info.type === "fusao" ? "FORJADA" : rar));
+    if (info.type === "forja" || info.type === "encanto") b.appendChild(levelPips(info.weapon.level));
+    if (!r.ok && r.cost && !info.state) thumb.appendChild(el("span", "carimbo", stampOf(r)));
+    b.appendChild(el("span", "name", rowLabel(r)));
+    var price = el("span", "price");
+    if (info.state) {                                       // loja de CACOS e armário: etiqueta (300, VESTIDA, CUPOM...)
+      b.dataset.tier = info.tier || "";
+      b.dataset.state = info.state;
+      if (info.mine) b.dataset.mine = "1";
+      if (info.state === "comprar") price.appendChild(el("b", "gem"));
+      price.appendChild(document.createTextNode(info.tag || ""));
+    } else if (r.cost) {
+      price.appendChild(el("b", "gem"));
+      price.appendChild(document.createTextNode(r.cost));
+    } else {
+      price.textContent = shopData && shopData.kind === "altar" ? "ESCOLHER" : "GRÁTIS";
+    }
+    b.appendChild(price);
+    return b;
+  }
+
+  // barra em 10 quadradinhos: o que tem agora em branco e o ganho piscando em verde
+  function segs(before, after, max) {
+    var s = el("span", "segs");
+    var on = Math.max(0, Math.min(10, Math.round(before / max * 10)));
+    var up = after ? Math.max(0, Math.min(10, Math.round(after / max * 10)) - on) : 0;
+    if (after && after > before && !up) up = on < 10 ? 1 : 0;
+    for (var k = 0; k < 10; k++) s.appendChild(el("i", k < on ? "on" : k < on + up ? "up" : ""));
+    return s;
+  }
+
+  function statLine(grid, name, before, after, max) {
     grid.appendChild(el("span", "k", name));
-    if (after === undefined || after === null || after === before) {
-      var v = el("span", "v", before);
-      v.style.gridColumn = "span 3";
-      grid.appendChild(v);
+    if (typeof before !== "number") {
+      var v0 = el("span", "v", before);
+      v0.style.gridColumn = "span 2";
+      grid.appendChild(v0);
       return;
     }
-    grid.appendChild(el("span", "a", before));
-    grid.appendChild(el("em", "seta", ">"));
-    grid.appendChild(el("span", "up", after));
+    grid.appendChild(segs(before, after, max || 60));
+    var v = el("span", "v", String(before));
+    if (after !== undefined && after !== null && after !== before) {
+      v.appendChild(document.createTextNode(" "));
+      v.appendChild(el("span", "up", String(after)));
+    }
+    grid.appendChild(v);
   }
 
   function energyText(card) {
     if (!card || card.energy === null || card.energy === undefined) return null;
-    if (!card.energy) return "DE GRAÇA";
+    if (!card.energy) return "GRÁTIS";
     return card.energy + " POR " + (card.melee ? "GOLPE" : "TIRO");
   }
 
   function titleLine(name, tag, color) {
     var line = el("div", "dline");
     var b = el("b", "", name);
+    if (name.length > 17) b.style.fontSize = "8px";              // nome comprido desce para 8 px em vez de cortar
     b.style.color = color;
     line.appendChild(b);
     if (tag) {
@@ -882,6 +981,12 @@
       line.appendChild(t);
     }
     return line;
+  }
+
+  function pedestal(children) {
+    var p = el("div", "pedestal");
+    children.forEach(function (c) { p.appendChild(c); });
+    return p;
   }
 
   function renderDetail(r, cur) {
@@ -894,46 +999,36 @@
     if (info.type === "arma") {
       var w = info.weapon;
       box.style.setProperty("--r", w.color);
-      var top = el("div", "trans");
-      top.appendChild(weaponPic(w, "big"));
-      var txt = el("div", "dtxt");
-      var b = el("b", "", w.name);
-      b.style.color = w.color;
-      txt.appendChild(b);
-      var tag = el("span", "tagr", w.rarity + " · " + (w.melee ? "PERTO" : "TIRO"));
-      tag.style.color = w.color;
-      txt.appendChild(tag);
-      if (info.owner) txt.appendChild(el("small", "", "DONO: " + info.owner));
-      top.appendChild(txt);
-      box.appendChild(top);
+      box.appendChild(pedestal([weaponPic(w, "box glow", false, 3)]));
+      box.appendChild(titleLine(w.name, w.rarity + " · " + (w.melee ? "PERTO" : "TIRO"), w.color));
+      if (info.owner) box.appendChild(el("span", "dnote", "DO " + info.owner));
       grid = el("div", "cmp");
       statLine(grid, "DANO", w.damage);
-      if (w.mag) statLine(grid, "PENTE", w.mag);
+      if (w.mag) statLine(grid, "PENTE", w.mag, null, 30);
       if (energyText(w)) statLine(grid, "ENERGIA", energyText(w));
       box.appendChild(grid);
       if (info.out) {
         var hand = el("div", "hand");
-        hand.appendChild(el("span", "", "TROCA POR"));
-        hand.appendChild(weaponPic(info.out, "slotpic out"));
+        hand.appendChild(el("span", "", "TROCA"));
+        hand.appendChild(weaponPic(info.out, "slotpic out", false, 1));
         hand.appendChild(el("em", "seta", ">"));
-        hand.appendChild(weaponPic(w, "slotpic in"));
+        hand.appendChild(weaponPic(w, "slotpic in", false, 1));
+        hand.appendChild(el("span", "", "SAI: " + info.out.name));
         box.appendChild(hand);
       }
-      box.appendChild(el("p", "dnote", (cur.desc || "").toUpperCase()));
     } else if (info.type === "forja" || info.type === "encanto") {
       var it = info.type === "encanto" ? (cur.info || info) : info;
       var now = it.weapon, next = it.next;
       var color = now.color;
       box.style.setProperty("--r", color);
-      var t2 = el("div", "trans");
-      t2.appendChild(weaponPic(now, "big sm"));
+      var pics = [weaponPic(now, "box sm", false, 2)];
       if (next) {
-        t2.appendChild(el("em", "seta", ">"));
-        var pic = weaponPic(next, "big glow" + (next.enchant ? " fx-" + it.enchant.key : ""));
+        pics.push(el("em", "seta", ">"));
+        var pic = weaponPic(next, "box glow" + (next.enchant ? " fx-" + it.enchant.key : ""), false, 3);
         pic.appendChild(el("span", "badge", "+" + next.level));
-        t2.appendChild(pic);
+        pics.push(pic);
       }
-      box.appendChild(t2);
+      box.appendChild(pedestal(pics));
       var label = now.name + (now.level ? " +" + now.level : "");
       box.appendChild(titleLine(next ? label + " > +" + next.level + (next.enchant ? " " + next.enchant : "")
                                      : label + " · NO MÁXIMO", now.rarity, color));
@@ -959,44 +1054,39 @@
       }
       grid = el("div", "cmp");
       statLine(grid, "DANO", now.damage, next ? next.damage : null);
-      if (now.mag) statLine(grid, "PENTE", now.mag, next ? next.mag : null);
+      if (now.mag) statLine(grid, "PENTE", now.mag, next ? next.mag : null, 30);
       if (energyText(now)) statLine(grid, "ENERGIA", energyText(now));
       box.appendChild(grid);
     } else if (info.type === "fusao") {
       var out = info.next;
       box.style.setProperty("--r", out.color);
-      var t3 = el("div", "trans");
       var mini = el("span", "mini");
-      info.inputs.forEach(function (c) { mini.appendChild(weaponPic(c, "slotpic")); });
-      t3.appendChild(mini);
-      t3.appendChild(el("em", "seta", ">"));
-      var big = weaponPic(out, "big tall" + (info.known ? " glow" : ""), !info.known);
+      info.inputs.forEach(function (c) { mini.appendChild(weaponPic(c, "slotpic", false, 1)); });
+      var big = weaponPic(out, "box" + (info.known ? " glow" : ""), !info.known, 2);
       if (info.known && out.level) big.appendChild(el("span", "badge", "+" + out.level));
-      t3.appendChild(big);
-      box.appendChild(t3);
+      box.appendChild(pedestal([mini, el("em", "seta", ">"), big]));
       var name = info.known ? out.name + (out.level ? " +" + out.level : "")
-                            : "???" + (info.family ? " (TIPO " + info.family + ")" : "");
+                            : "???" + (info.family ? " TIPO " + info.family : "");
       box.appendChild(titleLine(name, "FORJADA", out.color));
-      box.appendChild(el("p", "dnote", info.note));
+      if (info.note) box.appendChild(el("p", "dnote", info.note));
       if (info.known) {
         grid = el("div", "cmp");
         statLine(grid, "DANO", out.damage);
         if (energyText(out)) statLine(grid, "ENERGIA", energyText(out));
         box.appendChild(grid);
       }
-      box.appendChild(el("p", "dnote", "AS 3 ARMAS SOMEM E AS SUAS VOLTAM AO +0."));
-    } else if (info.type === "skin") {      // loja de CACOS: a skin do herói
+      box.appendChild(el("p", "dnote", "AS 3 SOMEM E AS SUAS VOLTAM AO +0."));
+    } else if (info.type === "skin") {      // loja de CACOS e armário: a skin ou o pet
       box.style.setProperty("--r", r.color);
-      var t4 = el("div", "trans skin-pic");
-      var pic4 = el("img", "skin-big");
-      pic4.src = info.img;
-      pic4.alt = "";
-      pic4.draggable = false;
-      t4.appendChild(pic4);
-      box.appendChild(t4);
+      var sp = el("span", "box");
+      sp.style.height = "100%";
+      if (info.img) sp.appendChild(pixImg(info.img, { div: picDiv(info.img), max: 3, pad: 4 }));
+      box.appendChild(pedestal([sp]));
+      box.lastChild.style.flex = "1 1 120px";
+      box.lastChild.style.maxHeight = "none";
       box.appendChild(titleLine(r.label, info.rarity, r.color));
       box.appendChild(el("p", "dnote", info.hero + " · " + (r.desc || "").toUpperCase()));
-      box.appendChild(el("p", "dnote", info.sub));
+      if (info.sub) box.appendChild(el("p", "dnote", info.sub));
     } else if (info.type === "cupom") {     // loja de CACOS: digitar o cupom
       box.style.setProperty("--r", r.color);
       var nb2 = el("b", "", "INSERIR CUPOM");
@@ -1018,22 +1108,20 @@
       box.appendChild(input);
       box.appendChild(el("p", "dnote", "CADA CUPOM VALE UMA VEZ E DÁ CACOS. ALGUNS DÃO UMA SKIN RARA JUNTO."));
       if (info.note) box.appendChild(el("p", "dnote cupom-note", info.note));
-      return;
     } else if (info.type === "tela") {      // computador da casa: o que está na tela agora
       var tela = el("div", "tela tela-" + (info.look || "pc"));
-      (info.lines || []).forEach(function (line) { tela.appendChild(el("div", "tl", line || "\u00a0")); });
+      (info.lines || []).forEach(function (line) { tela.appendChild(el("div", "tl", line || " ")); });
       box.appendChild(tela);
-      return;
     } else {
-      var nb = el("b", "", r.label);
-      nb.style.color = r.color;
-      box.appendChild(nb);
+      var px = el("span", "box");
+      px.appendChild(el("i", "pxi " + ({ pocao: 1, energia: 1, arma: 1, trocar: 1, "continue": 1, doar: 1 }[r.id] ? r.id : "outro")));
+      px.firstChild.style.width = px.firstChild.style.height = "48px";
+      px.firstChild.style.backgroundSize = "48px";
+      box.appendChild(pedestal([px]));
+      box.appendChild(titleLine(r.label, info.sub || "", r.color));
       box.appendChild(el("p", "dnote", (r.desc || "").toUpperCase()));
     }
-    var foot = el("div", "foot");
-    foot.appendChild(el("strong", "", cur.cost ? cur.cost + " " + shopUnit() : info.type === "skin" ? "" : "GRÁTIS"));
-    if (cur.cost && cur.afford) foot.appendChild(el("span", "", "SOBRAM " + (shopData.souls - cur.cost)));
-    box.appendChild(foot);
+    fitIcons(box);
   }
 
   function shopUnit() {
@@ -1087,7 +1175,8 @@
     $("shop-unit").textContent = shopUnit();
     var energy = $("shop-energy");
     energy.hidden = !(shopEnergy[1] > 0) || shop.kind === "altar";
-    $("shop-energy-n").textContent = shopEnergy[0] + "/" + shopEnergy[1];
+    $("shop-energy-n").textContent = shopEnergy[0];
+    $("shop-energy-max").textContent = "/" + shopEnergy[1];
     var cur = rowEntry(rows.filter(function (r) { return r.id === shopPick; })[0]);
     var key = JSON.stringify(rows) + "|" + shopPick + "|" + (cur ? cur.id : "") + "|" + shop.souls + "|" + cacosPage;
     if (document.activeElement && document.activeElement.id === "cupom-input" && shopPick === "cupom" &&
@@ -1099,27 +1188,10 @@
       list.innerHTML = "";
       list.dataset.page = shop.kind === "cacos" ? cacosPage : "";
       if (shop.kind === "cacos") cacosHead(list, shop, rows);
+      var shown = 0;
       rows.forEach(function (r) {
         if (shop.kind === "cacos" && (r.id === "cupom" || !r.info || r.info.section !== cacosPage)) return;
-        var b = el("button", "shop-item" + (r.id === shopPick ? " on" : "") + (r.ok && r.afford ? "" : " off"));
-        b.style.setProperty("--c", r.color);
-        b.style.setProperty("--r", (r.info && r.info.weapon) ? r.info.weapon.color : r.color);
-        var lbl = el("span", "lbl");
-        lbl.appendChild(rowThumb(r));
-        var txt = el("span", "txt");
-        txt.appendChild(el("span", "name", rowLabel(r)));
-        var sub = rowSub(r);
-        if (sub) txt.appendChild(sub);
-        lbl.appendChild(txt);
-        b.appendChild(lbl);
-        if ((shop.kind === "cacos" || shop.kind === "armario") && r.info) {   // carta com raridade e etiqueta
-          b.dataset.tier = r.info.tier || "";
-          b.dataset.state = r.info.state || "";
-          if (r.info.mine) b.dataset.mine = "1";
-          b.appendChild(el("i", "tag", r.info.tag || ""));
-        } else {
-          b.appendChild(el("i", "", r.cost ? r.cost : ""));
-        }
+        var b = card(r);
         b.addEventListener("pointerdown", function (e) {
           e.preventDefault();
           buzz();
@@ -1129,15 +1201,41 @@
           renderShop(shopData);
         });
         list.appendChild(b);
+        shown += 1;
       });
+      // grade que cabe sem rolar: 2, 3, 4 ou 5 colunas conforme a quantidade; rola só se passar de 3 linhas
+      var cols = shop.kind === "armario" ? (innerWidth < 760 ? 4 : 5) : shop.kind === "cacos" && cacosPage !== "home" ? 4 :
+                 shown <= 4 ? 2 : shown <= 9 ? 3 : 4;
+      if (shop.kind === "cacos" && cacosPage === "home") cols = 2;
+      var lines = Math.ceil(shown / cols);
+      var head = list.querySelectorAll(".wide").length;          // cupom e "< SEÇÕES" em faixas baixas no topo
+      list.classList.toggle("has-head", head > 0);
+      list.style.setProperty("--head", head || 1);
+      list.style.setProperty("--cols", cols);
+      list.style.setProperty("--rowh", lines > (head ? 2 : 3) ? "112px" : "minmax(0, 1fr)");
+      renderNpc(shop.npc);
       renderDetail(rows.filter(function (r) { return r.id === shopPick; })[0], cur);
+      fitIcons(list);
       var on = list.querySelector(".on");
       if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest" });
     }
     var buy = $("shop-buy");
     buy.disabled = !cur || !cur.ok || !cur.afford;
-    buy.textContent = shop.action ? shop.action : shop.kind === "altar" ? "ESCOLHER" : shopPick === "doar" ? "DOAR…" :
-      cur && cur.id === "fundir" ? "FUNDIR" : shop.kind === "ferreiro" ? "FORJAR" : "COMPRAR";
+    var verb = shop.action ? shop.action : shop.kind === "altar" ? "ESCOLHER" : shopPick === "doar" ? "DOAR…" :
+      cur && cur.id === "fundir" ? "FUNDIR" : cur && cur.info && cur.info.type === "encanto" ? "ENCANTAR" :
+      shop.kind === "ferreiro" ? "FORJAR" : "COMPRAR";
+    var buyKey = verb + "|" + (cur && cur.cost && !shop.action && shopPick !== "doar" ? cur.cost : "");
+    if (buy.dataset.key !== buyKey) {            // o preço vai dentro do botão: COMPRAR ◆ 40
+      buy.dataset.key = buyKey;
+      buy.textContent = verb;
+      if (buyKey.split("|")[1]) {
+        buy.appendChild(el("b", "gem"));
+        buy.appendChild(document.createTextNode(cur.cost));
+      }
+      // nome longo (USAR CUPOM, COMPRAR ◆ 40...) desce para 8 px em vez de estourar
+      buy.style.fontSize = "";
+      requestAnimationFrame(function () { if (buy.scrollWidth > buy.clientWidth + 1) buy.style.fontSize = "8px"; });
+    }
     var note = $("shop-note");
     if (cur && !cur.ok) note.textContent = (cur.info && cur.info.sub) || "INDISPONÍVEL";
     else if (shop.action) note.textContent = "";
@@ -1146,11 +1244,32 @@
     renderGift(shop);
   }
 
+  // quem atende a banca (mascate, ferreiro, soldador...): 2 quadros, em 2x, com a falinha
+  function renderNpc(npc) {
+    var box = $("shop-npc");
+    box.hidden = !npc;
+    if (!npc) return;
+    if (box.dataset.name !== npc.name) {
+      box.dataset.name = npc.name;
+      ["npc-a", "npc-b"].forEach(function (id, i) {
+        var img = $(id);
+        img.onload = function () {
+          var k = Math.max(1, Math.min(2, Math.floor((box.clientHeight - 60) / img.naturalHeight)));
+          img.style.width = img.naturalWidth * k + "px";
+          img.style.height = img.naturalHeight * k + "px";
+        };
+        img.src = "/npc/" + npc.name + "_" + i + ".png";
+      });
+    }
+    $("shop-fala").textContent = npc.fala || "";
+    $("shop-npc-name").textContent = npc.label || "";
+  }
+
   // loja de cacos: botão do cupom no topo e, na tela inicial, um card por seção
   function cacosHead(list, shop, rows) {
     var cup = rows.filter(function (r) { return r.id === "cupom"; })[0];
     if (cup) {
-      var b = el("button", "shop-item cacos-cupom" + (shopPick === "cupom" ? " on" : ""), "INSERIR CUPOM");
+      var b = el("button", "shop-item wide cacos-cupom" + (shopPick === "cupom" ? " on" : ""), "INSERIR CUPOM");
       b.addEventListener("pointerdown", function (e) {
         e.preventDefault(); buzz(); shopPick = "cupom"; $("shop-note").textContent = "";
         order("cupom", false); renderShop(shopData);
@@ -1158,7 +1277,7 @@
       list.appendChild(b);
     }
     if (cacosPage !== "home") {
-      var back = el("button", "shop-item cacos-back", "‹ SEÇÕES");
+      var back = el("button", "shop-item wide cacos-back", "< SEÇÕES");
       back.addEventListener("pointerdown", function (e) {
         e.preventDefault(); buzz(); cacosPage = "home"; shopKey = null; renderShop(shopData);
       });
@@ -1175,9 +1294,10 @@
      ["pets", "PETS", pets, pets.length + " BICHINHOS · " + mp + (mp === 1 ? " SEU" : " SEUS")]].forEach(function (sec) {
       var b = el("button", "shop-item cacos-sec", "");
       b.dataset.sec = sec[0];
+      b.style.setProperty("--r", sec[0] === "pets" ? "#3ccf8a" : "#b48cff");
       var pics = el("span", "pics");
       sec[2].slice(0, 3).forEach(function (r) {
-        var im = el("img", "ic"); im.src = r.info.img; im.alt = ""; im.draggable = false; pics.appendChild(im);
+        var im = el("img"); im.src = r.info.img; im.alt = ""; im.draggable = false; pics.appendChild(im);
       });
       b.appendChild(pics);
       b.appendChild(el("span", "name", sec[1]));
@@ -1362,6 +1482,10 @@
   function render() {
     if (!status) return;
     var me = status.me || {};
+    if (typeof me.char === "number" && me.char >= 0 && me.char !== faceChar) {   // rostinho do herói na etiqueta
+      faceChar = me.char;
+      document.body.style.setProperty("--face", "url(/sprite/" + me.char + ".png)");
+    }
     if (!me.owner) {
       if (joined) { joined = false; join(slot).catch(function () {}); }
       show("join");
@@ -1416,6 +1540,7 @@
       var sb = $("super-btn");
       var superName = (ch && ch.soccer_power ? ch.soccer_power : "SUPER").toUpperCase();
       if (sb.dataset.label !== superName) sb.dataset.label = superName;
+      renderHand(me, ch);
       layoutButtons();
       var cd = me.cooldown || 0;
       sb.style.setProperty("--p", (1 - cd).toFixed(3));
@@ -1514,6 +1639,43 @@
     lastSouls = n;
     var text = String(n);
     if ($("souls-n").textContent !== text) $("souls-n").textContent = text;
+  }
+
+  // ATACAR mostra o desenho e o nome da arma que está na mão; HABILIDADE, o nome da habilidade do herói
+  var handKey = "";
+  function renderHand(me, ch) {
+    var atk = document.querySelector('.battle-only [data-act="attack"]');
+    var skill = document.querySelector('.battle-only [data-act="special"]');
+    var hand = me.hand || null;
+    var key = hand ? hand.name + "|" + hand.icon : "";
+    if (atk && key !== handKey) {
+      handKey = key;
+      var img = $("atk-icon");
+      img.onload = function () {               // desenho em escala inteira dentro do botão
+        var box = parseInt(getComputedStyle(atk).getPropertyValue("--is"), 10) || 48;
+        var n = Math.max(img.naturalWidth, img.naturalHeight);
+        var k = n <= box ? Math.floor(box / n) : 1 / Math.ceil(n / box);
+        img.style.width = Math.round(img.naturalWidth * k) + "px";
+        img.style.height = Math.round(img.naturalHeight * k) + "px";
+      };
+      img.src = hand && hand.icon ? "/arma/" + hand.icon : "/static/ic/i_atacar.png";
+      atk.dataset.label = hand ? shortName(hand.name) : "ATACAR";
+    }
+    if (skill && ch && ch.ability) skill.dataset.label = shortName(ch.ability.toUpperCase());
+  }
+
+  // nome curto para caber embaixo do botão (até 14 letras): corta nas palavras
+  function shortName(name) {
+    if (name.length <= 14) return name;
+    var out = "";
+    name.split(" ").some(function (w) {
+      if ((out ? out.length + 1 : 0) + w.length > 14) return true;
+      out = out ? out + " " + w : w;
+      return false;
+    });
+    var words = (out || name.slice(0, 14)).split(" ");
+    while (words.length > 1 && /^(DE|DA|DO|DAS|DOS|E)$/.test(words[words.length - 1])) words.pop();   // não termina em "DAS"
+    return words.join(" ");
   }
 
   function renderAmmo(me, mode) {
