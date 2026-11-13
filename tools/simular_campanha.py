@@ -71,10 +71,11 @@ class Robo:
         f.hold("attack")
         # como gente: sem energia para a rara, troca para a arma do herói; com a barra boa, volta
         energy = getattr(me, "energy", None)
-        if energy is not None and me.relic is not None:
+        relic = next((w for w in (me.bag or ()) if w.rare), None)      # a rara da bolsa
+        if energy is not None and relic is not None:
             from soulstrike.energia import cost
-            price = cost(me, me.relic)
-            on_relic = me.weapon is me.relic
+            price = cost(me, relic)
+            on_relic = me.weapon is relic
             if (on_relic and energy < price) or (not on_relic and energy >= max(60, price * 4)):
                 if self.t % 20 == 0:
                     f.tap("switch")
@@ -102,9 +103,9 @@ class Robo:
 
 def masmorra(difficulty, players, phase, stage, seed):
     from apoio import FakeInput, game
+    from soulstrike.armario import token_of
     from soulstrike.campaign import DUNGEON_1, DUNGEON_2, PHASES, CampaignMatch, CampaignRun
-    from soulstrike.data import PHASE_RELICS
-    from soulstrike.data import CHARACTERS
+    from soulstrike.data import CHARACTERS, PHASE_RELICS
     from soulstrike.session import Session, SlotSetup
     random.seed(seed)
     keys = [c.key for c in CHARACTERS]
@@ -117,7 +118,9 @@ def masmorra(difficulty, players, phase, stage, seed):
     run.stage = DUNGEON_2 if stage == 2 else DUNGEON_1
     relics = list(PHASE_RELICS[PHASES[phase].key])
     for k, s in enumerate(run.slots):
-        run.relics[s] = relics[k % len(relics)]
+        # bolsa: as 2 armas do herói e a rara da fase na mão
+        hero = CHARACTERS[keys.index(CHARS[k])]
+        run.bags[s] = [token_of(w) for w in hero.weapons] + ["rara:" + relics[k % len(relics)]]
         run.held[s] = 2
         run.upgrades[s] = random.sample(["vida", "dano", "recarga", "velocidade", "escudo"], min(3, phase))
     m = CampaignMatch(g, run)
@@ -137,8 +140,10 @@ def masmorra(difficulty, players, phase, stage, seed):
             if not p.alive_in_match and p not in was:
                 downs += 1
             (was.add if not p.alive_in_match else was.discard)(p)
+        if m.state == "ready":
+            m.start_battle()               # a sala de luta só começa no INICIAR BATALHA
         m.update()
-        if m.state in ("exit", "vote", "clear"):
+        if m.state in ("exit", "portal", "vote", "clear"):
             return "venceu", frame, downs, start_cont - run.continues, empty / max(1, frame * players)
         if m.state == "gameover":
             return "perdeu", frame, downs, start_cont - run.continues, empty / max(1, frame * players)

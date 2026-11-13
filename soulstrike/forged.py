@@ -198,8 +198,10 @@ def on_swing(fighter, weapon, match, hits, damage):
     elif style == "trovao":
         from .projectiles import LightningArc
         fighter.forged_count += 1
-        if fighter.forged_count % 3 == 0 and not any(getattr(b.weapon, "style", "") == "trovao" and
-                                                     b.owner is fighter for b in match.bullets):
+        # tiro de inimigo, chefe ou habilidade não tem arma: só conta o martelo que já está no ar
+        if fighter.forged_count % 3 == 0 and not any(
+                getattr(getattr(b, "weapon", None), "style", "") == "trovao" and b.owner is fighter
+                for b in match.bullets):
             from .projectiles import projectile_class      # o 3º golpe arremessa o martelo, que volta
             fx, fy = fighter.facing
             hammer = projectile_class("martelo_trovao")(fighter, weapon, fighter.x + fx * 24, fighter.y - 10 + fy * 24,

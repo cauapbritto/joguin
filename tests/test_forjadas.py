@@ -252,6 +252,15 @@ class ForjadasTest(unittest.TestCase):
         self.assertFalse(hammers[0].alive)                    # voltou para a mão
         self.assertNotIn(hammers[0], match.bullets)
 
+    def test_martelo_com_tiro_de_inimigo_no_ar(self):
+        # tiro de inimigo, chefe ou habilidade não tem arma: o 3º golpe não pode fechar o jogo
+        match, p, foes = masmorra("martelo_trovao")
+        match.spawn_bullet(foes[0], 0, 1, 1, 1)
+        p.forged_count = 2
+        p.attack_cd = 0
+        p.attack(match, foes[0])
+        self.assertEqual(sum(1 for b in match.bullets if getattr(getattr(b, "weapon", None), "style", "") == "trovao"), 1)
+
     def test_martelo_arremessado_persegue_tres_inimigos(self):
         match, p, foes = masmorra("martelo_trovao")
         for k, f in enumerate(foes):                         # longe da batida no chão e espalhados

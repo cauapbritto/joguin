@@ -100,6 +100,16 @@ def talk_mode():
     return mode if mode in FALAS else "normal"
 
 
+def _arms(fighter):
+    """As armas que o dono carrega (a bolsa da campanha, ou a rara do treino), por identidade."""
+    bag = getattr(fighter, "bag", None)
+    held = list(bag) if bag is not None else []
+    relic = getattr(fighter, "relic", None)
+    if relic is not None:
+        held.append(relic)
+    return frozenset(id(w) for w in held)
+
+
 def _clock(match, pet):
     frame = getattr(match, "frame", None)
     return frame if isinstance(frame, int) else pet.age
@@ -233,7 +243,7 @@ class Pet(Entity):
         energy = None
         if getattr(t, "energy", None) is not None and getattr(t, "energy_max", 0):
             energy = t.energy / t.energy_max
-        relic = getattr(t, "relic", None)
+        arms = _arms(t)
         boss = getattr(match, "boss", None)
         boss_on = boss is not None and boss.alive_in_match
         wins = len(getattr(match, "cleared", ()) or ()) + (1 if getattr(match, "slain_boss", False) else 0)
@@ -249,7 +259,7 @@ class Pet(Entity):
         self.last_pos = pos
         if first:
             seen.update(alive=alive, low=hp < LOW_HP, empty=energy is not None and energy < LOW_ENERGY,
-                        relic=relic, boss=boss if boss_on else None, wins=wins, start=self.age)
+                        arms=arms, boss=boss if boss_on else None, wins=wins, start=self.age)
             return
         if self.age - seen["start"] == 120 and not casa and getattr(match, "run", None) is not None:
             self.say(match, "fase")
@@ -268,10 +278,10 @@ class Pet(Entity):
         if empty and not seen["empty"]:
             self.say(match, "energia")
         seen["empty"] = empty
-        if relic is not None and relic is not seen["relic"]:
+        if arms - seen["arms"]:                     # entrou arma nova na bolsa (ou a rara do treino)
             self.play("feliz")
             self.say(match, "arma")
-        seen["relic"] = relic
+        seen["arms"] = arms
         if boss_on and boss is not seen["boss"]:
             self.play("susto")
             self.say(match, "chefe")
