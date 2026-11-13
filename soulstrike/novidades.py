@@ -12,6 +12,12 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.56.1": [
+        {"title": "CONSERTOS", "scene": "loja", "lines": [
+            "O 3º golpe do Martelo do Trovão Eterno não fecha mais o jogo quando tem tiro de inimigo no ar.",
+            "O pet volta a comemorar quando o dono pega uma arma nova para a bolsa.",
+        ]},
+    ],
     "1.56.0": [
         {"title": "A MAIOR ATUALIZAÇÃO ATÉ AQUI", "scene": "novidades", "tv": "extra", "lines": [
             "46 armas novas, 41 forjadas, 12 equipamentos, 9 pets com vida, 17 segredos e trilha nova.",

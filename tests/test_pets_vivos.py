@@ -97,6 +97,26 @@ class FalaTest(unittest.TestCase):
         self.assertEqual(pet.anim, "susto")
         self.assertIn(pet.bubble, pet_falas.LINES["cachorro"]["caiu"])
 
+    def test_arma_nova_na_bolsa_fala(self):
+        # campanha: a arma nova entra na bolsa (não existe mais a "arma rara" separada)
+        from soulstrike.data import RARE_WEAPONS
+        match, inputs, pet = _fase_com_pet()
+        passo(match, inputs, 3)
+        dono = match.players[0]
+        self.assertIsNotNone(dono.bag)
+        match.give_weapon(dono, RARE_WEAPONS["besta"])
+        passo(match, inputs, 2)
+        self.assertEqual(pet.anim, "feliz")
+        self.assertIn(pet.bubble, pet_falas.LINES["cachorro"]["arma"])
+
+    def test_largar_arma_nao_faz_falar(self):
+        match, inputs, pet = _fase_com_pet()
+        passo(match, inputs, 3)
+        dono = match.players[0]
+        match.drop_held(dono)
+        passo(match, inputs, 2)
+        self.assertIsNone(pet.bubble)
+
     def test_dono_parado_faz_a_graca_e_fala(self):
         match, inputs, pet = _fase_com_pet()
         for f in match.players:
