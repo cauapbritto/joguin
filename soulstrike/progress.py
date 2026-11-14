@@ -5,6 +5,7 @@ inteira.
 Fica em %APPDATA%/SoulStrike/progresso.json no Windows (ou ~/.soulstrike no Linux/Mac).
 A variável de ambiente SOULSTRIKE_PROGRESS troca o arquivo (usada nos testes).
 """
+import copy
 import json
 import os
 from pathlib import Path
@@ -19,12 +20,27 @@ def path():
     return folder / "progresso.json"
 
 
+# a última leitura do arquivo: a Casa pergunta pelo progresso várias vezes por quadro (pet, skins,
+# guarda-roupa) e ler o disco toda vez dava engasgo em PC com HD lento ou antivírus olhando o arquivo.
+# Vale enquanto o arquivo não muda (mesmo caminho, data e tamanho).
+_cache = {"key": None, "data": None}
+
+
 def load():
+    p = path()
     try:
-        data = json.loads(path().read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
+        st = p.stat()
+        key = (str(p), st.st_mtime_ns, st.st_size)
+    except OSError:
         return {}
+    if _cache["key"] != key:
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            data = None
+        _cache["key"], _cache["data"] = key, data if isinstance(data, dict) else {}
+    # cópia: quem recebe pode mexer à vontade sem estragar a guardada (só save() grava)
+    return copy.deepcopy(_cache["data"])
 
 
 def save(data):
@@ -34,6 +50,7 @@ def save(data):
         tmp = p.with_suffix(".tmp")
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
         tmp.replace(p)
+        _cache["key"] = None                 # a próxima leitura pega o que acabou de ser gravado
         return True
     except OSError:
         return False

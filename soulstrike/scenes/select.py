@@ -85,10 +85,13 @@ class LobbyScene(_MenuScene):
         a, b = session.teammates(0), session.teammates(1)
         return f"P{a[0]}+P{a[1]} x P{b[0]}+P{b[1]}"
 
+    def _back(self):
+        self.sfx("cancel", 0.4)
+        self.game.change(ModeScene(self.game, category_of(self.game.session.mode)))
+
     def handle(self, event):
         if self.is_back(event):
-            self.sfx("cancel", 0.4)
-            self.game.change(ModeScene(self.game, category_of(self.game.session.mode)))
+            self._back()
         elif event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
             self._continue()
         elif self.teams and event.type == pygame.KEYDOWN and event.key == pygame.K_TAB:
@@ -101,6 +104,9 @@ class LobbyScene(_MenuScene):
 
     def update(self):
         super().update()
+        if self.pad_back() is not None:            # B do controle: volta igual ao ESC
+            self._back()
+            return
         connected = self.game.connected_slots()
         if self.campaign or self.fill:
             self._update_joined(connected)
@@ -189,7 +195,7 @@ class LobbyScene(_MenuScene):
                          theme.BRASS, (W // 2, 470))
         else:
             self.ui.text(screen, f"OU ABRA {self.game.base_url}/?player=N", theme.XS, theme.FAINT, (W // 2, 470))
-        items = [("ENTER", "CONTINUAR"), ("ESC", "VOLTAR")]
+        items = [("ENTER", "CONTINUAR"), ("B / ESC", "VOLTAR")]
         if self.teams:
             items.insert(0, ("TAB", "TROCAR TIMES"))
         self.footer(screen, items)
@@ -528,6 +534,24 @@ class CharSelectScene(_MenuScene):
         return None
 
     # ── entrada ──────────────────────────────
+    def _back(self):
+        self.sfx("cancel", 0.4)
+        mode = self.game.session.mode
+        back_to_modes = mode == "cpu" or mode.startswith("treino") or mode == "desafio_goleiro"
+        nxt = ModeScene(self.game, category_of(mode)) if back_to_modes else LobbyScene(self.game)
+        self.game.change(nxt)
+
+    def _pad_wants_back(self):
+        """B do controle do P1 com o personagem dele ainda não confirmado (confirmado, o B só
+        desmarca o PRONTO, como sempre)."""
+        if self.rules_open or self.countdown:
+            return False
+        slot = self.pad_back()
+        if slot is None:
+            return False
+        card = next((c for c in self.cards if c.slot == slot), None)
+        return card is None or card.setup.cpu or not card.ready
+
     def handle(self, event):
         if self.rules_open:
             if self.is_back(event) or (event.type == pygame.KEYDOWN and event.key == pygame.K_r):
@@ -537,11 +561,7 @@ class CharSelectScene(_MenuScene):
             self._set_rules(True)
             return
         if self.is_back(event):
-            self.sfx("cancel", 0.4)
-            training = self.game.session.mode.startswith("treino")
-            back_to_modes = self.game.session.mode == "cpu" or training
-            nxt = ModeScene(self.game, category_of(self.game.session.mode)) if back_to_modes else LobbyScene(self.game)
-            self.game.change(nxt)
+            self._back()
             return
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
@@ -610,6 +630,9 @@ class CharSelectScene(_MenuScene):
 
     def update(self):
         super().update()
+        if self._pad_wants_back():
+            self._back()
+            return
         self._sync_phone_slots()
         host = self.game.inputs.get(self.host)
         if self.rules_open and host is not None:
@@ -685,7 +708,7 @@ class CharSelectScene(_MenuScene):
             self.ui.text(screen, "PREPARANDO A PARTIDA...", theme.S, theme.BRASS,
                          (config.SCREEN_W // 2, config.SCREEN_H - 24))
         elif not self.rules_open:
-            items = [("ENTER", "CONFIRMAR"), ("ESC", "VOLTAR")]
+            items = [("ENTER", "CONFIRMAR"), ("B / ESC", "VOLTAR")]
             if self.campaign:
                 label = DIFFICULTIES[self.game.session.difficulty]["label"]
                 items.insert(0, ("TAB", "DIFICULDADE: " + label))

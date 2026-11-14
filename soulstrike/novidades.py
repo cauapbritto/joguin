@@ -12,6 +12,17 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.56.2": [
+        {"title": "CONSERTOS NO CONTROLE", "scene": "controle", "lines": [
+            "Escolher o modo com o A do controle não pula mais a tela do QR Code: os celulares entram.",
+            "Contra a CPU e nos treinos, o P1 não começa mais com o personagem já confirmado.",
+            "O B do controle volta da escolha de personagem e da tela do QR Code, igual ao ESC.",
+        ]},
+        {"title": "MAIS CONSERTOS", "scene": "casa", "lines": [
+            "Quem ainda apertava ATACAR no fim da partida não cai mais direto na REVANCHE.",
+            "A Casa ficou mais leve: o progresso salvo não é mais lido do disco a cada quadro.",
+        ]},
+    ],
     "1.56.1": [
         {"title": "CONSERTOS", "scene": "loja", "lines": [
             "O 3º golpe do Martelo do Trovão Eterno não fecha mais o jogo quando tem tiro de inimigo no ar.",

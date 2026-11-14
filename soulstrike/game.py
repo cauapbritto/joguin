@@ -76,6 +76,13 @@ class Game:
             self._fade_from = self.screen.copy()
             self._fade = self.FADE_FRAMES
         self.scene = scene
+        # o botão que trocou de tela (o A do controle que escolheu o modo, por exemplo) não pode
+        # valer também no primeiro quadro da tela nova: pulava a tela do QR Code e já deixava o
+        # P1 PRONTO na escolha de personagem
+        for inp in getattr(self, "inputs", {}).values():
+            consume = getattr(inp, "consume", None)
+            if consume is not None:
+                consume()
         crt.reset()
         scene.enter()
 
