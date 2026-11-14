@@ -229,6 +229,12 @@ class PlayerInput:
     def pressed(self, action):
         return action in self._pressed
 
+    def consume(self):
+        """Esquece os apertos deste quadro (a tela mudou: o aperto que trocou de tela não vale na
+        próxima). O que está segurado continua segurado."""
+        self._pressed = set()
+        self.double_tap = None
+
     def axis(self):
         dx, dy = self._kb_dirs
         mag = math.hypot(dx, dy)

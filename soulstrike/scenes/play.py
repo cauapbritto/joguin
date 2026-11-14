@@ -510,6 +510,7 @@ class PlayScene(Scene):
 
 class ResultsScene(_MenuScene):
     phase = "results"
+    GRACE = 30                  # quadros antes de o celular/controle poder escolher
 
     def __init__(self, game, result):
         super().__init__(game)
@@ -539,7 +540,9 @@ class ResultsScene(_MenuScene):
                 self.menu.move(-1)
             if inp.pressed("down"):
                 self.menu.move(1)
-            if inp.pressed("confirm") or inp.pressed("attack"):
+            # meio segundo de espera: quem ainda estava apertando ATACAR/CHUTAR no fim da partida
+            # caía direto na REVANCHE sem ver o resultado
+            if self.ticks > self.GRACE and (inp.pressed("confirm") or inp.pressed("attack")):
                 self._choose(self.menu.value)
                 return
 

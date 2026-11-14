@@ -64,6 +64,19 @@ class Scene:
         pass
 
     # ── utilidades comuns ────────────────────
+    def pad_back(self):
+        """(vaga, True) se o controle que manda nos menus (o do P1) apertou B ou BACK neste quadro.
+
+        Para as telas que leem o controle como jogador (escolha de personagem, tela do QR): lá o
+        controle não vira teclas de menu, então o B precisa ser olhado à parte para poder voltar."""
+        pads = self.game.gamepads
+        if not pads.pads:
+            return None
+        i = min(pads.host_index(), len(pads.pads) - 1)
+        if pads.pads[i].pressed & {"b", "back"}:
+            return pads.slot_of(i)
+        return None
+
     @staticmethod
     def is_back(event):
         return event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_BACKSPACE)
