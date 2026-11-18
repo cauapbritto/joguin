@@ -381,5 +381,37 @@ class TelaTest(unittest.TestCase):
         self.assertEqual(scene.phone_mode(), "luta")
 
 
+class QuadrosDeMeioTest(unittest.TestCase):
+    def test_quadro_de_meio_fica_entre_os_dois(self):
+        a, b = LP.pose("aryel", "guarda"), LP.pose("aryel", "soco2")
+        m = LP.pose("aryel", LP.mid("guarda", "soco2", 2))
+        self.assertAlmostEqual(m["lean"], (a["lean"] + b["lean"]) / 2)
+        self.assertAlmostEqual(m["na"][0], (a["na"][0] + b["na"][0]) / 2)
+        self.assertFalse(LP.blendable("aryel", "guarda", "pulo"))       # chão e ar não se misturam
+        self.assertFalse(LP.blendable("aryel", "levou", "caido"))
+        img, _, _ = L.Bank.get("cauanzera", LP.mid("andar1", "andar2", 1))
+        self.assertIsNotNone(img.get_bounding_rect())
+
+    def test_andar_mostra_quadros_de_meio_e_a_regra_usa_a_pose(self):
+        fight, a, b = luta()
+        f = fight.fighters[0]
+        a.stick = (1, 0)
+        seen = set()
+        for _ in range(40):
+            run(fight, (a, b), 1)
+            seen.add(f.view)
+            self.assertIn(f.pose, ("andar1", "andar2", "andar3", "andar4", "defesa"))
+        self.assertTrue(any("~" in v for v in seen))
+
+    def test_golpe_saindo_aparece_seco(self):
+        fight, a, b = luta()
+        f = fight.fighters[0]
+        a.tap("attack")
+        for _ in range(12):
+            run(fight, (a, b), 1)
+            if f.state == "golpe" and f.move_step()[0] in f.move.active:
+                self.assertEqual(f.view, f.pose)
+
+
 if __name__ == "__main__":
     unittest.main()

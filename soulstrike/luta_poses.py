@@ -107,7 +107,50 @@ OVERRIDES = {
 }
 
 
+# quadro de meio: valores que faltam num dos lados
+_DEFAULTS = dict(lean=0, turn=0.25, x=0, dy=0, head=0, hair=0, stretch=1.0, nstretch=1.0, lstretch=1.0)
+QUARTERS = 4
+
+
+def blend(a, b, t):
+    """Quadro entre a e b (t de 0 a 1): os ângulos andam juntos, o resto troca na metade."""
+    out = {}
+    for k in set(a) | set(b):
+        va, vb = a.get(k, _DEFAULTS.get(k)), b.get(k, _DEFAULTS.get(k))
+        if isinstance(va, tuple) and isinstance(vb, tuple) and len(va) == len(vb):
+            out[k] = tuple(x + (y - x) * t for x, y in zip(va, vb))
+        elif isinstance(va, (int, float)) and isinstance(vb, (int, float)) and not isinstance(va, bool) \
+                and not isinstance(vb, bool):
+            out[k] = va + (vb - va) * t
+        else:
+            pick = vb if t >= 0.5 else va
+            if pick is not None:
+                out[k] = pick
+    return out
+
+
+def blendable(char, a, b):
+    """Dá para fazer quadro de meio entre os dois (os dois no chão ou os dois no ar, sem o deitado)."""
+    if a == b:
+        return False
+    try:
+        fa, fb = pose(char, a), pose(char, b)
+    except KeyError:
+        return False
+    if bool(fa.get("air")) != bool(fb.get("air")):
+        return False
+    return fa.get("plant", True) is not False and fb.get("plant", True) is not False
+
+
+def mid(a, b, q):
+    """Nome do quadro de meio: q quartos do caminho de a até b."""
+    return f"{a}~{b}~{q}"
+
+
 def pose(char, name):
+    if "~" in name:
+        a, b, q = name.split("~")
+        return blend(pose(char, a), pose(char, b), int(q) / QUARTERS)
     over = OVERRIDES.get(char, {})
     if name in over:
         return over[name]

@@ -85,6 +85,12 @@ class Bank:
     def preload(cls, char):
         for name in luta_poses.names(char):
             cls.get(char, name)
+        q = luta_poses.QUARTERS
+        walk = ("andar1", "andar2", "andar3", "andar4")
+        for n in range(1, q):        # respirar e andar aparecem o tempo todo: já ficam prontos
+            cls.get(char, luta_poses.mid("guarda", "guarda2", n))
+            for i in range(4):
+                cls.get(char, luta_poses.mid(walk[i], walk[(i + 1) % 4], n))
 
 
 # ── golpes ────────────────────────────────────────────────────────────
@@ -171,6 +177,7 @@ class Effect:
     size: float = 1.0
     vx: float = 0.0
     vy: float = 0.0
+    dirx: int = 0               # para que lado o golpe foi (a faísca espirra para lá)
 
 
 def _boxes_hit(circle, rects):
@@ -220,6 +227,11 @@ class Fighter:
         self.combo = 0                  # golpes seguidos que o OUTRO levou
         self.flash = 0                  # pisca branco quando apanha
         self.walk_phase = 0.0
+        self.view = "guarda"            # quadro que aparece na tela (pode ser um quadro de meio)
+        self._view_from = None
+        self._view_to = "guarda"
+        self._view_d = 0
+        self._view_last = "guarda"
         self.special = None             # estado do ESPECIAL/SUPER em andamento
         self.bet = None                 # Aryel: resultado da última roleta ("GREEN"/"RED")
         self.last_damage = 0
@@ -297,6 +309,52 @@ class Fighter:
 
     def frame(self):
         return Bank.get(self.key, self.pose)
+
+    # ── quadro da tela (com quadros de meio para o movimento ficar liso) ──
+    IDLE = ("guarda", "guarda2")
+    WALK = ("andar1", "andar2", "andar3", "andar4")
+
+    def update_view(self):
+        """Escolhe o quadro da tela. As regras (caixas) usam sempre a pose de verdade; a tela pode
+        mostrar um quadro de meio: respirar, andar e a passagem de uma pose para outra."""
+        pose = self.pose
+        q = luta_poses.QUARTERS
+        if pose in self.IDLE and self.state == "livre":
+            fam = "idle"
+            n = round((1 - math.cos(self.t * math.tau / 56)) / 2 * q)      # respira devagar, sem pulo
+            base, target = "guarda", ("guarda" if n == 0 else "guarda2" if n == q else
+                                      luta_poses.mid("guarda", "guarda2", n))
+        elif pose in self.WALK:
+            fam = "walk"
+            ph = self.walk_phase % 4
+            i = int(ph)
+            n = round((ph - i) * q)
+            a, b = self.WALK[i], self.WALK[(i + 1) % 4]
+            base, target = a, (a if n == 0 else b if n == q else luta_poses.mid(a, b, n))
+        else:
+            fam, base, target = pose, pose, pose
+        if fam != self._view_to:
+            self._view_from, self._view_d, self._view_to = self._view_last, 0, fam
+        else:
+            self._view_d += 1
+        frm = self._view_from
+        if self._snaps(pose) or frm is None or self._view_d > 1 or not luta_poses.blendable(self.key, frm, base):
+            self.view = target
+        else:
+            self.view = luta_poses.mid(frm, base, 2 + self._view_d)
+        self._view_last = base
+
+    def _snaps(self, pose):
+        """Golpe saindo e apanhar aparecem na hora (sem quadro de meio): o impacto fica seco."""
+        if pose in ("levou", "levou2", "levou_baixo", "voando", "caido"):
+            return True
+        if self.state == "golpe" and self.move is not None:
+            i, _ = self.move_step()
+            return i in self.move.active
+        return False
+
+    def view_frame(self):
+        return Bank.get(self.key, self.view)
 
     def to_world(self, p):
         return (self.x + (p[0] - R.ROOT_X) * R.U * self.facing, FLOOR - self.y + (p[1] - R.GROUND) * R.U)
@@ -398,6 +456,12 @@ class Fight:
 
     # ── laço ──────────────────────────────
     def update(self):
+        moved = self._step()
+        if moved is not False:
+            for f in self.fighters:
+                f.update_view()
+
+    def _step(self):
         self.frame += 1
         self.effects = [e for e in self.effects if self._age(e)]
         if self.shake:
@@ -406,10 +470,10 @@ class Fight:
             self.super_freeze -= 1
             if self.super_freeze == 0:
                 self._super_go(self.super_user)
-            return
+            return False
         if self.freeze:
             self.freeze -= 1
-            return
+            return False
         self.t += 1
         if self.state == "intro":
             for f in self.fighters:
@@ -447,6 +511,9 @@ class Fight:
         e.y += e.vy
         if e.kind == "moeda":
             e.vy += 0.4
+        elif e.kind == "lasca":
+            e.vy += 0.5
+            e.vx *= 0.92
         return e.age < e.life
 
     # ── cada lutador ──────────────────────
@@ -820,7 +887,9 @@ class Fight:
             f.energy = min(MAX_ENERGY, f.energy + move.damage / 900)
             opp.energy = min(MAX_ENERGY, opp.energy + move.damage / 1100)
             self.freeze = max(self.freeze, move.hitstop - 2)
-            self.effects.append(Effect("defesa", x, y, 14, color=(150, 200, 255)))
+            away = 1 if opp.x > f.x else -1
+            self.effects.append(Effect("defesa", x, y, 14, color=(150, 200, 255), dirx=away))
+            self._chips(x, y, -away, 4, (190, 226, 255))
             self.sound("toco", 0.45, x)
             self._push_off_wall(f, opp, move.push * 0.5)
             opp.combo = 0
@@ -833,10 +902,11 @@ class Fight:
         opp.energy = min(MAX_ENERGY, opp.energy + move.damage / 900)
         self.freeze = max(self.freeze, move.hitstop)
         self.shake = max(self.shake, 4 + move.hitstop // 2)
-        self.effects.append(Effect("faisca", x, y, 16, color=(255, 236, 160), size=1.0 + move.damage / 120))
+        away = 1 if opp.x > f.x else -1
+        self.effects.append(Effect("faisca", x, y, 16, color=(255, 236, 160), size=1.0 + move.damage / 120, dirx=away))
+        self._chips(x, y, away, 5 + move.damage // 40, (255, 214, 120))
         self.sound(move.sound, 0.55, x)
         self.buzz(opp.slot, "big_hit" if move.damage >= 100 else "hit")
-        away = 1 if opp.x > f.x else -1
         opp.flash = 6
         if opp.state in ("especial",) and opp.special and opp.special.get("super"):
             pass                                        # SUPER não é interrompido por golpe comum
@@ -996,6 +1066,12 @@ class Fight:
     # ── efeitos ───────────────────────────
     def _text(self, x, y, text, color):
         self.effects.append(Effect("texto", x, y, 60, color=color, text=text, vy=-0.6))
+
+    def _chips(self, x, y, away, n, color):
+        """Lascas de luz que espirram do ponto de contato, para o lado do golpe."""
+        for _ in range(n):
+            self.effects.append(Effect("lasca", x, y, self.rng.randint(12, 20), color=color,
+                                       vx=away * self.rng.uniform(2.5, 8.0), vy=-self.rng.uniform(1.0, 6.5)))
 
     def _dust(self, x, small=False):
         for i in range(3 if small else 6):

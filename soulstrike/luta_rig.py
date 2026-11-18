@@ -247,9 +247,19 @@ def draw_fighter(L, F):
         fc = far(L.get("glove", skin), amt) if isfar else L.get("glove", skin)
         b.blob(h, fist, (3.4 if fem else 4.2), (3.2 if fem else 4.0), fc)
         b.flush()
-        if not isfar:
-            D.line(s, sh(fc, -70), (fist[0] + d[1] * 2.5 + d[0], fist[1] - d[0] * 2.5 + d[1]),
-                   (fist[0] - d[1] * 2.5 + d[0], fist[1] + d[0] * 2.5 + d[1]), 0.5)
+        hand_detail(s, h, fist, d, fc)
+        if sleeve and not long_sleeve and not isfar:      # barra da manga curta
+            q0, q1 = lerp(sh0, e, 0.84), lerp(sh0, e, 0.95)
+            nn = (-(e[1] - sh0[1]), e[0] - sh0[0])
+            ln = math.hypot(*nn) or 1
+            nn = (nn[0] / ln * r_u * 0.72, nn[1] / ln * r_u * 0.72)
+            D.line(s, sh(up_col, -60), (q0[0] + nn[0], q0[1] + nn[1]), (q0[0] - nn[0], q0[1] - nn[1]), 0.5)
+            D.line(s, sh(up_col, 26), (q1[0] + nn[0] * 0.9, q1[1] + nn[1] * 0.9), (q1[0] - nn[0] * 0.9, q1[1] - nn[1] * 0.9), 0.5)
+        if long_sleeve and not isfar:                     # dobras da manga no cotovelo
+            for t0, w0 in ((0.12, 0.55), (0.24, 0.4)):
+                q = lerp(e, h, t0)
+                D.line(s, sh(up_col, -40), (q[0] - d[1] * r_f * w0, q[1] + d[0] * r_f * w0),
+                       (q[0] - d[1] * r_f * w0 * 0.2 + d[0], q[1] + d[0] * r_f * w0 * 0.2 + d[1]), 0.5)
         if L.get("watch") and not isfar:
             q = lerp(e, h, 0.86)
             D.circle(s, (24, 24, 30), q, 2.0)
@@ -277,6 +287,26 @@ def draw_fighter(L, F):
         bc = far(L["boots"]) if isfar else L["boots"]
         b.blob(pt(an, toe_dir, -1.5), toe, 4.2, 2.8, bc)
         b.flush()
+        if not isfar and sum(pc) < 200:    # calça escura: costura com brilho na frente da coxa
+            nv = dirv(ang + 90)
+            a0, a1 = lerp(hp, kn, 0.15), lerp(hp, kn, 0.85)
+            off = rt[0] * 0.55
+            D.line(s, sh(pc, 46), (a0[0] + nv[0] * off, a0[1] + nv[1] * off), (a1[0] + nv[0] * rt[1] * 0.6, a1[1] + nv[1] * rt[1] * 0.6), 0.5)
+            b0, b1 = lerp(kn, an, 0.15), lerp(kn, an, 0.8)
+            D.line(s, sh(pc, 34), (b0[0] + nv[0] * rt[1] * 0.55, b0[1] + nv[1] * rt[1] * 0.55), (b1[0] + nv[0] * 2.4, b1[1] + nv[1] * 2.4), 0.5)
+        if not isfar:                       # vinco atrás do joelho e barra da calça
+            tn = (-(kn[1] - hp[1]), kn[0] - hp[0])
+            ln = math.hypot(*tn) or 1
+            tn = (tn[0] / ln, tn[1] / ln)
+            if tn[0] * dirv(ang + knee)[0] + tn[1] * dirv(ang + knee)[1] > 0:
+                tn = (-tn[0], -tn[1])
+            for t0, w0 in ((0.82, 3.6), (0.92, 2.6)):
+                q = lerp(hp, kn, t0)
+                D.line(s, sh(pc, -46), (q[0] + tn[0] * rt[1] * 0.9, q[1] + tn[1] * rt[1] * 0.9),
+                       (q[0] + tn[0] * (rt[1] * 0.9 - w0), q[1] + tn[1] * (rt[1] * 0.9 - w0)), 0.5)
+            q = lerp(kn, an, 0.86)
+            sd = dirv(ang + knee)
+            D.line(s, sh(pc, -55), (q[0] - sd[1] * 3.9, q[1] + sd[0] * 3.9), (q[0] + sd[1] * 3.9, q[1] - sd[0] * 3.9), 0.5)
         if L.get("stripes"):
             sc = L["stripes"]
             for i in (0.3, 0.55):
@@ -326,6 +356,15 @@ def draw_fighter(L, F):
                 D.line(s, dk2, at(30, c0 + wd + 0.5), at(3, c0 + wd + 0.5), 0.5)
                 for tt in (12, 7):     # bolsos
                     D.line(s, dk2, at(tt, c0 - wd - 6), at(tt, c0 - wd - 3), 0.5)
+                # gola da jaqueta dobrada para fora e barra elástica na cintura
+                for side in (-1, 1):
+                    e0 = c0 + side * (wd + 0.5)
+                    lap = [at(32.5, e0 + side * 0.5), at(33.5, e0 + side * 4.5), at(26, e0 + side * 3), at(27, e0)]
+                    D.polygon(s, sh(tc, -18), lap)
+                    D.line(s, li2, lap[0], lap[1], 0.5)
+                    D.line(s, dk2, lap[1], lap[2], 0.5)
+                D.line(s, dk2, at(4.5, c0 - wd - 9), at(4.5, c0 - wd - 0.5), 0.5)
+                D.line(s, dk2, at(4.5, c0 + wd + 0.5), at(4.5, c0 + wd + 6), 0.5)
             else:
                 D.polygon(s, skin, [at(31, c0 - 3), at(31, c0 + 3), at(27, c0 + 0.5)])
                 D.lines(s, dk2, False, [at(31, c0 - 3.5), at(26.5, c0 + 0.5), at(31, c0 + 3.5)], 0.5)
@@ -372,6 +411,32 @@ def draw_fighter(L, F):
     arm(sh_n, F["na"], False, "near")
     details(s, P, L)
     return outline(surface), P
+
+
+def hand_detail(s, wrist, fist, d, col):
+    """Punho fechado: dedos dobrados na frente (com os vãos), nós dos dedos e o polegar por cima."""
+    perp = (-d[1], d[0])
+    if perp[1] > 0 or perp[1] == 0 and perp[0] < 0:     # o polegar fica do lado de cima
+        perp = (-perp[0], -perp[1])
+    dark, light = sh(col, -62), sh(col, 30)
+    # vãos entre os dedos (na frente do punho)
+    for o in (-1.6, 0.0, 1.6):
+        a = (fist[0] + d[0] * 3.6 + perp[0] * o, fist[1] + d[1] * 3.6 + perp[1] * o)
+        b = (fist[0] + d[0] * 1.2 + perp[0] * o * 0.9, fist[1] + d[1] * 1.2 + perp[1] * o * 0.9)
+        D.line(s, dark, a, b, 0.5)
+    # nós dos dedos com brilho
+    for o in (-2.4, -0.8, 0.8, 2.4):
+        q = (fist[0] + d[0] * 2.6 + perp[0] * o, fist[1] + d[1] * 2.6 + perp[1] * o)
+        if o > -2.4:
+            px(s, q[0], q[1] - 0.3, light)
+    # polegar dobrado por cima dos dedos
+    t0 = (fist[0] - d[0] * 0.8 + perp[0] * 2.6, fist[1] - d[1] * 0.8 + perp[1] * 2.6)
+    t1 = (fist[0] + d[0] * 2.4 + perp[0] * 1.2, fist[1] + d[1] * 2.4 + perp[1] * 1.2)
+    D.line(s, dark, (t0[0] - perp[0] * 1.1, t0[1] - perp[1] * 1.1), (t1[0] - perp[0] * 1.1, t1[1] - perp[1] * 1.1), 0.5)
+    D.line(s, light, t0, lerp(t0, t1, 0.7), 0.5)
+    # punho (pulso) marcado
+    D.line(s, dark, (wrist[0] + perp[0] * 2.6, wrist[1] + perp[1] * 2.6),
+           (wrist[0] + perp[0] * 1.4 + d[0], wrist[1] + perp[1] * 1.4 + d[1]), 0.5)
 
 
 def tabard(s, b, L, P, hp_n, hp_f, far):
@@ -477,9 +542,10 @@ def cauanzera_head(s, b, hc, L, face, F):
     hl, hd = sh(hair, 46), sh(hair, -10)
     fade = mix(L["skin"], hair, 0.55)
     # degradê: a lateral raspada fica da cor da pele misturada com o cabelo
-    D.ellipse(s, fade, (hx - 7.5, hy - 7, 9, 10))
-    for i in range(10):
-        px(s, hx - 6.5 + (i % 4) * 1.7, hy - 6 + (i // 4) * 2.4, sh(fade, -25))
+    D.ellipse(s, fade, (hx - 7.5, hy - 7.5, 6.5, 6))
+    D.polygon(s, fade, [(hx - 5, hy - 7.5), (hx + 1, hy - 7.5), (hx - 1.5, hy - 4.5), (hx - 4.5, hy - 2.5)])
+    for i in range(8):
+        px(s, hx - 6.8 + (i % 4) * 1.6, hy - 6.8 + (i // 4) * 2.0, sh(fade, -25))
     b.begin()
     b.blob((hx - 6, hy - 8), (hx + 4, hy - 9.5), 5.0, 4.4, hair)
     if not face:
@@ -504,9 +570,6 @@ def details(s, P, L):
     e, h = P["near_elbow"], P["near_hand"]
     if not L.get("long_sleeve"):
         D.lines(s, sl, False, [lerp(e, h, 0.15), lerp(e, h, 0.4), lerp(e, h, 0.65)], 0.5)
-    hx, hy = P["near_hand"]
-    for i in range(3):
-        px(s, hx - 1.5 + i * 0.9, hy - 2.2 + i * 0.4, sh(L.get("glove", skin), -55))
     for tag in ("near", "far"):
         fx, fy = P[tag + "_foot"]
         px(s, fx - 2, fy - 1.5, sh(L["boots"], 50), 1.5)

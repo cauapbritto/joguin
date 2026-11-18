@@ -25,6 +25,11 @@ _BACKDROP = {}
 
 
 # ── cenário: o Coliseu de lado ────────────────────────────────────────
+def mix_light(c):
+    """Cor do rastro: a cor do jogador, clara."""
+    return tuple(min(255, int(v * 0.6 + 110)) for v in c[:3])
+
+
 def coliseu_backdrop(assets=None):
     """Arquibancada com a torcida, muro de blocos com colunas, tochas e o chão de areia em
     perspectiva (feito uma vez; as tochas e as brasas mexem por cima)."""
@@ -155,6 +160,8 @@ class LutaScene(Scene):
         self.embers = [(random.randrange(W), random.uniform(120, FLOOR), random.uniform(0.2, 0.7)) for _ in range(36)]
         self._published = None
         self._lost = [f.hp for f in self.fight.fighters]     # vida "fantasma" que desce devagar
+        self._trail = [[] for _ in self.fight.fighters]       # quadros de antes, para o rastro do golpe
+        self._ghosts = {}
         coliseu_backdrop(game.assets)
 
     # ── celular ───────────────────────────
@@ -219,6 +226,7 @@ class LutaScene(Scene):
             return
         self.fight.update()
         for i, f in enumerate(self.fight.fighters):
+            self._record_trail(i, f)
             self._lost[i] = max(f.hp, self._lost[i] - 4) if self._lost[i] > f.hp else f.hp
         if self.ticks % 6 == 0:
             self._publish()
@@ -302,14 +310,64 @@ class LutaScene(Scene):
         s.blit(shadow, rect)
 
     def _fighter_image(self, f):
-        right, left, _ = f.frame()
+        right, left, _ = f.view_frame()
         img = right if f.facing > 0 else left
         if f.flash and f.flash % 2:
             img = img.copy()
             img.fill((90, 60, 60, 0), special_flags=pygame.BLEND_RGBA_ADD)
         return img
 
+    # ── rastro dos golpes ─────────────────
+    def _trail_on(self, f):
+        """Rastro só no golpe saindo (passo ativo e o de antes) e nos especiais."""
+        if f.state == "especial":
+            return True
+        if f.state != "golpe" or f.move is None:
+            return False
+        i, _ = f.move_step()
+        return any(a - 1 <= i <= a for a in f.move.active)
+
+    def _record_trail(self, i, f):
+        if self.fight.freeze or self.fight.super_freeze:
+            return
+        trail = self._trail[i]
+        if self._trail_on(f):
+            trail.append((f.view, f.facing, f.x, f.y))
+            del trail[:-6]
+        elif trail:
+            del trail[0]
+
+    def _ghost(self, f, view, facing):
+        key = (f.key, view, facing, f.side)
+        img = self._ghosts.get(key)
+        if img is None:
+            right, left, _ = L.Bank.get(f.key, view)
+            img = (right if facing > 0 else left).copy()
+            tint = theme.SLOT_COLORS.get(f.slot, (255, 255, 255))
+            img.fill((*mix_light(tint), 255), special_flags=pygame.BLEND_RGBA_MULT)
+            img.fill((40, 40, 50, 0), special_flags=pygame.BLEND_RGBA_ADD)
+            if len(self._ghosts) > 160:
+                self._ghosts.clear()
+            self._ghosts[key] = img
+        return img
+
+    def _draw_trail(self, s, f, sx, sy):
+        trail = self._trail[self.fight.fighters.index(f)]
+        u = R.U
+        for n, back in enumerate((4, 2)):
+            if len(trail) <= back:
+                continue
+            view, facing, x, y = trail[-1 - back]
+            if view == f.view and abs(x - f.x) < 2:
+                continue
+            img = self._ghost(f, view, facing)
+            img.set_alpha(40 + 32 * n)
+            ox = x - (R.ROOT_X * u if facing > 0 else (R.CW - R.ROOT_X) * u)
+            oy = FLOOR - y - R.GROUND * u
+            s.blit(img, (round(ox) + sx, round(oy) + sy))
+
     def _draw_fighter(self, s, f, sx, sy):
+        self._draw_trail(s, f, sx, sy)
         img = self._fighter_image(f)
         u = R.U
         ox = f.x - (R.ROOT_X * u if f.facing > 0 else (R.CW - R.ROOT_X) * u)
@@ -329,7 +387,7 @@ class LutaScene(Scene):
         """A arma de perto aparece só no golpe FORTE."""
         if f.state != "golpe" or f.move is None or not f.move.weapon:
             return
-        P = f.frame()[2]
+        P = f.view_frame()[2]
         hx, hy = f.to_world(P["near_hand"])
         ang = P["near_hand_dir"]
         d = R.dirv(ang)
@@ -402,7 +460,7 @@ class LutaScene(Scene):
         """Bola na mão do Cauanzera na ENTERRADA e no preparo do arremesso."""
         if f.key != "cauanzera" or f.pose not in ("basquete1", "enterrada1", "enterrada2"):
             return
-        P = f.frame()[2]
+        P = f.view_frame()[2]
         a = f.to_world(P["near_hand"])
         b = f.to_world(P["far_hand"])
         x, y = (a[0] + b[0]) / 2 + 6 * f.facing + sx, min(a[1], b[1]) - 8 + sy
@@ -446,21 +504,37 @@ class LutaScene(Scene):
             k = e.age / e.life
             x, y = int(e.x) + sx, int(e.y) + sy
             if e.kind == "faisca":
+                size = e.size
+                if e.age <= 2:                      # clarão do contato (dois quadros)
+                    pygame.draw.circle(s, (255, 255, 255), (x, y), int(14 * size))
+                    pygame.draw.circle(s, e.color, (x, y), int(14 * size), 2)
+                if k < 0.7:                         # anel que abre
+                    pygame.draw.circle(s, e.color, (x, y), int((12 + 46 * k) * size), max(1, int(3 * (1 - k))))
                 n = 10
-                r = (18 + 40 * k) * e.size
                 for i in range(n):
                     a = i * math.tau / n + 0.3
-                    rr = r if i % 2 == 0 else r * 0.45
-                    p1 = (x + math.cos(a - 0.12) * 6, y + math.sin(a - 0.12) * 6)
-                    p2 = (x + math.cos(a) * rr, y + math.sin(a) * rr)
-                    p3 = (x + math.cos(a + 0.12) * 6, y + math.sin(a + 0.12) * 6)
-                    pygame.draw.polygon(s, (255, 250, 210) if k < 0.5 else e.color, [p1, p2, p3])
-                if k < 0.4:
-                    pygame.draw.circle(s, (255, 255, 255), (x, y), int(12 * (1 - k) * e.size))
+                    ca = math.cos(a)
+                    reach = 1.0 + 0.7 * max(0.0, ca * e.dirx)        # espirra para o lado do golpe
+                    rr = (18 + 36 * k) * size * reach * (1 if i % 2 == 0 else 0.5) * (1 - 0.45 * k)
+                    wd = 0.16 * (1 - k * 0.7)
+                    p1 = (x + math.cos(a - wd) * 5, y + math.sin(a - wd) * 5)
+                    p2 = (x + ca * rr, y + math.sin(a) * rr)
+                    p3 = (x + math.cos(a + wd) * 5, y + math.sin(a + wd) * 5)
+                    pygame.draw.polygon(s, (255, 252, 226) if k < 0.35 else e.color, [p1, p2, p3])
+            elif e.kind == "lasca":
+                tail = (x - e.vx * 2.2, y - e.vy * 2.2)
+                col = (255, 255, 240) if k < 0.3 else e.color
+                pygame.draw.line(s, col, (x, y), tail, 3 if k < 0.4 else 2 if k < 0.75 else 1)
             elif e.kind == "defesa":
-                r = int(16 + 26 * k)
-                pygame.draw.circle(s, e.color, (x, y), r, 3)
-                pygame.draw.circle(s, (230, 244, 255), (x, y), max(1, r - 8), 1)
+                r = int(22 + 24 * k)
+                face = -e.dirx                   # o escudo abre virado para quem bateu
+                rect = pygame.Rect(x - r, y - r, r * 2, r * 2)
+                mid = 0 if face > 0 else math.pi
+                for off, wd in ((-0.95, 4), (0.0, 5), (0.95, 4)):
+                    a0 = mid + off - 0.38
+                    pygame.draw.arc(s, e.color, rect, -(a0 + 0.76), -a0, max(1, int(wd * (1 - k))))
+                if k < 0.3:
+                    pygame.draw.circle(s, (236, 246, 255), (x, y), int(9 * (1 - k)))
             elif e.kind == "poeira":
                 r = int((6 + 10 * k) * e.size)
                 dust = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
