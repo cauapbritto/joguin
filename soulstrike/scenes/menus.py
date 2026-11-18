@@ -91,6 +91,9 @@ def rematch(game):
     if game.session.penalty:
         from .penalty import start_penalties
         game.change(start_penalties(game))
+    elif game.session.luta:
+        from .luta import start_luta
+        game.change(start_luta(game))
     else:
         from .play import VersusScene
         game.change(VersusScene(game))
@@ -293,6 +296,10 @@ MODE_TEXT = {
     "cinema": ("Reveja as histórias da campanha inteira, do prólogo no Templo Gelado até o fim na Mansão do "
                "Carimbo, com os selos de zerado de cada dificuldade.",
                "QUALQUER UM"),
+    "luta": ("Um contra um de lado, no Coliseu, com os lutadores altos: soco, chute, golpe FORTE com a arma de "
+             "perto, defesa segurando para trás, ESPECIAL (1 carga) e SUPER (3 cargas). Melhor de 3 rounds de 60 "
+             "segundos. Por enquanto lutam o Aryel e o Cauanzera.",
+             "2 JOGADORES"),
     "campaign4": ("Direto para a Mansão do Carimbo, em Cuiabrasa (47 graus à sombra): processos que andam, "
                   "carimbos que pulam, a fila que arrasta, o CPD sem energia e o Cauanzera Corrompido com a IARA "
                   "no gabinete. Cada um começa com mais almas e 7 melhorias (6 sorteadas e 1 escolhida). "
@@ -307,6 +314,7 @@ CATEGORIES = [
     ("duelos", "DUELOS", theme.BLOOD, "CPU · 1X1 · 2X2"),
     ("futebol", "FUTEBOL", theme.MOSS, "PARTIDA · PÊNALTIS"),
     ("basquete", "BASQUETE", (226, 112, 36), "1X1 · 2X2 · TREINO"),
+    ("luta", "LUTA", (150, 96, 230), "1X1 DE LADO · NOVO"),
 ]
 CATEGORY_KEYS = [c[0] for c in CATEGORIES]
 # grupos de cada modalidade: (título do grupo, [modos])
@@ -317,6 +325,7 @@ MODE_GROUPS = {
     "futebol": [("PARTIDA", ["soccer1", "soccer2"]), ("PÊNALTIS", ["penaltis1", "penaltis", "desafio_goleiro"]),
                 ("TREINAR", ["treino_futebol", "treino_penaltis"])],
     "basquete": [("PARTIDA", ["basket1", "basket2"]), ("TREINAR", ["treino_basquete"])],
+    "luta": [("LUTAR", ["luta"])],
 }
 # nomes na lista (cabem na largura dela; o painel ao lado mostra o nome inteiro)
 MODE_LABELS = {"continue": "CONTINUAR CAMPANHA", "campaign": "1 · AS SOMBRAS",
@@ -333,6 +342,7 @@ _CARD_ART = {
     "futebol": ((34, 92, 46), (40, 104, 52), [("velocista", "direita", -46), ("atirador", "esquerda", 46)],
                 "bola"),
     "basquete": ((120, 78, 44), (134, 88, 50), [("ninja", "direita", -46), ("tita", "esquerda", 46)], "basquete"),
+    "luta": (theme.INK, theme.INK_2, [], "luta"),
 }
 
 
@@ -343,6 +353,7 @@ COVER_SCENES = {
     "duelos": ("arena_classica", 0.5, 0.5, (255, 190, 110), "brasa"),
     "futebol": ("campo_futebol", 0.5, 0.5, (255, 250, 220), None),
     "basquete": ("quadra_ginasio", 0.5, 0.5, (255, 220, 160), None),
+    "luta": ("coliseu", 0.5, 0.42, (255, 170, 100), "brasa"),
     "chapter1": ("floresta", 0.45, 0.55, (170, 220, 120), "vagalume"),
     "chapter2": ("lag_openspace", 0.5, 0.5, (150, 200, 255), "pixel"),
     "chapter3": ("clinica_consultorios", 0.5, 0.5, (255, 170, 210), "brilho"),
@@ -456,6 +467,29 @@ def draw_cover(screen, assets, key, area, ticks):
         screen.fill(c, (round(x), round(y), n, n), special_flags=pygame.BLEND_RGB_ADD)
 
 
+_TALL = {}
+
+
+def _draw_tall_pair(screen, area, ground, scale, ticks, spread=0.16):
+    """Capa da LUTA: o Aryel e o Cauanzera altos, em guarda, um de frente para o outro."""
+    from .. import luta
+    poses = ("guarda", "guarda2")
+    pose = poses[(ticks // 28) % 2]
+    for key, side in (("aryel", -1), ("cauanzera", 1)):
+        ck = (key, pose, scale)
+        if ck not in _TALL:
+            right, left, _ = luta.Bank.get(key, pose)
+            img = right if side < 0 else left
+            size = (round(img.get_width() * scale), round(img.get_height() * scale))
+            _TALL[ck] = pygame.transform.smoothscale(img, size)
+        img = _TALL[ck]
+        from ..luta_rig import CW, GROUND, ROOT_X, U
+        root_x = (ROOT_X if side < 0 else CW - ROOT_X) * U * scale
+        x = area.centerx + side * area.w * spread
+        pygame.draw.ellipse(screen, (0, 0, 0), (x - 34 * scale * 2, ground - 6, 68 * scale * 2, 12))
+        screen.blit(img, (round(x - root_x), round(ground - GROUND * U * scale)))
+
+
 def category_of(mode):
     for cat, groups in MODE_GROUPS.items():
         if any(mode in modes for _, modes in groups):
@@ -467,7 +501,7 @@ class ModeScene(_MenuScene):
     """Escolha do modo em dois níveis: primeiro a modalidade (4 cartões), depois os modos dela."""
 
     menu_keys = True
-    CARD_W, CARD_H, CARD_GAP, CARD_Y = 196, 300, 20, 112
+    CARD_W, CARD_H, CARD_GAP, CARD_Y = 168, 300, 14, 112
     PANEL_BOTTOM = 498                  # o painel de descrição cresce até aqui (o rodapé fica livre)
 
     def __init__(self, game, category=None):
@@ -485,10 +519,11 @@ class ModeScene(_MenuScene):
         self.category = None
         self.menu = None
         self.headers = []
-        x0 = (config.SCREEN_W - (self.CARD_W * 4 + self.CARD_GAP * 3)) // 2
+        n = len(CATEGORIES)
+        x0 = (config.SCREEN_W - (self.CARD_W * n + self.CARD_GAP * (n - 1))) // 2
         self.card_rects = [pygame.Rect(x0 + i * (self.CARD_W + self.CARD_GAP), self.CARD_Y, self.CARD_W, self.CARD_H)
-                           for i in range(4)]
-        self.continue_rect = pygame.Rect(x0, 436, self.CARD_W * 4 + self.CARD_GAP * 3, 34)
+                           for i in range(n)]
+        self.continue_rect = pygame.Rect(x0, 436, self.CARD_W * n + self.CARD_GAP * (n - 1), 34)
         self.tab_rects = []
         if category is not None:
             self.open(category)
@@ -547,10 +582,10 @@ class ModeScene(_MenuScene):
             return
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_LEFT, pygame.K_a):
-                self.cat_index = (self.cat_index - 1) % 4
+                self.cat_index = (self.cat_index - 1) % len(CATEGORIES)
                 self.sfx("select", 0.25)
             elif event.key in (pygame.K_RIGHT, pygame.K_d):
-                self.cat_index = (self.cat_index + 1) % 4
+                self.cat_index = (self.cat_index + 1) % len(CATEGORIES)
                 self.sfx("select", 0.25)
             elif event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
                 self.sfx("confirm")
@@ -639,7 +674,8 @@ class ModeScene(_MenuScene):
             screen.fill(theme.INK_3 if chosen else theme.INK_2, base)
             screen.fill(color, (r.x, art.bottom, r.w, 3))
             self.ui.text(screen, name, theme.S, theme.BRASS if chosen else theme.BONE, (base.centerx, base.y + 26))
-            self.ui.text(screen, "1 A 4 JOGADORES", theme.XS, theme.MUTED, (base.centerx, base.y + 52))
+            self.ui.text(screen, "2 JOGADORES" if key == "luta" else "1 A 4 JOGADORES", theme.XS, theme.MUTED,
+                         (base.centerx, base.y + 52))
             self.ui.text(screen, sub, theme.XS, theme.BONE if chosen else theme.FAINT, (base.centerx, base.y + 70),
                          shadow=False)
             pygame.draw.rect(screen, theme.BRASS if chosen else theme.LINE, r, 3 if chosen else 2)
@@ -683,6 +719,8 @@ class ModeScene(_MenuScene):
             bx = area.centerx + int(math.sin(self.ticks * 0.05) * 14)
             pygame.draw.circle(screen, (20, 18, 24), (bx, ground - 6), 9)
             pygame.draw.circle(screen, (238, 236, 228), (bx, ground - 6), 8)
+        elif extra == "luta":
+            _draw_tall_pair(screen, area, ground + 4, 0.44, self.ticks, spread=0.24)
         elif extra == "basquete":
             by = ground - 8 - int(abs(math.sin(self.ticks * 0.08)) * 46)
             pygame.draw.circle(screen, (60, 24, 8), (area.centerx, by), 10)
@@ -763,6 +801,10 @@ class ModeScene(_MenuScene):
                     draw_seal(screen, self.ui, (area.x + 22 + i * 34, area.y + 22), k, k in earned, self.ticks, size=14)
             return
         draw_cover(screen, self.assets, key, area, self.ticks)
+        if MODES[key].get("luta"):
+            _draw_tall_pair(screen, area, area.bottom - 10, 0.62, self.ticks)
+            screen.fill(theme.LINE, (area.x, area.bottom, area.w, 2))
+            return
         sprites = self.assets.sprites
         ground = area.bottom - 22
         if MODES[key].get("penalty"):
@@ -2198,7 +2240,31 @@ def _scene_corredores(screen, ui, rect, t):
     ui.text(screen, f"CAPÍTULO {chapter} · {name}", theme.XS, theme.BONE, (rect.centerx, rect.bottom - 11))
 
 
-NEWS_SCENES = {"almas": _scene_almas, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
+def _scene_luta(screen, ui, rect, t):
+    """Modo LUTA: o Aryel e o Cauanzera altos trocando golpes no Coliseu."""
+    from .. import luta
+    from ..luta_rig import CW, GROUND, ROOT_X, U
+    from .luta import coliseu_backdrop
+    bg = coliseu_backdrop(None)
+    crop = bg.subsurface(pygame.Rect(120, 150, 720, 400).clip(bg.get_rect()))
+    screen.blit(pygame.transform.smoothscale(crop, rect.size), rect)
+    scale = rect.h / 330
+    beat = (t // 18) % 4
+    poses = {"aryel": ("guarda", "soco2", "guarda", "levou")[beat],
+             "cauanzera": ("guarda2", "levou", "guarda2", "chute2")[beat]}
+    ground = rect.bottom - 14
+    for key, side in (("aryel", -1), ("cauanzera", 1)):
+        right, left, _ = luta.Bank.get(key, poses[key])
+        img = right if side < 0 else left
+        img = pygame.transform.smoothscale(img, (round(img.get_width() * scale), round(img.get_height() * scale)))
+        root = (ROOT_X if side < 0 else CW - ROOT_X) * U * scale
+        x = rect.centerx + side * 44 * scale * 2
+        pygame.draw.ellipse(screen, (0, 0, 0), (x - 40 * scale, ground - 5, 80 * scale, 10))
+        screen.blit(img, (round(x - root), round(ground - GROUND * U * scale)))
+    ui.text(screen, "LUTA 1 x 1", theme.XS, theme.BONE, (rect.centerx, rect.y + 14))
+
+
+NEWS_SCENES = {"almas": _scene_almas, "luta": _scene_luta, "loja": _scene_loja, "hud": _scene_hud, "novidades": _scene_novidades,
                "enterrada": _scene_enterrada, "futebol": _scene_futebol, "penalti": _scene_penalti,
                "disputa": _scene_disputa, "lag": _scene_lag, "perigos": _scene_perigos,
                "chefao_lag": _scene_chefao_lag, "armas_lag": _scene_armas_lag,

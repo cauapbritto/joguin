@@ -551,6 +551,9 @@ class ResultsScene(_MenuScene):
         if choice == "rematch" and self.game.session.penalty:
             from .penalty import start_penalties
             self.game.change(start_penalties(self.game))
+        elif choice == "rematch" and self.game.session.luta:
+            from .luta import start_luta
+            self.game.change(start_luta(self.game))
         elif choice == "rematch":
             self.game.change(VersusScene(self.game))
         elif choice == "select":
