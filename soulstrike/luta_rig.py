@@ -236,6 +236,11 @@ def draw_fighter(L, F):
         sk = far(skin, amt) if isfar else skin
         r_u, r_f = (5.2, 3.8) if fem else (6.8 * k + 0.4, 4.8 * k + 0.4)
         up_col = (far(sleeve, amt) if isfar else sleeve) if sleeve else sk
+        if not isfar and sleeve:
+            # a manga sai do ombro da camisa sem emenda: um pedaço do tronco vai junto no mesmo
+            # desenho (de baixo do ombro para o peito, sem subir no pescoço)
+            chest = pt(hip, upA, 22)
+            b.blob(lerp(sh0, chest, 0.1), lerp(sh0, chest, 0.55), r_u * 0.95, r_u * 0.8, top, edge=False)
         b.blob(sh0, e, r_u, r_u * 0.68, up_col, bulge=(1.0 if fem else 2.4 * k))
         fcol = (far(sleeve, amt) if isfar else sleeve) if long_sleeve else sk
         b.blob(e, h, r_f + (0.6 if long_sleeve else 0), r_f * 0.72 + 0.4, fcol, bulge=(0.8 if fem else 1.5 * k))
@@ -278,6 +283,9 @@ def draw_fighter(L, F):
         an = pt(kn, ang + knee, shin * st)
         pc = far(L["pants"]) if isfar else L["pants"]
         rt = (7.0, 5.0) if fem else (7.8 * k + 0.6, 5.6 * k + 0.4)
+        if not isfar:
+            # quadril da calça: liga as duas coxas e fica por baixo da barra da camisa
+            b.blob((hp_f[0], hp_f[1] - 2), (hp_n[0], hp_n[1] - 2), waist_r, waist_r, pc, edge=False)
         b.blob(hp, kn, rt[0], rt[1], pc, bulge=(1.4 if fem else 1.8 * k))
         b.blob(kn, an, rt[1] + 0.4, 3.6, pc)
         b.blob(kn, lerp(kn, an, 0.55), rt[1] + 0.2, rt[1] - 0.6, pc, bulge=(1.2 if fem else 1.8 * k), edge=False)
@@ -318,17 +326,21 @@ def draw_fighter(L, F):
         P[tag + "_ankle"] = an
 
     hc = pt(neck, 180 - lean * 0.6 - F.get("head", 0), 10)
+    top = L.get("shirt") or skin
+    chest_r = (8.5 if fem else 12.0 * k + 1.2) + abs(sp) * (1.0 if fem else 2.0)
+    waist_r = 6.2 if fem else 8.6 * k + 1.0
     if turn >= 0:
         arm(sh_f, F["fa"], True, "far")
         leg(hp_f, F["fl"], True, "far")
     else:
         leg(hp_f, F["fl"], True, "far")
         arm(sh_f, F["fa"], True, "far")
+    # a perna da frente vem antes do tronco: a camisa cobre o encaixe da coxa
+    leg(hp_n, F["nl"], False, "near")
+    if L.get("tabard"):
+        tabard(s, b, L, P, hp_n, hp_f, far)
 
     # ── tronco ──
-    top = L.get("shirt") or skin
-    chest_r = (8.5 if fem else 12.0 * k + 1.2) + abs(sp) * (1.0 if fem else 2.0)
-    waist_r = 6.2 if fem else 8.6 * k + 1.0
     b.begin()
     b.blob(pt(hip, upA, 4), pt(hip, upA, 15), waist_r, waist_r + 0.6, top)
     b.blob(pt(hip, upA, 18), pt(hip, upA, 29), chest_r - 1, chest_r, top, bulge=1.0)
@@ -405,9 +417,6 @@ def draw_fighter(L, F):
     L["head"](s, b, hc, L, face, F)
     P["head"] = hc
 
-    leg(hp_n, F["nl"], False, "near")
-    if L.get("tabard"):
-        tabard(s, b, L, P, hp_n, hp_f, far)
     arm(sh_n, F["na"], False, "near")
     details(s, P, L)
     return outline(surface), P
