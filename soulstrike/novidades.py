@@ -12,6 +12,18 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.57.0": [
+        {"title": "MODO NOVO: LUTA", "scene": "luta", "lines": [
+            "Modalidade nova no menu: LUTA, um contra um de lado no Coliseu, com lutadores altos e detalhados.",
+            "Soco, chute, rasteira, voadora e o golpe FORTE com a arma de perto. Segurar para trás defende.",
+            "Por enquanto lutam o Aryel e o Cauanzera. Melhor de 3 rounds de 60 segundos.",
+        ]},
+        {"title": "ESPECIAL E SUPER", "scene": "luta", "lines": [
+            "Bater e apanhar enche a energia azul: 1 carga solta o ESPECIAL e 3 cargas, o SUPER.",
+            "Aryel: APOSTA na roleta (GREEN chove moeda no outro, RED estoura nele) e GRAU DE MOTO.",
+            "Cauanzera: basquete, vôlei e 100 metros, em ordem, e a ENTERRADA de SUPER.",
+        ]},
+    ],
     "1.56.2": [
         {"title": "CONSERTOS NO CONTROLE", "scene": "controle", "lines": [
             "Escolher o modo com o A do controle não pula mais a tela do QR Code: os celulares entram.",

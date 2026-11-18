@@ -36,12 +36,16 @@ class ModosTest(unittest.TestCase):
         self.assertEqual(category_of("treino"), "duelos")
         self.assertEqual(category_of("treino_basquete"), "basquete")
 
-    def test_primeiro_nivel_mostra_4_cartoes(self):
+    def test_primeiro_nivel_mostra_5_cartoes(self):
         g = game()
         scene = ModeScene(g)
         g.scene = scene
         self.assertIsNone(scene.category)
-        self.assertEqual(len(scene.card_rects), 4)
+        self.assertEqual(len(scene.card_rects), 5)
+        for a, b in zip(scene.card_rects, scene.card_rects[1:]):
+            self.assertLess(a.right, b.left)                # não encostam
+        self.assertGreaterEqual(scene.card_rects[0].left, 0)
+        self.assertLessEqual(scene.card_rects[-1].right, 960)
         scene.draw(g.screen)
         scene.handle(tecla(pygame.K_RIGHT))
         scene.handle(tecla(pygame.K_RIGHT))
@@ -55,6 +59,10 @@ class ModosTest(unittest.TestCase):
         # LB/RB (PageUp/PageDown) trocam de modalidade sem voltar
         scene.handle(tecla(pygame.K_PAGEDOWN))
         self.assertEqual(scene.category, "basquete")
+        scene.handle(tecla(pygame.K_PAGEDOWN))
+        self.assertEqual(scene.category, "luta")
+        self.assertEqual([v for _, v in scene.menu.options], ["luta"])
+        scene.draw(g.screen)
         scene.handle(tecla(pygame.K_PAGEDOWN))
         self.assertEqual(scene.category, "campanha")
         scene.draw(g.screen)

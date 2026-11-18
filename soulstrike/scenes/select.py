@@ -290,6 +290,13 @@ class CharSelectScene(_MenuScene):
             slots = sorted(slots, key=lambda s: (session.team_of(s.slot), s.slot))
         # no futebol entram também os craques (só do futebol); o índice é sempre o de CHARACTERS
         self.choices = roster_indices(soccer=self.soccer)
+        self.luta = session.luta
+        if self.luta:                       # LUTA: só quem já tem o corpo alto (luta.FIGHTER_KEYS)
+            from ..luta import FIGHTER_KEYS
+            self.choices = [i for k in FIGHTER_KEYS for i, c in enumerate(CHARACTERS) if c.key == k]
+            for i, s in enumerate(slots):
+                if s.char not in self.choices:
+                    s.char = self.choices[i % len(self.choices)]
         self.roster = [CHARACTERS[i] for i in self.choices]
         self.cards = [_Card(s, self.choices) for s in slots]
         self.countdown = 0
@@ -479,6 +486,8 @@ class CharSelectScene(_MenuScene):
         rows = []
         if self.basket:
             rows.append(("QUADRA", MAPS_BY_KEY[self.court_key].name.upper(), self._cycle_court))
+        elif self.luta:
+            pass
         elif not self.soccer and not self.campaign:
             rows.append(("MAPA", self.battle_maps[self.map_index].name.upper(), self._cycle_map))
         if self.campaign or s.mode == "cpu":
@@ -576,6 +585,8 @@ class CharSelectScene(_MenuScene):
                 self._cycle_assist(1)
             elif self.campaign and event.key == pygame.K_TAB:
                 self._cycle_difficulty(1)
+            elif self.luta and event.key in (pygame.K_TAB, pygame.K_RIGHTBRACKET, pygame.K_LEFTBRACKET):
+                pass                                # LUTA: o Coliseu é a arena (por enquanto a única)
             elif not self.soccer and not self.campaign and event.key in (pygame.K_TAB, pygame.K_RIGHTBRACKET):
                 self._cycle_map(1)
             elif not self.soccer and not self.campaign and event.key == pygame.K_LEFTBRACKET:
@@ -605,7 +616,7 @@ class CharSelectScene(_MenuScene):
                 if rect.collidepoint(pos) and not card.setup.cpu:
                     if card.ready:
                         card.ready = False
-                    elif not self.soccer and rect.y + 270 < pos[1] < rect.y + 296:
+                    elif not self.soccer and not self.luta and rect.y + 270 < pos[1] < rect.y + 296:
                         card.setup.weapon = 1 - card.setup.weapon
                         self.sfx("select", 0.3)
                     else:
@@ -619,7 +630,7 @@ class CharSelectScene(_MenuScene):
                     if r.collidepoint(pos):
                         self._cycle_assist(step)
             if not self.soccer:
-                if not self.campaign:
+                if not self.campaign and not self.luta:
                     for step, r in zip((-1, 1), self.map_arrows):
                         if r.collidepoint(pos):
                             self._cycle_map(step)
@@ -656,7 +667,7 @@ class CharSelectScene(_MenuScene):
                 self._change_char(card, 1)
             if inp.pressed("weapon") and self.basket:
                 self._cycle_court(1)                   # no controle/celular: o botão de arma troca a quadra
-            if inp.pressed("weapon") and not self.soccer:
+            if inp.pressed("weapon") and not self.soccer and not self.luta:
                 card.setup.weapon = 1 - card.setup.weapon
                 self.sfx("select", 0.3)
             if inp.pressed("confirm"):
@@ -681,6 +692,10 @@ class CharSelectScene(_MenuScene):
                 if session.penalty:
                     from .penalty import start_penalties
                     self.game.change(start_penalties(self.game))
+                    return
+                if session.luta:
+                    from .luta import start_luta
+                    self.game.change(start_luta(self.game))
                     return
                 from .play import VersusScene
                 self.game.change(VersusScene(self.game))
@@ -714,6 +729,8 @@ class CharSelectScene(_MenuScene):
                 items.insert(0, ("TAB", "DIFICULDADE: " + label))
             elif self.basket:
                 items.insert(0, ("TAB", "QUADRA: " + MAPS_BY_KEY[self.court_key].name.upper()))
+            elif self.luta:
+                pass
             elif not self.soccer:
                 label = "MAPA"
                 if len(self.cards) == 4:            # sem o painel do meio: o nome do mapa vai no rodapé
@@ -807,6 +824,11 @@ class CharSelectScene(_MenuScene):
                 # craque: além do SUPER, uma habilidade que vale o jogo todo
                 blocks.append(("SEMPRE: " + stats.ability_name.upper(), theme.MOSS, stats.ability_desc))
             return blocks
+        if self.luta:
+            from ..luta import SPECS
+            spec = SPECS[stats.key]
+            return [("ESPECIAL: " + spec.special, theme.BRASS, spec.special_desc),
+                    ("SUPER: " + spec.super, (120, 186, 255), spec.super_desc)]
         return [(stats.ability_name.upper(), theme.BRASS, stats.ability_desc)]
 
     def _blocks_height(self, blocks, width, line_h, sep):
@@ -918,6 +940,8 @@ class CharSelectScene(_MenuScene):
             y = rect.y + self.WEAPON_LINE
             screen.fill(theme.LINE, (rect.x + 14, y - 12, rect.w - 28, 1))
             weapon = stats.weapons[setup.weapon]
+            if self.luta:                               # LUTA: a arma de perto, só no golpe FORTE
+                weapon = next((w for w in stats.weapons if w.is_melee), weapon)
             if weapon.is_melee:
                 kind = "CORPO" if rect.w < 260 else "CORPO A CORPO"     # cartão estreito: rótulo curto
             else:
@@ -941,7 +965,8 @@ class CharSelectScene(_MenuScene):
                     break
             x = rect.x + 14
             if label:
-                ui.text(screen, "ARMA", theme.XS, theme.MUTED, (x, y), anchor="midleft", shadow=False)
+                ui.text(screen, "FORTE" if self.luta else "ARMA", theme.XS, theme.MUTED, (x, y), anchor="midleft",
+                        shadow=False)
                 x += 46
             name_rect = ui.text(screen, wname, theme.XS, theme.BONE, (x, y), anchor="midleft")
             kind_rect = ui.text(screen, kind, theme.XS, theme.FAINT, (rect.right - 14, y), anchor="midright", shadow=False)
@@ -1003,6 +1028,9 @@ class CharSelectScene(_MenuScene):
             for direction, r in zip(("left", "right"), self.assist_arrows):
                 ui.arrow(screen, r.center, direction, 7, theme.BRASS if r.collidepoint(mouse) else theme.MUTED)
             return
+        if self.luta:
+            self._draw_luta_panel(screen, c)
+            return
         ui.panel(screen, c, fill=theme.INK_2)
         ui.text(screen, "ARENA", theme.XS, theme.MUTED, (c.centerx, c.y + 20))
         cfg = self.battle_maps[self.map_index]
@@ -1031,6 +1059,27 @@ class CharSelectScene(_MenuScene):
                     if self.game.session.mode.startswith("treino") else "Os dois confirmam e a luta começa.")
             ui.paragraph(screen, text, theme.XS, theme.MUTED,
                          (c.x + 16, c.y + 236), c.w - 32, spacing=14)
+
+    def _draw_luta_panel(self, screen, c):
+        """LUTA: a arena (Coliseu de lado), as regras e os botões."""
+        ui = self.ui
+        ui.panel(screen, c, fill=theme.INK_2)
+        ui.text(screen, "ARENA", theme.XS, theme.MUTED, (c.centerx, c.y + 20))
+        ui.text(screen, "COLISEU", theme.XS, theme.BONE, (c.centerx, c.y + 40))
+        from .luta import coliseu_backdrop
+        thumb = pygame.transform.smoothscale(coliseu_backdrop(self.assets), (216, 122))
+        tr = thumb.get_rect(midtop=(c.centerx, c.y + 56))
+        screen.fill(theme.SHADOW, tr.inflate(4, 4))
+        screen.blit(thumb, tr)
+        ui.text(screen, "MELHOR DE 3 · 60 S", theme.XS, theme.BRASS, (c.centerx, tr.bottom + 16))
+        rows = [("SOCO", "ATACAR"), ("CHUTE", "HABILIDADE"), ("PULO", "↑ OU ESQUIVA"), ("FORTE", "→ + SOCO"),
+                ("DEFESA", "SEGURAR ←")]
+        y = tr.bottom + 40
+        for name, how in rows:
+            ui.text(screen, name, theme.XS, theme.BONE, (c.x + 14, y), anchor="midleft", shadow=False)
+            ui.text(screen, how, theme.XS, theme.MUTED, (c.right - 14, y), anchor="midright", shadow=False)
+            y += 15
+        ui.text(screen, "ESPECIAL E SUPER NA ENERGIA", theme.XS, (120, 186, 255), (c.centerx, y + 8))
 
     def _draw_campaign_panel(self, screen, c):
         ui = self.ui

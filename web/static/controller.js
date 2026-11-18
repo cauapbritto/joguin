@@ -1493,7 +1493,8 @@
       return;
     }
     var mode = status.mode;
-    var modeName = mode === "soccer" ? (status.hud === "basket" ? "BASQUETE" : "FUTEBOL") : mode === "campaign" ? "CAMPANHA" : "DUELO";
+    var modeName = mode === "soccer" ? (status.hud === "basket" ? "BASQUETE" : "FUTEBOL") : mode === "campaign" ? "CAMPANHA"
+      : mode === "luta" ? "LUTA" : "DUELO";
     if (mode !== "campaign" && (me.team === 0 || me.team === 1)) {
       modeName += " · TIME " + (me.team === 0 ? "AZUL" : "VERMELHO");   // 2 x 2
     }
@@ -1528,13 +1529,16 @@
       show("pad");
       soccerMode = mode === "soccer";
       document.body.classList.toggle("soccer", soccerMode);
-      document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer"); });
+      document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer" && mode !== "luta"); });
       document.querySelectorAll(".soccer-only").forEach(function (e) { e.classList.toggle("on", mode === "soccer"); });
+      document.querySelectorAll(".fight-only").forEach(function (e) { e.classList.toggle("on", mode === "luta"); });
       document.querySelectorAll(".campaign-only").forEach(function (e) { e.classList.toggle("hidden", mode !== "campaign"); });
       useHud(status.hud || (soccerMode ? "soccer" : "battle"));
-      $("pad-hint").textContent = soccerMode ? "empurre até a borda para correr" : "mova o analógico";
-      document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer"); });
+      $("pad-hint").textContent = soccerMode ? "empurre até a borda para correr"
+        : mode === "luta" ? "para trás defende, para baixo agacha" : "mova o analógico";
+      document.querySelectorAll(".battle-only").forEach(function (e) { e.classList.toggle("on", mode !== "soccer" && mode !== "luta"); });
       document.querySelectorAll(".soccer-only").forEach(function (e) { e.classList.toggle("on", mode === "soccer"); });
+      document.querySelectorAll(".fight-only").forEach(function (e) { e.classList.toggle("on", mode === "luta"); });
       $("paused").classList.toggle("on", phase === "paused");
       var ch = roster[me.char];
       var sb = $("super-btn");
@@ -1547,6 +1551,7 @@
       sb.classList.toggle("cooling", cd > 0);
       sb.classList.toggle("ready", cd <= 0);
       renderAmmo(me, mode);
+      renderFight(me, mode);
       renderSouls(me);
       vibrateFor(me.buzz);
       if (me.vibracao !== undefined) gameVibrate = !!me.vibracao;
@@ -1676,6 +1681,19 @@
     var words = (out || name.slice(0, 14)).split(" ");
     while (words.length > 1 && /^(DE|DA|DO|DAS|DOS|E)$/.test(words[words.length - 1])) words.pop();   // não termina em "DAS"
     return words.join(" ");
+  }
+
+  // LUTA: a energia enche o ESPECIAL (1 carga) e o SUPER (3 cargas)
+  function renderFight(me, mode) {
+    if (mode !== "luta") return;
+    var en = me.energy || 0, emax = me.emax || 30, cost = me.ecost || 10;
+    [["fight-special", cost], ["fight-super", emax]].forEach(function (pair) {
+      var b = $(pair[0]);
+      if (!b) return;
+      b.style.setProperty("--p", Math.min(1, en / pair[1]).toFixed(3));
+      b.classList.toggle("cooling", en < pair[1]);
+      b.classList.toggle("ready", en >= pair[1]);
+    });
   }
 
   function renderAmmo(me, mode) {
