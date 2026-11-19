@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pygame
 
-from .. import config, luta as L, luta_rig as R, theme
+from .. import config, luta as L, luta_rig as R, luta_sprites, theme
 from ..data import CHARACTERS
 from ..matches import Result
 from ..net.remote import hub
@@ -126,6 +126,8 @@ def fighter_key(index):
 def portrait(key, size=60):
     """Rosto do lutador (recorte da cabeça do quadro de guarda) para o HUD."""
     cache = _BACKDROP.setdefault("rostos", {})
+    if (key, size) not in cache and luta_sprites.available(key):
+        cache[(key, size)] = luta_sprites.head(key, size)
     if (key, size) not in cache:
         img, _, P = L.Bank.get(key, "guarda")
         hx, hy = P["head"]
@@ -321,13 +323,21 @@ class LutaScene(Scene):
         pygame.draw.ellipse(shadow, (0, 0, 0, 120), shadow.get_rect())
         s.blit(shadow, rect)
 
+    def _place(self, f, view, facing, x, y):
+        """(imagem, canto) do lutador: o desenho da folha quando tem, senão o esqueleto."""
+        if luta_sprites.available(f.key):
+            return luta_sprites.frame(f.key, view).place(x, FLOOR - y, facing)
+        right, left, _ = L.Bank.get(f.key, view)
+        u = R.U
+        ox = x - (R.ROOT_X * u if facing > 0 else (R.CW - R.ROOT_X) * u)
+        return (right if facing > 0 else left), (round(ox), round(FLOOR - y - R.GROUND * u))
+
     def _fighter_image(self, f):
-        right, left, _ = f.view_frame()
-        img = right if f.facing > 0 else left
+        img, pos = self._place(f, f.view, f.facing, f.x, f.y)
         if f.flash and f.flash % 2:
             img = img.copy()
             img.fill((90, 60, 60, 0), special_flags=pygame.BLEND_RGBA_ADD)
-        return img
+        return img, pos
 
     # ── rastro dos golpes ─────────────────
     def _trail_on(self, f):
@@ -353,8 +363,7 @@ class LutaScene(Scene):
         key = (f.key, view, facing, f.side)
         img = self._ghosts.get(key)
         if img is None:
-            right, left, _ = L.Bank.get(f.key, view)
-            img = (right if facing > 0 else left).copy()
+            img = self._place(f, view, facing, 0, 0)[0].copy()
             tint = theme.SLOT_COLORS.get(f.slot, (255, 255, 255))
             img.fill((*mix_light(tint), 255), special_flags=pygame.BLEND_RGBA_MULT)
             img.fill((40, 40, 50, 0), special_flags=pygame.BLEND_RGBA_ADD)
@@ -365,7 +374,6 @@ class LutaScene(Scene):
 
     def _draw_trail(self, s, f, sx, sy):
         trail = self._trail[self.fight.fighters.index(f)]
-        u = R.U
         for n, back in enumerate((4, 2)):
             if len(trail) <= back:
                 continue
@@ -374,16 +382,12 @@ class LutaScene(Scene):
                 continue
             img = self._ghost(f, view, facing)
             img.set_alpha(40 + 32 * n)
-            ox = x - (R.ROOT_X * u if facing > 0 else (R.CW - R.ROOT_X) * u)
-            oy = FLOOR - y - R.GROUND * u
-            s.blit(img, (round(ox) + sx, round(oy) + sy))
+            ox, oy = self._place(f, view, facing, x, y)[1]
+            s.blit(img, (ox + sx, oy + sy))
 
     def _draw_fighter(self, s, f, sx, sy):
         self._draw_trail(s, f, sx, sy)
-        img = self._fighter_image(f)
-        u = R.U
-        ox = f.x - (R.ROOT_X * u if f.facing > 0 else (R.CW - R.ROOT_X) * u)
-        oy = FLOOR - f.y - R.GROUND * u
+        img, (ox, oy) = self._fighter_image(f)
         if f.state == "levantando" and f.t % 4 < 2 or f.invuln and f.state == "livre" and f.t % 4 < 2:
             img = img.copy()
             img.set_alpha(150)
@@ -395,12 +399,18 @@ class LutaScene(Scene):
                 s.blit(glow, (ox + dx + sx, oy + dy + sy))
         s.blit(img, (round(ox) + sx, round(oy) + sy))
 
+    def _hand(self, f, P):
+        """Mão da frente na tela: a do desenho da folha quando tem, senão a do esqueleto."""
+        if luta_sprites.available(f.key):
+            return luta_sprites.frame(f.key, f.view).hand_at(f.x, FLOOR - f.y, f.facing)
+        return f.to_world(P["near_hand"])
+
     def _draw_weapon(self, s, f, sx, sy):
         """A arma de perto aparece só no golpe FORTE."""
         if f.state != "golpe" or f.move is None or not f.move.weapon:
             return
         P = f.view_frame()[2]
-        hx, hy = f.to_world(P["near_hand"])
+        hx, hy = self._hand(f, P)
         ang = P["near_hand_dir"]
         d = R.dirv(ang)
         dx, dy = d[0] * f.facing, d[1]
@@ -471,6 +481,11 @@ class LutaScene(Scene):
     def _draw_held_ball(self, s, f, sx, sy):
         """Bola na mão do Cauanzera na ENTERRADA e no preparo do arremesso."""
         if f.key != "cauanzera" or f.pose not in ("basquete1", "enterrada1", "enterrada2"):
+            return
+        if luta_sprites.available(f.key):
+            fr = luta_sprites.frame(f.key, f.view)
+            x, y = f.x + 14 * f.facing + sx, fr.top_at(FLOOR - f.y) - 6 + sy
+            self._ball(s, x, y, 15, "basquete", self.ticks * 0.1)
             return
         P = f.view_frame()[2]
         a = f.to_world(P["near_hand"])
