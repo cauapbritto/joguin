@@ -309,7 +309,7 @@ class RemoteHub:
 
     def buzz(self, slot, pattern, force=False):
         """Vibra o celular desta vaga com um padrão (o celular conhece os nomes: hit, big_hit, score,
-        super, call, tick, go). No máximo uma a cada BUZZ_GAP, para não virar um zumbido sem fim;
+        super, call, tick, go, block, fall). No máximo uma a cada BUZZ_GAP, para não virar um zumbido sem fim;
         ``force`` passa por cima disso (avisos que não podem se perder, como o portal)."""
         now = time.monotonic()
         with self._lock:

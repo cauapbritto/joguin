@@ -218,6 +218,7 @@ class Fighter:
         self.move = None
         self.move_t = 0
         self.move_hit = False           # o golpe atual já acertou (cada golpe acerta uma vez)
+        self.whooshed = False           # o "vush" do golpe já tocou
         self.hit_any = False            # acertou alguma coisa (para emendar)
         self.stun = 0
         self.crouch = False
@@ -292,6 +293,7 @@ class Fighter:
         self.move = self.moves[name]
         self.move_t = 0
         self.move_hit = False
+        self.whooshed = False
         self.state = "golpe"
         self.t = 0
         self.pose = self.move.steps[0][0]
@@ -551,6 +553,7 @@ class Fight:
                 f.y = 0
                 f.vx = 0
                 self.sound("passo_pesado", 0.5, f.x)
+                self.buzz(f.slot, "fall")
                 self._dust(f.x)
                 f.set_state("ko" if f.hp <= 0 else "caido", "caido")
         elif st == "caido":
@@ -587,7 +590,6 @@ class Fight:
                     f.start_move("soco_baixo" if down else "soco")
                 else:
                     f.start_move("rasteira" if down else "chute")
-                self.sound("dash", 0.18, f.x)
                 return
         if up and inputs:
             f.vy = JUMP_VY
@@ -645,6 +647,13 @@ class Fight:
         f.set_state("livre", "guarda")
         self._dust(f.x)
 
+    def _whoosh(self, f, i):
+        """O "vush" do golpe cortando o ar, quando ele sai (acertando ou não)."""
+        m = f.move
+        if m.active and i == m.active[0] and not f.whooshed:
+            f.whooshed = True
+            self.sound("dash", 0.5 if m.weapon or m.damage >= 100 else 0.35, f.x)
+
     def _update_move(self, f, opp):
         m = f.move
         f.move_t += 1
@@ -653,12 +662,14 @@ class Fight:
             self._gravity(f)
             i, pose = f.move_step()
             f.pose = pose
+            self._whoosh(f, i)
             if f.y <= 0 and f.move_t > 1:
                 f.move = None
                 self._land(f)
             return
         i, pose = f.move_step()
         f.pose = pose
+        self._whoosh(f, i)
         if f.move_hit or f.hit_any:
             # acertou: dá para emendar o próximo golpe
             nxt = f.take_buffer("attack", "special", "sprint", "dribble", "super")
@@ -898,6 +909,7 @@ class Fight:
             self.effects.append(Effect("defesa", x, y, 14, color=(150, 200, 255), dirx=away))
             self._chips(x, y, -away, 4, (190, 226, 255))
             self.sound("toco", 0.45, x)
+            self.buzz(opp.slot, "block")
             self._push_off_wall(f, opp, move.push * 0.5)
             opp.combo = 0
             return
