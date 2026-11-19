@@ -162,7 +162,10 @@ SEG = {"thigh": 26, "shin": 25, "ua": 19, "fa": 18, "tor": 36}
 
 def segments(L):
     k = L.get("size", 1.0)
-    return {name: v * k for name, v in SEG.items()}
+    out = {name: v * k for name, v in SEG.items()}
+    for name, key in (("ua", "arm"), ("fa", "arm"), ("tor", "torso"), ("thigh", "leg"), ("shin", "leg")):
+        out[name] *= L.get(key, 1.0)          # proporção de cada um (braço mais curto, tronco maior...)
+    return out
 
 
 def ankles(L, F):
@@ -216,7 +219,7 @@ def draw_fighter(L, F):
     def far(c, amt=1.0):
         return mix(sh(c, -38 * amt), (40, 30, 70), 0.22 * amt)
 
-    Ws = (6.0 if fem else 9.5) * (0.9 + 0.1 * k)
+    Ws = (6.0 if fem else 9.5) * (0.9 + 0.1 * k) * L.get("shoulders", 1.0)
     Wh = 5.5 if fem else 5.0
     sp = turn
     sh_n = (neck[0] - fwd[0] * Ws * sp + fwd[0] * 1.5, neck[1] + 6 - fwd[1] * Ws * sp)
@@ -237,7 +240,7 @@ def draw_fighter(L, F):
         r_u, r_f = (5.2, 3.8) if fem else (6.8 * k + 0.4, 4.8 * k + 0.4)
         loose = L.get("loose", 0.0)
         if loose:                       # roupa folgada: manga larga e reta, sem músculo marcando
-            r_u, r_f = r_u + 1.2 * loose, r_f + 1.6 * loose
+            r_u, r_f = r_u + 0.5 * loose, r_f + 1.2 * loose
         up_col = (far(sleeve, amt) if isfar else sleeve) if sleeve else sk
         if not isfar and sleeve:
             # a manga sai do ombro da camisa sem emenda: um pedaço do tronco vai junto no mesmo
@@ -258,6 +261,9 @@ def draw_fighter(L, F):
         b.blob(h, fist, (3.4 if fem else 4.2), (3.2 if fem else 4.0), fc)
         b.flush()
         hand_detail(s, h, fist, d, fc)
+        if long_sleeve and loose:       # pano folgado: dobras na manga (mais perto do punho)
+            fabric_folds(s, sh0, e, r_u, up_col, (0.45, 0.75))
+            fabric_folds(s, e, h, r_f + 0.6, fcol, (0.35, 0.6, 0.78))
         if L.get("stripe"):             # duas listras brancas da manga, do ombro ao punho
             stripe_line(s, [sh0, e, lerp(e, h, 0.8)], [r_u * 0.5, r_f * 0.5], "up",
                         far(L["stripe"], 0.8) if isfar else L["stripe"])
@@ -303,7 +309,7 @@ def draw_fighter(L, F):
         b.blob(kn, an, rt[1] + 0.4, 3.6 + (2.6 if hem == "solta" else 1.0 if hem else 0.0), pc)
         b.blob(kn, lerp(kn, an, 0.55), rt[1] + 0.2, rt[1] - 0.6, pc, bulge=(1.2 if fem else 1.8 * k) * mus, edge=False)
         if hem == "solta":
-            b.blob(lerp(kn, an, 0.82), pt(an, ang + knee, 1.0), 4.6, 5.4, pc, edge=False)
+            b.blob(lerp(kn, an, 0.7), lerp(kn, an, 0.93), 4.8, 5.2, pc, edge=False)
         elif hem == "punho":
             b.blob(lerp(kn, an, 0.86), pt(an, ang + knee, 0.5), 4.4, 4.4, sh(pc, -10), lit=False)
         # pé: a ponta aponta para a FRENTE da canela; foot > 0 estica a ponta
@@ -329,15 +335,20 @@ def draw_fighter(L, F):
                 q = lerp(hp, kn, t0)
                 D.line(s, sh(pc, -46), (q[0] + tn[0] * rt[1] * 0.9, q[1] + tn[1] * rt[1] * 0.9),
                        (q[0] + tn[0] * (rt[1] * 0.9 - w0), q[1] + tn[1] * (rt[1] * 0.9 - w0)), 0.5)
-            q = lerp(kn, an, 0.86)
-            sd = dirv(ang + knee)
-            D.line(s, sh(pc, -55), (q[0] - sd[1] * 3.9, q[1] + sd[0] * 3.9), (q[0] + sd[1] * 3.9, q[1] - sd[0] * 3.9), 0.5)
+            if hem != "solta":
+                q = lerp(kn, an, 0.86)
+                sd = dirv(ang + knee)
+                D.line(s, sh(pc, -55), (q[0] - sd[1] * 3.9, q[1] + sd[0] * 3.9), (q[0] + sd[1] * 3.9, q[1] - sd[0] * 3.9),
+                       0.5)
         if L.get("stripes"):
             sc = L["stripes"]
             for i in (0.3, 0.55):
                 q = lerp(an, toe, i)
                 D.line(s, sc, (q[0] - 0.8, q[1] - 1.8), (q[0] + 0.8, q[1] + 0.6), 0.5)
             D.line(s, sh(bc, -40), pt(an, toe_dir + 90, 2.6), pt(toe, toe_dir + 90, 2.0), 0.5)
+        if loose:                            # pano folgado: dobras na coxa e amontoado no tornozelo
+            fabric_folds(s, hp, kn, rt[0], pc, (0.3, 0.85))
+            fabric_folds(s, kn, an, rt[1], pc, (0.25, 0.62, 0.8) if hem == "solta" else (0.3, 0.7))
         if L.get("cargo") and not isfar:     # bolso de lado da calça cargo, com aba
             cargo_pocket(s, hp, kn, rt, pc)
         if L.get("stripe"):
@@ -347,10 +358,10 @@ def draw_fighter(L, F):
         P[tag + "_knee"] = kn
         P[tag + "_ankle"] = an
 
-    hc = pt(neck, 180 - lean * 0.6 - F.get("head", 0), 10)
+    hc = pt(neck, 180 - lean * 0.6 - F.get("head", 0), 10 + L.get("neck", 0))
     top = L.get("shirt") or skin
-    chest_r = (8.5 if fem else 12.0 * k + 1.2) + abs(sp) * (1.0 if fem else 2.0)
-    waist_r = 6.2 if fem else 8.6 * k + 1.0
+    chest_r = (8.5 if fem else 12.0 * k + 1.2) + abs(sp) * (1.0 if fem else 2.0) + L.get("chest", 0)
+    waist_r = (6.2 if fem else 8.6 * k + 1.0) + L.get("belly", 0) * 0.6
     if turn >= 0:
         arm(sh_f, F["fa"], True, "far")
         leg(hp_f, F["fl"], True, "far")
@@ -370,19 +381,25 @@ def draw_fighter(L, F):
     b.begin()
     b.blob(pt(hip, upA, 4), pt(hip, upA, 15), waist_r, waist_r + 0.6, top)
     b.blob(pt(hip, upA, 18), pt(hip, upA, 29), chest_r - 1, chest_r, top, bulge=1.0)
-    b.blob((sh_f[0], sh_f[1] - 1), (sh_n[0], sh_n[1] - 1), 5.6 if fem else 7.0 * k, 5.6 if fem else 7.0 * k, top)
+    shr = (5.6 if fem else 7.0 * k) + L.get("chest", 0) * 0.5
+    b.blob((sh_f[0], sh_f[1] - 1), (sh_n[0], sh_n[1] - 1), shr, shr, top)
+    if L.get("belly"):                  # barriga e peito cheios: o tronco fica um barril, sem cintura
+        bl_ = L["belly"]
+        b.blob(at0(7, bl_ * 0.5), at0(19, bl_ * 0.3), waist_r + bl_ * 0.4, chest_r - 0.5, top, bulge=bl_ * 0.4)
+    if L.get("back"):                   # costas largas atrás dos ombros
+        b.blob(at0(22, -4 - L["back"]), at0(30, -3 - L["back"]), chest_r * 0.75, chest_r * 0.7, top)
     b.blob(pt(hip, upA, 30), pt(neck, upA, 4), 3.6 if fem else 5.2 * k + 1, 3.2 if fem else 4.6, skin)
     if L.get("collar"):                 # gola alta da jaqueta fechada
         b.blob(pt(neck, upA, -3), pt(neck, upA, 2.5), 5.4 * k + 0.8, 4.8 * k + 0.8, top)
     if L.get("band"):                   # barra elástica larga da blusa
-        b.blob(at0(1.5, -1), at0(5, -1), waist_r + 1.4, waist_r + 1.6, L["band"])
+        b.blob(at0(1.0, -1), at0(4, -1), waist_r - 0.4, waist_r + 0.2, L["band"])
     b.flush()
     if L.get("hood"):                   # capuz amontoado atrás do pescoço
         b.begin()
         back = (-fwd[0], -fwd[1])
         h0 = (neck[0] + back[0] * 4.5, neck[1] + back[1] * 4.5 + 1)
         b.blob(h0, (h0[0] + back[0] * 2.5, h0[1] + 6), 5.6, 4.6, top)
-        b.blob((neck[0] + back[0] * 1.5, neck[1] + 2), (neck[0] + fwd[0] * 2.5, neck[1] + 3.5), 3.4, 3.0, sh(top, -8),
+        b.blob((neck[0] + back[0] * 2.5, neck[1] + 1.5), (neck[0] + fwd[0] * 3.0, neck[1] + 3.0), 4.4, 3.6, sh(top, -8),
                edge=False)
         b.flush()
         D.arc(s, sh(top, -60), (h0[0] - 4, h0[1] - 2, 8, 9), math.pi * 0.6, math.pi * 1.4, 0.5)
@@ -497,6 +514,23 @@ def stripe_line(s, pts, radii, side, col):
         D.line(s, col, a0, a1, 0.5)
         D.line(s, col, b0, b1, 0.5)
         D.line(s, col, a1, b0, 0.5)
+
+
+def fabric_folds(s, a, b, r, col, ts):
+    """Dobras do pano: risquinhos curvos atravessando a manga ou a perna, com luz em cima."""
+    ln = math.hypot(b[0] - a[0], b[1] - a[1]) or 1
+    u = ((b[0] - a[0]) / ln, (b[1] - a[1]) / ln)
+    n = (-u[1], u[0])
+    dark, light = sh(col, -42), sh(col, 26)
+    for i, t in enumerate(ts):
+        c = lerp(a, b, t)
+        w = r * (0.75 if i % 2 else 0.95)
+        side = 1 if i % 2 else -1
+        p0 = (c[0] + n[0] * w * side, c[1] + n[1] * w * side)
+        p1 = (c[0] + u[0] * 1.6 + n[0] * w * 0.1 * side, c[1] + u[1] * 1.6 + n[1] * w * 0.1 * side)
+        p2 = (c[0] - n[0] * w * 0.35 * side + u[0] * 0.6, c[1] - n[1] * w * 0.35 * side + u[1] * 0.6)
+        D.lines(s, dark, False, [p0, p1, p2], 0.5)
+        D.line(s, light, (p0[0] - u[0] * 0.8, p0[1] - u[1] * 0.8), (p1[0] - u[0] * 0.8, p1[1] - u[1] * 0.8), 0.5)
 
 
 def cargo_pocket(s, hp, kn, rt, pc):
@@ -688,7 +722,7 @@ LOOKS = {
     # menor da turma (baixinho e de moto)
     "aryel": dict(build=0.92, size=0.93, young=True, skin=(238, 190, 150), hair=(112, 68, 42),
                   shirt=(234, 142, 172), sleeve=(234, 142, 172), long_sleeve=True, cuff=(212, 118, 150),
-                  hood=True, band=(214, 122, 152), loose=1.0,
+                  hood=True, band=(214, 122, 152), loose=1.0, arm=0.88, chest=1.0, shoulders=1.05, neck=-1.5,
                   pants=(220, 204, 164), cargo=True, hem_leg="solta", boots=(118, 72, 42), belt=(96, 62, 40),
                   buckle=(214, 200, 160), frame=(40, 34, 44), lens=(176, 206, 228), lens_l=(236, 246, 255),
                   iris=(80, 52, 32), head=aryel_head),
@@ -696,7 +730,8 @@ LOOKS = {
     # listras brancas nas mangas e nas pernas, tênis branco e relógio no pulso
     "cauanzera": dict(build=1.0, size=1.07, skin=(196, 142, 104), hair=(30, 26, 30),
                       shirt=(42, 42, 50), sleeve=(42, 42, 50), long_sleeve=True, cuff=(28, 28, 36),
-                      collar=True, zip=(150, 150, 160), stripe=(226, 226, 232), loose=0.7, hem_leg="punho",
+                      collar=True, zip=(150, 150, 160), stripe=(226, 226, 232), loose=0.8, hem_leg="punho",
+                      arm=0.9, chest=3.0, back=3.0, belly=3.0, shoulders=1.15, neck=-2, torso=1.03,
                       pants=(36, 36, 44), boots=(240, 240, 236), stripes=(40, 40, 48), belt=(52, 46, 50),
                       buckle=(176, 178, 188), watch=True,
                       frame=(22, 22, 28), lens=(40, 46, 60), lens_l=(120, 170, 220), iris=(50, 34, 24),

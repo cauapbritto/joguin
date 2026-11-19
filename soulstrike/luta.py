@@ -329,6 +329,7 @@ class Fighter:
             ph = self.walk_phase % 4
             i = int(ph)
             n = round((ph - i) * q)
+            i %= 4                          # -0.0000001 % 4 dá 4.0 no ponto flutuante
             a, b = self.WALK[i], self.WALK[(i + 1) % 4]
             base, target = a, (a if n == 0 else b if n == q else luta_poses.mid(a, b, n))
         else:
