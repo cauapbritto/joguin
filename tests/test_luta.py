@@ -441,6 +441,14 @@ class FolhaDeSpritesTest(unittest.TestCase):
         self.assertLess(abs(lx + left.get_width() - fr.ax - 400), 1)
         self.assertIs(S.frame("aryel", "guarda~soco2~1"), S.frame("aryel", "guarda"))
 
+    def test_objetos_da_folha(self):
+        from soulstrike import luta_sprites as S
+        self.assertTrue(S.has_objects())
+        for name in ("capacete", "capacete_brilho", "cabo", "cabo_torto", "moto", "moto_grau",
+                     "basquete", "volei", "moeda", "moeda_lado"):
+            self.assertEqual(S.obj(name, 40).get_width(), 40)
+        self.assertGreater(S.obj("cabo", 80, 90).get_height(), 70)      # girado em pé
+
     def test_rosto_do_hud_sai_da_folha(self):
         from soulstrike import luta_sprites as S
         self.assertEqual(S.head("cauanzera", 60).get_size(), (60, 60))

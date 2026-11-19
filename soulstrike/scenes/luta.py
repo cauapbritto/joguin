@@ -416,6 +416,17 @@ class LutaScene(Scene):
         d = R.dirv(ang)
         dx, dy = d[0] * f.facing, d[1]
         hx, hy = hx + sx, hy + sy
+        if luta_sprites.has_objects():
+            if f.key == "aryel":                 # capacete de moto na mão
+                img = luta_sprites.obj("capacete_brilho" if f.pose == "forte2" else "capacete", 40, flip=f.facing < 0)
+                s.blit(img, img.get_rect(center=(round(hx + dx * 14), round(hy + dy * 14))))
+            else:                                # cabo de rede: o plugue vai na direção do golpe
+                length = 34 + (f.move.reach if f.pose == "forte2" else 10)
+                deg = math.degrees(math.atan2(-dy, dx)) + (math.sin(self.ticks * 0.6) * 8 if f.pose != "forte2" else 0)
+                img = luta_sprites.obj("cabo" if f.pose == "forte2" else "cabo_torto", length, deg)
+                d = math.radians(deg)
+                s.blit(img, img.get_rect(center=(round(hx + math.cos(d) * length / 2), round(hy - math.sin(d) * length / 2))))
+            return
         if f.key == "aryel":                     # capacete de moto na mão
             cx, cy = hx + dx * 14, hy + dy * 14
             pygame.draw.circle(s, (20, 14, 24), (int(cx), int(cy)), 17)
@@ -447,6 +458,15 @@ class LutaScene(Scene):
     def _draw_vehicle(self, s, f, sx, sy, behind):
         """SUPER do Aryel: a moto (a roda de trás atrás dele, o resto na frente)."""
         if f.pose not in ("moto", "moto_grau"):
+            return
+        if luta_sprites.has_objects():           # a moto inteira atrás dele: o Aryel vai montado na frente
+            if behind:
+                grau = f.pose == "moto_grau"
+                img = luta_sprites.obj("moto_grau" if grau else "moto", 260 if grau else 290, flip=f.facing < 0)
+                s.blit(img, img.get_rect(midbottom=(int(f.x) + sx + 16 * f.facing, FLOOR + sy + 8)))
+            elif self.ticks % 3 == 0:
+                self.fight.effects.append(L.Effect("poeira", f.x - 90 * f.facing, FLOOR - 6, 18, color=(150, 150, 160),
+                                                   vx=-2 * f.facing, vy=-0.6, size=0.8))
             return
         wheelie = 16 if f.pose == "moto_grau" else 0
         base = pygame.Surface((240, 140), pygame.SRCALPHA)
@@ -496,6 +516,17 @@ class LutaScene(Scene):
 
     def _ball(self, s, x, y, r, kind, spin):
         x, y = int(x), int(y)
+        if luta_sprites.has_objects():
+            size = 2 * r + 4
+            if kind == "moeda":                      # moeda girando: achata de lado
+                w = abs(math.cos(spin))
+                name = "moeda" if w > 0.45 else "moeda_lado"
+                img = luta_sprites.obj(name, size)
+                img = pygame.transform.scale(img, (max(3, round(size * max(w, 0.35))), img.get_height()))
+            else:
+                img = luta_sprites.obj("volei" if kind == "volei" else "basquete", size, -math.degrees(spin))
+            s.blit(img, img.get_rect(center=(x, y)))
+            return
         if kind == "basquete":
             pygame.draw.circle(s, (60, 24, 8), (x, y), r + 1)
             pygame.draw.circle(s, (226, 112, 36), (x, y), r)

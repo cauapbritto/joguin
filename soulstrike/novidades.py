@@ -16,7 +16,7 @@ NEWS = {
         {"title": "LUTADORES DESENHADOS", "scene": "luta", "lines": [
             "Aryel e Cauanzera agora são desenhos de pixel art no estilo arcade, com mais de 150 quadros.",
             "Guarda respirando, andar passo a passo, socos, chutes, pulos, queda no chão e levantada.",
-            "Rosto do placar e capa do menu com o desenho novo; as regras dos golpes continuam as mesmas.",
+            "Capacete, cabo de rede, moto, bolas e ficha redesenhados no mesmo estilo; as regras continuam as mesmas.",
         ]},
         {"title": "LUTADORES DE ROUPA NOVA", "scene": "luta", "lines": [
             "Aryel de blusa de capuz rosa fofa e calça cargo com bolso; Cauanzera de agasalho preto com listras brancas.",

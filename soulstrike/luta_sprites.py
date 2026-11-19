@@ -188,6 +188,34 @@ def frame_of(f, scale=SCALE):
     return frame(f.key, f.view, getattr(f, "t", 0), getattr(f, "walk_phase", 0.0), scale)
 
 
+_OBJ = {}
+
+
+def has_objects():
+    return (DIR / "objetos" / "moto.png").exists()
+
+
+def obj(name, width, angle=0, flip=False):
+    """Objeto da folha de objetos (armas, moto, bolas) com width px de largura, virado (flip) e
+    girado (angle em graus, de 10 em 10 para o cache não crescer)."""
+    angle = round(angle / 10) * 10 % 360
+    ck = (name, round(width), angle, flip)
+    img = _OBJ.get(ck)
+    if img is None:
+        img = _raw("objetos", name)
+        w = max(2, round(width))
+        h = max(2, round(img.get_height() * w / img.get_width()))
+        img = pygame.transform.smoothscale(img, (w, h)) if w < img.get_width() else pygame.transform.scale(img, (w, h))
+        if flip:
+            img = pygame.transform.flip(img, True, False)
+        if angle:
+            img = pygame.transform.rotate(img, angle)
+        if len(_OBJ) > 400:
+            _OBJ.clear()
+        _OBJ[ck] = img
+    return img
+
+
 def head(key, size):
     """Rosto para o HUD: o alto do primeiro quadro de guarda."""
     img = _raw(key, "r0c0")
