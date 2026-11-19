@@ -329,6 +329,7 @@ class Fighter:
             ph = self.walk_phase % 4
             i = int(ph)
             n = round((ph - i) * q)
+            i %= 4                          # -0.0000001 % 4 dá 4.0 no ponto flutuante
             a, b = self.WALK[i], self.WALK[(i + 1) % 4]
             base, target = a, (a if n == 0 else b if n == q else luta_poses.mid(a, b, n))
         else:
@@ -610,6 +611,12 @@ class Fight:
             f.pose = "defesa"
         elif fwd or back:
             f.pose = ("andar1", "andar2", "andar3", "andar4")[int(f.walk_phase) % 4]
+            step = int(f.walk_phase) // 2            # um passo a cada meia volta: levanta poeirinha
+            if step != getattr(f, "_step", step):
+                self.effects.append(Effect("poeira", f.x - 18 * f.facing * (1 if fwd else -1), FLOOR - 4, 22,
+                                           color=(176, 150, 112), vx=-0.6 * f.facing * (1 if fwd else -1),
+                                           vy=-0.3, size=0.8))
+            f._step = step
         else:
             f.pose = "guarda2" if (f.t // 28) % 2 else "guarda"
 
@@ -905,6 +912,10 @@ class Fight:
         away = 1 if opp.x > f.x else -1
         self.effects.append(Effect("faisca", x, y, 16, color=(255, 236, 160), size=1.0 + move.damage / 120, dirx=away))
         self._chips(x, y, away, 5 + move.damage // 40, (255, 214, 120))
+        for i in range(2):                         # o pé de quem apanhou arrasta no chão
+            self.effects.append(Effect("poeira", opp.x + away * (6 + i * 16), FLOOR - 4, 26 + i * 4,
+                                       color=(176, 150, 112), vx=away * (1.4 + i * 0.6), vy=-0.4 - i * 0.3,
+                                       size=1.0 + move.damage / 200))
         self.sound(move.sound, 0.55, x)
         self.buzz(opp.slot, "big_hit" if move.damage >= 100 else "hit")
         opp.flash = 6

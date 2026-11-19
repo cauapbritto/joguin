@@ -413,5 +413,46 @@ class QuadrosDeMeioTest(unittest.TestCase):
                 self.assertEqual(f.view, f.pose)
 
 
+class FolhaDeSpritesTest(unittest.TestCase):
+    def test_toda_pose_do_esqueleto_tem_desenho(self):
+        from soulstrike import luta_sprites as S
+        for key in L.FIGHTER_KEYS:
+            self.assertTrue(S.available(key))
+            for view in list(LP.POSES) + list(LP.SPECIAL_POSES.get(key, {})):
+                self.assertTrue(view in S.ANIM[key] or view in S.WALK, (key, view))
+                for cell in S.cells(key, view)[0]:
+                    self.assertTrue((S.DIR / key / f"{cell}.png").exists(), (key, view, cell))
+
+    def test_guarda_respira_andar_segue_o_passo_e_levantar_para_no_fim(self):
+        from soulstrike import luta_sprites as S
+        self.assertNotEqual(S.pick("aryel", "guarda", 0), S.pick("aryel", "guarda", 9))
+        self.assertNotEqual(S.pick("cauanzera", "andar2", phase=0), S.pick("cauanzera", "andar2", phase=1))
+        last = S.cells("aryel", "levantando")[0][-1]
+        self.assertEqual(S.pick("aryel", "levantando", 999), last)
+
+    def test_quadro_fica_com_os_pes_no_chao_e_vira_de_lado(self):
+        from soulstrike import luta_sprites as S
+        fr = S.frame("aryel", "guarda")
+        img, (x, y) = fr.place(400, 474, 1)
+        self.assertEqual(y + fr.bottom, 474)
+        self.assertLess(abs(x + fr.ax - 400), 1)
+        left, (lx, _) = fr.place(400, 474, -1)
+        self.assertIs(left, fr.left)
+        self.assertLess(abs(lx + left.get_width() - fr.ax - 400), 1)
+        self.assertIs(S.frame("aryel", "guarda~soco2~1"), S.frame("aryel", "guarda"))
+
+    def test_objetos_da_folha(self):
+        from soulstrike import luta_sprites as S
+        self.assertTrue(S.has_objects())
+        for name in ("capacete", "capacete_brilho", "cabo", "cabo_torto", "moto", "moto_grau",
+                     "basquete", "volei", "moeda", "moeda_lado"):
+            self.assertEqual(S.obj(name, 40).get_width(), 40)
+        self.assertGreater(S.obj("cabo", 80, 90).get_height(), 70)      # girado em pé
+
+    def test_rosto_do_hud_sai_da_folha(self):
+        from soulstrike import luta_sprites as S
+        self.assertEqual(S.head("cauanzera", 60).get_size(), (60, 60))
+
+
 if __name__ == "__main__":
     unittest.main()

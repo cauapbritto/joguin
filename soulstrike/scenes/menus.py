@@ -470,24 +470,32 @@ def draw_cover(screen, assets, key, area, ticks):
 _TALL = {}
 
 
+def _luta_figure(luta, key, pose, facing, x, ground, scale, cache, t=0):
+    """(imagem, canto) de um lutador da LUTA com o corpo em x e os pés em ground: o desenho da
+    folha quando tem, senão o esqueleto."""
+    from .. import luta_sprites
+    from ..luta_rig import CW, GROUND, ROOT_X, U
+    if luta_sprites.available(key):
+        return luta_sprites.frame(key, pose, t, scale=luta_sprites.SCALE * scale).place(x, ground, facing)
+    ck = (key, pose, scale, facing)
+    if ck not in cache:
+        right, left, _ = luta.Bank.get(key, pose)
+        img = right if facing > 0 else left
+        cache[ck] = pygame.transform.smoothscale(img, (round(img.get_width() * scale), round(img.get_height() * scale)))
+    root = (ROOT_X if facing > 0 else CW - ROOT_X) * U * scale
+    return cache[ck], (round(x - root), round(ground - GROUND * U * scale))
+
+
 def _draw_tall_pair(screen, area, ground, scale, ticks, spread=0.16):
     """Capa da LUTA: o Aryel e o Cauanzera altos, em guarda, um de frente para o outro."""
     from .. import luta
     poses = ("guarda", "guarda2")
     pose = poses[(ticks // 28) % 2]
     for key, side in (("aryel", -1), ("cauanzera", 1)):
-        ck = (key, pose, scale)
-        if ck not in _TALL:
-            right, left, _ = luta.Bank.get(key, pose)
-            img = right if side < 0 else left
-            size = (round(img.get_width() * scale), round(img.get_height() * scale))
-            _TALL[ck] = pygame.transform.smoothscale(img, size)
-        img = _TALL[ck]
-        from ..luta_rig import CW, GROUND, ROOT_X, U
-        root_x = (ROOT_X if side < 0 else CW - ROOT_X) * U * scale
         x = area.centerx + side * area.w * spread
         pygame.draw.ellipse(screen, (0, 0, 0), (x - 34 * scale * 2, ground - 6, 68 * scale * 2, 12))
-        screen.blit(img, (round(x - root_x), round(ground - GROUND * U * scale)))
+        img, pos = _luta_figure(luta, key, pose, -side, x, ground, scale, _TALL, ticks)
+        screen.blit(img, pos)
 
 
 def category_of(mode):
@@ -2243,7 +2251,6 @@ def _scene_corredores(screen, ui, rect, t):
 def _scene_luta(screen, ui, rect, t):
     """Modo LUTA: o Aryel e o Cauanzera altos trocando golpes no Coliseu."""
     from .. import luta
-    from ..luta_rig import CW, GROUND, ROOT_X, U
     from .luta import coliseu_backdrop
     bg = coliseu_backdrop(None)
     crop = bg.subsurface(pygame.Rect(120, 150, 720, 400).clip(bg.get_rect()))
@@ -2254,13 +2261,10 @@ def _scene_luta(screen, ui, rect, t):
              "cauanzera": ("guarda2", "levou", "guarda2", "chute2")[beat]}
     ground = rect.bottom - 14
     for key, side in (("aryel", -1), ("cauanzera", 1)):
-        right, left, _ = luta.Bank.get(key, poses[key])
-        img = right if side < 0 else left
-        img = pygame.transform.smoothscale(img, (round(img.get_width() * scale), round(img.get_height() * scale)))
-        root = (ROOT_X if side < 0 else CW - ROOT_X) * U * scale
         x = rect.centerx + side * 44 * scale * 2
         pygame.draw.ellipse(screen, (0, 0, 0), (x - 40 * scale, ground - 5, 80 * scale, 10))
-        screen.blit(img, (round(x - root), round(ground - GROUND * U * scale)))
+        img, pos = _luta_figure(luta, key, poses[key], -side, x, ground, scale, _TALL, t)
+        screen.blit(img, pos)
     ui.text(screen, "LUTA 1 x 1", theme.XS, theme.BONE, (rect.centerx, rect.y + 14))
 
 

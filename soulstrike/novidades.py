@@ -12,6 +12,22 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.58.0": [
+        {"title": "LUTADORES DESENHADOS", "scene": "luta", "lines": [
+            "Aryel e Cauanzera agora são desenhos de pixel art no estilo arcade, com mais de 150 quadros.",
+            "Guarda respirando, andar passo a passo, socos, chutes, pulos, queda no chão e levantada.",
+            "Capacete, cabo de rede, moto, bolas e ficha redesenhados no mesmo estilo; as regras continuam as mesmas.",
+        ]},
+        {"title": "LUTADORES DE ROUPA NOVA", "scene": "luta", "lines": [
+            "Aryel de blusa de capuz rosa fofa e calça cargo com bolso; Cauanzera de agasalho preto com listras brancas.",
+            "Óculos escuros no Cauanzera, roupa folgada cobrindo as juntas, dedos nos punhos e dobras no pano.",
+            "Fumaça subindo das tochas e poeira no chão: a cada passo e no pé de quem apanha.",
+        ]},
+        {"title": "LUTA MAIS LISA", "scene": "luta", "lines": [
+            "Quadros de meio no andar, na respiração e na entrada e saída dos golpes.",
+            "Rastro na cor do jogador nos golpes, faísca com clarão e lascas, escudo azul na defesa.",
+        ]},
+    ],
     "1.57.0": [
         {"title": "MODO NOVO: LUTA", "scene": "luta", "lines": [
             "Modalidade nova no menu: LUTA, um contra um de lado no Coliseu, com lutadores altos e detalhados.",

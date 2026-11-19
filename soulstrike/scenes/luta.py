@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pygame
 
-from .. import config, luta as L, luta_rig as R, theme
+from .. import config, luta as L, luta_rig as R, luta_sprites, theme
 from ..data import CHARACTERS
 from ..matches import Result
 from ..net.remote import hub
@@ -126,6 +126,8 @@ def fighter_key(index):
 def portrait(key, size=60):
     """Rosto do lutador (recorte da cabeça do quadro de guarda) para o HUD."""
     cache = _BACKDROP.setdefault("rostos", {})
+    if (key, size) not in cache and luta_sprites.available(key):
+        cache[(key, size)] = luta_sprites.head(key, size)
     if (key, size) not in cache:
         img, _, P = L.Bank.get(key, "guarda")
         hx, hy = P["head"]
@@ -295,6 +297,18 @@ class LutaScene(Scene):
             flick = math.sin(t * 0.3 + i * 1.7) * 1.5
             for k, (c, rr) in enumerate((((255, 120, 40), 7), ((255, 190, 80), 5), ((255, 245, 190), 2))):
                 pygame.draw.circle(s, c, (x + sx, int(258 - k * 2 - abs(flick) + sy)), max(1, rr + int(flick * 0.4)))
+        # fumaça das tochas subindo devagar
+        for i, x in enumerate(range(120, W, 180)):
+            smoke = pygame.Surface((90, 160), pygame.SRCALPHA)
+            for j in range(16):
+                p = ((t * 0.4 + j * 6.25 + i * 7) % 100) / 100
+                yy = 150 - p * 140
+                xx = 45 + math.sin(p * 4 + i * 1.3 + t * 0.012) * 14 * p
+                rr = 4 + 15 * p
+                pygame.draw.circle(smoke, (160, 152, 150, int(95 * (1 - p) * min(1, p * 5))), (xx, yy), rr)
+                pygame.draw.circle(smoke, (190, 182, 178, int(70 * (1 - p) * min(1, p * 5))), (xx - rr * 0.3, yy - rr * 0.3),
+                                   rr * 0.6)
+            s.blit(smoke, (x - 45 + sx, 252 - 160 + sy))
         for i, (x, y, v) in enumerate(self.embers):
             yy = (y - t * v) % (FLOOR - 110) + 110
             xx = x + math.sin(t * 0.03 + i) * 8
@@ -309,13 +323,22 @@ class LutaScene(Scene):
         pygame.draw.ellipse(shadow, (0, 0, 0, 120), shadow.get_rect())
         s.blit(shadow, rect)
 
+    def _place(self, f, view, facing, x, y):
+        """(imagem, canto) do lutador: o desenho da folha quando tem, senão o esqueleto."""
+        if luta_sprites.available(f.key):
+            fr = luta_sprites.frame_of(f) if view == f.view else luta_sprites.frame(f.key, view)
+            return fr.place(x, FLOOR - y, facing)
+        right, left, _ = L.Bank.get(f.key, view)
+        u = R.U
+        ox = x - (R.ROOT_X * u if facing > 0 else (R.CW - R.ROOT_X) * u)
+        return (right if facing > 0 else left), (round(ox), round(FLOOR - y - R.GROUND * u))
+
     def _fighter_image(self, f):
-        right, left, _ = f.view_frame()
-        img = right if f.facing > 0 else left
+        img, pos = self._place(f, f.view, f.facing, f.x, f.y)
         if f.flash and f.flash % 2:
             img = img.copy()
             img.fill((90, 60, 60, 0), special_flags=pygame.BLEND_RGBA_ADD)
-        return img
+        return img, pos
 
     # ── rastro dos golpes ─────────────────
     def _trail_on(self, f):
@@ -341,8 +364,7 @@ class LutaScene(Scene):
         key = (f.key, view, facing, f.side)
         img = self._ghosts.get(key)
         if img is None:
-            right, left, _ = L.Bank.get(f.key, view)
-            img = (right if facing > 0 else left).copy()
+            img = self._place(f, view, facing, 0, 0)[0].copy()
             tint = theme.SLOT_COLORS.get(f.slot, (255, 255, 255))
             img.fill((*mix_light(tint), 255), special_flags=pygame.BLEND_RGBA_MULT)
             img.fill((40, 40, 50, 0), special_flags=pygame.BLEND_RGBA_ADD)
@@ -353,7 +375,6 @@ class LutaScene(Scene):
 
     def _draw_trail(self, s, f, sx, sy):
         trail = self._trail[self.fight.fighters.index(f)]
-        u = R.U
         for n, back in enumerate((4, 2)):
             if len(trail) <= back:
                 continue
@@ -362,16 +383,12 @@ class LutaScene(Scene):
                 continue
             img = self._ghost(f, view, facing)
             img.set_alpha(40 + 32 * n)
-            ox = x - (R.ROOT_X * u if facing > 0 else (R.CW - R.ROOT_X) * u)
-            oy = FLOOR - y - R.GROUND * u
-            s.blit(img, (round(ox) + sx, round(oy) + sy))
+            ox, oy = self._place(f, view, facing, x, y)[1]
+            s.blit(img, (ox + sx, oy + sy))
 
     def _draw_fighter(self, s, f, sx, sy):
         self._draw_trail(s, f, sx, sy)
-        img = self._fighter_image(f)
-        u = R.U
-        ox = f.x - (R.ROOT_X * u if f.facing > 0 else (R.CW - R.ROOT_X) * u)
-        oy = FLOOR - f.y - R.GROUND * u
+        img, (ox, oy) = self._fighter_image(f)
         if f.state == "levantando" and f.t % 4 < 2 or f.invuln and f.state == "livre" and f.t % 4 < 2:
             img = img.copy()
             img.set_alpha(150)
@@ -383,16 +400,33 @@ class LutaScene(Scene):
                 s.blit(glow, (ox + dx + sx, oy + dy + sy))
         s.blit(img, (round(ox) + sx, round(oy) + sy))
 
+    def _hand(self, f, P):
+        """Mão da frente na tela: a do desenho da folha quando tem, senão a do esqueleto."""
+        if luta_sprites.available(f.key):
+            return luta_sprites.frame_of(f).hand_at(f.x, FLOOR - f.y, f.facing)
+        return f.to_world(P["near_hand"])
+
     def _draw_weapon(self, s, f, sx, sy):
         """A arma de perto aparece só no golpe FORTE."""
         if f.state != "golpe" or f.move is None or not f.move.weapon:
             return
         P = f.view_frame()[2]
-        hx, hy = f.to_world(P["near_hand"])
+        hx, hy = self._hand(f, P)
         ang = P["near_hand_dir"]
         d = R.dirv(ang)
         dx, dy = d[0] * f.facing, d[1]
         hx, hy = hx + sx, hy + sy
+        if luta_sprites.has_objects():
+            if f.key == "aryel":                 # capacete de moto na mão
+                img = luta_sprites.obj("capacete_brilho" if f.pose == "forte2" else "capacete", 40, flip=f.facing < 0)
+                s.blit(img, img.get_rect(center=(round(hx + dx * 14), round(hy + dy * 14))))
+            else:                                # cabo de rede: o plugue vai na direção do golpe
+                length = 34 + (f.move.reach if f.pose == "forte2" else 10)
+                deg = math.degrees(math.atan2(-dy, dx)) + (math.sin(self.ticks * 0.6) * 8 if f.pose != "forte2" else 0)
+                img = luta_sprites.obj("cabo" if f.pose == "forte2" else "cabo_torto", length, deg)
+                d = math.radians(deg)
+                s.blit(img, img.get_rect(center=(round(hx + math.cos(d) * length / 2), round(hy - math.sin(d) * length / 2))))
+            return
         if f.key == "aryel":                     # capacete de moto na mão
             cx, cy = hx + dx * 14, hy + dy * 14
             pygame.draw.circle(s, (20, 14, 24), (int(cx), int(cy)), 17)
@@ -424,6 +458,15 @@ class LutaScene(Scene):
     def _draw_vehicle(self, s, f, sx, sy, behind):
         """SUPER do Aryel: a moto (a roda de trás atrás dele, o resto na frente)."""
         if f.pose not in ("moto", "moto_grau"):
+            return
+        if luta_sprites.has_objects():           # a moto inteira atrás dele: o Aryel vai montado na frente
+            if behind:
+                grau = f.pose == "moto_grau"
+                img = luta_sprites.obj("moto_grau" if grau else "moto", 260 if grau else 290, flip=f.facing < 0)
+                s.blit(img, img.get_rect(midbottom=(int(f.x) + sx + 16 * f.facing, FLOOR + sy + 8)))
+            elif self.ticks % 3 == 0:
+                self.fight.effects.append(L.Effect("poeira", f.x - 90 * f.facing, FLOOR - 6, 18, color=(150, 150, 160),
+                                                   vx=-2 * f.facing, vy=-0.6, size=0.8))
             return
         wheelie = 16 if f.pose == "moto_grau" else 0
         base = pygame.Surface((240, 140), pygame.SRCALPHA)
@@ -460,6 +503,11 @@ class LutaScene(Scene):
         """Bola na mão do Cauanzera na ENTERRADA e no preparo do arremesso."""
         if f.key != "cauanzera" or f.pose not in ("basquete1", "enterrada1", "enterrada2"):
             return
+        if luta_sprites.available(f.key):
+            fr = luta_sprites.frame_of(f)
+            x, y = f.x + 14 * f.facing + sx, fr.top_at(FLOOR - f.y) - 6 + sy
+            self._ball(s, x, y, 15, "basquete", self.ticks * 0.1)
+            return
         P = f.view_frame()[2]
         a = f.to_world(P["near_hand"])
         b = f.to_world(P["far_hand"])
@@ -468,6 +516,17 @@ class LutaScene(Scene):
 
     def _ball(self, s, x, y, r, kind, spin):
         x, y = int(x), int(y)
+        if luta_sprites.has_objects():
+            size = 2 * r + 4
+            if kind == "moeda":                      # moeda girando: achata de lado
+                w = abs(math.cos(spin))
+                name = "moeda" if w > 0.45 else "moeda_lado"
+                img = luta_sprites.obj(name, size)
+                img = pygame.transform.scale(img, (max(3, round(size * max(w, 0.35))), img.get_height()))
+            else:
+                img = luta_sprites.obj("volei" if kind == "volei" else "basquete", size, -math.degrees(spin))
+            s.blit(img, img.get_rect(center=(x, y)))
+            return
         if kind == "basquete":
             pygame.draw.circle(s, (60, 24, 8), (x, y), r + 1)
             pygame.draw.circle(s, (226, 112, 36), (x, y), r)
@@ -506,8 +565,8 @@ class LutaScene(Scene):
             if e.kind == "faisca":
                 size = e.size
                 if e.age <= 2:                      # clarão do contato (dois quadros)
-                    pygame.draw.circle(s, (255, 255, 255), (x, y), int(14 * size))
-                    pygame.draw.circle(s, e.color, (x, y), int(14 * size), 2)
+                    pygame.draw.circle(s, (255, 255, 255), (x, y), int(9 * size))
+                    pygame.draw.circle(s, e.color, (x, y), int(9 * size), 2)
                 if k < 0.7:                         # anel que abre
                     pygame.draw.circle(s, e.color, (x, y), int((12 + 46 * k) * size), max(1, int(3 * (1 - k))))
                 n = 10
@@ -536,10 +595,22 @@ class LutaScene(Scene):
                 if k < 0.3:
                     pygame.draw.circle(s, (236, 246, 255), (x, y), int(9 * (1 - k)))
             elif e.kind == "poeira":
-                r = int((6 + 10 * k) * e.size)
-                dust = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
-                pygame.draw.circle(dust, (*e.color, int(150 * (1 - k))), (r, r), r)
-                s.blit(dust, (x - r, y - r))
+                # nuvem de terra em bolotas: sombra embaixo, luz em cima, e vai sumindo
+                r = (7 + 12 * k) * e.size
+                w = int(r * 4.4) + 4
+                dust = pygame.Surface((w, w), pygame.SRCALPHA)
+                a = int(190 * (1 - k) ** 1.3)
+                dark, base, lite = (tuple(max(0, v - 40) for v in e.color), e.color,
+                                    tuple(min(255, v + 34) for v in e.color))
+                c = w // 2
+                seed = int(e.life * 7 + e.x) % 5
+                blobs = ((-0.9, 0.2, 0.75), (0.0, -0.2, 1.0), (0.95, 0.15, 0.7), (-0.35, -0.8, 0.6),
+                         (0.5, -0.75, 0.55))[: 3 + seed % 3]
+                for col, dx, dy in ((dark, 1, 2), (base, 0, 0), (lite, -1, -2)):
+                    for bx, by, br in blobs:
+                        rr = r * br * (0.72 if col is lite else 1.0)
+                        pygame.draw.circle(dust, (*col, a), (c + bx * r + dx, c + by * r + dy), max(1, int(rr)))
+                s.blit(dust, (x - c, y - c - int(r * 0.4)))
             elif e.kind == "explosao":
                 r = int(20 + 70 * k)
                 for rr, col in ((r, (255, 120, 50)), (int(r * 0.7), (255, 200, 80)), (int(r * 0.35), (255, 250, 220))):
