@@ -295,6 +295,18 @@ class LutaScene(Scene):
             flick = math.sin(t * 0.3 + i * 1.7) * 1.5
             for k, (c, rr) in enumerate((((255, 120, 40), 7), ((255, 190, 80), 5), ((255, 245, 190), 2))):
                 pygame.draw.circle(s, c, (x + sx, int(258 - k * 2 - abs(flick) + sy)), max(1, rr + int(flick * 0.4)))
+        # fumaça das tochas subindo devagar
+        for i, x in enumerate(range(120, W, 180)):
+            smoke = pygame.Surface((90, 160), pygame.SRCALPHA)
+            for j in range(16):
+                p = ((t * 0.4 + j * 6.25 + i * 7) % 100) / 100
+                yy = 150 - p * 140
+                xx = 45 + math.sin(p * 4 + i * 1.3 + t * 0.012) * 14 * p
+                rr = 4 + 15 * p
+                pygame.draw.circle(smoke, (160, 152, 150, int(95 * (1 - p) * min(1, p * 5))), (xx, yy), rr)
+                pygame.draw.circle(smoke, (190, 182, 178, int(70 * (1 - p) * min(1, p * 5))), (xx - rr * 0.3, yy - rr * 0.3),
+                                   rr * 0.6)
+            s.blit(smoke, (x - 45 + sx, 252 - 160 + sy))
         for i, (x, y, v) in enumerate(self.embers):
             yy = (y - t * v) % (FLOOR - 110) + 110
             xx = x + math.sin(t * 0.03 + i) * 8
@@ -506,8 +518,8 @@ class LutaScene(Scene):
             if e.kind == "faisca":
                 size = e.size
                 if e.age <= 2:                      # clarão do contato (dois quadros)
-                    pygame.draw.circle(s, (255, 255, 255), (x, y), int(14 * size))
-                    pygame.draw.circle(s, e.color, (x, y), int(14 * size), 2)
+                    pygame.draw.circle(s, (255, 255, 255), (x, y), int(9 * size))
+                    pygame.draw.circle(s, e.color, (x, y), int(9 * size), 2)
                 if k < 0.7:                         # anel que abre
                     pygame.draw.circle(s, e.color, (x, y), int((12 + 46 * k) * size), max(1, int(3 * (1 - k))))
                 n = 10
@@ -536,10 +548,22 @@ class LutaScene(Scene):
                 if k < 0.3:
                     pygame.draw.circle(s, (236, 246, 255), (x, y), int(9 * (1 - k)))
             elif e.kind == "poeira":
-                r = int((6 + 10 * k) * e.size)
-                dust = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
-                pygame.draw.circle(dust, (*e.color, int(150 * (1 - k))), (r, r), r)
-                s.blit(dust, (x - r, y - r))
+                # nuvem de terra em bolotas: sombra embaixo, luz em cima, e vai sumindo
+                r = (7 + 12 * k) * e.size
+                w = int(r * 4.4) + 4
+                dust = pygame.Surface((w, w), pygame.SRCALPHA)
+                a = int(190 * (1 - k) ** 1.3)
+                dark, base, lite = (tuple(max(0, v - 40) for v in e.color), e.color,
+                                    tuple(min(255, v + 34) for v in e.color))
+                c = w // 2
+                seed = int(e.life * 7 + e.x) % 5
+                blobs = ((-0.9, 0.2, 0.75), (0.0, -0.2, 1.0), (0.95, 0.15, 0.7), (-0.35, -0.8, 0.6),
+                         (0.5, -0.75, 0.55))[: 3 + seed % 3]
+                for col, dx, dy in ((dark, 1, 2), (base, 0, 0), (lite, -1, -2)):
+                    for bx, by, br in blobs:
+                        rr = r * br * (0.72 if col is lite else 1.0)
+                        pygame.draw.circle(dust, (*col, a), (c + bx * r + dx, c + by * r + dy), max(1, int(rr)))
+                s.blit(dust, (x - c, y - c - int(r * 0.4)))
             elif e.kind == "explosao":
                 r = int(20 + 70 * k)
                 for rr, col in ((r, (255, 120, 50)), (int(r * 0.7), (255, 200, 80)), (int(r * 0.35), (255, 250, 220))):

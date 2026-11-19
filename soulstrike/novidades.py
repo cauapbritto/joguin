@@ -12,6 +12,17 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.58.0": [
+        {"title": "LUTADORES DE ROUPA NOVA", "scene": "luta", "lines": [
+            "Aryel de blusa de capuz rosa fofa e calça cargo com bolso; Cauanzera de agasalho preto com listras brancas.",
+            "Óculos escuros no Cauanzera, roupa folgada cobrindo as juntas, dedos nos punhos e dobras no pano.",
+            "Fumaça subindo das tochas e poeira no chão: a cada passo e no pé de quem apanha.",
+        ]},
+        {"title": "LUTA MAIS LISA", "scene": "luta", "lines": [
+            "Quadros de meio no andar, na respiração e na entrada e saída dos golpes.",
+            "Rastro na cor do jogador nos golpes, faísca com clarão e lascas, escudo azul na defesa.",
+        ]},
+    ],
     "1.57.0": [
         {"title": "MODO NOVO: LUTA", "scene": "luta", "lines": [
             "Modalidade nova no menu: LUTA, um contra um de lado no Coliseu, com lutadores altos e detalhados.",
