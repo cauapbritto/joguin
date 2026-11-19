@@ -326,7 +326,8 @@ class LutaScene(Scene):
     def _place(self, f, view, facing, x, y):
         """(imagem, canto) do lutador: o desenho da folha quando tem, senão o esqueleto."""
         if luta_sprites.available(f.key):
-            return luta_sprites.frame(f.key, view).place(x, FLOOR - y, facing)
+            fr = luta_sprites.frame_of(f) if view == f.view else luta_sprites.frame(f.key, view)
+            return fr.place(x, FLOOR - y, facing)
         right, left, _ = L.Bank.get(f.key, view)
         u = R.U
         ox = x - (R.ROOT_X * u if facing > 0 else (R.CW - R.ROOT_X) * u)
@@ -402,7 +403,7 @@ class LutaScene(Scene):
     def _hand(self, f, P):
         """Mão da frente na tela: a do desenho da folha quando tem, senão a do esqueleto."""
         if luta_sprites.available(f.key):
-            return luta_sprites.frame(f.key, f.view).hand_at(f.x, FLOOR - f.y, f.facing)
+            return luta_sprites.frame_of(f).hand_at(f.x, FLOOR - f.y, f.facing)
         return f.to_world(P["near_hand"])
 
     def _draw_weapon(self, s, f, sx, sy):
@@ -483,7 +484,7 @@ class LutaScene(Scene):
         if f.key != "cauanzera" or f.pose not in ("basquete1", "enterrada1", "enterrada2"):
             return
         if luta_sprites.available(f.key):
-            fr = luta_sprites.frame(f.key, f.view)
+            fr = luta_sprites.frame_of(f)
             x, y = f.x + 14 * f.facing + sx, fr.top_at(FLOOR - f.y) - 6 + sy
             self._ball(s, x, y, 15, "basquete", self.ticks * 0.1)
             return

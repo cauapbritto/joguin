@@ -419,10 +419,16 @@ class FolhaDeSpritesTest(unittest.TestCase):
         for key in L.FIGHTER_KEYS:
             self.assertTrue(S.available(key))
             for view in list(LP.POSES) + list(LP.SPECIAL_POSES.get(key, {})):
-                found = S.PER_CHAR.get(key, {}).get(view) or S.COMMON.get(view)
-                self.assertIsNotNone(found, (key, view))
-                name, _ = found
-                self.assertTrue((S.DIR / key / f"{name}.png").exists(), (key, view, name))
+                self.assertTrue(view in S.ANIM[key] or view in S.WALK, (key, view))
+                for cell in S.cells(key, view)[0]:
+                    self.assertTrue((S.DIR / key / f"{cell}.png").exists(), (key, view, cell))
+
+    def test_guarda_respira_andar_segue_o_passo_e_levantar_para_no_fim(self):
+        from soulstrike import luta_sprites as S
+        self.assertNotEqual(S.pick("aryel", "guarda", 0), S.pick("aryel", "guarda", 9))
+        self.assertNotEqual(S.pick("cauanzera", "andar2", phase=0), S.pick("cauanzera", "andar2", phase=1))
+        last = S.cells("aryel", "levantando")[0][-1]
+        self.assertEqual(S.pick("aryel", "levantando", 999), last)
 
     def test_quadro_fica_com_os_pes_no_chao_e_vira_de_lado(self):
         from soulstrike import luta_sprites as S

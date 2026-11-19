@@ -14,8 +14,8 @@ from .updater import parse_version
 NEWS = {
     "1.58.0": [
         {"title": "LUTADORES DESENHADOS", "scene": "luta", "lines": [
-            "Aryel e Cauanzera agora são desenhos de pixel art no estilo arcade, pose por pose.",
-            "Guarda, soco, chute, pulo, defesa, golpe forte, especial, apanhando, caído e vitória.",
+            "Aryel e Cauanzera agora são desenhos de pixel art no estilo arcade, com mais de 150 quadros.",
+            "Guarda respirando, andar passo a passo, socos, chutes, pulos, queda no chão e levantada.",
             "Rosto do placar e capa do menu com o desenho novo; as regras dos golpes continuam as mesmas.",
         ]},
         {"title": "LUTADORES DE ROUPA NOVA", "scene": "luta", "lines": [

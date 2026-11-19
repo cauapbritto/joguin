@@ -1,12 +1,13 @@
-"""Recorta a folha de sprites da LUTA (fundo verde) em um PNG transparente por pose.
+"""Recorta as folhas de sprites da LUTA (fundo verde, uma por lutador) em um PNG transparente por quadro.
 
-    python tools/recortar_luta.py            # lê assets/luta/folha_turma.png e grava assets/luta/<lutador>/<pose>.png
+    python tools/recortar_luta.py      # lê assets/luta/<lutador>_folha.png e grava assets/luta/<lutador>/rLcC.png
 
-Cada pedaço da folha é achado pelos pixels que não são verde; os quadros abaixo dizem qual
-pedaço (pela posição na folha) vira qual pose. O verde que sobra na borda é tirado (despill).
+Os desenhos são achados pelos pixels que não são verde. As linhas da folha saem da linha dos pés
+(desenhos com o pé quase na mesma altura são da mesma linha) e as colunas, da esquerda para a
+direita: o quadro da 3ª linha, 5ª coluna vira r2c4.png. Pedacinhos soltos (um punho, uma ponta de
+cabelo) vão para o desenho mais perto. Nenhum lutador tem verde, então o verde que sobra (na borda) é tirado de tudo (despill).
 """
 import os
-import sys
 from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -14,79 +15,74 @@ import numpy as np
 import pygame
 
 ROOT = Path(__file__).resolve().parent.parent
-SHEET = ROOT / "assets" / "luta" / "folha_turma.png"
-OUT = ROOT / "assets" / "luta"
-
-# (lutador, pose): ponto dentro do pedaço na folha (x, y)
-PIECES = {
-    ("aryel", "chute"): (100, 130),
-    ("aryel", "forte"): (270, 120),
-    ("aryel", "pulo"): (430, 100),
-    ("aryel", "soco"): (590, 120),
-    ("aryel", "especial"): (750, 120),
-    ("aryel", "vitoria"): (925, 120),
-    ("aryel", "guarda"): (95, 300),
-    ("aryel", "defesa"): (290, 300),
-    ("aryel", "corrida"): (525, 310),
-    ("aryel", "caido"): (735, 335),
-    ("aryel", "tonto"): (925, 310),
-    ("cauanzera", "chute"): (100, 520),
-    ("cauanzera", "forte"): (245, 490),
-    ("cauanzera", "pulo"): (405, 490),
-    ("cauanzera", "soco_baixo"): (575, 495),
-    ("cauanzera", "especial"): (735, 500),
-    ("cauanzera", "soco"): (915, 500),
-    ("cauanzera", "defesa"): (90, 680),
-    ("cauanzera", "guarda"): (240, 680),
-    ("cauanzera", "caido"): (650, 705),
-    ("cauanzera", "tonto"): (900, 705),
-}
+DIR = ROOT / "assets" / "luta"
+FIGHTERS = ("aryel", "cauanzera")
+BIG = 400            # pixels: daqui para cima é um desenho; abaixo, pedacinho solto
+ROW_GAP = 20         # pés até 20 px de diferença ficam na mesma linha
 
 
-def is_green(rgb):
+def foreground(rgb):
     r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
-    return (g > 120) & (g - r > 50) & (g - b > 50)
+    return ~((g > 110) & (g - r > 45) & (g - b > 45))
+
+
+def _gap(a, b):
+    return max(a.x - b.right, b.x - a.right, 0) + max(a.y - b.bottom, b.y - a.bottom, 0)
+
+
+def cut(sheet_path, out_dir):
+    sheet = pygame.image.load(str(sheet_path)).convert_alpha()
+    rgb = pygame.surfarray.array3d(sheet).astype(np.int32)
+    mask = pygame.mask.Mask(sheet.get_size())
+    for x, y in zip(*np.nonzero(foreground(rgb))):
+        mask.set_at((int(x), int(y)), 1)
+    comps = [c for c in mask.connected_components() if c.count() >= 12]
+    big = [c for c in comps if c.count() > BIG]
+    rows = []
+    for v in sorted(c.get_bounding_rects()[0].bottom for c in big):
+        if rows and v - rows[-1][-1] <= ROW_GAP:
+            rows[-1].append(v)
+        else:
+            rows.append([v])
+    feet = [r[len(r) // 2] for r in rows if len(r) >= 5]
+    by_row = {}
+    for c in big:
+        bottom = c.get_bounding_rects()[0].bottom
+        by_row.setdefault(min(range(len(feet)), key=lambda i: abs(feet[i] - bottom)), []).append(c)
+    figs = []
+    for ri in sorted(by_row):
+        for ci, c in enumerate(sorted(by_row[ri], key=lambda c: c.get_bounding_rects()[0].centerx)):
+            figs.append([f"r{ri}c{ci}", c, c.get_bounding_rects()[0]])
+    for c in comps:
+        if c.count() > BIG:
+            continue
+        rect = c.get_bounding_rects()[0]
+        best = min(figs, key=lambda f: _gap(f[2], rect))
+        if _gap(best[2], rect) <= 6:
+            merged = pygame.mask.Mask(sheet.get_size())
+            merged.draw(best[1], (0, 0))
+            merged.draw(c, (0, 0))
+            best[1], best[2] = merged, best[2].union(rect)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name, m, rect in figs:
+        sub = rgb[rect.x:rect.right, rect.y:rect.bottom].copy()
+        alpha = pygame.surfarray.array_alpha(m.to_surface(setcolor=(255, 255, 255, 255), unsetcolor=(0, 0, 0, 0)))
+        sub[..., 1] = np.minimum(sub[..., 1], np.maximum(sub[..., 0], sub[..., 2]))   # despill: nada fica verde
+        img = pygame.Surface(rect.size, pygame.SRCALPHA).convert_alpha()
+        pygame.surfarray.blit_array(img, sub.clip(0, 255).astype(np.uint8))
+        a = pygame.surfarray.pixels_alpha(img)
+        a[:] = alpha[rect.x:rect.right, rect.y:rect.bottom]
+        del a
+        pygame.image.save(img, str(out_dir / f"{name}.png"))
+    return len(figs), len(feet)
 
 
 def main():
     pygame.init()
     pygame.display.set_mode((1, 1))
-    sheet = pygame.image.load(str(SHEET)).convert_alpha()
-    rgb = pygame.surfarray.array3d(sheet).astype(np.int32)
-    fg = ~is_green(rgb)
-    mask = pygame.mask.from_surface(sheet)
-    mask.clear()
-    for x, y in zip(*np.nonzero(fg)):
-        mask.set_at((int(x), int(y)), 1)
-    for (who, pose), at in PIECES.items():
-        # o pedaço é o maior componente perto do ponto (o ponto pode cair num buraco do desenho)
-        best = None
-        for dx in range(-12, 13, 3):
-            for dy in range(-12, 13, 3):
-                p = (at[0] + dx, at[1] + dy)
-                if mask.get_at(p):
-                    best = mask.connected_component(p)
-                    break
-            if best:
-                break
-        if best is None:
-            sys.exit(f"não achei o pedaço de {who}/{pose} em {at}")
-        rect = best.get_bounding_rects()[0]
-        part = np.zeros((rect.w, rect.h, 4), np.uint8)
-        sub = rgb[rect.x:rect.right, rect.y:rect.bottom].copy()
-        keep = np.array([[best.get_at((rect.x + i, rect.y + j)) for j in range(rect.h)] for i in range(rect.w)], bool)
-        # despill: o verde da borda vira a média do vermelho e do azul
-        g = sub[..., 1]
-        lim = np.maximum(sub[..., 0], sub[..., 2])
-        sub[..., 1] = np.where(g > lim + 10, lim + 10, g)
-        part[..., :3] = sub.clip(0, 255)
-        part[..., 3] = np.where(keep, 255, 0)
-        surf = pygame.Surface(rect.size, pygame.SRCALPHA)
-        pygame.surfarray.pixels3d(surf)[:] = part[..., :3]
-        pygame.surfarray.pixels_alpha(surf)[:] = part[..., 3]
-        (OUT / who).mkdir(parents=True, exist_ok=True)
-        pygame.image.save(surf, str(OUT / who / f"{pose}.png"))
-        print(who, pose, rect.size)
+    for key in FIGHTERS:
+        n, rows = cut(DIR / f"{key}_folha.png", DIR / key)
+        print(f"{key}: {n} quadros em {rows} linhas")
 
 
 if __name__ == "__main__":

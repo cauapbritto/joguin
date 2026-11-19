@@ -470,13 +470,13 @@ def draw_cover(screen, assets, key, area, ticks):
 _TALL = {}
 
 
-def _luta_figure(luta, key, pose, facing, x, ground, scale, cache):
+def _luta_figure(luta, key, pose, facing, x, ground, scale, cache, t=0):
     """(imagem, canto) de um lutador da LUTA com o corpo em x e os pés em ground: o desenho da
     folha quando tem, senão o esqueleto."""
     from .. import luta_sprites
     from ..luta_rig import CW, GROUND, ROOT_X, U
     if luta_sprites.available(key):
-        return luta_sprites.frame(key, pose, luta_sprites.SCALE * scale).place(x, ground, facing)
+        return luta_sprites.frame(key, pose, t, scale=luta_sprites.SCALE * scale).place(x, ground, facing)
     ck = (key, pose, scale, facing)
     if ck not in cache:
         right, left, _ = luta.Bank.get(key, pose)
@@ -494,7 +494,7 @@ def _draw_tall_pair(screen, area, ground, scale, ticks, spread=0.16):
     for key, side in (("aryel", -1), ("cauanzera", 1)):
         x = area.centerx + side * area.w * spread
         pygame.draw.ellipse(screen, (0, 0, 0), (x - 34 * scale * 2, ground - 6, 68 * scale * 2, 12))
-        img, pos = _luta_figure(luta, key, pose, -side, x, ground, scale, _TALL)
+        img, pos = _luta_figure(luta, key, pose, -side, x, ground, scale, _TALL, ticks)
         screen.blit(img, pos)
 
 
@@ -2263,7 +2263,7 @@ def _scene_luta(screen, ui, rect, t):
     for key, side in (("aryel", -1), ("cauanzera", 1)):
         x = rect.centerx + side * 44 * scale * 2
         pygame.draw.ellipse(screen, (0, 0, 0), (x - 40 * scale, ground - 5, 80 * scale, 10))
-        img, pos = _luta_figure(luta, key, poses[key], -side, x, ground, scale, _TALL)
+        img, pos = _luta_figure(luta, key, poses[key], -side, x, ground, scale, _TALL, t)
         screen.blit(img, pos)
     ui.text(screen, "LUTA 1 x 1", theme.XS, theme.BONE, (rect.centerx, rect.y + 14))
 
