@@ -151,6 +151,53 @@ class GolpesTest(unittest.TestCase):
         self.assertEqual(B.facing, 1)
 
 
+class SomEVibracaoTest(unittest.TestCase):
+    def ouvindo(self):
+        sons, vibras = [], []
+        a, b = FakeInput(), FakeInput()
+        fight = L.Fight(controls=(a, b), seed=1, sound=lambda n, v=0.5, at=None: sons.append(n),
+                        buzz=lambda slot, p: vibras.append((slot, p)))
+        run(fight, (a, b), L.INTRO_FRAMES + 1)
+        return fight, a, b, sons, vibras
+
+    def test_golpe_no_ar_faz_vush_uma_vez(self):
+        fight, a, b, sons, _ = self.ouvindo()
+        perto(fight, 360)
+        a.tap("attack")
+        run(fight, (a, b), 25)
+        self.assertEqual(sons.count("dash"), 1)
+
+    def test_defesa_e_queda_vibram(self):
+        fight, a, b, _, vibras = self.ouvindo()
+        perto(fight, 130)
+        B = fight.fighters[1]
+        b.stick = (1.0, 0.0)
+        a.tap("special")
+        run(fight, (a, b), 30)
+        self.assertIn((B.slot, "block"), vibras)
+        fight, a, b, _, vibras = self.ouvindo()
+        perto(fight, 140)
+        B = fight.fighters[1]
+        a.stick = (0.0, 1.0)
+        a.tap("special")                        # rasteira derruba
+        run(fight, (a, b), 3)
+        a.stick = (0.0, 0.0)
+        run(fight, (a, b), 60)
+        self.assertIn((B.slot, "hit"), vibras)
+        self.assertIn((B.slot, "fall"), vibras)
+
+    def test_tela_vibra_o_controle_pela_opcao(self):
+        from unittest import mock
+        from soulstrike import rumble
+        g = game()
+        g.session = Session("duel", [SlotSetup(1, char=INDEX["aryel"]), SlotSetup(2, char=INDEX["cauanzera"])])
+        sc = LutaScene(g, seed=1)
+        with mock.patch.object(rumble, "buzz", return_value=True) as buzz:
+            sc._buzz(1, "fall")
+            sc._buzz(1, "nada")
+        buzz.assert_called_once_with(1, rumble.FALL)
+
+
 class EnergiaTest(unittest.TestCase):
     def test_especial_sem_energia_nao_sai(self):
         fight, a, b = luta()

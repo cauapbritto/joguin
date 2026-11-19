@@ -17,9 +17,12 @@ SUPER = (0.25, 0.6, 160)
 CALL = (0.45, 0.65, 260)        # campanha: o grupo está na porta e falta você
 TICK = (0.0, 0.35, 60)          # cada segundo da contagem da passagem
 GO = (0.6, 0.9, 320)            # o grupo foi (porta ou portal)
+BLOCK = (0.1, 0.35, 70)         # luta: segurou o golpe na defesa
+FALL = (0.8, 1.0, 260)          # luta: caiu no chão
 
 # nome de cada padrão para o celular (web/static/controller.js tem o desenho de cada um)
-PHONE = {HIT: "hit", BIG_HIT: "big_hit", SCORE: "score", SUPER: "super", CALL: "call", TICK: "tick", GO: "go"}
+PHONE = {HIT: "hit", BIG_HIT: "big_hit", SCORE: "score", SUPER: "super", CALL: "call", TICK: "tick", GO: "go",
+         BLOCK: "block", FALL: "fall"}
 URGENT = {CALL, GO}             # passam por cima do limite de uma vibração a cada 250 ms
 
 

@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pygame
 
-from .. import config, luta as L, luta_rig as R, luta_sprites, theme
+from .. import config, luta as L, luta_rig as R, luta_sprites, rumble, theme
 from ..data import CHARACTERS
 from ..matches import Result
 from ..net.remote import hub
@@ -180,8 +180,13 @@ class LutaScene(Scene):
         self.assets.play(name, volume)
 
     def _buzz(self, slot, pattern):
+        """Vibra o controle e o celular de quem está na vaga (respeita a opção de vibração)."""
+        kind = {"hit": rumble.HIT, "big_hit": rumble.BIG_HIT, "super": rumble.SUPER,
+                "block": rumble.BLOCK, "fall": rumble.FALL}.get(pattern)
+        if kind is None:
+            return
         try:
-            hub.buzz(slot, pattern)
+            rumble.buzz(slot, kind)
         except Exception:
             pass
 

@@ -49,7 +49,7 @@
   // O iPhone não tem navigator.vibrate: aí nada acontece (e nada quebra). O botão VIBRAR vale aqui também.
   var BUZZ_PATTERNS = {
     hit: [30], big_hit: [70], score: [80, 40, 80], super: [20],
-    call: [60, 80, 60, 80, 60], tick: [15], go: [140]
+    call: [60, 80, 60, 80, 60], tick: [15], go: [140], block: [12], fall: [90, 30, 40]
   };
   var lastBuzz = null;
   function vibrateFor(b) {

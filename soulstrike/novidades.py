@@ -12,6 +12,13 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.58.1": [
+        {"title": "LUTA DE SENTIR NA MÃO", "scene": "luta", "lines": [
+            "O controle (Xbox, PS, Nintendo) agora vibra na LUTA, e não só o celular; a opção de vibração vale aqui também.",
+            "Vibrada leve quando segura o golpe na defesa e forte quando cai no chão.",
+            "Todo golpe faz o \"vush\" cortando o ar, mesmo quando erra.",
+        ]},
+    ],
     "1.58.0": [
         {"title": "LUTADORES DESENHADOS", "scene": "luta", "lines": [
             "Aryel e Cauanzera agora são desenhos de pixel art no estilo arcade, com mais de 150 quadros.",
