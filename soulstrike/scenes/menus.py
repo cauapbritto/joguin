@@ -308,14 +308,18 @@ MODE_TEXT = {
 }
 
 
+# A LUTA saiu do menu por enquanto: o modo, os sprites e os testes continuam no jogo, só o cartão some.
+# True traz o cartão de volta.
+LUTA_NO_MENU = False
 # (modalidade, rótulo, cor, linha de baixo do cartão, modo da cena do cartão)
-CATEGORIES = [
+_ALL_CATEGORIES = [
     ("campanha", "CAMPANHA", theme.EMBER, "4 CAPÍTULOS"),
     ("duelos", "DUELOS", theme.BLOOD, "CPU · 1X1 · 2X2"),
     ("futebol", "FUTEBOL", theme.MOSS, "PARTIDA · PÊNALTIS"),
     ("basquete", "BASQUETE", (226, 112, 36), "1X1 · 2X2 · TREINO"),
     ("luta", "LUTA", (150, 96, 230), "1X1 DE LADO · NOVO"),
 ]
+CATEGORIES = [c for c in _ALL_CATEGORIES if c[0] != "luta" or LUTA_NO_MENU]
 CATEGORY_KEYS = [c[0] for c in CATEGORIES]
 # grupos de cada modalidade: (título do grupo, [modos])
 MODE_GROUPS = {
@@ -506,10 +510,11 @@ def category_of(mode):
 
 
 class ModeScene(_MenuScene):
-    """Escolha do modo em dois níveis: primeiro a modalidade (4 cartões), depois os modos dela."""
+    """Escolha do modo em dois níveis: primeiro a modalidade (um cartão cada), depois os modos dela."""
 
     menu_keys = True
-    CARD_W, CARD_H, CARD_GAP, CARD_Y = 168, 300, 14, 112
+    # 4 cartões largos; com a LUTA no menu são 5, mais estreitos
+    CARD_W, CARD_H, CARD_GAP, CARD_Y = (196, 300, 20, 112) if len(CATEGORIES) <= 4 else (168, 300, 14, 112)
     PANEL_BOTTOM = 498                  # o painel de descrição cresce até aqui (o rodapé fica livre)
 
     def __init__(self, game, category=None):
@@ -522,8 +527,9 @@ class ModeScene(_MenuScene):
         self.chapter3 = progress.chapter_cleared(2)
         self.chapter4 = progress.chapter_cleared(3)
         self.cleared = progress.chapter_cleared(4)          # zerou tudo: Reunião dos Corrompidos e cinema
-        last = settings.get("ultimo_modo")
-        self.cat_index = CATEGORY_KEYS.index(category_of(last)) if category_of(last) else 0
+        last = category_of(settings.get("ultimo_modo"))
+        # o último modo pode ser de uma modalidade fora do menu (a LUTA): aí abre no primeiro cartão
+        self.cat_index = CATEGORY_KEYS.index(last) if last in CATEGORY_KEYS else 0
         self.category = None
         self.menu = None
         self.headers = []
@@ -533,7 +539,7 @@ class ModeScene(_MenuScene):
                            for i in range(n)]
         self.continue_rect = pygame.Rect(x0, 436, self.CARD_W * n + self.CARD_GAP * (n - 1), 34)
         self.tab_rects = []
-        if category is not None:
+        if category in CATEGORY_KEYS:
             self.open(category)
 
     # ── navegação ────────────────────────────

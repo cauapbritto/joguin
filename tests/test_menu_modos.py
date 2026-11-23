@@ -36,12 +36,13 @@ class ModosTest(unittest.TestCase):
         self.assertEqual(category_of("treino"), "duelos")
         self.assertEqual(category_of("treino_basquete"), "basquete")
 
-    def test_primeiro_nivel_mostra_5_cartoes(self):
+    def test_primeiro_nivel_mostra_4_cartoes(self):
         g = game()
         scene = ModeScene(g)
         g.scene = scene
         self.assertIsNone(scene.category)
-        self.assertEqual(len(scene.card_rects), 5)
+        self.assertEqual(len(scene.card_rects), 4)                     # a LUTA saiu do menu por enquanto
+        self.assertNotIn("luta", CATEGORY_KEYS)
         for a, b in zip(scene.card_rects, scene.card_rects[1:]):
             self.assertLess(a.right, b.left)                # não encostam
         self.assertGreaterEqual(scene.card_rects[0].left, 0)
@@ -60,17 +61,26 @@ class ModosTest(unittest.TestCase):
         scene.handle(tecla(pygame.K_PAGEDOWN))
         self.assertEqual(scene.category, "basquete")
         scene.handle(tecla(pygame.K_PAGEDOWN))
-        self.assertEqual(scene.category, "luta")
-        self.assertEqual([v for _, v in scene.menu.options], ["luta"])
-        scene.draw(g.screen)
-        scene.handle(tecla(pygame.K_PAGEDOWN))
-        self.assertEqual(scene.category, "campanha")
+        self.assertEqual(scene.category, "campanha")                  # do basquete volta à campanha, sem LUTA
         scene.draw(g.screen)
         # Esc volta aos cartões, e de lá ao título
         scene.handle(tecla(pygame.K_ESCAPE))
         self.assertIsNone(scene.category)
         scene.handle(tecla(pygame.K_ESCAPE))
         self.assertIsInstance(g.scene, TitleScene)
+
+    def test_luta_fora_do_menu_nao_trava(self):
+        """O último modo jogado foi a LUTA (antes de ela sair do menu): o menu abre no primeiro cartão."""
+        g = game()
+        settings.change("ultimo_modo", "luta")
+        scene = ModeScene(g)
+        self.assertEqual(scene.cat_index, 0)
+        scene.draw(g.screen)
+        scene = ModeScene(g, category_of("luta"))                      # voltar de uma partida de LUTA
+        self.assertIsNone(scene.category)
+        scene.draw(g.screen)
+        self.assertEqual(category_of("luta"), "luta")                  # o modo continua existindo
+        settings.change("ultimo_modo", "")
 
     def test_todas_as_modalidades_desenham(self):
         g = game()
