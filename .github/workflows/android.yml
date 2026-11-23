@@ -1,0 +1,66 @@
+# Gera o APK do app Android que vira controle do jogo (pasta android/).
+# Roda em todo push e PR que mexe no app, pela aba Actions ("Run workflow") ou numa tag
+# v1.2.3: o APK fica nos artefatos da execução e, nas tags, também na release da versão
+# (a release é criada pelo "Pacote Linux (.deb)"; aqui o APK só é anexado nela).
+# O APK sai assinado com a chave do projeto (android/app/controle.jks), a mesma do
+# Android Studio: um instala por cima do outro sem desinstalar.
+name: App Android (APK)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+    paths: ["android/**", "soulstrike/__init__.py", ".github/workflows/android.yml"]
+  pull_request:
+    paths: ["android/**", "soulstrike/__init__.py", ".github/workflows/android.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - name: Android 17 (SDK)
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "platforms;android-37.1" > /dev/null || "$SDKM" "platforms;android-37" > /dev/null || true
+      - name: Compilar o APK
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+      - name: Nome do APK
+        run: cp app/build/outputs/apk/release/app-release.apk SoulStrikeControle.apk
+      - uses: actions/upload-artifact@v6
+        with:
+          name: soulstrike-controle-apk
+          path: android/SoulStrikeControle.apk
+      - name: Anexar à release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # espera a release que o "Pacote Linux (.deb)" cria (até 20 minutos)
+          for i in $(seq 1 60); do
+            if gh release view "$TAG" > /dev/null 2>&1; then
+              gh release upload "$TAG" SoulStrikeControle.apk --clobber
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "A release $TAG não apareceu: o APK ficou só nos artefatos desta execução."
+          exit 1
