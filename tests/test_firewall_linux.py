@@ -37,7 +37,7 @@ class UfwTest(unittest.TestCase):
             return server.firewall_hint()
 
     def test_dica_so_no_linux_com_firewall_e_sem_celular(self):
-        self.assertEqual(self._hint("linux", True), f"sudo ufw allow {config.WEB_PORT}/tcp")
+        self.assertEqual(self._hint("linux", True), f"sudo ufw allow {config.WEB_PORT}")   # TCP e UDP (app)
         self.assertIsNone(self._hint("linux", False))
         self.assertIsNone(self._hint("win32", True))
         self.assertIsNone(self._hint("linux", True, visto=True))

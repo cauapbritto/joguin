@@ -29,7 +29,7 @@ Python que já vem no Mint (3.10 a 3.13), instala o `python3-venv` pelo `apt` se
 `instalar.log`. Para tirar os atalhos: `bash INSTALAR.sh --remover`.
 
 Se o firewall estiver ligado (`sudo ufw status`), libere o controle pelo celular com
-`sudo ufw allow 5000/tcp`.
+`sudo ufw allow 5000` (abre TCP e UDP: o app Android usa os dois).
 
 ### Manual
 

@@ -184,6 +184,7 @@ titulo "Pronto!"
 echo "   Abra o Soul Strike pelo menu (Jogos) ou pelo atalho na Área de Trabalho."
 echo "   Controle pelo celular: o PC e o celular precisam estar na mesma rede Wi-Fi."
 # Firewall ligado descarta em silêncio as conexões do celular (a página fica carregando).
+# A porta vai aberta em TCP (site) e UDP (canal rápido do app Android).
 # O ufw.conf dá para ler sem senha; o "ufw status" precisaria de sudo e por isso
 # o aviso antigo ("sudo -n") nunca aparecia para quem não tinha a senha em cache.
 PORTA=5000
@@ -195,13 +196,13 @@ if command -v ufw >/dev/null 2>&1 && grep -qiE "^[[:space:]]*ENABLED[[:space:]]*
         liberar="${liberar:-s}"
     fi
     SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO=sudo
-    if [ "${liberar,,}" = "s" ] && $SUDO ufw allow "$PORTA/tcp" comment "Soul Strike (celular)"; then
+    if [ "${liberar,,}" = "s" ] && $SUDO ufw allow "$PORTA" comment "Soul Strike (celular)"; then
         ok "Porta $PORTA liberada no firewall"
     else
-        echo "   Para o celular conectar, rode depois:  sudo ufw allow $PORTA/tcp"
+        echo "   Para o celular conectar, rode depois:  sudo ufw allow $PORTA"
     fi
 elif command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
     aviso "O firewalld está ligado. Para o celular conectar, rode:"
-    echo "   sudo firewall-cmd --permanent --add-port=$PORTA/tcp && sudo firewall-cmd --reload"
+    echo "   sudo firewall-cmd --permanent --add-port=$PORTA/tcp --add-port=$PORTA/udp && sudo firewall-cmd --reload"
 fi
 encerrar 0

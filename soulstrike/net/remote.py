@@ -105,6 +105,7 @@ class RemoteHub:
         self.hud = "battle"         # disposição de botões do celular (battle, soccer, basket)
         self._orders = []          # pedidos da loja vindos do celular: (vaga, id do item, comprar?)
         self._screens = {}         # computador da Casa aberto: vaga -> PNG da tela (o celular toca nela)
+        self.on_buzz = None        # chamado com a vaga quando ela vibra (o canal rápido do app avisa na hora)
 
     # ── entrada vinda do celular ──────────────
     def apply_input(self, slot, sid, seq, held, counts, x=0.0, y=0.0):
@@ -320,7 +321,10 @@ class RemoteHub:
                 return False
             info.buzz = [info.buzz[0] + 1, pattern]
             info.buzz_at = now
-            return True
+        notify = self.on_buzz
+        if notify is not None:
+            notify(slot)
+        return True
 
     def status(self, slot=None, token=None):
         now = time.monotonic()
