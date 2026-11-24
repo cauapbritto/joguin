@@ -11,7 +11,10 @@ A página do celular continua funcionando para quem não tem Android.
    <https://github.com/cauapbritto/joguin/releases/latest/download/SoulStrikeControle.apk>
 2. Abra o arquivo. Na primeira vez o Android pede para permitir "instalar apps desconhecidos"
    para o navegador (ou para o app de arquivos): permita e toque em **Instalar**.
-3. Para atualizar, é só instalar o APK novo por cima: os ajustes e o controle salvo ficam.
+3. Para atualizar: quando o jogo é mais novo que o app, aparece **ATUALIZAR** na tela de espera
+   (e em **AJUSTES DO APP > PROCURAR VERSÃO NOVA**). O app baixa o APK da Release e o Android
+   instala por cima; na primeira vez ele pede a licença "permitir desta fonte" para o app.
+   Os ajustes e o controle salvo ficam.
 
 ## Conectar no jogo
 
@@ -35,13 +38,19 @@ Permissões que o app pede: **câmera** (só para ler o QR Code) e, nos Android 
 
 - Controle de cada modo com analógico e botões em arco no polegar direito, como no site:
   duelo, campanha, futebol, basquete e pênaltis, com anéis de recarga, fôlego e munição.
-- **AJUSTES** do controle: tamanho, transparência, analógico solto ou fixo, modo canhoto,
+- **AJUSTES** do controle: tamanho, transparência, analógico solto, fixo ou **INCLINAR** (anda
+  inclinando o celular; tocar na metade esquerda zera), modo canhoto,
   arrastar os botões, clique ao tocar e o nível da vibração (desligada, fraca, média, forte).
   Fica salvo separado para cada modo.
 - Botão de **PAUSA** e o menu da pausa no próprio celular.
 - Lojas, ferreiro, altar, armários e loja de CACOS com o vendedor, doação de almas, cupons e o
   computador da Casa (a tela dele aparece no celular e o toque vira clique na TV).
 - Telas de espera, novidades (PLANTÃO), resultados e história com os botões para avançar.
+- **Apelido na TV** (até 10 letras, no lugar de P1) e **reações rápidas** (GG, KKKK, VEM!,
+  PALMAS) num balão em cima do boneco, com somzinho.
+- **Resumo da partida** no celular (placar, seus números e o destaque) e, na campanha e na Casa,
+  o **MAPA** com o **CADERNO DE SEGREDOS** sem pausar a TV.
+- Segurar o ícone do app mostra **VOLTAR AO JOGO** (o último computador, na mesma vaga).
 
 ## Compilar
 

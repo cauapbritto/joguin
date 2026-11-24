@@ -25,6 +25,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("clique", true)
         set(v) = sp.edit().putBoolean("clique", v).apply()
 
+    /** O apelido que a TV mostra no lugar de P1 (vazio = P1). */
+    var apelido: String
+        get() = sp.getString("apelido", "") ?: ""
+        set(v) = sp.edit().putString("apelido", v).apply()
+
     /** Últimos jogos (o mais recente primeiro), no máximo 4. */
     fun recentes(): List<JogoSalvo> {
         val raw = sp.getString("recentes", null) ?: return emptyList()

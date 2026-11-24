@@ -13,7 +13,7 @@ data class BotaoHud(val x: Float? = null, val y: Float? = null, val s: Float = 1
 
 /**
  * O jeito do controle de um modo (AJUSTES DO CONTROLE): botões arrastados, tamanho, transparência,
- * analógico fixo ou solto e canhoto. Mesmo formato do site, guardado neste celular por modo.
+ * analógico fixo, solto ou inclinando o celular e canhoto. Mesmo formato do site, guardado neste celular por modo.
  */
 data class Hud(
     val botoes: Map<String, BotaoHud> = emptyMap(),
@@ -22,6 +22,8 @@ data class Hud(
     val fixo: Boolean = false,
     val opacidade: Float = 1f,
     val canhoto: Boolean = false,
+    /** Andar inclinando o celular (o analógico vira o sensor). */
+    val inclinar: Boolean = false,
 ) {
     fun json(): String {
         val o = JSONObject()
@@ -38,6 +40,7 @@ data class Hud(
         o.put("fixed", fixo)
         o.put("opacity", opacidade.toDouble())
         o.put("lefty", canhoto)
+        o.put("tilt", inclinar)
         return o.toString()
     }
 
@@ -64,6 +67,7 @@ data class Hud(
                     fixo = o.optBoolean("fixed"),
                     opacidade = o.optDouble("opacity", 1.0).toFloat().coerceIn(0.3f, 1f),
                     canhoto = o.optBoolean("lefty"),
+                    inclinar = o.optBoolean("tilt"),
                 )
             } catch (e: Exception) {
                 Hud()

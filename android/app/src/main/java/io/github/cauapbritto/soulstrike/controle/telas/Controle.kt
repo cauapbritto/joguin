@@ -53,6 +53,7 @@ import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChangedIgnoreConsumed
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
@@ -65,6 +66,7 @@ import io.github.cauapbritto.soulstrike.controle.jogo.Entrada
 import io.github.cauapbritto.soulstrike.controle.jogo.EstiloBotao
 import io.github.cauapbritto.soulstrike.controle.jogo.Heroi
 import io.github.cauapbritto.soulstrike.controle.jogo.Hud
+import io.github.cauapbritto.soulstrike.controle.jogo.Inclinacao
 import io.github.cauapbritto.soulstrike.controle.jogo.Mao
 import io.github.cauapbritto.soulstrike.controle.jogo.Me
 import io.github.cauapbritto.soulstrike.controle.jogo.PosBotao
@@ -91,6 +93,7 @@ import io.github.cauapbritto.soulstrike.controle.ui.imagemDoJogo
 import io.github.cauapbritto.soulstrike.controle.ui.mistura
 import io.github.cauapbritto.soulstrike.controle.ui.moldura
 import io.github.cauapbritto.soulstrike.controle.ui.u
+import android.view.Surface
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -237,6 +240,9 @@ private class Pad(private val entrada: Entrada) {
     var futebol = false
     var fixo = false
     var editando = false
+    /** INCLINAR: o sensor move o analógico e tocar na zona dele zera. */
+    var inclinando = false
+    var aoZerar: () -> Unit = {}
     var hud = Hud()
     var chave: Any? = null
     var toque: () -> Unit = {}
@@ -275,6 +281,11 @@ private class Pad(private val entrada: Entrada) {
             return
         }
         if (zonaAnalogico.contains(p)) {
+            if (inclinando) {
+                toque()
+                aoZerar()
+                return
+            }
             if (dedoAnalogico != null) return
             dedoAnalogico = id
             if (!fixo) centro = encaixar(zonaAnalogico, tamBase, k, p)
@@ -348,6 +359,28 @@ private class Pad(private val entrada: Entrada) {
         direcao("right", ativo && nx > 0.38f)
         direcao("up", ativo && ny < -0.38f)
         direcao("down", ativo && ny > 0.38f)
+    }
+
+    /** O sensor de INCLINAR mexeu (x e y de -1 a 1; ``forte`` = inclinou muito). */
+    fun inclinar(nx: Float, ny: Float, forte: Boolean) {
+        if (editando || !inclinando || dedoAnalogico != null) return
+        val d = hypot(nx, ny)
+        val max = tamBase / 2f * 0.75f
+        pino = Offset(nx, ny) * max
+        vivo = d > 0f
+        val ux = if (d > 0f) nx / d else 0f
+        val uy = if (d > 0f) ny / d else 0f
+        correr(futebol && forte)
+        entrada.eixo(nx, ny)
+        direcao("left", d > 0f && ux < -0.38f)
+        direcao("right", d > 0f && ux > 0.38f)
+        direcao("up", d > 0f && uy < -0.38f)
+        direcao("down", d > 0f && uy > 0.38f)
+    }
+
+    /** O sensor desligou: o analógico volta ao centro. */
+    fun pararDeInclinar() {
+        if (dedoAnalogico == null) soltarAnalogico()
     }
 
     private fun soltarAnalogico() {
@@ -499,6 +532,32 @@ fun TelaControle(st: Status, me: Me) {
         pad.selecionado = null
     }
 
+    // MAPA (e CADERNO) e o balão de reações, por cima do controle
+    var mapaAberto by remember { mutableStateOf(false) }
+    var reacoesAbertas by remember { mutableStateOf(false) }
+    LaunchedEffect(st.temMapa) { if (!st.temMapa) mapaAberto = false }
+    BackHandler(enabled = mapaAberto) { mapaAberto = false }
+
+    // INCLINAR: o sensor só fica ligado com o controle na tela e o app na frente
+    var semSensor by remember { mutableStateOf(false) }
+    val inclinando = hud.inclinar && !editando && !mapaAberto && app.naFrente
+    val vista = LocalView.current
+    DisposableEffect(inclinando) {
+        if (!inclinando) return@DisposableEffect onDispose {}
+        val sensor = Inclinacao(app.contexto, { vista.display?.rotation ?: Surface.ROTATION_90 }) { x, y, forte ->
+            pad.inclinar(x, y, forte)
+        }
+        pad.aoZerar = { sensor.zerar() }
+        semSensor = !sensor.ligar()
+        pad.inclinando = !semSensor
+        onDispose {
+            sensor.desligar()
+            pad.inclinando = false
+            pad.aoZerar = {}
+            pad.pararDeInclinar()
+        }
+    }
+
     val defs = remember(perfil, heroi, mao) { botoesDoModo(perfil, heroi, mao) }
     val aneis = aneisDoModo(perfil, rapido)
     val contador = contadorDoModo(perfil, rapido)
@@ -534,6 +593,7 @@ fun TelaControle(st: Status, me: Me) {
             pad.futebol = futebol
             pad.fixo = hud.fixo
             pad.editando = editando
+            pad.inclinando = inclinando && !semSensor
             pad.hud = hud
             pad.toque = { app.toque() }
             pad.aoCorrer = { app.vibrador.tocar("correr") }
@@ -605,7 +665,14 @@ fun TelaControle(st: Status, me: Me) {
                     .padding(horizontal = 12.u, vertical = 10.u),
                 contentAlignment = if (hud.canhoto) Alignment.BottomEnd else Alignment.BottomStart,
             ) {
-                Texto(dicaDoModo(perfil), cor = Cores.Muted)
+                Texto(
+                    when {
+                        hud.inclinar && semSensor -> "este celular não tem sensor de inclinar: use o analógico"
+                        hud.inclinar -> "incline o celular · toque aqui para zerar"
+                        else -> dicaDoModo(perfil)
+                    },
+                    cor = Cores.Muted,
+                )
             }
             BarraDoControle(
                 st = st,
@@ -615,9 +682,30 @@ fun TelaControle(st: Status, me: Me) {
                     pad.soltarTudo()
                     pad.selecionado = null
                     recado = ""
+                    reacoesAbertas = false
                     rascunho = salvo
                 },
+                aoMapa = if (st.temMapa) {
+                    {
+                        pad.soltarTudo()
+                        reacoesAbertas = false
+                        mapaAberto = true
+                    }
+                } else null,
+                aoReacoes = if (st.temExtras) {
+                    { reacoesAbertas = !reacoesAbertas }
+                } else null,
             )
+            if (reacoesAbertas) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(top = 44.u, end = 12.u),
+                    contentAlignment = Alignment.TopEnd,
+                ) {
+                    PainelDeReacoes(aoFechar = { reacoesAbertas = false })
+                }
+            }
         } else {
             val r = rascunho ?: salvo
             val sel = pad.selecionado
@@ -676,7 +764,8 @@ fun TelaControle(st: Status, me: Me) {
             )
         }
 
-        if (st.fase == "paused" && !editando) Pausado()
+        if (st.fase == "paused" && !editando && !mapaAberto) Pausado()
+        if (mapaAberto) TelaMapa(me.vaga, aoFechar = { mapaAberto = false })
     }
 }
 
@@ -920,7 +1009,14 @@ private fun ContadorDeMunicao(c: Contador, x: Float, y: Float) {
 // ── barra de cima ─────────────────────────────
 
 @Composable
-private fun BarraDoControle(st: Status, me: Me, rapido: Rapido, aoAjustes: () -> Unit) {
+private fun BarraDoControle(
+    st: Status,
+    me: Me,
+    rapido: Rapido,
+    aoAjustes: () -> Unit,
+    aoMapa: (() -> Unit)?,
+    aoReacoes: (() -> Unit)?,
+) {
     val app = LocalApp.current
     val canal = app.canal
     var nome = nomeDoModo(st.modo, st.hud)
@@ -936,6 +1032,8 @@ private fun BarraDoControle(st: Status, me: Me, rapido: Rapido, aoAjustes: () ->
             Texto(if (canal.rtt >= 0) "${canal.rtt} MS" else "-- MS", cor = corDoSinal(canal.rtt), linhas = 1)
         }
         Spacer(Modifier.weight(1f))
+        if (aoReacoes != null) Botao("", icone = R.drawable.r_kkk, altura = 28, naHora = true) { aoReacoes() }
+        if (aoMapa != null) Botao("MAPA", altura = 28) { aoMapa() }
         Botao("AJUSTES", altura = 28) { aoAjustes() }
         Botao("II", altura = 28, naHora = true) { canal.entrada.tocar("pause") }
     }
@@ -1102,8 +1200,28 @@ private fun PainelDosAjustes(
                         }
                     }
                 }
-                CartaoAjuste("ANALÓGICO", Modifier.weight(1f), aoApertar = { aoMudar(hud.copy(fixo = !hud.fixo)) }) {
-                    Texto(if (hud.fixo) "FIXO" else "SOLTO", cor = Cores.Muted, linhas = 1)
+                // SOLTO > FIXO > INCLINAR (andar inclinando o celular) > SOLTO
+                CartaoAjuste(
+                    "ANALÓGICO", Modifier.weight(1f),
+                    aoApertar = {
+                        aoMudar(
+                            when {
+                                hud.inclinar -> hud.copy(inclinar = false, fixo = false)
+                                hud.fixo -> hud.copy(fixo = false, inclinar = true)
+                                else -> hud.copy(fixo = true)
+                            }
+                        )
+                    },
+                    ligado = hud.inclinar,
+                ) {
+                    Texto(
+                        when {
+                            hud.inclinar -> "INCLINAR"
+                            hud.fixo -> "FIXO"
+                            else -> "SOLTO"
+                        },
+                        cor = if (hud.inclinar) Cores.Moss else Cores.Muted, linhas = 1,
+                    )
                 }
                 CartaoAjuste(
                     "CANHOTO", Modifier.weight(1f),

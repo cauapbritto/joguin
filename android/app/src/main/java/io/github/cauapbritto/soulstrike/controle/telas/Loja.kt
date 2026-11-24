@@ -1148,6 +1148,7 @@ fun CampoDeTexto(
     maximo: Int,
     modifier: Modifier = Modifier,
     senha: Boolean = false,
+    textoLivre: Boolean = false,
     aoEnviar: () -> Unit,
 ) {
     val m = LocalMedidas.current
@@ -1167,7 +1168,11 @@ fun CampoDeTexto(
         keyboardOptions = KeyboardOptions(
             capitalization = if (maiusculas) KeyboardCapitalization.Characters else KeyboardCapitalization.None,
             autoCorrectEnabled = false,
-            keyboardType = if (senha) KeyboardType.Password else KeyboardType.Ascii,
+            keyboardType = when {
+                senha -> KeyboardType.Password
+                textoLivre -> KeyboardType.Text            // apelido: acentos e Ç
+                else -> KeyboardType.Ascii
+            },
             imeAction = ImeAction.Send,
         ),
         onKeyboardAction = { aoEnviar() },

@@ -9,10 +9,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.cauapbritto.soulstrike.controle.JogoSalvo
 import io.github.cauapbritto.soulstrike.controle.Prefs
+import io.github.cauapbritto.soulstrike.controle.jogo.Caderno
 import io.github.cauapbritto.soulstrike.controle.jogo.Entrada
 import io.github.cauapbritto.soulstrike.controle.jogo.Heroi
+import io.github.cauapbritto.soulstrike.controle.jogo.MapaJogo
 import io.github.cauapbritto.soulstrike.controle.jogo.Rapido
 import io.github.cauapbritto.soulstrike.controle.jogo.Status
+import io.github.cauapbritto.soulstrike.controle.jogo.limparApelido
 import io.github.cauapbritto.soulstrike.controle.jogo.objetos
 import io.github.cauapbritto.soulstrike.controle.ui.Imagens
 import io.github.cauapbritto.soulstrike.controle.vibra.Vibrador
@@ -24,6 +27,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.net.DatagramPacket
@@ -73,6 +77,9 @@ class Canal(private val prefs: Prefs, private val vibrador: Vibrador) {
     val entrada = Entrada()
     val token: String get() = prefs.token
 
+    /** Entrou numa vaga: o app guarda o jogo (o atalho VOLTAR AO... do ícone usa). */
+    var aoLembrar: ((JogoSalvo) -> Unit)? = null
+
     private val main = Handler(Looper.getMainLooper())
     private val escopo = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val envioUdp = Executors.newSingleThreadExecutor()
@@ -93,6 +100,9 @@ class Canal(private val prefs: Prefs, private val vibrador: Vibrador) {
     @Volatile private var maiorVibra = -1
     @Volatile private var rosterTam = -1
     @Volatile private var geracao = 0
+    @Volatile private var semApelido = false
+    @Volatile private var apelidoEm = 0L
+    @Volatile private var reacaoEm = 0L
 
     init {
         entrada.aoMudar = { enviar() }
@@ -111,6 +121,8 @@ class Canal(private val prefs: Prefs, private val vibrador: Vibrador) {
         status = null
         rapido = Rapido()
         rtt = -1
+        semApelido = false
+        apelidoEm = 0L
         escopo.launch {
             val b = end.base
             val app = Http.get("$b/api/app", 2500)
@@ -218,7 +230,11 @@ class Canal(private val prefs: Prefs, private val vibrador: Vibrador) {
                 estado = Estado.OK
                 tentativas = 0
                 val end = endereco
-                if (end != null) prefs.lembrar(JogoSalvo(end.host, end.porta, nomePc, n, System.currentTimeMillis()))
+                if (end != null) {
+                    val jogo = JogoSalvo(end.host, end.porta, nomePc, n, System.currentTimeMillis())
+                    prefs.lembrar(jogo)
+                    aoLembrar?.invoke(jogo)
+                }
             }
             pedirStatus()
             enviar()
@@ -326,6 +342,11 @@ class Canal(private val prefs: Prefs, private val vibrador: Vibrador) {
         }
         // a vaga se perdeu (jogo reaberto ou 20 s fora): entra de novo sozinho
         if (v != 0 && me != null && !me.dono) entrarNaVaga(v, minha, avisarOcupada = false)
+        // o apelido da TV: o jogo esquece quando reabre ou a vaga cai, então o app manda de novo
+        if (v != 0 && me != null && me.dono && s.temExtras && !semApelido) {
+            val quero = limparApelido(prefs.apelido).ifEmpty { null }
+            if (quero != me.apelido && SystemClock.elapsedRealtime() - apelidoEm > 5000L) mandarApelido()
+        }
     }
 
     private fun respondeu() {
@@ -474,6 +495,60 @@ class Canal(private val prefs: Prefs, private val vibrador: Vibrador) {
             delay(90)
             pedirStatus()
         }
+    }
+
+    // ── apelido, reações, mapa e caderno ──────
+
+    /** Manda o apelido guardado no celular (vazio volta ao P1). */
+    fun mandarApelido() {
+        val v = vagaAtual
+        val b = base
+        if (v == 0 || b.isEmpty()) return
+        apelidoEm = SystemClock.elapsedRealtime()
+        val nick = limparApelido(prefs.apelido)
+        val minha = geracao
+        escopo.launch {
+            val r = Http.post("$b/api/nick", JSONObject().put("slot", v).put("token", prefs.token).put("nick", nick))
+            if (r != null && (r.codigo == 404 || r.codigo == 405)) semApelido = true      // jogo antigo
+            if (minha == geracao) pedirStatus()
+        }
+    }
+
+    /** Reação rápida (gg, kkk, vem, palmas): o balão aparece em cima do boneco na TV. */
+    fun reagir(tipo: String) {
+        val v = vagaAtual
+        val b = base
+        if (v == 0 || b.isEmpty()) return
+        val agora = SystemClock.elapsedRealtime()
+        if (agora - reacaoEm < 1000L) return               // o jogo aceita uma por segundo
+        reacaoEm = agora
+        val minha = geracao
+        escopo.launch {
+            val r = Http.post("$b/api/reacao", JSONObject().put("slot", v).put("token", prefs.token).put("kind", tipo))
+            if (r != null && (r.codigo == 404 || r.codigo == 405)) {
+                noMain(minha) { aviso = "ESTE JOGO AINDA NÃO TEM REAÇÕES: ATUALIZE O JOGO" }
+            }
+        }
+    }
+
+    /** O MAPA da partida (fase ou Casa) agora, ou null (sem mapa, jogo antigo ou rede ruim). */
+    suspend fun buscarMapa(): MapaJogo? = withContext(Dispatchers.IO) {
+        val v = vagaAtual
+        val b = base
+        if (v == 0 || b.isEmpty()) return@withContext null
+        val o = Http.get("$b/api/mapa?slot=$v&token=${prefs.token}", 2000)?.json()?.optJSONObject("map")
+            ?: return@withContext null
+        try { MapaJogo(o) } catch (e: Exception) { null }
+    }
+
+    /** O CADERNO DE SEGREDOS do jogo, ou null. */
+    suspend fun buscarCaderno(): Caderno? = withContext(Dispatchers.IO) {
+        val v = vagaAtual
+        val b = base
+        if (v == 0 || b.isEmpty()) return@withContext null
+        val r = Http.get("$b/api/caderno?slot=$v&token=${prefs.token}", 3000)
+        val o = if (r != null && r.ok) r.json() else null
+        if (o == null) null else try { Caderno(o) } catch (e: Exception) { null }
     }
 
     /** Endereço da cópia da tela do computador da Casa (muda a cada versão). */

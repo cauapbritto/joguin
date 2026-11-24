@@ -88,6 +88,9 @@ class Me(val o: JSONObject) {
     val loja: Loja? = o.optJSONObject("shop")?.let { Loja(it) }
     val penalti: Penalti? = o.optJSONObject("penalty")?.let { Penalti(it.texto("role", "espera"), it.texto("hero")) }
     val mao: Mao? = o.optJSONObject("hand")?.let { Mao(it.texto("name"), it.texto("icon")) }
+
+    /** O apelido que a TV está mostrando (null = P1, P2...). */
+    val apelido: String? = o.textoOuNulo("nick")
     val rapido = Rapido.de(o)
 }
 
@@ -111,6 +114,15 @@ class Status(val o: JSONObject) {
         }
     }
     val me: Me? = o.optJSONObject("me")?.let { Me(it) }
+
+    /** Jogo da v1.60.0 em diante: apelido, reações, resumo da partida e MAPA. */
+    val temExtras = o.has("map")
+
+    /** A partida tem MAPA para o celular (fase da campanha ou Casa). */
+    val temMapa = o.optBoolean("map")
+
+    /** O resumo da partida que acabou (só na tela de resultado). */
+    val resumo: Resumo? = o.optJSONObject("summary")?.let { try { Resumo(it) } catch (e: Exception) { null } }
 }
 
 /** A banca aberta no celular (loja, ferreiro, altar, cacos, armário) ou o computador da Casa. */
