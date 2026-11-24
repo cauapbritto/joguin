@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -30,6 +32,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import io.github.cauapbritto.soulstrike.controle.LocalApp
 import io.github.cauapbritto.soulstrike.controle.R
@@ -46,6 +49,10 @@ import io.github.cauapbritto.soulstrike.controle.ui.moldura
 import io.github.cauapbritto.soulstrike.controle.ui.piscando
 import io.github.cauapbritto.soulstrike.controle.ui.u
 import kotlinx.coroutines.delay
+
+/** O teclado do celular está aberto (cupom, computador da Casa)? */
+@Composable
+fun tecladoAberto(): Boolean = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
 /** Engole todos os toques (o que está embaixo de um aviso não recebe nada). */
 fun Modifier.bloquearToques(): Modifier = pointerInput(Unit) {

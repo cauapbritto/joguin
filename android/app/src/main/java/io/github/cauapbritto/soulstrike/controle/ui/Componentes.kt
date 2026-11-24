@@ -171,10 +171,12 @@ fun Modifier.aoTocar(
     ativo: Boolean = true,
     naHora: Boolean = false,
     apertado: MutableState<Boolean>? = null,
+    aoSoltar: (() -> Unit)? = null,
     acao: () -> Unit,
 ): Modifier {
     val app = LocalApp.current
     val atual = rememberUpdatedState(acao)
+    val soltar = rememberUpdatedState(aoSoltar)
     return this.pointerInput(ativo, naHora) {
         if (!ativo) return@pointerInput
         awaitEachGesture {
@@ -183,11 +185,22 @@ fun Modifier.aoTocar(
             apertado?.value = true
             app.toque()
             if (naHora) atual.value()
-            val solto = waitForUpOrCancellation()
-            apertado?.value = false
-            if (solto != null) {
-                solto.consume()
-                if (!naHora) atual.value()
+            var segurando = true
+            try {
+                val solto = waitForUpOrCancellation()
+                apertado?.value = false
+                segurando = false
+                soltar.value?.invoke()
+                if (solto != null) {
+                    solto.consume()
+                    if (!naHora) atual.value()
+                }
+            } finally {
+                // a tela saiu com o dedo ainda em cima: solta do mesmo jeito (nada fica preso)
+                if (segurando) {
+                    apertado?.value = false
+                    soltar.value?.invoke()
+                }
             }
         }
     }
@@ -225,6 +238,7 @@ fun Botao(
     vaga: Int = 1,
     altura: Int = 40,
     largo: Boolean = false,
+    aoSoltar: (() -> Unit)? = null,
     aoTocar: () -> Unit,
 ) {
     val m = LocalMedidas.current
@@ -264,7 +278,7 @@ fun Botao(
                 val faixa = m.px(if (apertado.value) 2 else 6)
                 drawRect(Color.Black.copy(alpha = 0.35f), Offset(0f, size.height - faixa), Size(size.width, faixa))
             }
-            .aoTocar(ativo = ativo, naHora = naHora, apertado = apertado, acao = aoTocar)
+            .aoTocar(ativo = ativo, naHora = naHora, apertado = apertado, aoSoltar = aoSoltar, acao = aoTocar)
             .padding(start = 12.u, end = 12.u, top = 2.u, bottom = 6.u),
         contentAlignment = Alignment.Center,
     ) {
@@ -279,7 +293,11 @@ fun Botao(
                 if (sub != null) {
                     Texto(
                         sub, tam = 8, alinhar = TextAlign.Center, linhas = 1,
-                        cor = if (tipo == TipoBotao.VERDE) Color(0xFFCFF5D8) else Cores.Muted,
+                        cor = when (tipo) {
+                            TipoBotao.VERDE -> Color(0xFFCFF5D8)
+                            TipoBotao.DOURADO -> Color(0xFF3A2A10)
+                            else -> Cores.Muted
+                        },
                     )
                 }
             }
