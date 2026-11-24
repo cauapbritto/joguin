@@ -56,6 +56,13 @@ def sotao_scene(game, run, story=True, walk=False):
     return PlayScene(game, SotaoMatch(game, run, story, walk=walk))
 
 
+def oficina_scene(game, run, story=True, walk=False):
+    """A oficina do Borba Jr (a bancada e o estande de tiro)."""
+    from ..oficina import OficinaMatch
+    from .play import PlayScene
+    return PlayScene(game, OficinaMatch(game, run, story, walk=walk))
+
+
 def start_phase(game, run, story=True):
     """Começa a fase na abertura (depois da história dela)."""
     if run.rush:

@@ -10,6 +10,9 @@ Sai em assets/pecas/, no tamanho em que aparece na tela (o jogo não amplia):
   sotao_mesa_album.png         mesinha com toalha de crochê, abajur e o álbum vermelho
   sotao_cadeira_balanco.png, sotao_cabideiro.png, sotao_espelho.png, sotao_mala.png,
   sotao_ventilador.png, sotao_lampada.png, sotao_brinquedos.png, sotao_quadro.png
+  oficina_bancada.png, oficina_suporte_exo.png, oficina_compressor.png, oficina_extintor.png,
+  oficina_pneus.png, oficina_tambor.png, oficina_baia.png,
+  oficina_alvo.png e _acertado, oficina_suporte_armas.png
 """
 import math
 import os
@@ -150,6 +153,119 @@ def quadro():
     return pygame.transform.rotate(hd(b.s, keep=[(190, 150, 70)]), 7)
 
 
+# ── oficina ──────────────────────────────────
+def bancada():
+    """Bancada de madeira com gaveteiro, a morsa, latas de parafuso e o osciloscópio."""
+    b = B(96, 40)
+    top, wood, wd, steel = (150, 104, 60), (120, 80, 46), (86, 56, 32), (90, 94, 106)
+    b.r(0, 14, 96, 4, top); b.r(0, 14, 96, 1, sh(top, -30))
+    b.r(2, 18, 3, 20, wd); b.r(91, 18, 3, 20, wd); b.r(2, 32, 92, 2, wd)
+    b.r(60, 18, 30, 14, wood)
+    for y in (19, 24, 29):                                                    # gaveteiro
+        b.r(61, y, 28, 4, sh(wood, -12)); b.r(73, y + 1, 4, 1, (200, 200, 210))
+    b.r(6, 8, 10, 6, steel); b.r(4, 6, 14, 3, steel); b.r(16, 9, 6, 1, steel); b.r(21, 7, 1, 5, (60, 60, 70))   # morsa
+    for i, c in enumerate(((236, 196, 60), (200, 60, 60), (90, 160, 230))):
+        b.r(26 + i * 6, 9, 5, 5, c); b.r(26 + i * 6, 9, 5, 1, sh(c, -30))
+    b.r(46, 4, 14, 10, (44, 44, 52)); b.r(47, 5, 12, 6, (20, 40, 30)); b.line((48, 9), (51, 6), (120, 255, 170)); b.line((51, 6), (54, 10), (120, 255, 170)); b.line((54, 10), (57, 7), (120, 255, 170))
+    b.r(68, 10, 2, 4, (90, 70, 50)); b.r(66, 8, 6, 3, (110, 110, 120))       # martelo
+    b.r(76, 11, 12, 3, (230, 120, 40)); b.r(86, 10, 3, 2, (60, 60, 66))      # furadeira
+    for k in range(6):
+        b.r(8 + k * 8, 34, 4, 3, (60, 60, 66))                               # caixinhas embaixo
+    return hd(b.s, keep=[(120, 255, 170)])
+
+
+def suporte_exo():
+    """O cavalete onde o exoesqueleto fica pendurado (gancho e corrente)."""
+    b = B(30, 46)
+    steel = (90, 94, 106)
+    b.r(3, 2, 24, 2, steel); b.r(3, 2, 2, 42, steel); b.r(25, 2, 2, 42, steel); b.r(0, 43, 30, 2, (60, 62, 70))
+    for y in range(4, 10, 2):
+        b.r(14, y, 2, 1, (170, 174, 186))
+    b.r(12, 10, 6, 2, (170, 174, 186))
+    return hd(b.s)
+
+
+def compressor():
+    b = B(26, 22)
+    red = (200, 44, 44)
+    b.r(2, 6, 22, 11, red); b.r(2, 6, 22, 2, sh(red, -40)); b.r(2, 15, 22, 2, sh(red, 40))
+    b.circ((19, 5), 4, (60, 60, 66)); b.circ((19, 5), 2, (230, 230, 230)); b.p(19, 4, (40, 40, 40))
+    b.r(4, 2, 8, 4, (70, 70, 78)); b.circ((5, 19), 2, (30, 30, 34)); b.circ((21, 19), 2, (30, 30, 34))
+    b.line((2, 10), (0, 18), (40, 40, 40), 1)
+    return hd(b.s)
+
+
+def extintor():
+    b = B(10, 22)
+    b.r(2, 5, 6, 16, (210, 30, 30)); b.r(3, 6, 1, 13, (250, 110, 110))
+    b.r(3, 2, 4, 3, (40, 40, 44)); b.r(6, 1, 4, 2, (40, 40, 44)); b.r(3, 10, 4, 4, (250, 240, 220))
+    return hd(b.s)
+
+
+def pneus():
+    b = B(24, 26)
+    for i in range(3):
+        y = 18 - i * 7
+        pygame.draw.ellipse(b.s, (28, 28, 32), (1, y, 22, 8)); pygame.draw.ellipse(b.s, (50, 50, 56), (1, y, 22, 4))
+        pygame.draw.ellipse(b.s, (14, 14, 18), (7, y + 1, 10, 3))
+    return hd(b.s)
+
+
+def tambor():
+    b = B(16, 22)
+    b.r(1, 2, 14, 19, (40, 90, 160)); b.r(1, 6, 14, 1, (30, 70, 130)); b.r(1, 15, 14, 1, (30, 70, 130)); b.r(1, 2, 14, 2, (70, 120, 190))
+    b.r(4, 8, 8, 5, (250, 250, 250)); b.r(5, 9, 6, 1, (220, 60, 60))
+    return hd(b.s)
+
+
+def prateleira_latas():
+    b = B(40, 34)
+    wood = (120, 80, 46)
+    for y in (10, 21, 32):
+        b.r(0, y, 40, 2, wood)
+    b.r(1, 0, 2, 34, (86, 56, 32)); b.r(37, 0, 2, 34, (86, 56, 32))
+    cores = ((220, 60, 60), (60, 140, 220), (236, 196, 60), (90, 170, 90), (200, 200, 210), (230, 120, 40))
+    for row, y in enumerate((3, 14, 25)):
+        for i in range(5):
+            c = cores[(i + row * 2) % 6]
+            b.r(5 + i * 7, y, 5, 7, c); b.r(5 + i * 7, y, 5, 1, sh(c, -40)); b.r(6 + i * 7, y + 3, 3, 2, (250, 250, 240))
+    return hd(b.s)
+
+
+def baia():
+    """Balcão de uma baia do estande (amarelo e preto, com o protetor de ouvido pendurado)."""
+    b = B(10, 40)
+    b.r(0, 0, 10, 40, (236, 196, 60))
+    for y in range(2, 40, 6):
+        b.poly([(0, y), (10, y + 3), (10, y + 5), (0, y + 2)], (30, 30, 34))
+    b.r(0, 0, 10, 2, (250, 230, 120))
+    b.circ((5, 10), 3, (220, 60, 60)); b.r(3, 6, 4, 1, (60, 60, 66))
+    return hd(b.s)
+
+
+def alvo(hit=False):
+    b = B(22, 30)
+    b.r(10, 20, 2, 10, (90, 90, 96)); b.r(6, 28, 10, 2, (60, 60, 66))
+    for r, c in ((10, (240, 240, 240)), (8, (220, 50, 50)), (6, (240, 240, 240)), (4, (220, 50, 50)), (2, (250, 230, 120))):
+        b.circ((11, 11), r, c)
+    if hit:
+        for d in ((-3, -2), (3, 2), (-1, 4)):
+            b.p(11 + d[0], 11 + d[1], (30, 30, 34))
+    return hd(b.s, keep=[(250, 230, 120)])
+
+
+def suporte_armas():
+    """Painel de madeira com ganchos onde as armas ficam (as armas entram por cima)."""
+    b = B(104, 50)
+    b.r(0, 0, 104, 50, (96, 64, 40)); b.r(0, 0, 104, 2, (130, 88, 54)); b.r(0, 48, 104, 2, (70, 46, 28))
+    for y in (22, 46):
+        b.r(2, y, 100, 2, (70, 46, 28))
+    for x in range(10, 100, 25):
+        for y in (8, 32):
+            b.r(x, y, 2, 3, (170, 174, 186)); b.r(x + 12, y, 2, 3, (170, 174, 186))
+    return hd(b.s)
+
+
 SOTAO = {
     "sotao_caixa_1": lambda: caixa(26, 18, label=(230, 220, 190)),
     "sotao_caixa_2": lambda: caixa(20, 14),
@@ -162,7 +278,14 @@ SOTAO = {
     "sotao_brinquedos": brinquedos, "sotao_quadro": quadro,
 }
 
-PIECES = {**SOTAO}
+OFICINA = {
+    "oficina_bancada": bancada, "oficina_suporte_exo": suporte_exo, "oficina_compressor": compressor,
+    "oficina_extintor": extintor, "oficina_pneus": pneus, "oficina_tambor": tambor,
+    "oficina_baia": baia, "oficina_alvo": alvo,
+    "oficina_alvo_acertado": lambda: alvo(hit=True), "oficina_suporte_armas": suporte_armas,
+}
+
+PIECES = {**SOTAO, **OFICINA}
 
 
 def main():

@@ -208,3 +208,29 @@ SOTAO = ("SÓTÃO", (
     "                          ",
     "                          ",
 ))
+
+
+# ─────────────────────────────────────────────
+#  Oficina do Borba Jr (zerar o capítulo 2): a bancada e o estande de tiro
+# ─────────────────────────────────────────────
+# As 3 linhas de cima são a parede de tijolo (painel de ferramentas, suporte de armas e o placar
+# do estande são pintados nela). Do lado direito, as 4 raias do estande (ninguém entra: atira-se
+# das baias, na frente delas). A porta de volta para a Casa fica embaixo, à esquerda.
+OFICINA = ("OFICINA DO BORBA JR", (
+    "########################",
+    "#......................#",
+    "#......................#",
+    "#......................#",
+    "#......................#",
+    "#......................#",
+    "#......................#",
+    "#..SSSS................#",
+    "#......................#",
+    "#......................#",
+    "#......................#",
+    "#......................#",
+    "#......................#",
+    "########################",
+    "                        ",
+    "                        ",
+))
