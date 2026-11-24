@@ -1068,12 +1068,14 @@ def locked_door(s, x, y, label, w=80, opened=False, inside=None):
 
 
 def inside_sotao(s, x, y, w):
-    """Sótão aberto: a escada subindo e o brilho dos troféus lá em cima."""
+    """Sótão aberto: a escada subindo, a luz da lâmpada e as caixas de papelão lá em cima."""
     for k in range(5):
         box(s, WOOD, x + 14 + k * 4, y + 54 - k * 11, w - 40 - k * 8, 4)
-    for k, c in enumerate(((250, 210, 90), (200, 200, 210), (210, 140, 80))):
-        box(s, c, x + 16 + k * 16, y + 6, 8, 10)
-        box(s, c, x + 18 + k * 16, y + 16, 4, 4)
+    box(s, (255, 230, 160, 50), x + 30, y + 2, 20, 14)
+    box(s, (255, 240, 190), x + 38, y + 4, 4, 5)
+    for k, (bx, bw) in enumerate(((x + 8, 16), (x + w - 30, 14))):
+        box(s, (184, 140, 90), bx, y + 6 + k * 2, bw, 12)
+        box(s, (210, 196, 150), bx + bw // 2 - 1, y + 6 + k * 2, 2, 12)
 
 
 def inside_oficina(s, x, y, w):

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import pygame
 
-from . import config, energia, equipamento, hud, rumble, segredos, theme
+from . import album, config, energia, equipamento, hud, rumble, segredos, theme
 from .ai import FighterAI
 from .entities import Particle, Pickup
 from .enemies import BIG_KINDS, CREATURES, SHADOW_AURA, SMOKE, Portal, spawn_enemy
@@ -1936,6 +1936,9 @@ class CampaignMatch(CoopMatch):
                 self.revived_once.add(p)
                 self.high_fives += [[frozenset((p, q)), set(), HIGH_FIVE_FRAMES] for q in helpers]
                 self.popup(p.x, p.y - 70, "DE PÉ!", theme.MOSS)
+                if not getattr(self, "revive_photo", False):    # uma foto de amigo levantando por masmorra
+                    self.revive_photo = True
+                    album.request(self, 20)
 
     def _use_continue(self):
         self.run.continues -= 1
@@ -2044,6 +2047,8 @@ class CampaignMatch(CoopMatch):
                      "O CACO SAIU!" if self.dungeon.boss == "albeguinio" else
                      "A IARA FOI DESLIGADA!" if self.dungeon.boss == "cauanzera" else "O CRISTAL ESTÁ LIVRE!")
             self._set_banner(title, self.phase.name, theme.MOSS)
+            if self.slain_boss:
+                album.request(self, 40)                    # a foto do chefe caindo vai para o álbum do sótão
             self.assets.stop_music(1500)
             self.assets.fanfare("vinheta_vitoria", "victory")
         else:

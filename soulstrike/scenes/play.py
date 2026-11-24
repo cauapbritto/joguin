@@ -396,6 +396,9 @@ class PlayScene(Scene):
     # ── desenho ──────────────────────────────
     def draw(self, screen):
         self.match.draw(screen, self.ui)
+        if getattr(self.match, "photo_at", None) is not None:
+            from .. import album
+            album.maybe_snap(self.match, screen)
         W, H = config.SCREEN_W, config.SCREEN_H
         if self.game.session.soccer and self.ticks < 70 and not self.paused:
             word = "VALENDO!"
