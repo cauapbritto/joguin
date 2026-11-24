@@ -14,6 +14,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -39,6 +44,9 @@ data class JogoAchado(
 /**
  * PROCURAR: pergunta "tem jogo aí?" para a rede inteira (broadcast na porta do jogo) e junta quem
  * responde. A pergunta vai "acolchoada" (maior que a resposta), como o jogo exige.
+ *
+ * Se ninguém responder (firewall que só libera o TCP, roteador que barra broadcast), o app bate
+ * na porta 5000 de cada endereço da faixa da Wi-Fi (o mesmo caminho do DIGITAR, que funciona).
  */
 class Descoberta(context: Context) {
     var jogos by mutableStateOf<List<JogoAchado>>(emptyList())
@@ -51,6 +59,9 @@ class Descoberta(context: Context) {
     private val escopo = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var trabalho: Job? = null
     private var rodada = 0
+
+    /** Computadores que a varredura achou (a próxima procura confere eles primeiro). */
+    @Volatile private var conhecidos: List<String> = emptyList()
 
     /** Procura por uns segundos (várias perguntas seguidas: um pacote perdido não esconde o jogo). */
     fun procurar(rodadas: Int = 5) {
@@ -108,6 +119,16 @@ class Descoberta(context: Context) {
                             break
                         }
                     }
+                    if (achados.isNotEmpty()) break
+                    // a primeira pergunta ficou sem resposta: tenta pelo TCP já
+                    if (r == 0 && isActive) {
+                        for (j in varrer()) achados[j.host + ":" + j.porta] = j
+                        if (achados.isNotEmpty()) {
+                            val lista = achados.values.toList()
+                            main.post { if (minha == rodada) jogos = lista }
+                            break
+                        }
+                    }
                 }
             } finally {
                 try {
@@ -129,6 +150,63 @@ class Descoberta(context: Context) {
         trabalho?.cancel()
         rodada++
         procurando = false
+    }
+
+    /** Bate na porta do jogo de cada endereço da faixa do celular (/24), 64 de cada vez. */
+    private suspend fun varrer(): List<JogoAchado> {
+        val antes = conhecidos.mapNotNull { perguntarTcp(it) }
+        if (antes.isNotEmpty()) return antes
+        val eu = meuIp() ?: return emptyList()
+        val prefixo = eu.substringBeforeLast(".") + "."
+        val hosts = (1..254).map { prefixo + it }.filter { it != eu }
+        val limite = Semaphore(64)
+        val achados = coroutineScope {
+            hosts.map { h -> async(Dispatchers.IO) { limite.withPermit { perguntarTcp(h) } } }.awaitAll().filterNotNull()
+        }
+        conhecidos = achados.map { it.host }
+        return achados
+    }
+
+    /** /api/app e /api/status de um endereço (null = não é um Soul Strike). */
+    private fun perguntarTcp(host: String): JogoAchado? {
+        val t0 = SystemClock.elapsedRealtime()
+        val base = "http://$host:${Endereco.PORTA}"
+        val info = Http.get("$base/api/app", 800)?.takeIf { it.ok }?.json() ?: return null
+        if (info.optString("jogo") != "soulstrike") return null
+        val ms = (SystemClock.elapsedRealtime() - t0).toInt()
+        val st = Http.get("$base/api/status", 1500)?.json()
+        val vagas = HashMap<Int, VagaInfo>()
+        st?.optJSONObject("slots")?.let { v ->
+            for (k in v.keys()) {
+                val n = k.toIntOrNull() ?: continue
+                val o = v.optJSONObject(k) ?: continue
+                vagas[n] = VagaInfo(o.optBoolean("claimed"), o.optBoolean("connected"))
+            }
+        }
+        return JogoAchado(
+            host = host,
+            porta = info.optInt("porta", Endereco.PORTA),
+            nome = info.optString("nome").ifEmpty { host },
+            versao = info.optString("versao"),
+            protocolo = info.optInt("protocolo", 1),
+            fase = st?.optString("phase").orEmpty(),
+            modo = st?.optString("mode").orEmpty(),
+            vagas = vagas,
+            ms = ms,
+        )
+    }
+
+    /** O IPv4 do celular na Wi-Fi. */
+    private fun meuIp(): String? {
+        val cm = app.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return null
+        return try {
+            redesWifi(cm).flatMap { rede -> cm.getLinkProperties(rede)?.linkAddresses.orEmpty() }
+                .mapNotNull { it.address as? Inet4Address }
+                .firstOrNull { !it.isLoopbackAddress }
+                ?.hostAddress
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun ler(p: DatagramPacket, ms: Int): JogoAchado? {
