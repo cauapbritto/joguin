@@ -1,5 +1,8 @@
 package io.github.cauapbritto.soulstrike.controle.telas
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +39,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -123,6 +127,52 @@ fun PainelDeReacoes(aoFechar: () -> Unit) {
     ) {
         Texto("APARECE EM CIMA DO SEU BONECO NA TV", cor = Cores.Brass, linhas = 1)
         BotoesDeReacao(altura = 36) { aoFechar() }
+    }
+}
+
+// ── o app fechou sozinho ──────────────────────
+
+/** Na abertura depois de um erro: o texto do erro, COPIAR (para mandar) e CONTINUAR. */
+@Composable
+fun TelaErro(texto: String, aoContinuar: () -> Unit) {
+    val m = LocalMedidas.current
+    val ctx = LocalContext.current
+    var copiado by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize()) {
+        Cabecalho {
+            Texto("O APP FECHOU SOZINHO DA ÚLTIMA VEZ", tam = 16, cor = Cores.Brass, sombra = true, linhas = 1)
+        }
+        Row(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 16.u, vertical = 10.u),
+            horizontalArrangement = Arrangement.spacedBy(12.u),
+        ) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .moldura(m, fundo = Cores.Bolso)
+                    .verticalScroll(rememberScrollState())
+                    .padding(8.u),
+            ) {
+                Texto(texto, cor = Cores.Muted)
+            }
+            Column(Modifier.width(200.u), verticalArrangement = Arrangement.spacedBy(10.u)) {
+                Texto("COPIE ESTE TEXTO E MANDE PARA QUEM FAZ O JOGO: COM ELE DÁ PARA CONSERTAR.", cor = Cores.Bone)
+                Botao(if (copiado) "COPIADO!" else "COPIAR", Modifier.fillMaxWidth(), altura = 36, largo = true) {
+                    try {
+                        val cb = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cb.setPrimaryClip(ClipData.newPlainText("erro do Soul Strike Controle", texto))
+                        copiado = true
+                    } catch (e: Exception) {
+                        // sem área de transferência: dá para tirar print
+                    }
+                }
+                Botao("CONTINUAR", Modifier.fillMaxWidth(), tipo = TipoBotao.VERDE, altura = 36, largo = true) { aoContinuar() }
+            }
+        }
     }
 }
 

@@ -12,6 +12,13 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.63.1": [
+        {"title": "APP MAIS FIRME", "scene": "controle", "tv": "celular_novo", "lines": [
+            "Se o app Android fechar sozinho, na próxima vez ele mostra o erro com um botão COPIAR, para mandar e consertar.",
+            "Conserto da câmera do app: ler o QR da TV fechava o app em alguns celulares.",
+            "O PROCURAR NA REDE do app não derruba mais o app quando a rede responde estranho.",
+        ]},
+    ],
     "1.63.0": [
         {"title": "O PORÃO E A ARENA SEM FIM", "scene": "casa", "tv": "porta", "lines": [
             "Zerou a campanha? O alçapão do quintal abre e a turma desce para o porão, no escuro, com velas.",

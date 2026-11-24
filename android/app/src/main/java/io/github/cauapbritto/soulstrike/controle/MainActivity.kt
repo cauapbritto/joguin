@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        Travamento.instalar(this)                  // antes de tudo: se o app fechar sozinho, o erro fica guardado
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         app = AppEstado.de(this)
