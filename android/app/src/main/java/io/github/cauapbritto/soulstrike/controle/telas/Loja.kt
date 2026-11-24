@@ -24,7 +24,7 @@ import androidx.compose.foundation.text.input.OutputTransformation
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
-import androidx.compose.foundation.text.input.maxLength
+import androidx.compose.foundation.text.input.maxLengthTrim
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -1155,7 +1155,7 @@ fun CampoDeTexto(
                 drawRect(fundo)
             }
             .padding(horizontal = 8.u, vertical = 8.u),
-        inputTransformation = InputTransformation.maxLength(maximo),
+        inputTransformation = InputTransformation.maxLengthTrim(maximo),
         outputTransformation = if (senha) OCULTAR else null,
         textStyle = estilo(16, corTexto),
         keyboardOptions = KeyboardOptions(

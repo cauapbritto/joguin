@@ -113,6 +113,8 @@ img { image-rendering: pixelated; }
 .btn img { width: 16px; height: 16px; }
 .btn.small { min-height: 28px; padding: 0 10px; font-size: 8px; line-height: 12px; }
 .link { color: var(--muted); text-decoration: underline; padding: 12px; }
+.app-link { color: var(--brass); }
+.app-link[hidden] { display: none; }
 .row { display: flex; gap: 10px; }
 
 /* ── escolha de vaga ── */

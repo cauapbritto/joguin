@@ -12,6 +12,7 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var views = ["join", "wait", "select", "pad", "choose", "shop", "penalty", "pc"];
+  var ANDROID = /Android/i.test(navigator.userAgent || "");   // no Android tem o app de controle
 
   function loadToken() {
     var t = null;
@@ -1502,6 +1503,7 @@
     var phase = status.phase;
     $("results-actions").classList.toggle("on", phase === "results" && me.playing);
     $("story-actions").classList.toggle("on", phase === "story" && me.playing);
+    $("app-link").hidden = !(ANDROID && (phase === "menu" || phase === "lobby"));
     if (status.roster && status.roster !== roster.length) loadRoster();   // personagem novo liberado
 
     if (phase === "playing" && me.playing && me.shop && me.shop.screen) {
