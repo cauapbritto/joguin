@@ -77,6 +77,10 @@ class Canal(private val prefs: Prefs, private val vibrador: Vibrador) {
     val entrada = Entrada()
     val token: String get() = prefs.token
 
+    /** As redes Wi-Fi do celular (o App preenche) e "fale só por esta" (quando a padrão não alcança o jogo). */
+    var redesWifi: () -> List<android.net.Network> = { emptyList() }
+    var prenderEm: (android.net.Network) -> Unit = {}
+
     /** Entrou numa vaga: o app guarda o jogo (o atalho VOLTAR AO... do ícone usa). */
     var aoLembrar: ((JogoSalvo) -> Unit)? = null
 
@@ -125,7 +129,8 @@ class Canal(private val prefs: Prefs, private val vibrador: Vibrador) {
         apelidoEm = 0L
         escopo.launch {
             val b = end.base
-            val app = Http.get("$b/api/app", 2500)
+            val motivos = mutableListOf<String>()
+            val app = sondar("$b/api/app", motivos)
             var nome = end.host
             var versao = ""
             var udp = false
@@ -138,10 +143,11 @@ class Canal(private val prefs: Prefs, private val vibrador: Vibrador) {
                 }
             } else {
                 // jogo antigo (sem /api/app) ainda funciona pelo jeito do site
-                val st = Http.get("$b/api/status?slot=0&token=${prefs.token}", 2500)
+                val st = if (app == null) null else sondar("$b/api/status?slot=0&token=${prefs.token}", motivos)
                 if (st == null || !st.ok || st.json()?.has("phase") != true) {
+                    val porque = motivos.distinct().joinToString(" / ").ifEmpty { "RESPOSTA ESTRANHA" }
                     noMain(minha) {
-                        erro = "NÃO ACHEI O JOGO EM ${end.host}. O JOGO ESTÁ ABERTO NA MESMA WI-FI?"
+                        erro = "NÃO ACHEI O JOGO EM ${end.host}:${end.porta}. $porque"
                         estado = Estado.FORA
                         endereco = null
                     }
@@ -162,6 +168,21 @@ class Canal(private val prefs: Prefs, private val vibrador: Vibrador) {
             if (end.vaga in 1..4) entrarNaVaga(end.vaga, minha, avisarOcupada = true)
             else noMain(minha) { estado = Estado.VAGA }
         }
+    }
+
+    /**
+     * Pergunta ao jogo pelo caminho normal e, se não for, por cada Wi-Fi do celular de propósito (o
+     * Android às vezes manda tudo pelos dados móveis). Se só a Wi-Fi alcança, o app fica preso nela.
+     */
+    private fun sondar(url: String, motivos: MutableList<String>): Http.Resposta? {
+        Http.sondar(url, 4000, null, motivos)?.let { return it }
+        val redes = try { redesWifi() } catch (e: Exception) { emptyList() }
+        for (rede in redes) {
+            val r = Http.sondar(url, 4000, rede, motivos) ?: continue
+            try { prenderEm(rede) } catch (e: Exception) { /* segue pela rede escolhida só nesta conversa */ }
+            return r
+        }
+        return null
     }
 
     /** Escolheu (ou trocou) a vaga na tela de vagas. */

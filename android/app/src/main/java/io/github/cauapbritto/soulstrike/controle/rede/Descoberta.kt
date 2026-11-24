@@ -304,6 +304,22 @@ class Descoberta(context: Context) {
             c != null && (c.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || c.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
         }
 
+        /** As redes Wi-Fi (ou cabo) do celular agora. */
+        fun redesWifiDe(context: Context): List<android.net.Network> {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return emptyList()
+            return try { redesWifi(cm) } catch (e: Exception) { emptyList() }
+        }
+
+        /** Daqui em diante o app fala só por esta rede (a Wi-Fi que alcançou o jogo). */
+        fun prenderEm(context: Context, rede: android.net.Network) {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+            try {
+                if (cm.boundNetworkForProcess != rede) cm.bindProcessToNetwork(rede)
+            } catch (e: Exception) {
+                // sem permissão: segue com o padrão do Android
+            }
+        }
+
         /** O celular está numa Wi-Fi (ou cabo)? */
         fun naWifi(context: Context): Boolean {
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
