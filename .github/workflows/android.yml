@@ -41,7 +41,15 @@ jobs:
           yes | "$SDKM" --licenses > /dev/null || true
           "$SDKM" "platforms;android-37.1" > /dev/null || "$SDKM" "platforms;android-37" > /dev/null || true
       - name: Compilar o APK
-        run: ./gradlew --no-daemon --stacktrace assembleRelease
+        # Sem cache (PR, branch novo, primeira vez na main ou numa tag) o Gradle baixa uns 500 MB
+        # dos repositórios públicos, e a rede deles às vezes falha no meio. Então, se der erro,
+        # tenta de novo uma vez depois de 30 s, já com --info para mostrar a causa. Erro de código
+        # falha nas duas vezes do mesmo jeito.
+        run: |
+          ./gradlew --no-daemon --stacktrace assembleRelease && exit 0
+          echo "::warning::A primeira tentativa falhou; de novo em 30 s (rede dos repositórios?)"
+          sleep 30
+          ./gradlew --no-daemon --stacktrace --info assembleRelease
       - name: Nome do APK
         run: cp app/build/outputs/apk/release/app-release.apk SoulStrikeControle.apk
       - uses: actions/upload-artifact@v6
