@@ -535,6 +535,8 @@ fun TelaControle(st: Status, me: Me) {
     // MAPA (e CADERNO) e o balão de reações, por cima do controle
     var mapaAberto by remember { mutableStateOf(false) }
     var reacoesAbertas by remember { mutableStateOf(false) }
+    var equipeAberta by remember { mutableStateOf(false) }
+    LaunchedEffect(me.podeChamar) { if (!me.podeChamar) equipeAberta = false }
     LaunchedEffect(st.temMapa) { if (!st.temMapa) mapaAberto = false }
     BackHandler(enabled = mapaAberto) { mapaAberto = false }
 
@@ -683,19 +685,50 @@ fun TelaControle(st: Status, me: Me) {
                     pad.selecionado = null
                     recado = ""
                     reacoesAbertas = false
+                    equipeAberta = false
                     rascunho = salvo
                 },
                 aoMapa = if (st.temMapa) {
                     {
                         pad.soltarTudo()
                         reacoesAbertas = false
+                        equipeAberta = false
                         mapaAberto = true
                     }
                 } else null,
                 aoReacoes = if (st.temExtras) {
-                    { reacoesAbertas = !reacoesAbertas }
+                    {
+                        equipeAberta = false
+                        reacoesAbertas = !reacoesAbertas
+                    }
+                } else null,
+                aoEquipe = if (me.podeChamar) {
+                    {
+                        reacoesAbertas = false
+                        equipeAberta = !equipeAberta
+                    }
                 } else null,
             )
+            if (me.chamadas.isNotEmpty() && !equipeAberta && !reacoesAbertas) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(top = 48.u),
+                    contentAlignment = Alignment.TopCenter,
+                ) {
+                    AvisoDaEquipe(me.chamadas)
+                }
+            }
+            if (equipeAberta) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(top = 44.u, end = 12.u),
+                    contentAlignment = Alignment.TopEnd,
+                ) {
+                    PainelDaEquipe(aoFechar = { equipeAberta = false })
+                }
+            }
             if (reacoesAbertas) {
                 Box(
                     Modifier
@@ -1016,6 +1049,7 @@ private fun BarraDoControle(
     aoAjustes: () -> Unit,
     aoMapa: (() -> Unit)?,
     aoReacoes: (() -> Unit)?,
+    aoEquipe: (() -> Unit)?,
 ) {
     val app = LocalApp.current
     val canal = app.canal
@@ -1032,6 +1066,7 @@ private fun BarraDoControle(
             Texto(if (canal.rtt >= 0) "${canal.rtt} MS" else "-- MS", cor = corDoSinal(canal.rtt), linhas = 1)
         }
         Spacer(Modifier.weight(1f))
+        if (aoEquipe != null) Botao("EQUIPE", altura = 28, naHora = true) { aoEquipe() }
         if (aoReacoes != null) Botao("", icone = R.drawable.r_kkk, altura = 28, naHora = true) { aoReacoes() }
         if (aoMapa != null) Botao("MAPA", altura = 28) { aoMapa() }
         Botao("AJUSTES", altura = 28) { aoAjustes() }

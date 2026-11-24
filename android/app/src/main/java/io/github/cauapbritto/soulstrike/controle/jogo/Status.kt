@@ -23,6 +23,9 @@ fun JSONArray?.objetos(): List<JSONObject> =
 
 data class VagaInfo(val ocupada: Boolean, val conectada: Boolean)
 
+/** Uma frase do botão EQUIPE de um colega: número, vaga de quem mandou, apelido (ou P2) e a frase. */
+data class Chamada(val id: Int, val de: Int, val rotulo: String, val tipo: String)
+
 data class PaginaNovidade(val indice: Int, val total: Int, val titulo: String)
 
 data class Melhoria(val nome: String, val desc: String, val cor: Long)
@@ -91,6 +94,14 @@ class Me(val o: JSONObject) {
 
     /** O apelido que a TV está mostrando (null = P1, P2...). */
     val apelido: String? = o.textoOuNulo("nick")
+
+    /** Pode mandar frase para a equipe agora (partida com time, ou campanha). */
+    val podeChamar: Boolean = o.optBoolean("team_calls")
+
+    /** As frases dos colegas de time ainda no ar (a mais nova por último). */
+    val chamadas: List<Chamada> = o.optJSONArray("calls").objetos().map {
+        Chamada(it.optInt("id"), it.optInt("from"), it.texto("label"), it.texto("kind"))
+    }
     val rapido = Rapido.de(o)
 }
 

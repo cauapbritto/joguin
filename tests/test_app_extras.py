@@ -15,7 +15,7 @@ from soulstrike.casa import HubMatch
 from soulstrike.data import CHARACTERS
 from soulstrike.fase import PhaseMatch
 from soulstrike.net import rapido, server
-from soulstrike.net.remote import NICK_CHARS, NICK_LETTERS, REACTION_GAP, REACTIONS, clean_nick, hub
+from soulstrike.net.remote import CALL_SECONDS, CALLS, NICK_CHARS, NICK_LETTERS, REACTION_GAP, REACTIONS, clean_nick, hub
 from soulstrike.session import Session, SlotSetup
 
 TOKEN = "app-extras"
@@ -24,7 +24,7 @@ SLOT = 4
 
 def _claim(slot=SLOT, token=TOKEN):
     hub._slots[slot].token = None                      # vaga limpa, mesmo que outro teste tenha usado
-    hub._slots[slot].nick = hub._slots[slot].reaction = None
+    hub._slots[slot].nick = hub._slots[slot].reaction = hub._slots[slot].call = None
     assert hub.join(slot, token)
 
 
@@ -182,6 +182,86 @@ class ReacoesTest(unittest.TestCase):
             self.assertIsNotNone(hub.reaction(SLOT))
         finally:
             g.session = None
+
+
+class EquipeTest(unittest.TestCase):
+    """Botão EQUIPE: a frase vai só para os colegas de time (vibrando) e aparece na TV."""
+    MATE = 3
+    OTHER = 2
+
+    def setUp(self):
+        _claim()
+        _claim(self.MATE, "colega")
+        _claim(self.OTHER, "rival")
+        self.client = server.app.test_client()
+
+    def tearDown(self):
+        for slot in (SLOT, self.MATE, self.OTHER):
+            hub.publish_slot(slot, team=None)
+        _free(self.MATE, "colega")
+        _free(self.OTHER, "rival")
+        _free()
+
+    def _soccer(self):
+        hub.set_phase("playing", mode="soccer", active=[SLOT, self.MATE, self.OTHER])
+        hub.publish_slot(SLOT, team=0)
+        hub.publish_slot(self.MATE, team=0)
+        hub.publish_slot(self.OTHER, team=1)
+        for slot, token in ((self.MATE, "colega"), (self.OTHER, "rival")):
+            hub.status(slot, token)
+            hub.touch(slot, token)
+
+    def test_so_o_time_recebe(self):
+        self._soccer()
+        self.assertTrue(hub.status(SLOT, TOKEN)["me"]["team_calls"])
+        buzz_mate = hub.status(self.MATE, "colega")["me"]["buzz"][0]
+        buzz_other = hub.status(self.OTHER, "rival")["me"]["buzz"][0]
+        hub.set_nick(SLOT, TOKEN, "CAUÃ")
+        r = self.client.post("/api/equipe", json={"slot": SLOT, "token": TOKEN, "kind": "passa"})
+        self.assertEqual(r.status_code, 204)
+        calls = hub.status(self.MATE, "colega")["me"]["calls"]
+        self.assertEqual([(c["from"], c["label"], c["kind"]) for c in calls], [(SLOT, "CAUÃ", "passa")])
+        self.assertEqual(hub.status(self.MATE, "colega")["me"]["buzz"], [buzz_mate + 1, "call"])
+        self.assertEqual(hub.status(self.OTHER, "rival")["me"]["calls"], [])
+        self.assertEqual(hub.status(self.OTHER, "rival")["me"]["buzz"][0], buzz_other)
+        self.assertEqual(hub.status(SLOT, TOKEN)["me"]["calls"], [])          # quem mandou não recebe
+        self.assertEqual(hub.team_call_of(SLOT)[0], CALLS.index("passa"))
+        r = self.client.post("/api/equipe", json={"slot": SLOT, "token": TOKEN, "kind": "chuta"})
+        self.assertEqual(r.status_code, 429)                                 # uma por segundo
+        r = self.client.post("/api/equipe", json={"slot": SLOT, "token": "outro", "kind": "chuta"})
+        self.assertEqual(r.status_code, 403)
+        info = hub._slots[SLOT]
+        info.call = (info.call[0], info.call[1] - CALL_SECONDS - 0.1, info.call[2])
+        self.assertEqual(hub.status(self.MATE, "colega")["me"]["calls"], [])  # a frase já saiu do ar
+        self.assertIsNone(hub.team_call_of(SLOT))
+
+    def test_sem_equipe_nao_vale(self):
+        hub.set_phase("playing", mode="battle", active=[SLOT, self.MATE])
+        self.assertFalse(hub.status(SLOT, TOKEN)["me"]["team_calls"])
+        self.assertIsNone(hub.team_call(SLOT, TOKEN, 0))
+        hub.set_phase("menu", mode="soccer")
+        hub.publish_slot(SLOT, team=0)
+        self.assertIsNone(hub.team_call(SLOT, TOKEN, 0))                     # fora da partida
+        for kind in (-1, len(CALLS), "x", None, True):
+            self.assertIsNone(hub.team_call(SLOT, TOKEN, kind), kind)
+
+    def test_campanha_todo_mundo_e_da_equipe(self):
+        hub.set_phase("playing", mode="campaign", active=[SLOT, self.MATE])
+        self.assertTrue(hub.team_call(SLOT, TOKEN, CALLS.index("ajuda")))
+        self.assertEqual([c["kind"] for c in hub.status(self.MATE, "colega")["me"]["calls"]], ["ajuda"])
+        self.assertEqual(hub.status(self.OTHER, "rival")["me"]["calls"], [])  # fora da partida
+
+    def test_balao_na_tv(self):
+        g = game()
+        screen = pygame.Surface((config.SCREEN_W, config.SCREEN_H))
+        for kind in range(len(CALLS)):
+            for age in (0.0, 0.05, 1.0, CALL_SECONDS - 0.1):
+                for x, y in ((0, 0), (config.SCREEN_W, 40)):
+                    reacoes.draw_call(screen, g.ui, kind, age, x, y, (86, 136, 232))
+        reacoes.draw_call(screen, g.ui, 99, 0.5, 100, 100)
+        self._soccer()
+        self.assertTrue(hub.team_call(SLOT, TOKEN, 0))
+        reacoes.draw_for(screen, g.ui, SLOT, 100, 100, 0)
 
 
 class ResumoTest(unittest.TestCase):

@@ -531,6 +531,23 @@ class Canal(private val prefs: Prefs, private val vibrador: Vibrador) {
         }
     }
 
+    /** Frase para a equipe (passa, chuta, ajuda, frente, cuidado, aqui): só os colegas de time recebem. */
+    fun chamarEquipe(tipo: String) {
+        val v = vagaAtual
+        val b = base
+        if (v == 0 || b.isEmpty()) return
+        val agora = SystemClock.elapsedRealtime()
+        if (agora - reacaoEm < 1000L) return               // a mesma regra das reações: uma por segundo
+        reacaoEm = agora
+        val minha = geracao
+        escopo.launch {
+            val r = Http.post("$b/api/equipe", JSONObject().put("slot", v).put("token", prefs.token).put("kind", tipo))
+            if (r != null && (r.codigo == 404 || r.codigo == 405)) {
+                noMain(minha) { aviso = "ESTE JOGO AINDA NÃO TEM O BOTÃO EQUIPE: ATUALIZE O JOGO" }
+            }
+        }
+    }
+
     /** O MAPA da partida (fase ou Casa) agora, ou null (sem mapa, jogo antigo ou rede ruim). */
     suspend fun buscarMapa(): MapaJogo? = withContext(Dispatchers.IO) {
         val v = vagaAtual

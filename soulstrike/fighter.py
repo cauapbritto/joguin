@@ -1716,7 +1716,7 @@ class Fighter(Entity):
         sx, sy = round(sx), round(sy)
         if self.hp <= 0:
             if not self.is_cpu and self.slot:
-                reacoes.draw_for(surf, ui, self.slot, sx, sy + 20)     # caído também reage (KKKK)
+                reacoes.draw_for(surf, ui, self.slot, sx, sy + 20, self.team)     # caído também reage (KKKK)
             return
         if self.overlay == "hp":
             # inimigo comum: só uma barrinha, e só depois de levar dano
@@ -1745,7 +1745,7 @@ class Fighter(Entity):
                 surf.fill((150, 212, 240), (sx - 18, sy - 9, round(36 * min(1, self.shield / 40)), 2))
             self._draw_ammo(surf, sx, sy + 1)
         if not self.is_cpu and self.slot:
-            reacoes.draw_for(surf, ui, self.slot, sx, tr.top - 3)       # por cima da etiqueta e da vida
+            reacoes.draw_for(surf, ui, self.slot, sx, tr.top - 3, self.team)       # por cima da etiqueta e da vida
 
     def _draw_ammo(self, surf, cx, y):
         """Munição embaixo da vida: um tracinho por tiro (dourado = munição extra do item)

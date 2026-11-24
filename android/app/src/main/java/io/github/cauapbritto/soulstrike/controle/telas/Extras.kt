@@ -43,6 +43,7 @@ import io.github.cauapbritto.soulstrike.controle.LocalApp
 import io.github.cauapbritto.soulstrike.controle.R
 import io.github.cauapbritto.soulstrike.controle.atualizar.Atualizador
 import io.github.cauapbritto.soulstrike.controle.jogo.Caderno
+import io.github.cauapbritto.soulstrike.controle.jogo.Chamada
 import io.github.cauapbritto.soulstrike.controle.jogo.MAX_APELIDO
 import io.github.cauapbritto.soulstrike.controle.jogo.MapaJogo
 import io.github.cauapbritto.soulstrike.controle.jogo.Resumo
@@ -122,6 +123,70 @@ fun PainelDeReacoes(aoFechar: () -> Unit) {
     ) {
         Texto("APARECE EM CIMA DO SEU BONECO NA TV", cor = Cores.Brass, linhas = 1)
         BotoesDeReacao(altura = 36) { aoFechar() }
+    }
+}
+
+// ── frases para a equipe ──────────────────────
+
+/** Uma frase do botão EQUIPE: a chave que o jogo conhece e o texto (o mesmo do balão da TV). */
+data class Frase(val chave: String, val texto: String)
+
+val FRASES = listOf(
+    Frase("passa", "PASSA!"),
+    Frase("chuta", "CHUTA!"),
+    Frase("ajuda", "AJUDA!"),
+    Frase("frente", "VOU NA FRENTE"),
+    Frase("cuidado", "CUIDADO!"),
+    Frase("aqui", "VEM PRA CÁ"),
+)
+
+fun textoDaFrase(chave: String): String = FRASES.firstOrNull { it.chave == chave }?.texto ?: chave.uppercase()
+
+/** O balão do botão EQUIPE: 6 frases prontas; só o seu time recebe (e o celular deles vibra). */
+@Composable
+fun PainelDaEquipe(aoFechar: () -> Unit) {
+    val m = LocalMedidas.current
+    val canal = LocalApp.current.canal
+    LaunchedEffect(Unit) {
+        delay(6000)
+        aoFechar()
+    }
+    Column(
+        Modifier
+            .moldura(m, fundo = Color(0xFF141026))
+            .bloquearToques()
+            .padding(8.u),
+        verticalArrangement = Arrangement.spacedBy(6.u),
+    ) {
+        Texto("SÓ O SEU TIME RECEBE NO CELULAR (E VÊ NA TV)", cor = Cores.Brass, linhas = 1)
+        for (linha in FRASES.chunked(3)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.u)) {
+                for (f in linha) {
+                    Botao(f.texto, Modifier.width(118.u), altura = 36, naHora = true) {
+                        canal.chamarEquipe(f.chave)
+                        aoFechar()
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** O recado de um colega no alto do controle ("P2: PASSA!"), enquanto ele estiver no ar. */
+@Composable
+fun AvisoDaEquipe(chamadas: List<Chamada>, modifier: Modifier = Modifier) {
+    val c = chamadas.lastOrNull() ?: return
+    val m = LocalMedidas.current
+    val cor = corVaga(c.de)
+    Row(
+        modifier
+            .moldura(m, fundo = Color(0xFF141026), luz = cor, sombra = Color.Black)
+            .padding(horizontal = 12.u, vertical = 6.u),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.u),
+    ) {
+        Texto(c.rotulo.ifEmpty { "P${c.de}" }, cor = cor, linhas = 1, sombra = true)
+        Texto(textoDaFrase(c.tipo), tam = 16, cor = Cores.Bone, linhas = 1, sombra = true)
     }
 }
 

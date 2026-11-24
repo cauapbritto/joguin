@@ -18,6 +18,11 @@ NEWS = {
             "Reações rápidas no app: GG, KKKK, VEM! e PALMAS aparecem num balão em cima do seu boneco, com somzinho.",
             "No fim da partida, o celular mostra o seu resumo: placar, seus números e o DESTAQUE da partida.",
         ]},
+        {"title": "FALA COM O TIME", "scene": "controle", "tv": "celular_novo", "lines": [
+            "Botão EQUIPE no app, no futebol, no basquete e na campanha: PASSA!, CHUTA!, AJUDA!, VOU NA FRENTE, CUIDADO! e VEM PRA CÁ.",
+            "Só os colegas de time recebem: o celular deles vibra e mostra quem mandou.",
+            "Na TV, a frase aparece num balão na cor do time em cima de quem mandou.",
+        ]},
         {"title": "MAPA NO CELULAR", "scene": "hud", "lines": [
             "Na campanha e na Casa, o botão MAPA do app abre o mapa da fase no celular, sem pausar a TV.",
             "Na mesma tela, o CADERNO DE SEGREDOS: os achados com nome e os que faltam com a dica.",

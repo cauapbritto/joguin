@@ -21,7 +21,7 @@ from .. import config
 from ..data import CHARACTERS, roster_for_web
 from ..basket_powers import BASKET_POWERS
 from ..soccer_powers import SOCCER_POWERS
-from .remote import REACTIONS, hub
+from .remote import CALLS, REACTIONS, hub
 
 app = Flask(
     __name__,
@@ -271,6 +271,21 @@ def reaction():
     ok = hub.react(_slot_arg(data), data.get("token"), kind)
     if ok is None:
         return "", 429                  # cedo demais (ou reação que não existe): o app só avisa
+    return ("", 204) if ok else ("", 403)
+
+
+@app.post("/api/equipe")
+def team_call():
+    """Frase do botão EQUIPE do app (PASSA!, AJUDA!...): os colegas de time vibram e leem no celular."""
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        data = {}
+    kind = data.get("kind")
+    if isinstance(kind, str) and kind in CALLS:
+        kind = CALLS.index(kind)
+    ok = hub.team_call(_slot_arg(data), data.get("token"), kind)
+    if ok is None:
+        return "", 429                  # cedo demais, sem equipe agora ou frase que não existe
     return ("", 204) if ok else ("", 403)
 
 

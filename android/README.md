@@ -48,6 +48,8 @@ Permissões que o app pede: **câmera** (só para ler o QR Code) e, nos Android 
 - Telas de espera, novidades (PLANTÃO), resultados e história com os botões para avançar.
 - **Apelido na TV** (até 10 letras, no lugar de P1) e **reações rápidas** (GG, KKKK, VEM!,
   PALMAS) num balão em cima do boneco, com somzinho.
+- Botão **EQUIPE** (futebol, basquete e campanha): frases prontas como PASSA! e AJUDA! que só os
+  colegas de time recebem, com vibração, e que aparecem num balão na cor do time na TV.
 - **Resumo da partida** no celular (placar, seus números e o destaque) e, na campanha e na Casa,
   o **MAPA** com o **CADERNO DE SEGREDOS** sem pausar a TV.
 - Segurar o ícone do app mostra **VOLTAR AO JOGO** (o último computador, na mesma vaga).

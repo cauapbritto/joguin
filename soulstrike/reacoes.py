@@ -13,7 +13,7 @@ import math
 import pygame
 
 from . import theme
-from .net.remote import REACTION_SECONDS, REACTIONS, hub
+from .net.remote import CALL_SECONDS, CALL_TEXT, CALLS, REACTION_SECONDS, REACTIONS, hub
 
 # cores dos desenhos (a mesma letra vale no app)
 PALETTE = {
@@ -122,26 +122,42 @@ def draw(screen, ui, kind, age, x, y):
         return
     key = REACTIONS[kind]
     text, color, _, _ = STYLE[key]
-    pop = min(1.0, age / 0.12)                         # cresce no começo
-    fade = max(0.0, min(1.0, (REACTION_SECONDS - age) / 0.3))
     img = icon(key, 2)
     if key == "palmas" and int(age * 8) % 2:           # as mãos batendo
         img = pygame.transform.scale(img, (img.get_width() - 2, img.get_height()))
+    _bubble(screen, ui, img, text, color, INK, age, REACTION_SECONDS, x, y)
+
+
+def draw_call(screen, ui, kind, age, x, y, color=INK):
+    """Balão da frase para a equipe (PASSA!, AJUDA!...): só o texto, com a borda na cor do time."""
+    if not 0 <= kind < len(CALLS):
+        return
+    _bubble(screen, ui, None, CALL_TEXT[CALLS[kind]], INK, color, age, CALL_SECONDS, x, y)
+
+
+def _bubble(screen, ui, img, text, color, line, age, seconds, x, y):
+    pop = min(1.0, age / 0.12)                         # cresce no começo
+    fade = max(0.0, min(1.0, (seconds - age) / 0.3))
     words = ui.assets.text(text, theme.XS, color) if text else None
-    w = img.get_width() + (words.get_width() + 6 if words else 0) + 12
-    h = img.get_height() + 8
+    iw = img.get_width() if img is not None else 0
+    ih = img.get_height() if img is not None else (words.get_height() if words else 8)
+    w = iw + (words.get_width() + (6 if img is not None else 0) if words else 0) + 12
+    h = ih + 8
+    thick = 1 if line == INK else 2
     bubble = pygame.Surface((w + 2, h + 8), pygame.SRCALPHA)
     rect = pygame.Rect(0, 0, w, h)
     pygame.draw.rect(bubble, theme.SHADOW, rect.move(2, 2))
     pygame.draw.rect(bubble, BUBBLE, rect)
-    pygame.draw.rect(bubble, INK, rect, 1)
+    pygame.draw.rect(bubble, line, rect, thick)
     tip = w // 2
     pygame.draw.polygon(bubble, BUBBLE, [(tip - 5, h - 1), (tip + 5, h - 1), (tip, h + 6)])
-    pygame.draw.line(bubble, INK, (tip - 5, h - 1), (tip, h + 6))
-    pygame.draw.line(bubble, INK, (tip + 5, h - 1), (tip, h + 6))
-    bubble.blit(img, img.get_rect(midleft=(6, h // 2)))
+    pygame.draw.line(bubble, line, (tip - 5, h - 1), (tip, h + 6), thick)
+    pygame.draw.line(bubble, line, (tip + 5, h - 1), (tip, h + 6), thick)
+    if img is not None:
+        bubble.blit(img, img.get_rect(midleft=(6, h // 2)))
     if words is not None:
-        bubble.blit(words, words.get_rect(midleft=(6 + img.get_width() + 6, h // 2)))
+        left = 6 + iw + (6 if img is not None else 0)
+        bubble.blit(words, words.get_rect(midleft=(left, h // 2)))
     if pop < 1.0:
         size = (max(1, round(bubble.get_width() * (0.6 + 0.4 * pop))),
                 max(1, round(bubble.get_height() * (0.6 + 0.4 * pop))))
@@ -154,8 +170,15 @@ def draw(screen, ui, kind, age, x, y):
     screen.blit(bubble, rect)
 
 
-def draw_for(screen, ui, slot, x, y):
-    """Desenha a reação desta vaga, se tiver uma no ar (ponta do balão em x, y)."""
-    r = hub.reaction(slot) if slot else None
-    if r is not None:
+def draw_for(screen, ui, slot, x, y, team=None):
+    """Desenha a reação (ou a frase para a equipe) desta vaga, a mais nova que estiver no ar
+    (ponta do balão em x, y). A frase tem a borda na cor do time (ou do jogador, na campanha)."""
+    if not slot:
+        return
+    r = hub.reaction(slot)
+    c = hub.team_call_of(slot)
+    if c is not None and (r is None or c[1] <= r[1]):
+        color = theme.TEAM_COLORS.get(team) or theme.SLOT_COLORS.get(slot, INK)
+        draw_call(screen, ui, c[0], c[1], x, y, color)
+    elif r is not None:
         draw(screen, ui, r[0], r[1], x, y)
