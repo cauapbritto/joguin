@@ -61,6 +61,9 @@ class Descoberta(context: Context) {
     private var trabalho: Job? = null
     private var rodada = 0
 
+    /** Os endereços dos jogos salvos (VOLTAR AO... e DIGITAR): a procura confere eles também. */
+    var recentes: () -> List<String> = { emptyList() }
+
     /** Computadores que a varredura achou (a próxima procura confere eles primeiro). */
     @Volatile private var conhecidos: List<String> = emptyList()
 
@@ -162,11 +165,26 @@ class Descoberta(context: Context) {
 
     /** Bate na porta do jogo de cada endereço da faixa do celular (/24), 64 de cada vez. */
     private suspend fun varrer(): List<JogoAchado> {
-        val antes = conhecidos.mapNotNull { perguntarTcp(it) }
-        if (antes.isNotEmpty()) return antes
-        val eu = meuIp() ?: return emptyList()
-        val prefixo = eu.substringBeforeLast(".") + "."
-        val hosts = (1..254).map { prefixo + it }.filter { it != eu }
+        // primeiro os computadores já conhecidos (achados antes ou digitados no DIGITAR)
+        val salvos = try {
+            recentes()
+        } catch (e: Exception) {
+            emptyList()
+        }
+        val antes = (conhecidos + salvos).distinct().mapNotNull { perguntarTcp(it) }
+        if (antes.isNotEmpty()) {
+            conhecidos = antes.map { it.host }
+            return antes
+        }
+        // depois a faixa do celular e a dos jogos salvos (roteador com duas faixas, repetidor...)
+        val eu = meuIp()
+        val prefixos = (listOfNotNull(eu) + salvos)
+            .filter { it.count { c -> c == '.' } == 3 }
+            .map { it.substringBeforeLast(".") + "." }
+            .distinct()
+            .take(3)
+        if (prefixos.isEmpty()) return emptyList()
+        val hosts = prefixos.flatMap { p -> (1..254).map { p + it } }.filter { it != eu }
         val limite = Semaphore(64)
         val achados = coroutineScope {
             hosts.map { h -> async(Dispatchers.IO) { limite.withPermit { perguntarTcp(h) } } }.awaitAll().filterNotNull()

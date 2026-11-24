@@ -107,6 +107,7 @@ class AppEstado private constructor(context: Context) {
 
     init {
         canal.aoLembrar = { jogo -> Atalhos.voltarAo(contexto, jogo) }
+        descoberta.recentes = { prefs.recentes().map { it.host } }
     }
 
     fun conectar(end: Endereco) {
