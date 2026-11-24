@@ -20,6 +20,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import io.github.cauapbritto.soulstrike.controle.atualizar.Atualizador
+import io.github.cauapbritto.soulstrike.controle.jogo.limparApelido
 import io.github.cauapbritto.soulstrike.controle.rede.Canal
 import io.github.cauapbritto.soulstrike.controle.rede.Descoberta
 import io.github.cauapbritto.soulstrike.controle.rede.Endereco
@@ -51,6 +53,7 @@ class AppEstado private constructor(context: Context) {
     val vibrador = Vibrador(contexto) { prefs.vibracao }
     val canal = Canal(prefs, vibrador)
     val descoberta = Descoberta(contexto)
+    val atualizador = Atualizador(contexto)
 
     var tela by mutableStateOf(Tela.MENU)
     var clique by mutableStateOf(prefs.cliqueAoTocar)
@@ -58,10 +61,17 @@ class AppEstado private constructor(context: Context) {
     var vibracao by mutableIntStateOf(prefs.vibracao)
         private set
 
+    /** O apelido que a TV mostra no lugar de P1 (vazio = P1). */
+    var apelido by mutableStateOf(prefs.apelido)
+        private set
+
     /** Android 17+: a permissão de rede local foi negada (o app não fala com o jogo). */
     var redeLocalNegada by mutableStateOf(false)
     var pedirRedeLocal: (() -> Unit)? = null
     var abrirAjustesDoAndroid: (() -> Unit)? = null
+
+    /** O app está na frente (o sensor de inclinar só liga assim). */
+    var naFrente by mutableStateOf(false)
 
     /** Tiquinho de vibração dos botões (CLIQUE AO TOCAR). */
     fun toque() {
@@ -76,6 +86,17 @@ class AppEstado private constructor(context: Context) {
     fun mudarClique(ligado: Boolean) {
         prefs.cliqueAoTocar = ligado
         clique = ligado
+    }
+
+    fun mudarApelido(novo: String) {
+        val limpo = limparApelido(novo)
+        prefs.apelido = limpo
+        apelido = limpo
+        canal.mandarApelido()
+    }
+
+    init {
+        canal.aoLembrar = { jogo -> Atalhos.voltarAo(contexto, jogo) }
     }
 
     fun conectar(end: Endereco) {

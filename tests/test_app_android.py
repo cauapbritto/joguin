@@ -101,11 +101,12 @@ class CanalRapidoTest(unittest.TestCase):
     def test_numero_do_status_muda_so_com_o_resto(self):
         full = hub.status(SLOT, TOKEN)
         n = rapido.status_number(full)
+        antes = full["me"]["char"]                           # a CPU sorteada em outro teste pode ter deixado qualquer um
         hub.publish_slot(SLOT, stamina=0.3, ammo=2)          # campos do pulso: o número fica
         self.assertEqual(rapido.status_number(hub.status(SLOT, TOKEN)), n)
-        hub.publish_slot(SLOT, char=7)                       # trocou de personagem: o app busca o status
+        hub.publish_slot(SLOT, char=(antes or 0) + 1)        # trocou de personagem: o app busca o status
         self.assertNotEqual(rapido.status_number(hub.status(SLOT, TOKEN)), n)
-        hub.publish_slot(SLOT, char=0, stamina=1.0, ammo=0)
+        hub.publish_slot(SLOT, char=antes, stamina=1.0, ammo=0)
 
     def test_pulso_pequeno_mesmo_com_a_loja_aberta(self):
         hub.set_phase("playing", mode="campaign", active=[SLOT])

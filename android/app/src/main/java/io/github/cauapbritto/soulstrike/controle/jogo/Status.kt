@@ -23,6 +23,9 @@ fun JSONArray?.objetos(): List<JSONObject> =
 
 data class VagaInfo(val ocupada: Boolean, val conectada: Boolean)
 
+/** Uma frase do botão EQUIPE de um colega: número, vaga de quem mandou, apelido (ou P2) e a frase. */
+data class Chamada(val id: Int, val de: Int, val rotulo: String, val tipo: String)
+
 data class PaginaNovidade(val indice: Int, val total: Int, val titulo: String)
 
 data class Melhoria(val nome: String, val desc: String, val cor: Long)
@@ -88,6 +91,17 @@ class Me(val o: JSONObject) {
     val loja: Loja? = o.optJSONObject("shop")?.let { Loja(it) }
     val penalti: Penalti? = o.optJSONObject("penalty")?.let { Penalti(it.texto("role", "espera"), it.texto("hero")) }
     val mao: Mao? = o.optJSONObject("hand")?.let { Mao(it.texto("name"), it.texto("icon")) }
+
+    /** O apelido que a TV está mostrando (null = P1, P2...). */
+    val apelido: String? = o.textoOuNulo("nick")
+
+    /** Pode mandar frase para a equipe agora (partida com time, ou campanha). */
+    val podeChamar: Boolean = o.optBoolean("team_calls")
+
+    /** As frases dos colegas de time ainda no ar (a mais nova por último). */
+    val chamadas: List<Chamada> = o.optJSONArray("calls").objetos().map {
+        Chamada(it.optInt("id"), it.optInt("from"), it.texto("label"), it.texto("kind"))
+    }
     val rapido = Rapido.de(o)
 }
 
@@ -111,6 +125,15 @@ class Status(val o: JSONObject) {
         }
     }
     val me: Me? = o.optJSONObject("me")?.let { Me(it) }
+
+    /** Jogo da v1.60.0 em diante: apelido, reações, resumo da partida e MAPA. */
+    val temExtras = o.has("map")
+
+    /** A partida tem MAPA para o celular (fase da campanha ou Casa). */
+    val temMapa = o.optBoolean("map")
+
+    /** O resumo da partida que acabou (só na tela de resultado). */
+    val resumo: Resumo? = o.optJSONObject("summary")?.let { try { Resumo(it) } catch (e: Exception) { null } }
 }
 
 /** A banca aberta no celular (loja, ferreiro, altar, cacos, armário) ou o computador da Casa. */

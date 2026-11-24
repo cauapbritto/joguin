@@ -578,20 +578,21 @@ MINI_PATH = (110, 110, 130)
 
 def minimap_rect(layout, right, top):
     scale = _mini_scale(layout)
-    c0, r0, c1, r1 = _extent(layout)
+    c0, r0, c1, r1 = extent(layout)
     w = round((c1 - c0) * scale) + 12
     h = round((r1 - r0) * scale) + 12
     return pygame.Rect(right - w, top, w, h)
 
 
-def _extent(layout):
+def extent(layout):
+    """(c0, r0, c1, r1): o retângulo, em quadrados, que cobre as salas e os corredores."""
     boxes = [r.cells for r in layout.rooms.values()] + list(layout.corridors)
     return (min(b[0] for b in boxes), min(b[1] for b in boxes),
             max(b[0] + b[2] for b in boxes), max(b[1] + b[3] for b in boxes))
 
 
 def _mini_scale(layout):
-    c0, r0, c1, r1 = _extent(layout)
+    c0, r0, c1, r1 = extent(layout)
     return min((MINI_W - 12) / (c1 - c0), (MINI_H - 12) / (r1 - r0))
 
 
@@ -599,7 +600,7 @@ def draw_minimap(screen, ui, layout, visited, here, rect, portal=False):
     """O mapinha: só as salas e os corredores. A sala onde o grupo está fica dourada, as já
     visitadas cinza cheio e as que faltam só no contorno, com um "?"."""
     scale = _mini_scale(layout)
-    c0, r0, _, _ = _extent(layout)
+    c0, r0, _, _ = extent(layout)
     bg = pygame.Surface(rect.size, pygame.SRCALPHA)
     bg.fill((8, 8, 14, 170))
     screen.blit(bg, rect.topleft)

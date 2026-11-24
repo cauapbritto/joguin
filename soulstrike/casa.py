@@ -19,6 +19,7 @@ from .campaign import TILE_PX, CoopMatch, Passage, _spread
 from .entities import Entity, Particle, Wall
 from .fighter import UNO_HITS
 from .lobbies import CASA_SPLIT, CASA_TOP
+from .mapa_celular import PhoneMap
 from .matches import Result
 from .net.remote import hub
 from .para_onde import ChapterPickMenu
@@ -1300,6 +1301,10 @@ class HubMatch(janelas.Janelas, CoopMatch):
     def hud_regions(self):
         return super().hud_regions() + [self.minimap_rect().inflate(4, 4)]
 
+    def phone_map(self):
+        """O MAPA do app (mapa_celular): o mapinha da Casa com o nome de cada coisa e um ponto por jogador."""
+        return phone_map(self)
+
 
 MINI_W = 200                 # o mapinha da Casa (largura na tela)
 MINI_TOP = 44                # embaixo dos CONTINUES, como o da fase
@@ -1352,6 +1357,39 @@ def draw_minimap(screen, ui, match, rect):
         x, y = at(p.x, p.y)
         pygame.draw.circle(screen, (250, 250, 250), (x, y), 5)
         pygame.draw.circle(screen, p.color, (x, y), 4)
+
+
+def phone_map(match):
+    """A Casa e o quintal em quadrados (linha 0 = topo da casa), do jeito do mapinha do canto."""
+    m = PhoneMap("CASA DA TURMA", "PASSEIO" if match.walk else f"TODOS NO {match.car_name} PARA A AVENTURA",
+                 48, 24)
+    m.box(0, 0, 48, 15, fill=(74, 58, 44), line=(140, 120, 96))
+    m.box(0, 15, 48, 9, fill=(44, 70, 40), line=(90, 130, 80), label="QUINTAL")
+    for name, c, r, cw, ch in MINI_ZONES:
+        m.box(c, r + 1, cw, ch, fill=None if name == "SALA" else (92, 72, 54), label=name)
+
+    def at(x, y):
+        return x / T, (y - OY) / T
+
+    names = {k: n for k, n, _ in DOORS}
+    for key, opened, (x, y), _ in match.doors:
+        closed = " · TRANCADA" if key in ("oficina", "garagem") else " · TRANCADO"
+        m.mark(*at(x, y), (230, 190, 90) if opened else (90, 90, 100),
+               names.get(key, "") + ("" if opened else closed), kind="door")
+    things = [((110, 110, 124), match.exit_rect.center, match.car_name),
+              ((240, 240, 240), UNO_STAND, "ARMADURA"),
+              ((200, 60, 60), match.roulette.rect.center, "ROLETA"),
+              ((230, 200, 120), match.bakery.rect.center, "PADARIA"),
+              ((120, 220, 230), (match.shop.x, match.shop.y), "LOJA DE CACOS"),
+              ((190, 150, 230), (match.lockers.x, match.lockers.y), "ARMÁRIOS")]
+    if match.computers:
+        things.append(((80, 160, 240), match.computers[0][1].center, "COMPUTADOR"))
+    things += [((90, 200, 90), b.rect.center, "CAMA") for b in match.beds]
+    for color, (x, y), label in things:
+        m.mark(*at(x, y), color, label)
+    for p in match.players:
+        m.player(p, *at(p.x, p.y))
+    return m.done()
 
 
 def draw_freeing(screen, ui, frame):

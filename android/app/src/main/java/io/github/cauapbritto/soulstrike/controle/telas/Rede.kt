@@ -137,7 +137,7 @@ private fun CartaoJogo(j: JogoAchado, aoEscolher: (Int) -> Unit) {
             val modo = if (j.fase == "menu" || j.fase.isEmpty()) "NO MENU" else nomeDoModo(j.modo)
             Texto("SOUL STRIKE v${j.versao} · $modo", cor = Cores.Muted, linhas = 1)
             when {
-                novo -> Texto("APP DESATUALIZADO: BAIXE O APK DA VERSÃO NOVA", cor = Cores.Brass)
+                novo -> Texto("TEM APP NOVO: ENTRE E TOQUE EM ATUALIZAR", cor = Cores.Brass)
                 velho -> Texto("JOGO DESATUALIZADO: USE O ATUALIZAR DO JOGO", cor = Cores.Brass)
                 else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.u)) {
                     Sinal(j.ms, Modifier.size(16.u))

@@ -11,6 +11,7 @@ apertados desde o último quadro.
 """
 import threading
 import time
+import unicodedata
 
 from .. import settings
 
@@ -29,6 +30,27 @@ ORDER_CHARS = 120        # pedido da loja do celular (no computador, o texto dig
 INPUT_TIMEOUT = 1.0      # controle sem notícias há esse tempo → solta tudo (para por segurança)
 LEGACY_AXIS_SECONDS = 0.6
 BUZZ_GAP = 0.25          # vibração do celular: no máximo uma a cada 250 ms por jogador
+NICK_CHARS = 10          # apelido que o app manda (a TV mostra no lugar de P1)
+# letras que a fonte do jogo desenha: o resto do apelido some (emoji, símbolos)
+NICK_LETTERS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ÁÀÂÃÉÊÍÓÔÕÚÜÇ -_.!?")
+REACTIONS = ("gg", "kkk", "vem", "palmas")   # as reações rápidas do app (o balão em cima do boneco)
+REACTION_GAP = 1.0       # no máximo uma reação por segundo por jogador
+REACTION_SECONDS = 1.8   # quanto tempo o balão fica no ar
+# frases para a equipe (botão EQUIPE do app): só os colegas de time recebem no celular (com vibração)
+CALLS = ("passa", "chuta", "ajuda", "frente", "cuidado", "aqui")
+CALL_TEXT = {"passa": "PASSA!", "chuta": "CHUTA!", "ajuda": "AJUDA!", "frente": "VOU NA FRENTE",
+             "cuidado": "CUIDADO!", "aqui": "VEM PRA CÁ"}
+CALL_SECONDS = 3.5       # quanto tempo a frase fica no ar (na TV e no celular dos colegas)
+
+
+def clean_nick(text):
+    """Apelido como a TV mostra: maiúsculas, só letras que a fonte tem, até NICK_CHARS. Vazio vira None."""
+    if not isinstance(text, str):
+        return None
+    text = unicodedata.normalize("NFC", text).upper()
+    out = "".join(ch if ch in NICK_LETTERS else " " for ch in text)
+    out = " ".join(out.split())[:NICK_CHARS].strip()
+    return out or None
 
 
 class PadState:
@@ -77,6 +99,9 @@ class SlotInfo:
         self.shop = None      # menu da banca aberto (MarketMenu.snapshot) ou None
         self.penalty = None   # pênaltis: {"role": "bate" / "defende" / "espera", "hero": nome} ou None
         self.hand = None      # arma na mão: {"name", "icon"} (o ATACAR do celular mostra o desenho e o nome)
+        self.nick = None      # apelido mandado pelo app (a TV mostra no lugar de P1); sai junto com o celular
+        self.reaction = None  # (índice em REACTIONS, instante) da última reação do app
+        self.call = None      # (índice em CALLS, instante, número) da última frase para a equipe
 
     @property
     def claimed(self):
@@ -105,6 +130,10 @@ class RemoteHub:
         self.hud = "battle"         # disposição de botões do celular (battle, soccer, basket)
         self._orders = []          # pedidos da loja vindos do celular: (vaga, id do item, comprar?)
         self._screens = {}         # computador da Casa aberto: vaga -> PNG da tela (o celular toca nela)
+        self._reactions = []       # reações do app desde o último quadro: (vaga, índice) para o som
+        self._summary = None       # resumo da partida que acabou (resumo.py), na tela de resultado
+        self._map = None           # mapa da fase ou da Casa para o celular (dict pronto para virar JSON)
+        self._call_seq = 0         # número de cada frase para a equipe (o app mostra cada uma uma vez)
         self.on_buzz = None        # chamado com a vaga quando ela vibra (o canal rápido do app avisa na hora)
 
     # ── entrada vinda do celular ──────────────
@@ -252,6 +281,9 @@ class RemoteHub:
             for other in self._slots.values():
                 if other is not info and other.token == token:
                     other.token = None
+                    other.nick = other.reaction = other.call = None
+            if info.token != token:               # outro celular: o apelido do anterior não vale
+                info.nick = info.reaction = info.call = None
             info.token = token
             info.last_seen = now
             return True
@@ -261,7 +293,141 @@ class RemoteHub:
             info = self._slots.get(slot)
             if info and info.token == token:
                 info.token = None
+                info.nick = info.reaction = info.call = None
         self.release_slot(slot)
+
+    # ── apelido e reações do app ──────────────
+    def set_nick(self, slot, token, nick):
+        """O app mandou o apelido do jogador (vazio apaga). False se o token não é o desta vaga."""
+        with self._lock:
+            info = self._slots.get(slot)
+            if info is None or info.token is None or info.token != token:
+                return False
+            info.nick = clean_nick(nick)
+            info.last_seen = time.monotonic()
+            return True
+
+    def nick(self, slot):
+        """Apelido de quem está nesta vaga pelo app, ou None (aí a TV mostra P1, P2...)."""
+        info = self._slots.get(slot)
+        if info is None or info.token is None:
+            return None
+        return info.nick
+
+    def react(self, slot, token, kind):
+        """Reação do app: True (vale), False (token errado) ou None (cedo demais, ou tipo que não existe)."""
+        now = time.monotonic()
+        with self._lock:
+            info = self._slots.get(slot)
+            if info is None or info.token is None or info.token != token:
+                return False
+            if not isinstance(kind, int) or isinstance(kind, bool) or not 0 <= kind < len(REACTIONS):
+                return None
+            if info.reaction is not None and now - info.reaction[1] < REACTION_GAP:
+                return None
+            info.reaction = (kind, now)
+            info.last_seen = now
+            self._reactions = (self._reactions + [(slot, kind)])[-8:]
+            return True
+
+    def reaction(self, slot):
+        """(índice, idade em segundos) da reação desta vaga ainda no ar, ou None."""
+        info = self._slots.get(slot)
+        r = info.reaction if info is not None else None
+        if r is None:
+            return None
+        age = time.monotonic() - r[1]
+        return (r[0], age) if age < REACTION_SECONDS else None
+
+    # ── frases para a equipe ──────────────────
+    def _can_call(self, info):
+        """Esta vaga tem equipe agora? (partida rolando, com time ou na campanha)"""
+        if self._phase not in ("playing", "paused"):
+            return False
+        return self._mode == "campaign" or info.team is not None
+
+    def _teammates(self, slot):
+        """As outras vagas da partida no mesmo time (na campanha, todo mundo)."""
+        me = self._slots.get(slot)
+        out = []
+        for s, i in self._slots.items():
+            if s == slot or not i.claimed or s not in self._active:
+                continue
+            if self._mode == "campaign" or (me is not None and me.team is not None and i.team == me.team):
+                out.append(s)
+        return out
+
+    def team_call(self, slot, token, kind):
+        """Frase do botão EQUIPE: True (vale), False (token errado) ou None (cedo demais, sem equipe
+        ou frase que não existe). Os colegas vibram na hora."""
+        now = time.monotonic()
+        with self._lock:
+            info = self._slots.get(slot)
+            if info is None or info.token is None or info.token != token:
+                return False
+            if not isinstance(kind, int) or isinstance(kind, bool) or not 0 <= kind < len(CALLS):
+                return None
+            if slot not in self._active or not self._can_call(info):
+                return None
+            last = max((x[1] for x in (info.reaction, info.call) if x is not None), default=None)
+            if last is not None and now - last < REACTION_GAP:
+                return None
+            self._call_seq += 1
+            info.call = (kind, now, self._call_seq)
+            info.last_seen = now
+            mates = self._teammates(slot)
+        for s in mates:
+            self.buzz(s, "call", force=True)
+        return True
+
+    def team_call_of(self, slot):
+        """(índice, idade em segundos) da frase desta vaga ainda no ar, ou None."""
+        info = self._slots.get(slot)
+        c = info.call if info is not None else None
+        if c is None:
+            return None
+        age = time.monotonic() - c[1]
+        return (c[0], age) if age < CALL_SECONDS else None
+
+    def _calls_for(self, slot, now):
+        """As frases dos colegas desta vaga ainda no ar (para o celular dela)."""
+        out = []
+        if slot not in self._active:
+            return out
+        for s in self._teammates(slot):
+            c = self._slots[s].call
+            if c is not None and now - c[1] < CALL_SECONDS:
+                out.append({"id": c[2], "from": s, "label": self._slots[s].nick or f"P{s}", "kind": CALLS[c[0]]})
+        return sorted(out, key=lambda c: c["id"])
+
+    def reactions(self):
+        """Reações chegadas desde o último quadro (e esvazia a fila): o jogo toca o som de cada uma."""
+        with self._lock:
+            out, self._reactions = self._reactions, []
+        return out
+
+    # ── resumo da partida e mapa (o jogo publica, o celular lê) ──
+    def set_summary(self, summary):
+        with self._lock:
+            self._summary = summary
+
+    def set_map(self, data):
+        with self._lock:
+            self._map = data
+
+    def map_for(self, slot, token):
+        """O mapa publicado (fase ou Casa) para o celular desta vaga, ou None (sem mapa ou token errado)."""
+        with self._lock:
+            info = self._slots.get(slot)
+            if info is None or info.token is None or info.token != token:
+                return None
+            return self._map if self._phase in ("playing", "paused") else None
+
+    def owns(self, slot, token):
+        """O token é o do celular que está nesta vaga."""
+        with self._lock:
+            info = self._slots.get(slot)
+            return info is not None and info.token is not None and info.token == token
 
     def touch(self, slot, token):
         with self._lock:
@@ -280,6 +446,8 @@ class RemoteHub:
     def set_phase(self, phase, mode=None, active=None, banner=""):
         with self._lock:
             self._phase = phase
+            if phase != "results":
+                self._summary = None          # o resumo é só da tela de resultado que o publicou
             if mode is not None:
                 self._mode = mode
             if active is not None:
@@ -343,6 +511,8 @@ class RemoteHub:
                     str(s): {"claimed": i.claimed, "connected": i.connected(now)}
                     for s, i in self._slots.items()
                 },
+                "summary": self._summary if self._phase == "results" else None,
+                "map": self._map is not None and self._phase in ("playing", "paused"),
             }
             if mine is not None:
                 data["me"] = {
@@ -369,6 +539,9 @@ class RemoteHub:
                     "shop": mine.shop if self._mode == "campaign" else None,
                     "penalty": mine.penalty if self._phase == "penalty" else None,
                     "hand": mine.hand,
+                    "nick": mine.nick,
+                    "team_calls": slot in self._active and self._can_call(mine),
+                    "calls": self._calls_for(slot, now),
                     "playing": slot in self._active,
                 }
             return data

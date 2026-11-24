@@ -12,6 +12,27 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.60.0": [
+        {"title": "SEU NOME NA TV", "scene": "controle", "tv": "celular_novo", "lines": [
+            "No app Android, escolha um apelido de até 10 letras: a TV mostra ele no lugar de P1 no lobby, na escolha e em cima do boneco.",
+            "Reações rápidas no app: GG, KKKK, VEM! e PALMAS aparecem num balão em cima do seu boneco, com somzinho.",
+            "No fim da partida, o celular mostra o seu resumo: placar, seus números e o DESTAQUE da partida.",
+        ]},
+        {"title": "FALA COM O TIME", "scene": "controle", "tv": "celular_novo", "lines": [
+            "Botão EQUIPE no app, no futebol, no basquete e na campanha: PASSA!, CHUTA!, AJUDA!, VOU NA FRENTE, CUIDADO! e VEM PRA CÁ.",
+            "Só os colegas de time recebem: o celular deles vibra e mostra quem mandou.",
+            "Na TV, a frase aparece num balão na cor do time em cima de quem mandou.",
+        ]},
+        {"title": "MAPA NO CELULAR", "scene": "hud", "lines": [
+            "Na campanha e na Casa, o botão MAPA do app abre o mapa da fase no celular, sem pausar a TV.",
+            "Na mesma tela, o CADERNO DE SEGREDOS: os achados com nome e os que faltam com a dica.",
+            "Dá para andar inclinando o celular: AJUSTES DO CONTROLE > ANALÓGICO > INCLINAR.",
+        ]},
+        {"title": "APP QUE SE ATUALIZA", "scene": "controle", "tv": "celular_novo", "lines": [
+            "Quando o jogo é mais novo que o app, aparece ATUALIZAR: o app baixa o APK do GitHub e o Android instala por cima.",
+            "Segurar o ícone do app mostra VOLTAR AO JOGO, que entra direto no último computador, na mesma vaga.",
+        ]},
+    ],
     "1.59.0": [
         {"title": "CONTROLE NO APP ANDROID", "scene": "controle", "tv": "celular_novo", "lines": [
             "App novo: Soul Strike Controle. No Android, o celular vira controle de verdade, mais rápido que o site.",

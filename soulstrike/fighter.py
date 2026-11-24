@@ -12,6 +12,8 @@ from .entities import Entity, Particle, hostile
 from . import energia, forged, gadgets, rare_fx, skins, tiros_novos
 from .market import BURN_TICK, FORGE_DAMAGE, FORGE_MAG, enchant_hit
 from . import weapon_art
+from . import reacoes
+from .net.remote import hub
 
 ACCELERATION = 0.3          # quanto da velocidade-alvo é alcançada por quadro
 TURN_ACCELERATION = 0.5     # virar para o lado oposto responde mais rápido
@@ -1700,19 +1702,29 @@ class Fighter(Entity):
             img.set_alpha(round(255 * max(0.0, self.fade)))
         surf.blit(img, img.get_rect(midbottom=(sx, feet + round(4 * ease))))
 
+    def tag_text(self):
+        """O que vai em cima da cabeça: o apelido que o app mandou ou P1, P2, CPU..."""
+        if self.is_cpu or not self.slot:
+            return self.label
+        return hub.nick(self.slot) or self.label
+
     def draw_overlay(self, surf, camera, ui, show_hp=True):
-        """Etiqueta e vida acima da cabeça, desenhadas na tela (fora do zoom)."""
-        if self.hp <= 0 or self.overlay == "none":
+        """Etiqueta e vida acima da cabeça, desenhadas na tela (fora do zoom), e o balão da reação do app."""
+        if self.overlay == "none":
             return
         sx, sy = camera.to_screen(self.x, self.y - 50 * self.draw_scale - self.lift)
         sx, sy = round(sx), round(sy)
+        if self.hp <= 0:
+            if not self.is_cpu and self.slot:
+                reacoes.draw_for(surf, ui, self.slot, sx, sy + 20, self.team)     # caído também reage (KKKK)
+            return
         if self.overlay == "hp":
             # inimigo comum: só uma barrinha, e só depois de levar dano
             if self.hp < self.max_hp:
                 ratio = self.hp / self.max_hp
                 ui.bar(surf, (sx - 14, sy - 2, 28, 5), ratio, theme.BLOOD if ratio < 0.4 else theme.EMBER)
             return
-        tag = ui.assets.text(self.label, theme.XS, self.color)
+        tag = ui.assets.text(self.tag_text(), theme.XS, self.color)
         tr = tag.get_rect(midbottom=(sx, sy - (8 if show_hp else 2)))
         surf.fill(theme.SHADOW, tr.inflate(6, 4))
         surf.blit(tag, tr)
@@ -1732,6 +1744,8 @@ class Fighter(Entity):
             if self.shield > 0:
                 surf.fill((150, 212, 240), (sx - 18, sy - 9, round(36 * min(1, self.shield / 40)), 2))
             self._draw_ammo(surf, sx, sy + 1)
+        if not self.is_cpu and self.slot:
+            reacoes.draw_for(surf, ui, self.slot, sx, tr.top - 3, self.team)       # por cima da etiqueta e da vida
 
     def _draw_ammo(self, surf, cx, y):
         """Munição embaixo da vida: um tracinho por tiro (dourado = munição extra do item)

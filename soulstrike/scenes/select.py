@@ -3,7 +3,7 @@ import random
 
 import pygame
 
-from .. import config, settings, theme
+from .. import config, reacoes, settings, theme
 from ..ai import CAMPAIGN_ORDER, DIFFICULTIES, DIFFICULTY_ORDER
 from ..controls import key_label
 from ..arena import MAPS_BY_KEY, basket_maps, battle_maps, soccer_maps
@@ -164,7 +164,7 @@ class LobbyScene(_MenuScene):
             head = pygame.Rect(rect.x + 2, rect.y + 2, rect.w - 4, 22)
             screen.fill(theme.SLOT_COLORS_DARK[slot], head)
             screen.fill(color, (head.x, head.bottom - 2, head.w, 2))
-            self.ui.text(screen, f"JOGADOR {slot}", theme.XS, theme.BONE, head.center)
+            self.ui.text(screen, hub.nick(slot) or f"JOGADOR {slot}", theme.XS, theme.BONE, head.center)
             qr = self.assets.qr(f"{self.game.base_url}/?player={slot}", module=4)
             if qr is not None:
                 qr_rect = qr.get_rect(midtop=(rect.centerx, head.bottom + 12))
@@ -186,6 +186,8 @@ class LobbyScene(_MenuScene):
                 scolor = theme.FAINT
             self.ui.text(screen, status, theme.XS, scolor, (rect.centerx, rect.bottom - 40))
             self.ui.text(screen, hint, theme.XS, theme.FAINT, (rect.centerx, rect.bottom - 22))
+        for slot, rect in self.cards.items():                 # reação do app em cima do cartão de quem mandou
+            reacoes.draw_for(screen, self.ui, slot, rect.centerx, rect.y + 4)
         hot = self.button.collidepoint(pygame.mouse.get_pos())
         _button(screen, self.ui, self.button, "CONTINUAR", hot or (self.ticks // 40) % 2 == 0)
         fw = server.firewall_hint() if not connected else None
@@ -870,9 +872,10 @@ class CharSelectScene(_MenuScene):
         dark = theme.SLOT_COLORS_DARK.get(setup.slot) if not setup.cpu else (52, 48, 60)
         screen.fill(dark, head)
         screen.fill(setup.color, (head.x, head.bottom - 2, head.w, 2))
-        ui.text(screen, setup.name, theme.XS, theme.BONE, (head.x + 8, head.centery), anchor="midleft")
+        who = setup.name if setup.cpu else (hub.nick(setup.slot) or setup.name)     # o apelido do app, se tiver
+        ui.text(screen, who, theme.XS, theme.BONE, (head.x + 8, head.centery), anchor="midleft")
         if not setup.cpu and setup.slot == self.host and len(self._humans()) > 1:
-            crown(screen, head.x + 20 + self.assets.text_width(setup.name, theme.XS), head.centery)
+            crown(screen, head.x + 20 + self.assets.text_width(who, theme.XS), head.centery)
         if setup.cpu:
             source = (DIFFICULTIES[self.game.session.difficulty]["label"]
                       if self._cpu_level_mode
@@ -906,7 +909,8 @@ class CharSelectScene(_MenuScene):
         img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
         ground = stage.bottom - max(4, 10 - shrink)
         pygame.draw.ellipse(screen, theme.SHADOW, (stage.centerx - 30, ground - 6, 60, 12))
-        screen.blit(img, img.get_rect(midbottom=(stage.centerx, ground + 2)))
+        img_rect = img.get_rect(midbottom=(stage.centerx, ground + 2))
+        screen.blit(img, img_rect)
         if self.teams:
             # etiqueta do time por cima do boneco, no canto de baixo (o chapéu/cabeça fica livre)
             team = self.game.session.team_of(setup.slot)
@@ -996,6 +1000,8 @@ class CharSelectScene(_MenuScene):
             if self.soccer:
                 keys = [keys[0], keys[2]]
             ui.hints(screen, keys, foot.center, gap=8)
+        if not setup.cpu:                                     # reação do app em cima do boneco do cartão
+            reacoes.draw_for(screen, ui, setup.slot, stage.centerx, max(stage.y + 30, img_rect.top + 14))
 
     def _draw_center(self, screen):
         ui = self.ui

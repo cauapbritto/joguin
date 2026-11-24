@@ -21,7 +21,7 @@ from .. import config
 from ..data import CHARACTERS, roster_for_web
 from ..basket_powers import BASKET_POWERS
 from ..soccer_powers import SOCCER_POWERS
-from .remote import hub
+from .remote import CALLS, REACTIONS, hub
 
 app = Flask(
     __name__,
@@ -247,6 +247,68 @@ def computer_screen():
     if data is None:
         abort(404)
     return Response(data, mimetype="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/nick")
+def nick():
+    """Apelido do jogador mandado pelo app: a TV mostra no lugar de P1 (vazio volta ao P1)."""
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        data = {}
+    ok = hub.set_nick(_slot_arg(data), data.get("token"), data.get("nick"))
+    return ("", 204) if ok else ("", 403)
+
+
+@app.post("/api/reacao")
+def reaction():
+    """Reação rápida do app (GG, KKKK, VEM!, palmas): um balão em cima do boneco na TV, com som."""
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        data = {}
+    kind = data.get("kind")
+    if isinstance(kind, str) and kind in REACTIONS:
+        kind = REACTIONS.index(kind)
+    ok = hub.react(_slot_arg(data), data.get("token"), kind)
+    if ok is None:
+        return "", 429                  # cedo demais (ou reação que não existe): o app só avisa
+    return ("", 204) if ok else ("", 403)
+
+
+@app.post("/api/equipe")
+def team_call():
+    """Frase do botão EQUIPE do app (PASSA!, AJUDA!...): os colegas de time vibram e leem no celular."""
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        data = {}
+    kind = data.get("kind")
+    if isinstance(kind, str) and kind in CALLS:
+        kind = CALLS.index(kind)
+    ok = hub.team_call(_slot_arg(data), data.get("token"), kind)
+    if ok is None:
+        return "", 429                  # cedo demais, sem equipe agora ou frase que não existe
+    return ("", 204) if ok else ("", 403)
+
+
+@app.get("/api/mapa")
+def phone_map():
+    """O mapa da fase (ou da Casa) com onde cada um está, para o MAPA do app."""
+    slot = _slot_arg(request.args)
+    token = request.args.get("token")
+    if not hub.owns(slot, token):
+        abort(403)
+    return jsonify({"map": hub.map_for(slot, token)})
+
+
+@app.get("/api/caderno")
+def notebook():
+    """O CADERNO DE SEGREDOS (os achados com nome, os que faltam com a dica), para o app."""
+    if not hub.owns(_slot_arg(request.args), request.args.get("token")):
+        abort(403)
+    from .. import segredos
+    found, total = segredos.count()
+    pages = [{"place": place, "items": [{"found": ok, "text": text} for ok, text in rows]}
+             for place, rows in segredos.notebook().items()]
+    return jsonify({"found": found, "total": total, "pages": pages})
 
 
 @app.get("/api/app")

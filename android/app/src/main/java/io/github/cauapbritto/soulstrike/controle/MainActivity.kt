@@ -66,10 +66,13 @@ class MainActivity : ComponentActivity() {
         Descoberta.prenderNaWifi(this)
         app.canal.retomar()
         travarWifi(true)
+        app.naFrente = true
+        app.atualizador.conferirLicenca()          // voltou dos ajustes do Android com a licença ligada?
         if (Build.VERSION.SDK_INT >= 37) app.redeLocalNegada = !temRedeLocal()
     }
 
     override fun onPause() {
+        app.naFrente = false
         app.canal.pausar()
         travarWifi(false)
         super.onPause()

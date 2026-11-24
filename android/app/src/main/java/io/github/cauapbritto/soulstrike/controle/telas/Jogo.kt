@@ -137,6 +137,8 @@ private fun TelaEspera(st: Status, me: Me) {
     val fase = st.fase
     val pagina = if (fase == "news") st.paginaNovidade else null
     val lista = if (fase == "news") st.novidades else emptyList()
+    var editarApelido by remember { mutableStateOf(false) }
+    val resumo = if (fase == "results") st.resumo else null
     // rola quando não cabe, e fica no meio quando cabe (a altura mínima é a da tela)
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val alturaDaTela = maxHeight
@@ -152,6 +154,7 @@ private fun TelaEspera(st: Status, me: Me) {
             Tag(me.vaga, me.personagem, grande = true)
             Texto(titulo, tam = 16, cor = Cores.Brass, sombra = true, alinhar = TextAlign.Center)
             if (texto.isNotEmpty()) Texto(texto, Modifier.widthIn(max = 440.u), cor = Cores.Muted, alinhar = TextAlign.Center)
+            if (resumo != null) CartaoResumo(resumo, me.vaga)
             if (pagina != null) {
                 // a tela de novidades da TV (PLANTÃO): o número da notícia e o título
                 Column(
@@ -211,8 +214,12 @@ private fun TelaEspera(st: Status, me: Me) {
                     Botao("PULAR", Modifier.widthIn(min = 120.u), naHora = true) { canal.entrada.tocar("pause") }
                 }
             }
+            if (st.temExtras && (fase == "lobby" || fase == "results")) BotoesDeReacao(altura = 36)
+            if (st.temExtras && fase != "story") LinhaApelido(me.vaga) { editarApelido = true }
+            FaixaAtualizar(canal.versaoJogo.ifEmpty { null })
             Botao("TROCAR DE JOGADOR", icone = R.drawable.i_trocar, altura = 32) { canal.trocarVaga() }
         }
+        if (editarApelido) EditarApelido(aoFechar = { editarApelido = false })
     }
 }
 
@@ -231,6 +238,7 @@ private fun TelaSelecao(st: Status, me: Me) {
         Cabecalho {
             Tag(me.vaga, me.personagem)
             Spacer(Modifier.weight(1f))
+            if (st.temExtras) IconesDeReacao()
             Texto(nomeDoModo(st.modo, st.hud), cor = Cores.Muted, linhas = 1)
         }
         Row(
