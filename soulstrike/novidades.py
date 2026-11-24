@@ -12,6 +12,12 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.63.2": [
+        {"title": "APP ACHA O JOGO", "scene": "controle", "tv": "celular_novo", "lines": [
+            "O PROCURAR NA REDE do app confere primeiro os computadores que você já usou (do VOLTAR AO... e do DIGITAR).",
+            "Se não achar, procura também na faixa de endereços desses computadores: serve para roteador com repetidor.",
+        ]},
+    ],
     "1.63.1": [
         {"title": "APP MAIS FIRME", "scene": "controle", "tv": "celular_novo", "lines": [
             "Se o app Android fechar sozinho, na próxima vez ele mostra o erro com um botão COPIAR, para mandar e consertar.",

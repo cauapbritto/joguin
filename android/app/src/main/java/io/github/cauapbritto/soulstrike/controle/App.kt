@@ -107,6 +107,9 @@ class AppEstado private constructor(context: Context) {
 
     init {
         canal.aoLembrar = { jogo -> Atalhos.voltarAo(contexto, jogo) }
+        descoberta.recentes = { prefs.recentes().map { it.host } }
+        canal.redesWifi = { Descoberta.redesWifiDe(contexto) }
+        canal.prenderEm = { rede -> Descoberta.prenderEm(contexto, rede) }
     }
 
     fun conectar(end: Endereco) {
