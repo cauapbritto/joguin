@@ -167,6 +167,22 @@ class ReacoesTest(unittest.TestCase):
         me.hp = 0                                                            # caído também reage
         match.draw(screen, g.ui)
 
+    def test_resultado_mostra_os_baloes(self):
+        """Na tela de resultado, quem reage e não está no pódio aparece no alto (sem quebrar)."""
+        from soulstrike.matches import Result
+        from soulstrike.scenes.play import ResultsScene
+        g = game()
+        g.session = Session("duel", [SlotSetup(1), SlotSetup(SLOT)])
+        try:
+            cena = ResultsScene(g, Result("P1 VENCEU", (255, 255, 255), []))
+            g.change(cena)
+            self.assertTrue(hub.react(SLOT, TOKEN, REACTIONS.index("palmas")))
+            screen = pygame.Surface((config.SCREEN_W, config.SCREEN_H))
+            cena.draw(screen)
+            self.assertIsNotNone(hub.reaction(SLOT))
+        finally:
+            g.session = None
+
 
 class ResumoTest(unittest.TestCase):
     def tearDown(self):

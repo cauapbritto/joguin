@@ -3,7 +3,7 @@ import math
 
 import pygame
 
-from .. import config, crt, resumo, settings, theme
+from .. import config, crt, reacoes, resumo, settings, theme
 from ..stats import record as record_stats
 from ..arena import MAPS_BY_KEY
 from ..host import IdleInput, anyone_pauses, change_rule, fighter_of, host_slot, make_cpu, make_human, rules
@@ -596,6 +596,7 @@ class ResultsScene(_MenuScene):
         stage_x = W - 250
         ground = 300
         n = len(r.winners)
+        spots = {}                      # vaga -> ponta do balão da reação do app (em cima do vencedor)
         for i, f in enumerate(r.winners):
             img = (f.sprites.frame("frente", self.ticks // 5) if (self.ticks // 60) % 2
                    else f.sprites.pose("frente", "ataque", 1 if (self.ticks // 15) % 2 else 2))
@@ -604,6 +605,8 @@ class ResultsScene(_MenuScene):
             bob = int(abs(math.sin(self.ticks * 0.08)) * 6)
             pygame.draw.ellipse(screen, theme.SHADOW, (x - 44, ground - 8, 88, 16))
             screen.blit(img, img.get_rect(midbottom=(x, ground + 4 - bob)))
+            if not getattr(f, "is_cpu", True) and getattr(f, "slot", 0):
+                spots[f.slot] = (round(x), ground - bob - img.get_height())
 
         panel = pygame.Rect(stage_x - 200, 330, 400, 24 + 22 * len(r.lines))
         self.ui.panel(screen, panel)
@@ -613,4 +616,20 @@ class ResultsScene(_MenuScene):
             self.ui.text(screen, value, theme.XS, theme.BONE, (panel.right - 18, y), anchor="midright")
             y += 22
         self.menu.draw(screen, self.ui, self.ticks)
+        self._draw_reactions(screen, spots)
         self.footer(screen, [("↑↓", "ESCOLHER"), ("ENTER", "CONFIRMAR")])
+
+    def _draw_reactions(self, screen, spots):
+        """Reações do app (GG, KKKK...): em cima do vencedor desenhado; quem não está no pódio
+        aparece numa fileira no alto, com o apelido (ou P2...) embaixo do balão."""
+        session = self.game.session
+        humans = [s.slot for s in getattr(session, "slots", ()) if not s.cpu] if session is not None else []
+        x = config.SCREEN_W - 90
+        for slot in sorted((s for s in humans if s not in spots), reverse=True):
+            if hub.reaction(slot) is None:
+                continue
+            self.ui.text(screen, hub.nick(slot) or f"P{slot}", theme.XS, theme.SLOT_COLORS.get(slot, theme.BONE), (x, 84))
+            reacoes.draw_for(screen, self.ui, slot, x, 74)
+            x -= 140
+        for slot, (sx, sy) in spots.items():
+            reacoes.draw_for(screen, self.ui, slot, sx, sy)
