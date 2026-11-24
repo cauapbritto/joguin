@@ -490,8 +490,16 @@ def _garagem():
                      theme="garagem", void=void, markers=markers)
 
 
+def _sotao():
+    """O sótão da Casa (lobbies.SOTAO): o álbum da turma."""
+    size, walls, void, markers = lobbies.parse(lobbies.SOTAO[1])
+    return MapConfig("sotao_casa", lobbies.SOTAO[0], size, walls=walls, spawns=markers["S"], battle=False,
+                     theme="sotao", void=void, markers=markers)
+
+
 MAPS.append(_casa())
 MAPS.append(_garagem())
+MAPS.append(_sotao())
 MAPS_BY_KEY = {m.key: m for m in MAPS}
 BATTLE_MAPS = [m for m in MAPS if m.battle]
 

@@ -49,6 +49,13 @@ def garage_scene(game, run, story=True, walk=False):
     return PlayScene(game, GarageMatch(game, run, story, walk=walk))
 
 
+def sotao_scene(game, run, story=True, walk=False):
+    """O sótão da Casa (o álbum da turma)."""
+    from ..sotao import SotaoMatch
+    from .play import PlayScene
+    return PlayScene(game, SotaoMatch(game, run, story, walk=walk))
+
+
 def start_phase(game, run, story=True):
     """Começa a fase na abertura (depois da história dela)."""
     if run.rush:

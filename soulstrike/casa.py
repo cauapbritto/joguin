@@ -140,6 +140,9 @@ BED_REACH = 46
 BOOK_REACH = 70
 SCREEN_EVERY = 12                     # quadros entre uma cópia da tela do computador e outra
 DOOR_REACH = 96
+SOTAO_DOOR = (21 * T + 40, OY + 74)                # frente da porta do sótão (onde o ATACAR sobe)
+# cômodos de verdade atrás das portas trancadas: o que o ATACAR faz quando a porta está aberta
+ROOMS = {"sotao": "SUBIR PARA O SÓTÃO"}
 FLOWER_COLORS = ((240, 110, 150), (250, 200, 80), (170, 120, 240), (250, 250, 250))
 
 # ── segredos da Casa (segredos.py): sem aviso na tela, só reação ──
@@ -679,10 +682,13 @@ class HubMatch(janelas.Janelas, CoopMatch):
         self.story = story
         self.walk = walk                                    # PASSEAR NA CASA: o City não sai
         self.going_down = False                             # ATACAR na garagem: o grupo desce
+        self.going_to = None                                # ATACAR numa porta aberta (ROOMS): o cômodo
         self._screens = {}                                  # vaga -> versão da tela já mandada ao celular
         cfg = MAPS_BY_KEY[HUB_MAP]
         if arrive == "garagem":                             # voltando da garagem: na porta dela
             starts = [(GARAGE_DOOR[0] - 60 + 40 * i, GARAGE_DOOR[1] + 40) for i in range(len(run.session.slots))]
+        elif arrive == "sotao":                             # descendo do sótão: na porta dele
+            starts = [(SOTAO_DOOR[0] - 60 + 40 * i, SOTAO_DOOR[1] + 40) for i in range(len(run.session.slots))]
         else:
             starts = _spread(cfg.markers["S"], len(run.session.slots))
         super().__init__(game, run, cfg.key, starts, (0.0, 1.0))
@@ -908,6 +914,15 @@ class HubMatch(janelas.Janelas, CoopMatch):
         _, _, (x, y), _ = next(d for d in self.doors if d[0] == "garagem")
         return math.hypot(f.x - x, f.y - y) < DOOR_REACH
 
+    def room_near(self, f):
+        """A porta aberta de um cômodo de verdade (ROOMS) ao alcance de ``f``, ou None."""
+        if not f.alive_in_match:
+            return None
+        for key, opened, (x, y), _ in self.doors:
+            if opened and key in ROOMS and math.hypot(f.x - x, f.y - y) < DOOR_REACH:
+                return key
+        return None
+
     def armor_near(self, f):
         x, y = UNO_STAND
         return self.armor_free and _near_rect(f, pygame.Rect(x - 30, y - 100, 60, 100))
@@ -931,6 +946,7 @@ class HubMatch(janelas.Janelas, CoopMatch):
 
     def _usable_near(self, f):
         return (self.book_near(f) or self.computer_near(f) is not None or self.armor_near(f) or self.garage_near(f)
+                or self.room_near(f) is not None
                 or self.shop.near(f) or self.lockers.near(f) is not None
                 or any(_near_rect(f, t.rect) for t in (self.moto, self.roulette, self.bakery))
                 or any(b.can_water(f) for b in self.beds))
@@ -1029,7 +1045,7 @@ class HubMatch(janelas.Janelas, CoopMatch):
         ready = bool(busy) and bool(free) and all(self.passage.contains(p) for p in free)
         if ready and not self.leaving_in:
             self.leave_soon(lambda: self._board(busy))
-        elif not ready and self.leaving_in and not self.going_down:
+        elif not ready and self.leaving_in and not self.going_down and not self.going_to:
             self.leaving_in = 0
             self.leaving_action = None
 
@@ -1082,6 +1098,14 @@ class HubMatch(janelas.Janelas, CoopMatch):
                 return True
             self.assets.play("select", 0.45)
             self.going_down = True                    # o grupo inteiro desce para a garagem
+            self.leave_soon(lambda: self._finish(won=True))
+            return True
+        room = self.room_near(f)
+        if room is not None:
+            if self.leaving_in:
+                return True
+            self.assets.play("select", 0.45)
+            self.going_to = room                      # o grupo inteiro vai junto para o cômodo
             self.leave_soon(lambda: self._finish(won=True))
             return True
         spot = self.computer_near(f)
@@ -1210,6 +1234,11 @@ class HubMatch(janelas.Janelas, CoopMatch):
             from .scenes.campaign import garage_scene
             from .scenes.garagem import GarageTripScene
             return GarageTripScene(self.game, lambda: garage_scene(self.game, self.run, self.story, walk=self.walk))
+        if self.going_to == "sotao":
+            from .scenes.campaign import sotao_scene
+            from .scenes.escada import StairsTripScene
+            return StairsTripScene(self.game, lambda: sotao_scene(self.game, self.run, self.story, walk=self.walk),
+                                   "SUBINDO PARA O SÓTÃO")
         return CarTripScene(self.game, [p.sprites for p in self.players], self.run.chapter,
                             lambda: start_phase(self.game, self.run, story=self.story), vehicle=self.run.vehicle)
 
@@ -1253,6 +1282,10 @@ class HubMatch(janelas.Janelas, CoopMatch):
             _, _, (gx, gy), _ = next(d for d in self.doors if d[0] == "garagem")
             sx, sy = cam.to_screen(gx, gy - 96)
             ui.text(screen, "ATACAR: DESCER PARA A GARAGEM", theme.XS, blink, (round(sx), round(sy)))
+        for key, opened, (x, y), _ in self.doors:
+            if opened and key in ROOMS and any(self.room_near(p) == key for p in free):
+                sx, sy = cam.to_screen(x, y + 40)
+                ui.text(screen, "ATACAR: " + ROOMS[key], theme.XS, blink, (round(sx), round(sy)))
         for b in self.beds:
             if any(b.can_water(p) for p in free) and b.watered <= 0:
                 sx, sy = cam.to_screen(b.rect.centerx, b.rect.y - 14)

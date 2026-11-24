@@ -413,6 +413,37 @@ def _lag_garagem(s, rng):
     _vignette(s, (20, 20, 24), 40)
 
 
+def _sotao(s, rng):
+    """Sótão da Casa: tábuas largas de madeira escura e velha, com nós, poeira e a luz da janela."""
+    w, h = s.get_size()
+    base = (104, 72, 46)
+    s.fill(base)
+    plank = 14                                                        # tábuas de 28 px na tela
+    for gy in range(0, h, plank):
+        tone = _shade(base, rng.randint(-8, 6))
+        s.fill(tone, (0, gy + 1, w, plank - 1))
+        s.fill((72, 48, 30), (0, gy, w, 1))
+        x = rng.randrange(-60, 0)
+        while x < w:                                                  # emenda das tábuas, desencontrada
+            x += rng.randint(70, 140)
+            s.fill((78, 52, 32), (x, gy, 1, plank))
+            s.set_at((min(w - 1, max(0, x - 3)), gy + plank // 2), (60, 40, 24))
+            s.set_at((min(w - 1, x + 3), gy + plank // 2), (60, 40, 24))
+    for _ in range(w * h // 6):                                       # veio da madeira
+        x, y = rng.randrange(w), rng.randrange(h)
+        s.fill(_shade(base, rng.choice((-14, -8, 8))), (x, y, rng.randint(2, 8), 1))
+    for _ in range(14):                                               # nós
+        x, y = rng.randrange(w), rng.randrange(h)
+        pygame.draw.ellipse(s, (70, 46, 28), (x, y, 5, 3))
+    dust = pygame.Surface((w, h), pygame.SRCALPHA)                     # poeira e a luz da janela
+    for _ in range(30):
+        pygame.draw.ellipse(dust, (200, 190, 170, 10), (rng.randrange(w), rng.randrange(h), rng.randint(20, 50), rng.randint(8, 16)))
+    for k in range(8):
+        pygame.draw.ellipse(dust, (255, 230, 170, 6), (w // 2 - 70 + k * 6, h // 4 + k * 3, 140 - k * 12, 90 - k * 6))
+    s.blit(dust, (0, 0))
+    _vignette(s, (30, 18, 10), 40)
+
+
 def _garagem(s, rng):
     """Garagem da Casa, lá embaixo: piso de epóxi cinza-azulado em placas, com brilho das luminárias,
     marcas de pneu, manchas de óleo e o ralo."""
@@ -979,7 +1010,8 @@ _PAINTERS = {"floresta": _floresta, "calabouco": _calabouco, "templo_gelado": _t
              "clinica_adm": _clinica_adm, "clinica_calcada": _clinica_calcada,
              "mansao": _mansao, "mansao_arquivo": _mansao_arquivo, "mansao_patio": _mansao_patio,
              "mansao_cpd": _mansao_cpd, "mansao_reuniao": _mansao_reuniao, "mansao_nucleo": _mansao_nucleo,
-             "mansao_jardim": _mansao_jardim, "casa": _casa, "garagem": _garagem}
+             "mansao_jardim": _mansao_jardim, "casa": _casa, "garagem": _garagem,
+             "sotao": _sotao}
 THEMED_MAPS = tuple(_PAINTERS)
 
 
@@ -1587,13 +1619,30 @@ class GarageWall(_Style):
             s.set_at((rng.randrange(w), rng.randrange(h)), _shade(block, rng.choice((-14, 10))))
 
 
+class AtticWall(_Style):
+    """Sótão: tábua corrida escura na vertical, com a viga grossa em cima."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((14, 8, 4, 180), (0, 6, w, h))
+        wood, dark, light = (92, 62, 40), (66, 44, 28), (124, 88, 58)
+        s.fill(wood, (0, 0, w, h))
+        for x in range(0, w, 10):
+            s.fill(_shade(wood, rng.randint(-8, 6)), (x + 1, 0, 9, h))
+            s.fill(dark, (x, 0, 1, h))
+        s.fill(light, (0, 0, w, 3))
+        if w >= h:
+            s.fill(dark, (0, h - 6, w, 6))
+        for _ in range(max(1, w * h // 500)):
+            s.set_at((rng.randrange(w), rng.randrange(h)), _shade(wood, rng.choice((-16, 10))))
+
+
 _STYLES = {"floresta": Hedge, "calabouco": DungeonStone, "templo_gelado": IceBlock,
            "lag_escritorio": GlassWall, "lag_datacenter": ServerRack, "lag_garagem": Barrier, "lag_cobertura": Barrier,
            "clinica": ClinicWall, "clinica_spa": SpaWall, "clinica_vip": MirrorWall, "clinica_adm": FileCabinet,
            "clinica_calcada": ClinicWall,
            "mansao": MansionWall, "mansao_arquivo": ShelfWall, "mansao_patio": PatioWall, "mansao_cpd": CellarRack,
            "mansao_reuniao": BoardroomWall, "mansao_nucleo": CoreWall, "mansao_jardim": GardenWall,
-           "casa": CasaWall, "garagem": GarageWall}
+           "casa": CasaWall, "garagem": GarageWall, "sotao": AtticWall}
 
 
 def wall_style(key):

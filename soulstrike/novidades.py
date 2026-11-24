@@ -12,6 +12,13 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.61.0": [
+        {"title": "O SÓTÃO ABRIU", "scene": "casa", "tv": "porta", "lines": [
+            "Zerou o capítulo 1? ATACAR na porta do sótão leva a turma toda lá para cima, pela escada.",
+            "No varal, as fotos da turma. Na mesinha, o ÁLBUM: o jogo tira foto sozinho quando um chefe cai e quando alguém levanta o amigo.",
+            "As fotos mais novas da campanha ficam presas no mural de cortiça. Lá em cima tem também uma caixa que diz NÃO MEXER...",
+        ]},
+    ],
     "1.60.0": [
         {"title": "SEU NOME NA TV", "scene": "controle", "tv": "celular_novo", "lines": [
             "No app Android, escolha um apelido de até 10 letras: a TV mostra ele no lugar de P1 no lobby, na escolha e em cima do boneco.",
