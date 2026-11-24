@@ -13,6 +13,8 @@ Sai em assets/pecas/, no tamanho em que aparece na tela (o jogo não amplia):
   oficina_bancada.png, oficina_suporte_exo.png, oficina_compressor.png, oficina_extintor.png,
   oficina_pneus.png, oficina_tambor.png, oficina_baia.png,
   oficina_alvo.png e _acertado, oficina_suporte_armas.png
+  porao_barril.png, porao_prateleira_potes.png, porao_coluna.png, porao_pedestal.png,
+  porao_candelabro.png, porao_corrente.png, porao_caixa_madeira.png
 """
 import math
 import os
@@ -266,6 +268,76 @@ def suporte_armas():
     return hd(b.s)
 
 
+# ── porão ────────────────────────────────────
+def barril():
+    b = B(18, 22)
+    wood, wd = (130, 84, 50), (96, 60, 34)
+    b.r(2, 2, 14, 18, wood); b.r(1, 5, 16, 12, wood)
+    for x in (5, 9, 13):
+        b.r(x, 2, 1, 18, wd)
+    for y in (4, 16):
+        b.r(1, y, 16, 2, (80, 80, 90))
+    b.r(4, 1, 10, 2, sh(wood, -20))
+    return hd(b.s)
+
+
+def prateleira_potes():
+    b = B(40, 46)
+    wood = (100, 66, 40)
+    for y in (12, 27, 42):
+        b.r(0, y, 40, 3, wood)
+    b.r(1, 0, 3, 46, sh(wood, 20)); b.r(36, 0, 3, 46, sh(wood, 20))
+    cores = ((200, 80, 60), (240, 190, 60), (110, 160, 80), (160, 90, 160))
+    for row, y in enumerate((4, 19, 34)):
+        for i in range(4):
+            c = cores[(i + row) % 4]
+            b.r(6 + i * 8, y, 6, 8, (200, 220, 230)); b.r(7 + i * 8, y + 2, 4, 5, c); b.r(6 + i * 8, y - 1, 6, 2, (180, 150, 90))
+    return hd(b.s)
+
+
+def coluna():
+    b = B(20, 80)
+    stone = (76, 72, 88)
+    b.r(3, 6, 14, 70, stone); b.r(3, 6, 2, 70, sh(stone, -20)); b.r(15, 6, 2, 70, sh(stone, 20))
+    b.r(0, 0, 20, 6, sh(stone, -10)); b.r(0, 74, 20, 6, sh(stone, -10))
+    for y in range(14, 72, 12):
+        b.r(5, y, 10, 1, sh(stone, 14))
+    return hd(b.s)
+
+
+def pedestal():
+    b = B(40, 22)
+    stone = (90, 86, 104)
+    b.r(10, 0, 20, 14, stone); b.r(10, 0, 20, 2, sh(stone, -24)); b.r(12, 4, 16, 1, (60, 230, 255))
+    b.r(4, 14, 32, 4, sh(stone, 10)); b.r(0, 18, 40, 4, sh(stone, 20))
+    return hd(b.s, keep=[(60, 230, 255)])
+
+
+def candelabro():
+    b = B(20, 24)
+    gold = (200, 160, 70)
+    b.r(9, 8, 2, 14, gold); b.r(5, 21, 10, 2, gold)
+    b.r(3, 8, 14, 2, gold)
+    for x in (3, 9, 15):
+        b.r(x, 3, 2, 5, (236, 228, 210)); b.p(x, 1, (255, 200, 80)); b.p(x + 1, 2, (255, 230, 140))
+    return hd(b.s, keep=[(255, 200, 80), (255, 230, 140)])
+
+
+def corrente():
+    b = B(6, 40)
+    for y in range(0, 40, 5):
+        b.r(1 if (y // 5) % 2 else 2, y, 3, 4, (90, 90, 100)); b.p(2, y + 1, (30, 30, 34))
+    return hd(b.s)
+
+
+def caixa_madeira():
+    b = B(22, 18)
+    wood = (140, 100, 60)
+    b.r(1, 2, 20, 15, wood); b.r(1, 2, 20, 2, sh(wood, -24))
+    b.line((2, 4), (20, 16), sh(wood, 30), 2); b.r(1, 9, 20, 1, sh(wood, 30))
+    return hd(b.s)
+
+
 SOTAO = {
     "sotao_caixa_1": lambda: caixa(26, 18, label=(230, 220, 190)),
     "sotao_caixa_2": lambda: caixa(20, 14),
@@ -285,7 +357,13 @@ OFICINA = {
     "oficina_alvo_acertado": lambda: alvo(hit=True), "oficina_suporte_armas": suporte_armas,
 }
 
-PIECES = {**SOTAO, **OFICINA}
+PORAO = {
+    "porao_barril": barril, "porao_prateleira_potes": prateleira_potes, "porao_coluna": coluna,
+    "porao_pedestal": pedestal, "porao_candelabro": candelabro, "porao_corrente": corrente,
+    "porao_caixa_madeira": caixa_madeira,
+}
+
+PIECES = {**SOTAO, **OFICINA, **PORAO}
 
 
 def main():

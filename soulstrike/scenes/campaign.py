@@ -63,6 +63,20 @@ def oficina_scene(game, run, story=True, walk=False):
     return PlayScene(game, OficinaMatch(game, run, story, walk=walk))
 
 
+def porao_scene(game, run, story=True, walk=False, arrive=None):
+    """O porão da Casa (o Cristal da IARA e o portão da Arena sem Fim)."""
+    from ..porao import PoraoMatch
+    from .play import PlayScene
+    return PlayScene(game, PoraoMatch(game, run, story, walk=walk, arrive=arrive))
+
+
+def arena_scene(game, run, story=True, walk=False):
+    """A Arena sem Fim, pelo portão do porão."""
+    from ..arena_sem_fim import ArenaSemFimMatch
+    from .play import PlayScene
+    return PlayScene(game, ArenaSemFimMatch(game, run, story, walk=walk))
+
+
 def start_phase(game, run, story=True):
     """Começa a fase na abertura (depois da história dela)."""
     if run.rush:

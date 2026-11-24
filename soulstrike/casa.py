@@ -142,8 +142,9 @@ SCREEN_EVERY = 12                     # quadros entre uma cópia da tela do comp
 DOOR_REACH = 96
 SOTAO_DOOR = (21 * T + 40, OY + 74)                # frente da porta do sótão (onde o ATACAR sobe)
 OFICINA_DOOR = (26 * T + 40, OY + 74)              # frente da porta da oficina
+PORAO_DOOR = (14 * T + 42, QY + 5 * T + 28)        # o alçapão do porão, no quintal
 # cômodos de verdade atrás das portas trancadas: o que o ATACAR faz quando a porta está aberta
-ROOMS = {"sotao": "SUBIR PARA O SÓTÃO", "oficina": "ENTRAR NA OFICINA"}
+ROOMS = {"sotao": "SUBIR PARA O SÓTÃO", "oficina": "ENTRAR NA OFICINA", "porao": "DESCER PARA O PORÃO"}
 FLOWER_COLORS = ((240, 110, 150), (250, 200, 80), (170, 120, 240), (250, 250, 250))
 
 # ── segredos da Casa (segredos.py): sem aviso na tela, só reação ──
@@ -688,9 +689,10 @@ class HubMatch(janelas.Janelas, CoopMatch):
         cfg = MAPS_BY_KEY[HUB_MAP]
         if arrive == "garagem":                             # voltando da garagem: na porta dela
             starts = [(GARAGE_DOOR[0] - 60 + 40 * i, GARAGE_DOOR[1] + 40) for i in range(len(run.session.slots))]
-        elif arrive in ("sotao", "oficina"):                # voltando de um cômodo: na porta dele
-            door = SOTAO_DOOR if arrive == "sotao" else OFICINA_DOOR
-            starts = [(door[0] - 60 + 40 * i, door[1] + 40) for i in range(len(run.session.slots))]
+        elif arrive in ("sotao", "oficina", "porao"):       # voltando de um cômodo: na porta dele
+            door = {"sotao": SOTAO_DOOR, "oficina": OFICINA_DOOR, "porao": PORAO_DOOR}[arrive]
+            starts = [(door[0] - 60 + 40 * i, door[1] + (60 if arrive == "porao" else 40))
+                      for i in range(len(run.session.slots))]
         else:
             starts = _spread(cfg.markers["S"], len(run.session.slots))
         super().__init__(game, run, cfg.key, starts, (0.0, 1.0))
@@ -1246,6 +1248,11 @@ class HubMatch(janelas.Janelas, CoopMatch):
             from .scenes.escada import StairsTripScene
             return StairsTripScene(self.game, lambda: oficina_scene(self.game, self.run, self.story, walk=self.walk),
                                    "ENTRANDO NA OFICINA", accent=(240, 170, 60), door=True)
+        if self.going_to == "porao":
+            from .scenes.campaign import porao_scene
+            from .scenes.escada import StairsTripScene
+            return StairsTripScene(self.game, lambda: porao_scene(self.game, self.run, self.story, walk=self.walk),
+                                   "DESCENDO PARA O PORÃO", up=False, accent=(60, 230, 255))
         return CarTripScene(self.game, [p.sprites for p in self.players], self.run.chapter,
                             lambda: start_phase(self.game, self.run, story=self.story), vehicle=self.run.vehicle)
 

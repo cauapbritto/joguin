@@ -12,6 +12,14 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.63.0": [
+        {"title": "O PORÃO E A ARENA SEM FIM", "scene": "casa", "tv": "porta", "lines": [
+            "Zerou a campanha? O alçapão do quintal abre e a turma desce para o porão, no escuro, com velas.",
+            "No meio, o caco do Cristal numa redoma: ATACAR conversa com a IARA, e o que ela fala muda com quantas vezes vocês zeraram.",
+            "O portão roxo leva para a ARENA SEM FIM: ondas que não acabam, sem continue. A onda em que a turma chegou vira o recorde da placa.",
+            "Na arena, o que vocês ganham fica lá: ao sair, as almas e as armas da campanha voltam como estavam.",
+        ]},
+    ],
     "1.62.0": [
         {"title": "ESTANDE DE TIRO", "scene": "casa", "tv": "porta", "lines": [
             "Zerou o capítulo 2? A porta da oficina do Borba Jr abre: bancada, exoesqueleto no cavalete e o estande de tiro.",
