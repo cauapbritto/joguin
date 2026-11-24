@@ -93,6 +93,7 @@ fun TelaCamera() {
     var recado by remember { mutableStateOf<String?>(null) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var lanterna by remember { mutableStateOf(false) }
+    var semLeitor by remember { mutableStateOf(false) }
 
     LaunchedEffect(lido) {
         val e = lido ?: return@LaunchedEffect
@@ -127,6 +128,7 @@ fun TelaCamera() {
                     }
                 },
                 aoAbrir = { camera = it },
+                aoSemLeitor = { semLeitor = true },
             )
             Mira(lido != null)
         } else {
@@ -208,6 +210,7 @@ fun TelaCamera() {
                 }
             } else {
                 val msg = recado ?: app.canal.erro
+                    ?: if (semLeitor) "O LEITOR DE QR NÃO ABRIU NESTE CELULAR: DIGITE O ENDEREÇO" else null
                 Texto(
                     msg ?: "O QR APARECE NA TV DEPOIS QUE O MODO É ESCOLHIDO",
                     cor = if (msg != null) Color(0xFFFF8A80) else Cores.Bone, alinhar = TextAlign.Center,
@@ -262,7 +265,7 @@ private fun Mira(leu: Boolean) {
 
 /** A imagem da câmera (CameraX) com o leitor de QR (ML Kit, sem internet) em cada quadro. */
 @Composable
-private fun CameraComQr(dono: LifecycleOwner, aoLer: (String) -> Unit, aoAbrir: (Camera?) -> Unit) {
+private fun CameraComQr(dono: LifecycleOwner, aoLer: (String) -> Unit, aoAbrir: (Camera?) -> Unit, aoSemLeitor: () -> Unit) {
     val ctx = LocalContext.current
     val lerAgora = rememberUpdatedState(aoLer)
     val abrirAgora = rememberUpdatedState(aoAbrir)
@@ -277,6 +280,7 @@ private fun CameraComQr(dono: LifecycleOwner, aoLer: (String) -> Unit, aoAbrir: 
         val principal = ContextCompat.getMainExecutor(ctx)
         val fila: ExecutorService = Executors.newSingleThreadExecutor()
         val leitor = LeitorQr(principal) { texto -> lerAgora.value(texto) }
+        if (leitor.leitor == null) aoSemLeitor()
         val futuro = ProcessCameraProvider.getInstance(ctx)
         var provedor: ProcessCameraProvider? = null
         var ativo = true
@@ -316,33 +320,42 @@ private fun CameraComQr(dono: LifecycleOwner, aoLer: (String) -> Unit, aoAbrir: 
 
 /** Procura QR em cada quadro da câmera e avisa o texto lido (na thread principal). */
 private class LeitorQr(private val principal: Executor, private val aoLer: (String) -> Unit) : ImageAnalysis.Analyzer {
-    private val leitor: BarcodeScanner = BarcodeScanning.getClient(
-        BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
-    )
+    /** null = o leitor não abriu neste celular (a tela avisa para digitar o endereço). */
+    val leitor: BarcodeScanner? = try {
+        BarcodeScanning.getClient(BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build())
+    } catch (e: Throwable) {
+        null
+    }
 
     @Volatile
     private var fechado = false
 
     @androidx.annotation.OptIn(markerClass = [ExperimentalGetImage::class])
     override fun analyze(proxy: ImageProxy) {
+        val l = leitor
         val quadro = proxy.image
-        if (quadro == null || fechado) {
+        if (l == null || quadro == null || fechado) {
             proxy.close()
             return
         }
-        val img = InputImage.fromMediaImage(quadro, proxy.imageInfo.rotationDegrees)
-        leitor.process(img)
-            .addOnSuccessListener { codigos ->
-                val texto = codigos.firstNotNullOfOrNull { it.rawValue }
-                if (texto != null && !fechado) principal.execute { aoLer(texto) }
-            }
-            .addOnCompleteListener { proxy.close() }
+        // um quadro estranho (ou o leitor fechando no meio) nunca derruba o app: pula o quadro
+        try {
+            val img = InputImage.fromMediaImage(quadro, proxy.imageInfo.rotationDegrees)
+            l.process(img)
+                .addOnSuccessListener { codigos ->
+                    val texto = codigos?.firstNotNullOfOrNull { it?.rawValue }
+                    if (texto != null && !fechado) principal.execute { aoLer(texto) }
+                }
+                .addOnCompleteListener { proxy.close() }
+        } catch (e: Throwable) {
+            proxy.close()
+        }
     }
 
     fun fechar() {
         fechado = true
         try {
-            leitor.close()
+            leitor?.close()
         } catch (e: Exception) {
         }
     }
