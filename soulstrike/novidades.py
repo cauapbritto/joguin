@@ -15,6 +15,7 @@ NEWS = {
     "1.63.1": [
         {"title": "APP MAIS FIRME", "scene": "controle", "tv": "celular_novo", "lines": [
             "Se o app Android fechar sozinho, na próxima vez ele mostra o erro com um botão COPIAR, para mandar e consertar.",
+            "Conserto da câmera do app: ler o QR da TV fechava o app em alguns celulares.",
             "O PROCURAR NA REDE do app não derruba mais o app quando a rede responde estranho.",
         ]},
     ],
