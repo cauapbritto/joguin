@@ -20,7 +20,9 @@ from .campaign import CampaignMatch, CoopMatch, _center, _spread
 from .data import BAG_SIZE, PHASE_RELICS, RARE_WEAPONS
 from .dungeon import Campfire, Chest
 from .hazards import make_hazard
-from .mapa_fase import PhaseArena, PhaseLayout, RoomDoor, draw_minimap, minimap_rect
+from .mapa_celular import PhoneMap
+from .mapa_fase import (HEAD, MINI_DARK, MINI_HERE, MINI_PATH, MINI_SEEN, T, PhaseArena, PhaseLayout, RoomDoor,
+                        draw_minimap, extent, minimap_rect, phase_in_chapter)
 from .market import MarketMenu, Stall
 from .progress import chapter_cleared
 
@@ -384,3 +386,56 @@ class PhaseMatch(CampaignMatch):
 
     def hud_regions(self):
         return super().hud_regions() + [self.minimap_rect().inflate(4, 4)]
+
+    # ── MAPA do app (mapa_celular) ───────────
+    ROOM_NAMES = {"abertura": "ABERTURA", "luta1": "MASMORRA 1", "luta2": "MASMORRA 2", "final": "MASMORRA 3",
+                  "recompensa": "RECOMPENSAS"}
+
+    def phone_map(self):
+        """O mapinha do canto em tamanho de celular: as salas (as que faltam com "?"), o nome das já
+        visitadas, as bancas, o baú, a fogueira, o portal e um ponto por jogador."""
+        layout, phase = self.layout, self.phase
+        c0, r0, c1, r1 = extent(layout)
+        m = PhoneMap(phase.name, f"CAPÍTULO {phase.chapter} · FASE {phase_in_chapter(phase) + 1} DE 3",
+                     c1 - c0, r1 - r0)
+        for c, r, w, h in layout.corridors:
+            m.box(c - c0, r - r0, w, h, fill=MINI_PATH)
+        sealed = any(d.state == "sealed" for d in self.doors)
+        for key, room in layout.rooms.items():
+            c, r, w, h = room.cells
+            name = self.ROOM_NAMES.get(key, "")
+            if room.final and room.dungeon.boss_spot:
+                name = "CHEFE"
+            if key == self.here:
+                m.box(c - c0, r - r0, w, h, fill=MINI_HERE, line=(255, 240, 180), label=name,
+                      done=key in self.cleared)
+            elif key in self.visited:
+                m.box(c - c0, r - r0, w, h, fill=MINI_SEEN, label=name, done=key in self.cleared)
+            else:
+                line = (200, 150, 250) if room.final and sealed else MINI_SEEN     # a final trancada: roxa
+                m.box(c - c0, r - r0, w, h, fill=MINI_DARK, line=line, mark="?")
+
+        def at(x, y):
+            return x / T - c0, y / T - HEAD - r0
+
+        def seen(x, y):
+            room = layout.room_at(x, y)
+            return room is None or room.key in self.visited
+
+        stall_colors = {"loja": (230, 200, 120), "ferreiro": (226, 128, 70), "altar": (200, 150, 250)}
+        things = [(s.x, s.y, stall_colors.get(s.kind, (200, 200, 200)), s.title) for s in self.stalls]
+        things.append((self.campfire.x, self.campfire.y, (255, 140, 60), "FOGUEIRA"))
+        things.append((self.armario.x, self.armario.y, (150, 176, 210), "ARMÁRIO"))
+        if self.chest is not None and self.chest.state == "closed":
+            things.append((self.chest.x, self.chest.y, (240, 200, 90), "COFRE" if self.style == "lag" else "BAÚ"))
+        for x, y, color, label in things:
+            if seen(x, y):
+                m.mark(*at(x, y), color, label)
+        if self.state in ("portal", "teleport"):
+            exit_ = getattr(self, "exit", None)
+            final = layout.rooms["final"].rect
+            x, y = (exit_.x, exit_.y) if exit_ is not None else final.center
+            m.mark(*at(x, y), (200, 170, 255), "PORTAL", kind="portal")
+        for p in self.players:
+            m.player(p, *at(p.x, p.y))
+        return m.done()

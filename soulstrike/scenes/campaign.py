@@ -4,7 +4,7 @@ import random
 
 import pygame
 
-from .. import config, progress, theme
+from .. import config, progress, resumo, theme
 from ..ai import DIFFICULTIES
 from ..arena import MAPS_BY_KEY
 from ..enemies import SHADOW_RIM
@@ -494,6 +494,7 @@ class GameOverScene(_RunMenuScene):
     def enter(self):
         super().enter()
         hub.set_phase("results", mode="campaign", active=self.active_slots(), banner="FIM DE JOGO")
+        hub.set_summary(resumo.of_run(self.run, "FIM DE JOGO", theme.BLOOD, won=False))
 
     def _choose(self, choice):
         self.sfx("confirm")
@@ -731,6 +732,7 @@ class ChapterEndScene(_RunMenuScene):
         super().enter()
         hub.set_phase("results", mode="campaign", active=self.active_slots(),
                       banner=f"CAPÍTULO {self.done} CONCLUÍDO")
+        hub.set_summary(resumo.of_run(self.run, f"CAPÍTULO {self.done} CONCLUÍDO", theme.MOSS, won=True))
         self.sfx("victory", 0.5)
 
     def _choose(self, choice):
@@ -795,6 +797,7 @@ class CampaignEndScene(_RunMenuScene):
     def enter(self):
         super().enter()
         hub.set_phase("results", mode="campaign", active=self.active_slots(), banner=self.banner)
+        hub.set_summary(resumo.of_run(self.run, self.banner, theme.BRASS, won=True))
         self.sfx("victory", 0.5)
 
     def _choose(self, choice):

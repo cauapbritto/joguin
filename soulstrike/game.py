@@ -2,7 +2,7 @@
 import pygame
 
 from . import config, settings, theme
-from . import crt, rumble
+from . import crt, reacoes, rumble
 from .assets import Assets
 from .controls import PlayerInput
 from .gamepads import Gamepads
@@ -84,6 +84,7 @@ class Game:
             if consume is not None:
                 consume()
         crt.reset()
+        hub.set_map(None)                  # o mapa do celular é da partida que saiu (a nova publica o dela)
         scene.enter()
 
     def toggle_fullscreen(self):
@@ -135,6 +136,8 @@ class Game:
             self.gamepads.handle(event)
         held, pressed = hub.poll()
         axes = hub.axes()
+        for _slot, kind in hub.reactions():          # reação do app: o somzinho toca em qualquer tela
+            reacoes.play(self.assets, kind)
         # controles USB entram como se fossem celulares (o celular conectado manda no analógico)
         pad_held, pad_pressed, pad_axes = self.gamepads.poll({s: inp.layout for s, inp in self.inputs.items()})
         held, pressed = held | pad_held, pressed | pad_pressed

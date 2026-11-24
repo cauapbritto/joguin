@@ -3,7 +3,7 @@ import math
 
 import pygame
 
-from .. import config, crt, settings, theme
+from .. import config, crt, resumo, settings, theme
 from ..stats import record as record_stats
 from ..arena import MAPS_BY_KEY
 from ..host import IdleInput, anyone_pauses, change_rule, fighter_of, host_slot, make_cpu, make_human, rules
@@ -106,6 +106,9 @@ class VersusScene(Scene):
         else:
             place = "ESTÁDIO" if soccer else MAPS_BY_KEY[self.session.map_key].name.upper()
         self.ui.text(screen, place, theme.XS, theme.MUTED, (W // 2, H - 24))
+
+
+MAP_EVERY = 10             # quadros entre uma publicação e outra do mapa do celular (6 por segundo)
 
 
 class PlayScene(Scene):
@@ -299,6 +302,16 @@ class PlayScene(Scene):
                 hub.set_phase("playing", active=self.active_slots())
             self.sfx("cancel", 0.4)
 
+    def _publish_map(self):
+        """O MAPA do app: a fase ou a Casa com onde cada um está (partidas sem mapa não publicam)."""
+        build = getattr(self.match, "phone_map", None)
+        if callable(build):
+            try:
+                hub.set_map(build())
+            except Exception as exc:          # o mapa do celular nunca derruba a partida
+                print(f"[mapa do celular] {exc}")
+                hub.set_map(None)
+
     def _personal_rect(self, slot):
         W = config.SCREEN_W
         x = 16 if slot in (1, 3) else W - 16 - 250
@@ -307,6 +320,8 @@ class PlayScene(Scene):
 
     def update(self):
         super().update()
+        if self.ticks % MAP_EVERY == 1:
+            self._publish_map()
         if self.ticks == 1 and self.game.session.soccer:
             self.sfx("apito", 0.35)                       # apito do começo do jogo
         humans = [s for s in self.active_slots()]
@@ -374,8 +389,9 @@ class PlayScene(Scene):
         if self.match.finished:
             for s in list(self.personal):
                 self._close_personal(s)
-            record_stats(self.game.session, self.match)
-            self.game.change(self.match.next_scene() or ResultsScene(self.game, self.match.result))
+            beaten = record_stats(self.game.session, self.match)
+            self.game.change(self.match.next_scene()
+                             or ResultsScene(self.game, self.match.result, match=self.match, records=beaten))
 
     # ── desenho ──────────────────────────────
     def draw(self, screen):
@@ -512,9 +528,12 @@ class ResultsScene(_MenuScene):
     phase = "results"
     GRACE = 30                  # quadros antes de o celular/controle poder escolher
 
-    def __init__(self, game, result):
+    def __init__(self, game, result, match=None, records=()):
         super().__init__(game)
         self.result = result
+        # resumo para o app (resumo.py): com a partida, os números de cada um e o destaque
+        self.summary = (resumo.of_match(match, result, game.session, records or ()) if match is not None
+                        else resumo.of_result(result))
         session = game.session
         if session is not None and not session.campaign and not session.mode.startswith("treino"):
             game.last_session = session             # o título oferece a REVANCHE desta partida
@@ -524,6 +543,7 @@ class ResultsScene(_MenuScene):
     def enter(self):
         super().enter()
         hub.set_phase("results", active=self.active_slots(), banner=self.result.title)
+        hub.set_summary(self.summary)
 
     def handle(self, event):
         choice = self.menu.handle(event, self.sfx)
