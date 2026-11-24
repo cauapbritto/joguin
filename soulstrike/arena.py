@@ -497,9 +497,17 @@ def _sotao():
                      theme="sotao", void=void, markers=markers)
 
 
+def _oficina():
+    """A oficina do Borba Jr na Casa (lobbies.OFICINA): a bancada e o estande de tiro."""
+    size, walls, void, markers = lobbies.parse(lobbies.OFICINA[1])
+    return MapConfig("oficina_casa", lobbies.OFICINA[0], size, walls=walls, spawns=markers["S"], battle=False,
+                     theme="oficina", void=void, markers=markers)
+
+
 MAPS.append(_casa())
 MAPS.append(_garagem())
 MAPS.append(_sotao())
+MAPS.append(_oficina())
 MAPS_BY_KEY = {m.key: m for m in MAPS}
 BATTLE_MAPS = [m for m in MAPS if m.battle]
 

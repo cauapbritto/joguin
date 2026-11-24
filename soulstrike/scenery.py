@@ -444,6 +444,34 @@ def _sotao(s, rng):
     _vignette(s, (30, 18, 10), 40)
 
 
+def _oficina(s, rng):
+    """Oficina do Borba Jr: cimento queimado em placas, com rachadura, manchas de óleo e graxa."""
+    w, h = s.get_size()
+    base, seam = (92, 94, 100), (80, 82, 88)
+    s.fill(base)
+    for gy in range(0, h, 32):                                       # cada placa num tom
+        for gx in range(0, w, 32):
+            s.fill(_shade(base, rng.randint(-5, 5)), (gx + 1, gy + 1, 31, 31))
+    for gy in range(0, h, 32):
+        s.fill(seam, (0, gy, w, 1))
+    for gx in range(0, w, 32):
+        s.fill(seam, (gx, 0, 1, h))
+    for _ in range(w * h // 5):
+        s.set_at((rng.randrange(w), rng.randrange(h)), _shade(base, rng.choice((-8, -4, 6, 10))))
+    for _ in range(10):                                               # óleo
+        x, y, ow = rng.randrange(w), rng.randrange(h), rng.randint(12, 30)
+        pygame.draw.ellipse(s, (72, 74, 80), (x, y, ow, ow // 3))
+        pygame.draw.ellipse(s, (64, 66, 72), (x + 4, y + 2, ow // 2, max(2, ow // 7)))
+    for _ in range(3):                                                # rachaduras
+        x, y = rng.randrange(w), rng.randrange(h)
+        pts = [(x, y)]
+        for _ in range(4):
+            x, y = x + rng.randint(-8, 8), y + rng.randint(4, 10)
+            pts.append((x, y))
+        pygame.draw.lines(s, (76, 78, 84), False, pts, 1)
+    _vignette(s, (30, 30, 36), 30)
+
+
 def _garagem(s, rng):
     """Garagem da Casa, lá embaixo: piso de epóxi cinza-azulado em placas, com brilho das luminárias,
     marcas de pneu, manchas de óleo e o ralo."""
@@ -1011,7 +1039,7 @@ _PAINTERS = {"floresta": _floresta, "calabouco": _calabouco, "templo_gelado": _t
              "mansao": _mansao, "mansao_arquivo": _mansao_arquivo, "mansao_patio": _mansao_patio,
              "mansao_cpd": _mansao_cpd, "mansao_reuniao": _mansao_reuniao, "mansao_nucleo": _mansao_nucleo,
              "mansao_jardim": _mansao_jardim, "casa": _casa, "garagem": _garagem,
-             "sotao": _sotao}
+             "sotao": _sotao, "oficina": _oficina}
 THEMED_MAPS = tuple(_PAINTERS)
 
 
@@ -1619,6 +1647,23 @@ class GarageWall(_Style):
             s.set_at((rng.randrange(w), rng.randrange(h)), _shade(block, rng.choice((-14, 10))))
 
 
+class BrickWall(_Style):
+    """Oficina: tijolo aparente com rejunte escuro e o rodapé de cimento."""
+
+    def paint(self, s, w, h, rng):
+        s.fill((14, 8, 6, 180), (0, 6, w, h))
+        brick, joint = (150, 80, 60), (112, 58, 44)
+        s.fill(brick, (0, 0, w, h))
+        for row, y in enumerate(range(0, h, 8)):
+            s.fill(joint, (0, y, w, 1))
+            for x in range(-10 if row % 2 else 0, w, 20):
+                s.fill(joint, (max(0, x), y, 1, 8))
+                if rng.random() < 0.1:
+                    s.fill((170, 96, 72), (max(0, x + 2), y + 2, 14, 4))
+        if w >= h:
+            s.fill((70, 70, 78), (0, h - 5, w, 5))
+
+
 class AtticWall(_Style):
     """Sótão: tábua corrida escura na vertical, com a viga grossa em cima."""
 
@@ -1642,7 +1687,7 @@ _STYLES = {"floresta": Hedge, "calabouco": DungeonStone, "templo_gelado": IceBlo
            "clinica_calcada": ClinicWall,
            "mansao": MansionWall, "mansao_arquivo": ShelfWall, "mansao_patio": PatioWall, "mansao_cpd": CellarRack,
            "mansao_reuniao": BoardroomWall, "mansao_nucleo": CoreWall, "mansao_jardim": GardenWall,
-           "casa": CasaWall, "garagem": GarageWall, "sotao": AtticWall}
+           "casa": CasaWall, "garagem": GarageWall, "sotao": AtticWall, "oficina": BrickWall}
 
 
 def wall_style(key):

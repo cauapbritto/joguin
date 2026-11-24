@@ -12,6 +12,13 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.62.0": [
+        {"title": "ESTANDE DE TIRO", "scene": "casa", "tv": "porta", "lines": [
+            "Zerou o capítulo 2? A porta da oficina do Borba Jr abre: bancada, exoesqueleto no cavalete e o estande de tiro.",
+            "ATACAR numa baia começa o DESAFIO DE 30 S para quem estiver nas baias. Acertou rápido? NA MOSCA! Alvo deitado tira ponto.",
+            "No suporte da parede, troque a arma do estande (as dos capítulos que faltam ficam no cadeado). O melhor vira RECORDE DA TURMA.",
+        ]},
+    ],
     "1.61.0": [
         {"title": "O SÓTÃO ABRIU", "scene": "casa", "tv": "porta", "lines": [
             "Zerou o capítulo 1? ATACAR na porta do sótão leva a turma toda lá para cima, pela escada.",
