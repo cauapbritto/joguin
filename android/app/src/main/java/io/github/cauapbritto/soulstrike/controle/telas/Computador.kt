@@ -1,5 +1,6 @@
 package io.github.cauapbritto.soulstrike.controle.telas
 
+import androidx.activity.compose.BackHandler
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -97,6 +98,8 @@ fun TelaComputador(st: Status, me: Me, loja: Loja) {
     val tecladoAberto = tecladoAberto()
 
     fun pedir(item: String) = canal.pedirLoja(item, false)
+
+    BackHandler { pedir("voltar") }                 // voltar do Android = VOLTAR (na tela inicial, desliga)
 
     // a cópia da tela: na hora quando a versão muda e de 1,5 em 1,5 s enquanto o computador está aberto
     LaunchedEffect(loja.versao) {

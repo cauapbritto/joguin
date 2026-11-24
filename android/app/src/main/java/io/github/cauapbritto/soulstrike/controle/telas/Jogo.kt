@@ -137,77 +137,82 @@ private fun TelaEspera(st: Status, me: Me) {
     val fase = st.fase
     val pagina = if (fase == "news") st.paginaNovidade else null
     val lista = if (fase == "news") st.novidades else emptyList()
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.u, vertical = 16.u),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.u, Alignment.CenterVertically),
-    ) {
-        Tag(me.vaga, me.personagem, grande = true)
-        Texto(titulo, tam = 16, cor = Cores.Brass, sombra = true, alinhar = TextAlign.Center)
-        if (texto.isNotEmpty()) Texto(texto, Modifier.widthIn(max = 440.u), cor = Cores.Muted, alinhar = TextAlign.Center)
-        if (pagina != null) {
-            // a tela de novidades da TV (PLANTÃO): o número da notícia e o título
-            Column(
-                Modifier
-                    .widthIn(min = 240.u, max = 480.u)
-                    .moldura(m, fundo = Cores.Ink2)
-                    .drawBehind { drawRect(Color(0xFFD63434), size = Size(size.width, m.px(4))) }
-                    .padding(start = 16.u, end = 16.u, top = 14.u, bottom = 10.u),
-                verticalArrangement = Arrangement.spacedBy(6.u),
-            ) {
-                Texto(
-                    if (pagina.indice > 0) "NOTÍCIA ${pagina.indice} DE ${pagina.total}" else "AS MANCHETES DE HOJE",
-                    cor = Cores.Muted,
-                )
-                Texto(
-                    if (pagina.indice > 0) pagina.titulo.uppercase() else "${pagina.total} NOVIDADES: APERTE > PARA COMEÇAR",
-                    tam = 16, cor = Cores.Brass,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.u)) {
-                Botao("<", Modifier.width(64.u), tam = 16, naHora = true) { canal.novidade("prev") }
-                Botao("PULAR", naHora = true) { canal.novidade("skip") }
-                Botao(">", Modifier.width(64.u), tipo = TipoBotao.PRINCIPAL, vaga = me.vaga, tam = 16, naHora = true) {
-                    canal.novidade("next")
+    // rola quando não cabe, e fica no meio quando cabe (a altura mínima é a da tela)
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val alturaDaTela = maxHeight
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = alturaDaTela)
+                .padding(horizontal = 24.u, vertical = 16.u),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.u, Alignment.CenterVertically),
+        ) {
+            Tag(me.vaga, me.personagem, grande = true)
+            Texto(titulo, tam = 16, cor = Cores.Brass, sombra = true, alinhar = TextAlign.Center)
+            if (texto.isNotEmpty()) Texto(texto, Modifier.widthIn(max = 440.u), cor = Cores.Muted, alinhar = TextAlign.Center)
+            if (pagina != null) {
+                // a tela de novidades da TV (PLANTÃO): o número da notícia e o título
+                Column(
+                    Modifier
+                        .widthIn(min = 240.u, max = 480.u)
+                        .moldura(m, fundo = Cores.Ink2)
+                        .drawBehind { drawRect(Color(0xFFD63434), size = Size(size.width, m.px(4))) }
+                        .padding(start = 16.u, end = 16.u, top = 14.u, bottom = 10.u),
+                    verticalArrangement = Arrangement.spacedBy(6.u),
+                ) {
+                    Texto(
+                        if (pagina.indice > 0) "NOTÍCIA ${pagina.indice} DE ${pagina.total}" else "AS MANCHETES DE HOJE",
+                        cor = Cores.Muted,
+                    )
+                    Texto(
+                        if (pagina.indice > 0) pagina.titulo.uppercase() else "${pagina.total} NOVIDADES: APERTE > PARA COMEÇAR",
+                        tam = 16, cor = Cores.Brass,
+                    )
                 }
-            }
-        }
-        if (lista.isNotEmpty()) {
-            Column(Modifier.widthIn(max = 560.u), verticalArrangement = Arrangement.spacedBy(8.u)) {
-                for (linha in lista) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.u)) {
-                        Spacer(
-                            Modifier
-                                .padding(top = 3.u)
-                                .size(6.u)
-                                .drawBehind { drawRect(Cores.Moss) }
-                        )
-                        Texto(linha, cor = Cores.Bone)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.u)) {
+                    Botao("<", Modifier.width(64.u), tam = 16, naHora = true) { canal.novidade("prev") }
+                    Botao("PULAR", naHora = true) { canal.novidade("skip") }
+                    Botao(">", Modifier.width(64.u), tipo = TipoBotao.PRINCIPAL, vaga = me.vaga, tam = 16, naHora = true) {
+                        canal.novidade("next")
                     }
                 }
             }
-        }
-        if (fase == "results" && me.jogando) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.u)) {
-                Botao("▲", Modifier.width(64.u), tam = 16, naHora = true) { canal.entrada.tocar("up") }
-                Botao("▼", Modifier.width(64.u), tam = 16, naHora = true) { canal.entrada.tocar("down") }
-                Botao("OK", Modifier.width(96.u), tipo = TipoBotao.PRINCIPAL, vaga = me.vaga, tam = 16, naHora = true) {
-                    canal.entrada.tocar("confirm")
+            if (lista.isNotEmpty()) {
+                Column(Modifier.widthIn(max = 560.u), verticalArrangement = Arrangement.spacedBy(8.u)) {
+                    for (linha in lista) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.u)) {
+                            Spacer(
+                                Modifier
+                                    .padding(top = 3.u)
+                                    .size(6.u)
+                                    .drawBehind { drawRect(Cores.Moss) }
+                            )
+                            Texto(linha, cor = Cores.Bone)
+                        }
+                    }
                 }
             }
-        }
-        if (fase == "story" && me.jogando) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.u)) {
-                Botao("AVANÇAR ▶", Modifier.widthIn(min = 160.u), tipo = TipoBotao.PRINCIPAL, vaga = me.vaga, tam = 16, naHora = true) {
-                    canal.entrada.tocar("confirm")
+            if (fase == "results" && me.jogando) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.u)) {
+                    Botao("▲", Modifier.width(64.u), tam = 16, naHora = true) { canal.entrada.tocar("up") }
+                    Botao("▼", Modifier.width(64.u), tam = 16, naHora = true) { canal.entrada.tocar("down") }
+                    Botao("OK", Modifier.width(96.u), tipo = TipoBotao.PRINCIPAL, vaga = me.vaga, tam = 16, naHora = true) {
+                        canal.entrada.tocar("confirm")
+                    }
                 }
-                Botao("PULAR", Modifier.widthIn(min = 120.u), naHora = true) { canal.entrada.tocar("pause") }
             }
+            if (fase == "story" && me.jogando) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.u)) {
+                    Botao("AVANÇAR ▶", Modifier.widthIn(min = 160.u), tipo = TipoBotao.PRINCIPAL, vaga = me.vaga, tam = 16, naHora = true) {
+                        canal.entrada.tocar("confirm")
+                    }
+                    Botao("PULAR", Modifier.widthIn(min = 120.u), naHora = true) { canal.entrada.tocar("pause") }
+                }
+            }
+            Botao("TROCAR DE JOGADOR", icone = R.drawable.i_trocar, altura = 32) { canal.trocarVaga() }
         }
-        Botao("TROCAR DE JOGADOR", icone = R.drawable.i_trocar, altura = 32) { canal.trocarVaga() }
     }
 }
 

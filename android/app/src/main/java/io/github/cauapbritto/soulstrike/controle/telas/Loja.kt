@@ -1,5 +1,6 @@
 package io.github.cauapbritto.soulstrike.controle.telas
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -277,6 +278,11 @@ fun TelaLoja(st: Status, me: Me, loja: Loja) {
     }
 
     fun pedir(item: String, comprar: Boolean) = canal.pedirLoja(item, comprar)
+
+    // voltar do Android: sai da doação ou fecha a banca (como o FECHAR)
+    BackHandler {
+        if (estado.doando) estado.doando = false else pedir("fechar", false)
+    }
 
     fun enviarCupom() {
         val codigo = cupom.text.toString().trim().uppercase()
