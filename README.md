@@ -29,7 +29,7 @@ Python que já vem no Mint (3.10 a 3.13), instala o `python3-venv` pelo `apt` se
 `instalar.log`. Para tirar os atalhos: `bash INSTALAR.sh --remover`.
 
 Se o firewall estiver ligado (`sudo ufw status`), libere o controle pelo celular com
-`sudo ufw allow 5000/tcp`.
+`sudo ufw allow 5000` (abre TCP e UDP: o app Android usa os dois).
 
 ### Manual
 
@@ -556,6 +556,15 @@ recarga. O ponto colorido no topo mostra a qualidade da conexão. Se a
 rede engasgar, o jogo continua com o último comando; sem notícias do celular por 1 s, o
 jogador para por segurança.
 
+#### App Android (Soul Strike Controle)
+
+No Android dá para usar o app de controle no lugar do site: mais rápido (canal UDP direto com o
+jogo), com vibração em 4 níveis, botão de PAUSA, botões ajustáveis por modo e a câmera para ler
+o QR Code da TV. Baixe o `SoulStrikeControle.apk` na
+[última Release](https://github.com/cauapbritto/joguin/releases/latest/download/SoulStrikeControle.apk)
+e instale no celular. O código, como compilar no Android Studio e como ele fala com o jogo
+estão em [`android/README.md`](android/README.md).
+
 ## Estrutura
 
 ```
@@ -594,6 +603,7 @@ soulstrike/
   camera.py, hud.py, ui.py, assets.py, theme.py, data.py, config.py
   net/                  servidor Flask e estado compartilhado com o celular
 web/                    página do controle no celular
+android/                app Android de controle (Kotlin + Compose; ver android/README.md)
 assets/                 sprites, tiles, sons e fonte
 tools/gerar_sprites.py  gera os sprites pixel art dos personagens e das criaturas
 tools/gerar_armas.py    gera os sprites das armas

@@ -12,6 +12,21 @@ from . import __version__, settings
 from .updater import parse_version
 
 NEWS = {
+    "1.59.0": [
+        {"title": "CONTROLE NO APP ANDROID", "scene": "controle", "tv": "celular_novo", "lines": [
+            "App novo: Soul Strike Controle. No Android, o celular vira controle de verdade, mais rápido que o site.",
+            "Abre a câmera e lê o QR Code da TV, acha o jogo sozinho na rede ou deixa digitar o endereço.",
+            "O APK vem junto de cada Release no GitHub (SoulStrikeControle.apk). O site continua valendo.",
+        ]},
+        {"title": "VIBRA DE VERDADE", "scene": "hud", "tv": "vibra", "lines": [
+            "Vibração em 4 níveis (desligada, fraca, média e forte), diferente para dano, gol ou cesta, SUPER, compra e porta.",
+            "Botão de PAUSA no app, botões arrumados para cada modo e aviso (com vibração) se o Wi-Fi cair.",
+            "Lojas, ferreiro, doação, cupons e o computador da Casa também funcionam no app.",
+        ]},
+        {"title": "LUTA DE FOLGA", "scene": "modos", "lines": [
+            "O modo LUTA saiu do menu por enquanto: ele volta quando chegarem mais lutadores.",
+        ]},
+    ],
     "1.58.1": [
         {"title": "LUTA DE SENTIR NA MÃO", "scene": "luta", "lines": [
             "O controle (Xbox, PS, Nintendo) agora vibra na LUTA, e não só o celular; a opção de vibração vale aqui também.",

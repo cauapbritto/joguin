@@ -249,6 +249,15 @@ def computer_screen():
     return Response(data, mimetype="image/png", headers={"Cache-Control": "no-store"})
 
 
+@app.get("/api/app")
+def app_info():
+    """O app Android pergunta antes de conectar: é um Soul Strike? que versão? tem canal rápido (UDP)?"""
+    from .. import __version__
+    from . import rapido
+    return jsonify({"jogo": "soulstrike", "versao": __version__, "protocolo": rapido.PROTOCOL,
+                    "udp": rapido.running(), "porta": config.WEB_PORT, "nome": rapido.pc_name()})
+
+
 @app.get("/api/status")
 def status():
     return jsonify(status_payload(_slot_arg(request.args), request.args.get("token")))
@@ -446,7 +455,8 @@ def firewall_hint():
         return None
     if _ufw_cache is None:
         _ufw_cache = ufw_enabled()
-    return f"sudo ufw allow {config.WEB_PORT}/tcp" if _ufw_cache else None
+    # sem /tcp: libera também o UDP do canal rápido do app Android
+    return f"sudo ufw allow {config.WEB_PORT}" if _ufw_cache else None
 
 
 def start_in_background():
@@ -458,6 +468,8 @@ def start_in_background():
             start_error = f"PORTA {config.WEB_PORT} JÁ ESTÁ EM USO"
             print(f"[controle remoto] servidor não iniciou: {exc}")
             return
+        from . import rapido
+        rapido.start()                    # canal rápido do app Android (UDP na mesma porta)
         srv.serve_forever(poll_interval=0.5)
 
     thread = threading.Thread(target=run, name="controle-remoto", daemon=True)

@@ -15,6 +15,13 @@ from soulstrike import __version__  # noqa: E402
 from soulstrike.novidades import NEWS, pages_of, summary  # noqa: E402
 
 
+# o que vai anexado em cada Release (o .deb pela Action do Linux, o APK pela do Android)
+DOWNLOADS = [
+    "`SoulStrikeControle.apk`: app de controle para celular Android (abra no celular para instalar).",
+    "`.deb`: instalador para Linux Mint, Ubuntu e Debian.",
+]
+
+
 def notes(version):
     version = version.strip().lstrip("vV")
     entry = NEWS.get(version)
@@ -24,6 +31,7 @@ def notes(version):
     for _, title, _, lines in pages_of(version, entry):
         out += ["", f"### {title}"]
         out.extend(f"- {line}" for line in lines)
+    out += ["", "### Arquivos"] + [f"- {line}" for line in DOWNLOADS]
     return "\n".join(out)
 
 
