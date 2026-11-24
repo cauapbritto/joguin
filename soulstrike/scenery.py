@@ -444,6 +444,26 @@ def _sotao(s, rng):
     _vignette(s, (30, 18, 10), 40)
 
 
+def _porao(s, rng):
+    """Porão da Casa: lajes de pedra escura e irregular, com musgo nas juntas e poeira."""
+    w, h = s.get_size()
+    s.fill((30, 28, 36))
+    for y in range(0, h, 15):
+        x = -rng.randrange(0, 20)
+        while x < w:
+            sw = rng.randint(18, 30)
+            c = 50 + rng.randint(-6, 8)
+            pygame.draw.rect(s, (c, c - 2, c + 6), (x + 1, y + 1, sw - 1, 13), border_radius=2)
+            if rng.random() < 0.15:
+                s.fill((46, 60, 44), (x + 1, y + 13, sw // 2, 1))
+            x += sw
+    for _ in range(w * h // 8):
+        x, y = rng.randrange(w), rng.randrange(h)
+        c = s.get_at((x, y))
+        s.set_at((x, y), _shade(c[:3], rng.choice((-8, 6))))
+    _vignette(s, (10, 8, 14), 40)
+
+
 def _oficina(s, rng):
     """Oficina do Borba Jr: cimento queimado em placas, com rachadura, manchas de óleo e graxa."""
     w, h = s.get_size()
@@ -1039,7 +1059,7 @@ _PAINTERS = {"floresta": _floresta, "calabouco": _calabouco, "templo_gelado": _t
              "mansao": _mansao, "mansao_arquivo": _mansao_arquivo, "mansao_patio": _mansao_patio,
              "mansao_cpd": _mansao_cpd, "mansao_reuniao": _mansao_reuniao, "mansao_nucleo": _mansao_nucleo,
              "mansao_jardim": _mansao_jardim, "casa": _casa, "garagem": _garagem,
-             "sotao": _sotao, "oficina": _oficina}
+             "sotao": _sotao, "oficina": _oficina, "porao": _porao}
 THEMED_MAPS = tuple(_PAINTERS)
 
 
@@ -1687,7 +1707,7 @@ _STYLES = {"floresta": Hedge, "calabouco": DungeonStone, "templo_gelado": IceBlo
            "clinica_calcada": ClinicWall,
            "mansao": MansionWall, "mansao_arquivo": ShelfWall, "mansao_patio": PatioWall, "mansao_cpd": CellarRack,
            "mansao_reuniao": BoardroomWall, "mansao_nucleo": CoreWall, "mansao_jardim": GardenWall,
-           "casa": CasaWall, "garagem": GarageWall, "sotao": AtticWall, "oficina": BrickWall}
+           "casa": CasaWall, "garagem": GarageWall, "sotao": AtticWall, "oficina": BrickWall, "porao": DungeonStone}
 
 
 def wall_style(key):

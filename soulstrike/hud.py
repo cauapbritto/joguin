@@ -456,16 +456,18 @@ def draw_campaign(screen, ui, match):
         ui.text(screen, top, theme.XS, theme.BONE, (W // 2, 18))
         ui.text(screen, match.objective_text, theme.XS, theme.BRASS, (W // 2, 36))
     else:
-        title = f"FASE {run.phase_index + 1} · MASMORRA {match.dungeon_index + 1} · {match.dungeon.name}"
+        title = (getattr(match, "fight_title", None)
+                 or f"FASE {run.phase_index + 1} · MASMORRA {match.dungeon_index + 1} · {match.dungeon.name}")
         ui.text(screen, title, theme.XS, theme.BONE, (W // 2, 18))
-        total = len(match.waves)
+        endless = getattr(match, "endless", False)          # Arena sem Fim: sem total nem bolinhas
+        total = 0 if endless else len(match.waves)
         goal = match.objective_text
         if goal:
             color = theme.BRASS if (match.frame // 20) % 2 else theme.BONE
             ui.text(screen, goal, theme.XS, color, (W // 2, 36))
         elif match.wave >= 0:
             left = len(match.alive_enemies) + len(match.portals)
-            wave = f"ONDA {match.wave + 1}/{total}"
+            wave = f"ONDA {match.wave + 1}" if endless else f"ONDA {match.wave + 1}/{total}"
             info = f"{wave} · {left} INIMIGO{'S' if left != 1 else ''}" if left else wave
             ui.text(screen, info, theme.XS, theme.MUTED, (W // 2, 36))
         for k in range(total):
