@@ -33,6 +33,7 @@ import io.github.cauapbritto.soulstrike.controle.telas.TelaCaiu
 import io.github.cauapbritto.soulstrike.controle.telas.TelaCamera
 import io.github.cauapbritto.soulstrike.controle.telas.TelaConectando
 import io.github.cauapbritto.soulstrike.controle.telas.TelaDigitar
+import io.github.cauapbritto.soulstrike.controle.telas.TelaErro
 import io.github.cauapbritto.soulstrike.controle.telas.TelaJogo
 import io.github.cauapbritto.soulstrike.controle.telas.TelaMenu
 import io.github.cauapbritto.soulstrike.controle.telas.TelaRede
@@ -69,6 +70,15 @@ class AppEstado private constructor(context: Context) {
     var redeLocalNegada by mutableStateOf(false)
     var pedirRedeLocal: (() -> Unit)? = null
     var abrirAjustesDoAndroid: (() -> Unit)? = null
+
+    /** O erro da última vez que o app fechou sozinho (a tela de erro mostra antes do menu). */
+    var ultimoErro by mutableStateOf(Travamento.ler(contexto))
+        private set
+
+    fun esquecerErro() {
+        Travamento.esquecer(contexto)
+        ultimoErro = null
+    }
 
     /** O app está na frente (o sensor de inclinar só liga assim). */
     var naFrente by mutableStateOf(false)
@@ -145,6 +155,11 @@ fun Raiz(app: AppEstado) {
 private fun Telas(app: AppEstado) {
     val canal = app.canal
     var sair by remember { mutableStateOf(false) }
+    val erroGuardado = app.ultimoErro
+    if (erroGuardado != null && canal.estado == Estado.FORA) {
+        TelaErro(erroGuardado, aoContinuar = { app.esquecerErro() })
+        return
+    }
     val estado = canal.estado
     when (estado) {
         Estado.FORA -> {

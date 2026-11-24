@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.cauapbritto.soulstrike.controle.jogo.VagaInfo
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -122,7 +123,14 @@ class Descoberta(context: Context) {
                     if (achados.isNotEmpty()) break
                     // a primeira pergunta ficou sem resposta: tenta pelo TCP já
                     if (r == 0 && isActive) {
-                        for (j in varrer()) achados[j.host + ":" + j.porta] = j
+                        val tcp = try {
+                            varrer()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            emptyList()                // a varredura nunca derruba o app
+                        }
+                        for (j in tcp) achados[j.host + ":" + j.porta] = j
                         if (achados.isNotEmpty()) {
                             val lista = achados.values.toList()
                             main.post { if (minha == rodada) jogos = lista }
